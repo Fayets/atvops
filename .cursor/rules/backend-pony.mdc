@@ -1,0 +1,52 @@
+---
+description: Pony ORM, servicios con db_session y controladores HTTP delgados
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend: Pony, servicios y controladores
+
+Fuente: `docs/convenciones-backend-pony.md`. Persistencia solo con **Pony ORM** (no otro ORM en el dominio).
+
+## Capas
+
+```text
+HTTP → controller (router, Depends) → service.method() → with db_session → Pony
+                                          ↓
+                               dict / schema → response_model
+```
+
+- `src/models.py`: entidades `db.Entity`. `src/db.py`: `db.bind` + `init_db()`. `src/schemas.py`: Pydantic request/response.
+- Persistencia por defecto en servicios. `src/crud.py` solo si hay lógica reutilizable real.
+
+## Servicios (`src/services/<dominio>_services.py`)
+
+- Clase `PascalCase` + sufijo `Services` (ej. `VentasServices`).
+- Lógica de negocio, Pony y `HTTPException` (404/400) viven acá.
+- Métodos que tocan entidades: `with db_session:` (desde `pony.orm`). No abrir sesión en el controlador.
+- Integraciones externas (HTTP, IA) usan el mismo patrón de clase; **sin** `db_session` si no tocan Pony.
+
+```python
+from pony.orm import db_session
+
+class VentasServices:
+    def get_venta_by_id(self, venta_id: int):
+        with db_session:
+            ...
+```
+
+## Controladores (`src/controllers/<dominio>_controller.py`)
+
+- `APIRouter` delgado: HTTP, `Depends`, auth. **No** consultas Pony ni `db_session`.
+- Instanciar el servicio y delegar. Relanzar `HTTPException`; el resto → 500.
+
+```python
+@router.get("/get/{venta_id}", response_model=schemas.VentaResponse)
+def get_venta(venta_id: int, current_user=Depends(get_current_user)):
+    try:
+        return service.get_venta_by_id(venta_id)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al obtener la venta.")
+```

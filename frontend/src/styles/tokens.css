@@ -1,0 +1,61 @@
+/*
+ * ATV Ops — design tokens
+ * Marca: rojo + negro (fuente: vault, 02_advantage/27_estrategia_de_comunicacion).
+ * Tipografía: Poppins, siempre.
+ */
+:root {
+  /* Superficies: negro real de base, capas por elevación */
+  --bg: #0a0a0b;
+  --surface: #101012;
+  --surface-2: #16161a;
+  --surface-3: #1d1d22;
+  --border: #26262c;
+  --border-soft: #1c1c21;
+
+  /* Texto */
+  --text: #f4f4f5;
+  --text-2: #a1a1aa;
+  --text-3: #6e6e78;
+
+  /* Rojo ATV */
+  --brand: #e12b26;
+  --brand-hi: #ff4a44;
+  --brand-dim: rgba(225, 43, 38, 0.14);
+  --brand-line: rgba(225, 43, 38, 0.32);
+
+  /* Semánticos */
+  --ok: #34d399;
+  --ok-dim: rgba(52, 211, 153, 0.13);
+  --warn: #f0b429;
+  --warn-dim: rgba(240, 180, 41, 0.13);
+  --off: #64646e;
+  --off-dim: rgba(120, 120, 132, 0.14);
+
+  /* Series de gráficos */
+  --s1: #e12b26;
+  --s2: #f97066;
+  --s3: #fca5a0;
+  --s4: #52525b;
+  --s5: #34d399;
+
+  /* Métrica */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.28);
+
+  --font: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --sidebar-w: 248px;
+  --topbar-h: 60px;
+  --content-max: 1360px;
+}

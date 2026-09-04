@@ -1,0 +1,945 @@
+/**
+ * FRONTERA DE DATOS.
+ *
+ * Todo lo que el dashboard muestra entra por acá. Hoy las funciones leen los
+ * mocks de `./mock/` y derivan las métricas; cuando una fuente se automatiza,
+ * se reemplaza el cuerpo de UNA función por un `fetch` al backend y el resto
+ * del código no se entera. Ese es el objetivo: migrar fuente por fuente.
+ *
+ *   getFulfillment() → GET /api/clientes (+ score en frontend)
+ *   getClientes()    → GET /api/clientes (boost / advantage / avanzados / principiantes)
+ *   getCobranza()    → GET /api/cobranza (ATV Clients cuotas)
+ *   getVentas()      → mock (Calendly + payments)
+ *   getMarketing()   → mock (Ads Manager)
+ *   getOnboarding()  → mock
+ *   getSistemas()    → mock
+ *   getHome()        → composición de las anteriores
+ *
+ * DATOS REALES: transcripts + cartera Discord + cobranza (ATV Clients).
+ * El resto del tablero sigue en mock.
+ *
+ * @typedef {import('./types.js').Metric} Metric
+ * @typedef {import('./types.js').ResumenArea} ResumenArea
+ */
+
+import { calcularSalud, SEMAFORO } from '../lib/scoring.js';
+import { getToken } from '../lib/auth.js';
+import { GRIETAS, PEDIDOS, PEDIDOS_SEMANA } from './mock/home.js';
+import { CAMPANIAS, FRECUENCIA, GASTO_CANAL, GASTO_DIARIO } from './mock/marketing.js';
+import { DURACION_HISTORICA, PROCESOS } from './mock/onboarding.js';
+import { LLAMADOS, SEMANAS } from './mock/ventas.js';
+import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
+import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio } from '../lib/format.js';
+import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
+import { diaDentroDelMes, diasDelMes, ritmo, semanaIso } from '../lib/pacing.js';
+import {
+  accionMarketing,
+  accionSistemas,
+  accionVentas,
+  accionesCobranza,
+  accionesFulfillment,
+  ordenarAcciones,
+} from '../lib/acciones.js';
+
+/** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
+const LATENCIA_MS = 180;
+
+/** @template T @param {T} data @returns {Promise<T>} */
+function responder(data) {
+  return new Promise((resolve) => setTimeout(() => resolve(data), LATENCIA_MS));
+}
+
+/** El mock trae una serie hasta el día 14; el ritmo usa solo hasta el día de hoy. */
+function recortarAcumulado(acumulado, diaHoy) {
+  if (!acumulado?.length || diaHoy <= 0) return [];
+  return acumulado.slice(0, Math.min(diaHoy, acumulado.length));
+}
+
+const SYNC = {
+  tx: SOURCES.discord_transcripts.lastSyncAt ?? new Date().toISOString(),
+  crm: SOURCES.discord_crm.lastSyncAt ?? '2026-08-29T18:40:00-03:00',
+  ads: SOURCES.ads_manager.lastSyncAt ?? '2026-08-31T07:15:00-03:00',
+  cal: SOURCES.calendly.lastSyncAt ?? '2026-08-31T08:02:00-03:00',
+  man: '2026-08-31T09:30:00-03:00',
+};
+
+/* ---------------------------------------------------------------- clientes */
+
+/** Cartera real: un canal de Discord (boost/advantage/avanzados/principiantes) = un cliente. */
+async function cargarCarteraDiscord() {
+  return pedir('/api/clientes');
+}
+
+function notaPorCategoria(por) {
+  const p = por ?? {};
+  const partes = [
+    p.boost != null ? `${p.boost} Boost` : null,
+    p.advantage != null ? `${p.advantage} Advantage` : null,
+    p.avanzados != null ? `${p.avanzados} Avanzados` : null,
+    p.principiantes != null ? `${p.principiantes} Principiantes` : null,
+    p.mentoria != null ? `${p.mentoria} Mentoría (legacy)` : null,
+  ].filter(Boolean);
+  return partes.length ? `${partes.join(' · ')}. Salen de Discord.` : 'Canales de Discord.';
+}
+
+export async function getClientes() {
+  const cartera = await cargarCarteraDiscord();
+  const activos = cartera.clientes.filter((c) => c.estado === 'activo');
+  const ahoraIso = ahora().toISOString();
+
+  /** @type {Metric[]} */
+  const kpis = [
+    {
+      id: 'clientes_activos',
+      label: 'Clientes activos',
+      value: activos.length,
+      format: 'count',
+      previous: null,
+      sourceId: 'discord_transcripts',
+      updatedAt: ahoraIso,
+      nota: notaPorCategoria(cartera.resumen.por_categoria),
+    },
+    {
+      id: 'mrr',
+      label: 'MRR',
+      value: activos.reduce((s, c) => s + (c.mrrUsd || 0), 0),
+      format: 'usd',
+      previous: null,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      nota: 'Todavía no conectamos payments: el MRR no sale del canal.',
+    },
+    {
+      id: 'canales_con_mensajes',
+      label: 'Mensajes en transcripts',
+      value: cartera.resumen.mensajes,
+      format: 'count',
+      previous: null,
+      sourceId: 'discord_transcripts',
+      updatedAt: ahoraIso,
+      nota: cartera.base_disponible
+        ? 'Suma de los .txt que escribe el bot.'
+        : 'No se encontró el directorio de transcripts.',
+    },
+    {
+      id: 'silencio_7d',
+      label: 'En silencio ≥ 7 días',
+      value: activos.filter((c) => c.engagement.diasSinMensaje >= 7).length,
+      format: 'count',
+      previous: null,
+      sourceId: 'discord_transcripts',
+      updatedAt: ahoraIso,
+      good: 'down',
+    },
+  ];
+
+  return {
+    clientes: cartera.clientes,
+    coaches: cartera.coaches,
+    actividad: cartera.actividad,
+    semanas: cartera.semanas,
+    resumen: cartera.resumen,
+    kpis,
+  };
+}
+
+
+/* ------------------------------------------------------------- fulfillment */
+
+/** Mediana de una lista de números (ignora null/undefined). */
+function mediana(xs) {
+  const vals = xs.filter((x) => x != null && !Number.isNaN(x));
+  if (!vals.length) return 0;
+  const o = [...vals].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+}
+
+function clientesConSalud(clientes) {
+  return clientes.map((c) => ({ ...c, salud: calcularSalud(c) }));
+}
+
+/** Cohortes por mes de entrada, solo con lo que ya sabemos del canal. */
+function cohortesDesdeClientes(clientes) {
+  /** @type {Record<string, { mes: string, entraron: number, activados30: number, dias: number[] }>} */
+  const porMes = {};
+  for (const c of clientes) {
+    const mes = (c.entradaAt ?? '').slice(0, 7);
+    if (!mes) continue;
+    if (!porMes[mes]) porMes[mes] = { mes, entraron: 0, activados30: 0, dias: [] };
+    porMes[mes].entraron += 1;
+    if (c.activacion.activado && (c.activacion.diasHastaResultado ?? 99) <= 30) {
+      porMes[mes].activados30 += 1;
+    }
+    if (c.activacion.activado && c.activacion.diasHastaResultado != null) {
+      porMes[mes].dias.push(c.activacion.diasHastaResultado);
+    }
+  }
+  return Object.values(porMes)
+    .sort((a, b) => a.mes.localeCompare(b.mes))
+    .map((c) => ({
+      mes: c.mes,
+      entraron: c.entraron,
+      activados30: c.activados30,
+      medianaDias: c.dias.length ? mediana(c.dias) : 0,
+    }));
+}
+
+/** Señales derivadas del canal (sin clasificador NLP todavía). */
+function senalesDesdeActivos(activos) {
+  return activos
+    .filter((c) => c.engagement.diasSinMensaje >= 7)
+    .sort((a, b) => b.engagement.diasSinMensaje - a.engagement.diasSinMensaje)
+    .map((c) => ({
+      id: `silencio_${c.id}`,
+      clienteId: c.id,
+      tipo: 'silencio',
+      peso: 'negativa',
+      extracto: `${c.nombre} lleva ${c.engagement.diasSinMensaje} días sin escribir en #${c.canal ?? c.id}.`,
+      fechaAt: c.ultimaActividadAt ?? ahora().toISOString(),
+    }));
+}
+
+function metricasCoaches(clientes, coaches) {
+  return coaches.map((coach) => {
+    const suyos = clientes.filter((c) => c.coachId === coach.id && c.estado === 'activo');
+    const activados = suyos.filter((c) => c.activacion.activado);
+    const enVentana = activados.filter((c) => (c.activacion.diasHastaResultado ?? 99) <= 30);
+    const elegibles = suyos.filter(
+      (c) => c.activacion.activado || diasEntre(c.entradaAt, ahora().toISOString()) > 30,
+    );
+
+    return {
+      ...coach,
+      clientes: suyos.length,
+      mrrGestionadoUsd: suyos.reduce((s, c) => s + (c.mrrUsd || 0), 0),
+      scorePromedio: suyos.length ? Math.round(suyos.reduce((s, c) => s + c.salud.score, 0) / suyos.length) : 0,
+      respuestaHs: mediana(suyos.map((c) => c.engagement.respuestaCoachHs)),
+      activacion30: elegibles.length ? (enVentana.length / elegibles.length) * 100 : 0,
+      medianaActivacionDias: mediana(activados.map((c) => c.activacion.diasHastaResultado ?? 0)),
+      semaforo: {
+        verde: suyos.filter((c) => c.salud.semaforo === 'verde').length,
+        amarillo: suyos.filter((c) => c.salud.semaforo === 'amarillo').length,
+        rojo: suyos.filter((c) => c.salud.semaforo === 'rojo').length,
+      },
+      mensajesCoachSemana: suyos.reduce((s, c) => s + c.engagement.mensajesCoachSemana, 0),
+    };
+  });
+}
+
+export async function getFulfillment() {
+  const cartera = await cargarCarteraDiscord();
+  const clientes = clientesConSalud(cartera.clientes);
+  const activos = clientes.filter((c) => c.estado === 'activo');
+  const hoy = ahora().toISOString();
+  const computedAt = hoy;
+
+  const elegibles = activos.filter(
+    (c) => c.activacion.activado || diasEntre(c.entradaAt, hoy) > 30,
+  );
+  const activadosEnVentana = elegibles.filter(
+    (c) => c.activacion.activado && (c.activacion.diasHastaResultado ?? 99) <= 30,
+  );
+  const sinActivar = activos.filter((c) => !c.activacion.activado);
+  const pctActivacion = elegibles.length ? (activadosEnVentana.length / elegibles.length) * 100 : 0;
+  const medianaActivacion = mediana(
+    activos.filter((c) => c.activacion.activado).map((c) => c.activacion.diasHastaResultado ?? 0),
+  );
+
+  const verdes = activos.filter((c) => c.salud.semaforo === 'verde');
+  const rojos = activos.filter((c) => c.salud.semaforo === 'rojo');
+  const mixGlobal = ['implementacion', 'soporte', 'queja', 'celebracion'].reduce((acc, k) => {
+    acc[k] = 0;
+    return acc;
+  }, {});
+  const mixDisponible = activos.some((c) => !c.engagement.mixPendiente && Object.values(c.engagement.mix ?? {}).some((v) => v > 0));
+  if (mixDisponible) {
+    for (const k of Object.keys(mixGlobal)) {
+      mixGlobal[k] = Math.round(activos.reduce((s, c) => s + (c.engagement.mix?.[k] ?? 0), 0) / activos.length);
+    }
+  }
+
+  const coaches = metricasCoaches(clientes, cartera.coaches);
+
+  const crecieron = activos.filter((c) => c.outcome.revenueActualUsd > c.outcome.revenueInicialUsd * 1.05);
+  const multiplos = activos.map((c) =>
+    c.outcome.revenueInicialUsd ? c.outcome.revenueActualUsd / c.outcome.revenueInicialUsd : 1,
+  );
+  const conUpsell = activos.filter((c) => c.expansion.upsells > 0);
+  const candidatos = activos.filter((c) => c.expansion.candidatoUpsell);
+  const mrrEnRiesgo = rojos.reduce((s, c) => s + (c.mrrUsd || 0), 0);
+  const silencio = activos.filter((c) => c.engagement.diasSinMensaje >= 7);
+
+  /** @type {Record<string, import('./types.js').Metric[]>} */
+  const kpis = {
+    activacion: [
+      {
+        id: 'activacion_30d',
+        label: 'Activados en 30 días',
+        value: pctActivacion,
+        format: 'pct',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: computedAt,
+        objetivo: 85,
+        nota: 'Todavía no corre el clasificador: nadie figura como activado desde el texto.',
+      },
+      {
+        id: 'tiempo_primer_resultado',
+        label: 'Mediana hasta primer resultado',
+        value: medianaActivacion,
+        format: 'days',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: computedAt,
+        good: 'down',
+        objetivo: 14,
+      },
+      {
+        id: 'sin_activar',
+        label: 'Sin activar',
+        value: sinActivar.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: computedAt,
+        good: 'down',
+        objetivo: 0,
+        nota: 'Pendiente del clasificador sobre los transcripts.',
+      },
+    ],
+    engagement: [
+      {
+        id: 'score_verde',
+        label: 'Clientes en verde',
+        value: activos.length ? (verdes.length / activos.length) * 100 : 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        objetivo: 80,
+        nota: `${verdes.length} verdes · ${activos.length - verdes.length - rojos.length} en atención · ${rojos.length} en riesgo.`,
+      },
+      {
+        id: 'mensajes_semana',
+        label: 'Mensajes del cliente / semana',
+        value: activos.length
+          ? activos.reduce((s, c) => s + c.engagement.mensajesClienteSemana, 0) / activos.length
+          : 0,
+        format: 'ratio',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        nota: 'Promedio de la cartera en las últimas 4 semanas del transcript.',
+      },
+      {
+        id: 'silencio_7d',
+        label: 'Silencio ≥ 7 días',
+        value: silencio.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        nota: silencio.slice(0, 4).map((c) => c.nombre).join(' · ') || 'Ninguno.',
+      },
+    ],
+    retencion: [
+      {
+        id: 'nrr',
+        label: 'Net revenue retention',
+        value: 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: SYNC.man,
+        objetivo: 100,
+        nota: 'Falta payments: el NRR no se puede calcular solo con Discord.',
+      },
+      {
+        id: 'churn_mes',
+        label: 'Churn del mes',
+        value: 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'discord_crm',
+        updatedAt: SYNC.crm,
+        good: 'down',
+        nota: 'Sin CRM todavía: no marcamos churn desde el canal.',
+      },
+      {
+        id: 'mrr_en_riesgo',
+        label: 'MRR en riesgo',
+        value: mrrEnRiesgo,
+        format: 'usd',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        nota: `${rojos.length} clientes en rojo por el score del canal.`,
+      },
+    ],
+    outcomes: [
+      {
+        id: 'clientes_creciendo',
+        label: 'Clientes que crecieron',
+        value: activos.length ? (crecieron.length / activos.length) * 100 : 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: SYNC.man,
+        objetivo: 90,
+        nota: 'Outcomes de facturación todavía no salen del transcript.',
+      },
+      {
+        id: 'multiplo_mediano',
+        label: 'Múltiplo mediano de facturación',
+        value: mediana(multiplos),
+        format: 'x',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: SYNC.man,
+      },
+    ],
+    expansion: [
+      {
+        id: 'revenue_expansion',
+        label: 'Revenue de expansión',
+        value: 0,
+        format: 'usd',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: SYNC.man,
+        nota: 'Pendiente de payments / CRM.',
+      },
+      {
+        id: 'pct_upsell',
+        label: 'Clientes con upsell',
+        value: activos.length ? (conUpsell.length / activos.length) * 100 : 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'manual',
+        updatedAt: SYNC.man,
+        objetivo: 70,
+      },
+    ],
+  };
+
+  const senales = senalesDesdeActivos(activos);
+  const ultimoMensajeAt =
+    activos
+      .map((c) => c.ultimaActividadAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? hoy;
+
+  return {
+    clientes,
+    activos,
+    coaches,
+    actividad: cartera.actividad,
+    semanas: cartera.semanas,
+    senales,
+    /** Vacío hasta conectar payments. */
+    nrr: [],
+    cohortes: cohortesDesdeClientes(clientes),
+    blockers: {},
+    candidatos,
+    sinActivar,
+    kpis,
+    mixGlobal,
+    mixDisponible,
+    syncAt: ultimoMensajeAt,
+    resumen: cartera.resumen,
+    semaforoTotales: {
+      verde: verdes.length,
+      amarillo: activos.length - verdes.length - rojos.length,
+      rojo: rojos.length,
+    },
+    revision: [
+      silencio.length
+        ? `${silencio.length} canales con ≥7 días sin mensaje del cliente.`
+        : 'Ningún cliente con silencio largo esta semana.',
+      `${activos.length} canales de cliente leídos desde Discord (${cartera.resumen.mensajes} mensajes).`,
+    ],
+  };
+}
+
+/**
+ * Ficha completa de un cliente: su score con el desglose, su serie semanal y
+ * las señales que salieron de su canal.
+ * @param {string} clienteId
+ */
+export async function getFulfillmentCliente(clienteId) {
+  const data = await pedir(`/api/clientes/${encodeURIComponent(clienteId)}`);
+  const cliente = { ...data.cliente, salud: calcularSalud(data.cliente) };
+  const senales =
+    data.senales?.length
+      ? data.senales
+      : senalesDesdeActivos([cliente]).filter((s) => s.clienteId === cliente.id);
+  return {
+    cliente,
+    coach: data.coach,
+    actividad: data.actividad,
+    senales,
+    blocker: null,
+    semaforo: SEMAFORO[cliente.salud.semaforo],
+  };
+}
+
+/* ------------------------------------------------------------------ ventas */
+
+export async function getVentas() {
+  const actual = SEMANAS[SEMANAS.length - 1];
+  const previa = SEMANAS[SEMANAS.length - 2];
+
+  const closeRate = (actual.cierres / (actual.shows || 1)) * 100;
+  const closeRatePrevio = (previa.cierres / (previa.shows || 1)) * 100;
+  const showRate = (actual.shows / (actual.agendados || 1)) * 100;
+  const showRatePrevio = (previa.shows / (previa.agendados || 1)) * 100;
+
+  /** @type {Metric[]} */
+  const kpis = [
+    {
+      id: 'llamados_agendados',
+      label: 'Llamados agendados',
+      value: actual.agendados,
+      format: 'count',
+      previous: previa.agendados,
+      sourceId: 'calendly',
+      updatedAt: SYNC.cal,
+      serie: SEMANAS.map((s) => s.agendados),
+      nota: 'Semana S37 (7–13 sep), la última cerrada.',
+    },
+    {
+      id: 'close_rate',
+      label: 'Close rate',
+      value: closeRate,
+      format: 'pct',
+      previous: closeRatePrevio,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      objetivo: 25,
+      serie: SEMANAS.map((s) => (s.cierres / (s.shows || 1)) * 100),
+      nota: 'Cierres sobre llamados con show.',
+    },
+    {
+      id: 'cash_collected',
+      label: 'Cash collected',
+      value: actual.cashUsd,
+      format: 'usd',
+      previous: previa.cashUsd,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      serie: SEMANAS.map((s) => s.cashUsd),
+      nota: 'Cargado a mano los lunes. Es la grieta más cara del tablero.',
+    },
+    {
+      id: 'show_rate',
+      label: 'Show up',
+      value: showRate,
+      format: 'pct',
+      previous: showRatePrevio,
+      sourceId: 'calendly',
+      updatedAt: SYNC.cal,
+      objetivo: 65,
+      serie: SEMANAS.map((s) => (s.shows / (s.agendados || 1)) * 100),
+    },
+  ];
+
+  return responder({ semanas: SEMANAS, llamados: LLAMADOS, kpis });
+}
+
+/* --------------------------------------------------------------- marketing */
+
+export async function getMarketing() {
+  const gasto = CAMPANIAS.reduce((s, c) => s + c.gastoUsd, 0);
+  const leads = CAMPANIAS.reduce((s, c) => s + c.leads, 0);
+  const revenueAtribuido = GASTO_CANAL.reduce((s, c) => s + c.gastoUsd * c.roas, 0);
+  const roas = revenueAtribuido / (gasto || 1);
+  const activas = CAMPANIAS.filter((c) => c.estado === 'activa');
+  const quemadas = CAMPANIAS.filter((c) => c.frecuencia >= FRECUENCIA.quemado);
+
+  /** @type {Metric[]} */
+  const kpis = [
+    {
+      id: 'roas',
+      label: 'ROAS',
+      value: roas,
+      format: 'x',
+      previous: 3.9,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      nota: 'El revenue atribuido se cruza a mano: no hay pixel en las campañas de tráfico a DM.',
+    },
+    {
+      id: 'cpl',
+      label: 'Cost per lead',
+      value: gasto / (leads || 1),
+      format: 'usd',
+      previous: 46.2,
+      sourceId: 'ads_manager',
+      updatedAt: SYNC.ads,
+      good: 'down',
+    },
+    {
+      id: 'gasto_ads',
+      label: 'Gasto del mes',
+      value: gasto,
+      format: 'usd',
+      previous: 28900,
+      sourceId: 'ads_manager',
+      updatedAt: SYNC.ads,
+      good: 'neutral',
+      serie: GASTO_DIARIO.map((d) => d.gastoUsd),
+    },
+    {
+      id: 'campanias_activas',
+      label: 'Campañas activas',
+      value: activas.length,
+      format: 'count',
+      previous: 6,
+      sourceId: 'ads_manager',
+      updatedAt: SYNC.ads,
+      good: 'neutral',
+      nota: quemadas.length
+        ? `${quemadas.length} con la frecuencia pasada de ${FRECUENCIA.quemado}.`
+        : 'Ninguna con la frecuencia quemada.',
+    },
+  ];
+
+  return responder({
+    campanias: CAMPANIAS,
+    gastoCanal: GASTO_CANAL,
+    gastoDiario: GASTO_DIARIO,
+    umbrales: FRECUENCIA,
+    kpis,
+  });
+}
+
+/* -------------------------------------------------------------- onboarding */
+
+export async function getOnboarding() {
+  const clienteCerrados = PROCESOS.filter((p) => p.tipo === 'cliente' && p.cerradoAt);
+  const staffCerrados = PROCESOS.filter((p) => p.tipo === 'staff' && p.cerradoAt);
+
+  const promCliente = clienteCerrados.reduce((s, p) => s + p.diasTranscurridos, 0) / (clienteCerrados.length || 1);
+  const promStaff = staffCerrados.reduce((s, p) => s + p.diasTranscurridos, 0) / (staffCerrados.length || 1);
+
+  /** @type {Metric[]} */
+  const kpis = [
+    {
+      id: 'onboarding_cliente',
+      label: 'Pago → primer entregable',
+      value: promCliente,
+      format: 'days',
+      previous: 7,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      good: 'down',
+      objetivo: 7,
+      serie: DURACION_HISTORICA.map((d) => d.cliente).filter((v) => v !== null),
+    },
+    {
+      id: 'onboarding_staff',
+      label: 'Contrato → primer día productivo',
+      value: promStaff,
+      format: 'days',
+      previous: 16,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      good: 'down',
+      objetivo: 10,
+      serie: DURACION_HISTORICA.map((d) => d.staff).filter((v) => v !== null),
+    },
+  ];
+
+  return responder({ procesos: PROCESOS, duracion: DURACION_HISTORICA, kpis });
+}
+
+/* ---------------------------------------------------------------- sistemas */
+
+export async function getSistemas() {
+  const cobertura = coberturaAutomatizacion();
+  return responder({
+    fuentes: SOURCE_LIST,
+    campos: DATA_FIELDS,
+    cobertura,
+  });
+}
+
+/* -------------------------------------------------------------------- home */
+
+export async function getMetas() {
+  const hoy = ahora();
+  const mes = mesId(hoy);
+  const diasMes = diasDelMes(mes);
+  const diaHoy = diaDentroDelMes(hoy, mes);
+  const metas = METAS.map((meta) => {
+    const acumulado = recortarAcumulado(meta.acumulado, diaHoy);
+    return {
+      meta: { ...meta, mes, acumulado },
+      ritmo: ritmo({ meta: meta.meta, actual: acumulado.at(-1) ?? 0, diasMes, diaHoy }),
+    };
+  });
+  return responder({
+    mes: { id: mes, nombre: nombreMesAnio(hoy), dia: diaHoy, dias: diasMes, fraccion: diaHoy / diasMes },
+    semana: `S${semanaIso(hoy)}`,
+    metas,
+    embudo: EMBUDO_VENTAS,
+  });
+}
+
+/* ---------------------------------------------------------------- cobranza */
+
+export async function getCobranza() {
+  const raw = await pedir('/api/cobranza');
+  const ahoraFecha = ahora();
+  const diasMes = diasDelMes(mesId(ahoraFecha));
+  const diaHoy = diaDentroDelMes(ahoraFecha, mesId(ahoraFecha));
+
+  const cuotas = (raw.cuotas ?? []).map((c) => ({
+    id: c.id,
+    cliente: c.cliente,
+    plan: c.plan,
+    montoUsd: c.montoUsd,
+    venceAt: c.venceAt,
+    estado: c.estado,
+    pagadaAt: c.pagadaAt,
+    diasAtraso: c.diasAtraso ?? 0,
+    tipo: c.tipo,
+  }));
+
+  const totalMes = raw.totalMes ?? 0;
+  const cobrado = raw.cobrado ?? 0;
+
+  return {
+    cuotas,
+    cobrado,
+    esperadoHoy: raw.esperadoHoy ?? 0,
+    totalMes,
+    vencidas: raw.vencidas ?? { n: 0, usd: 0, detalle: 'Sin cuotas vencidas' },
+    porVencerSemana: raw.porVencerSemana ?? { n: 0, usd: 0 },
+    ritmoCobro: ritmo({ meta: totalMes, actual: cobrado, diasMes, diaHoy }),
+    pctSobreVencido: raw.pctSobreVencido ?? 100,
+    kpis: raw.kpis ?? [],
+    syncAt: raw.syncAt ?? null,
+    mes: raw.mes,
+    fuente: raw.fuente,
+  };
+}
+
+/* ------------------------------------------------------------ grietas */
+
+export async function getGrietas() {
+  return responder({ grietas: GRIETAS, pedidos: PEDIDOS, pedidosSemana: PEDIDOS_SEMANA });
+}
+
+/* ----------------------------------------------------------- home */
+
+/**
+ * El cuadro de mando: metas con ritmo, acciones prescriptas para la semana y
+ * un bloque por área. Los transcripts reales entran si el backend responde;
+ * si no, la home sigue funcionando con lo demás.
+ */
+export async function getHome() {
+  const [fulfillment, clientes, sistemas, metasData, cobranza] = await Promise.all([
+    getFulfillment(),
+    getClientes(),
+    getSistemas(),
+    getMetas(),
+    getCobranza(),
+  ]);
+
+  let transcripts = null;
+  try {
+    transcripts = await getTranscripts();
+  } catch {
+    transcripts = null;
+  }
+  const canalesEnSilencio = transcripts
+    ? transcripts.canales.filter((c) => (c.dias_sin_actividad ?? 0) >= 7).length
+    : null;
+
+  const marketing = metasData.metas.filter((m) => m.meta.area === 'marketing');
+  const ventas = metasData.metas.filter((m) => m.meta.area === 'ventas');
+  const mktPrincipal = marketing.find((m) => m.meta.principal) ?? marketing[0];
+  const venPrincipal = ventas.find((m) => m.meta.principal) ?? ventas[0];
+
+  const { accion: accMkt, plan: planMkt } = accionMarketing(mktPrincipal);
+  const { accion: accVen, plan: planVen } = accionVentas(venPrincipal, metasData.embudo);
+
+  const enRiesgo = fulfillment.activos
+    .filter((c) => c.salud.semaforo !== 'verde')
+    .sort((a, b) => a.salud.score - b.salud.score);
+
+  const acciones = ordenarAcciones(
+    [
+      accMkt,
+      accVen,
+      ...accionesFulfillment({ enRiesgo, canalesEnSilencio, transcriptsParcial: transcripts?.resumen.parcial ?? false }),
+      ...accionesCobranza(cobranza),
+      accionSistemas(GRIETAS),
+    ].filter(Boolean),
+  );
+
+  const k = (grupo, id) => fulfillment.kpis[grupo].find((x) => x.id === id);
+  const silencio = k('engagement', 'silencio_7d');
+  const scoreVerde = k('engagement', 'score_verde');
+  const revision = [
+    ...(fulfillment.revision ?? []),
+    silencio && `${formatValue(silencio.value, silencio.format)} canales con ≥7 días sin mensaje del cliente.`,
+    scoreVerde && `${formatValue(scoreVerde.value, scoreVerde.format)} de la cartera en verde según el score del canal.`,
+  ].filter(Boolean);
+
+  const kpiClientes = clientes.kpis.find((x) => x.id === 'clientes_activos');
+  const kpiMrr = clientes.kpis.find((x) => x.id === 'mrr');
+  const kpiNrr = k('retencion', 'nrr');
+
+  return responder({
+    mes: metasData.mes,
+    semana: metasData.semana,
+    northStar: [
+      kpiClientes,
+      kpiMrr,
+      kpiNrr,
+      { id: 'pct_automatizado', label: 'Automatizado', value: sistemas.cobertura.pct, format: 'pct', previous: 30, sourceId: 'manual', updatedAt: SYNC.man, objetivo: 80 },
+    ].filter(Boolean),
+    acciones,
+    marketing: { metas: marketing, principal: mktPrincipal, plan: planMkt, dueno: 'Juan Cruz' },
+    ventas: { metas: ventas, principal: venPrincipal, plan: planVen, embudo: metasData.embudo, dueno: 'Lucas' },
+    fulfillment: { semaforoTotales: fulfillment.semaforoTotales, enRiesgo: enRiesgo.slice(0, 5), revision, activos: fulfillment.activos.length },
+    sistemas: {
+      fuentes: SOURCE_LIST,
+      cobertura: sistemas.cobertura,
+      grietas: GRIETAS,
+      pedidosSemana: PEDIDOS_SEMANA.at(-1)?.pedidos ?? 0,
+      backendOk: transcripts !== null,
+      botUltimaEscritura: transcripts?.resumen.ultimo_mensaje_at ?? null,
+      transcriptsCanales: transcripts?.resumen.canales ?? null,
+      transcriptsParcial: transcripts?.resumen.parcial ?? null,
+    },
+    cobranza,
+  });
+}
+
+
+/* --------------------------------------------------------------- reales */
+
+/** Base del backend de ATV Ops. Configurable con VITE_API_URL. */
+export const API_BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:8000';
+
+/**
+ * @param {string} path
+ * @returns {Promise<any>}
+ */
+async function pedir(path, options = {}) {
+  const token = getToken();
+  let respuesta;
+  try {
+    respuesta = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        ...(options.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch {
+    throw new Error(
+      `No se pudo hablar con el backend (${API_BASE}). ¿Está levantado en ese puerto?`,
+    );
+  }
+  if (!respuesta.ok) {
+    const detalle = await respuesta.json().catch(() => null);
+    throw new Error(detalle?.detail ?? `El backend respondió ${respuesta.status}`);
+  }
+  return respuesta.json();
+}
+
+export async function login(username, password) {
+  return pedir('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+/**
+ * Todos los transcripts de Discord con su actividad agregada.
+ * Fuente: los .txt del bot de ATV Clients. Solo lectura, sin conexión propia
+ * a Discord.
+ * @returns {Promise<{ resumen: object, canales: object[] }>}
+ */
+export async function getTranscripts() {
+  return pedir('/api/transcripts');
+}
+
+export function mediaUrl(path) {
+  if (!path) return null;
+  return path.startsWith('http') ? path : `${API_BASE}${path}`;
+}
+
+export async function getIntegrantes() {
+  return pedir('/api/integrantes');
+}
+
+export async function crearIntegrante(nombre) {
+  return pedir('/api/integrantes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre }),
+  });
+}
+
+export async function subirFotoIntegrante(id, file) {
+  const body = new FormData();
+  body.append('archivo', file);
+  return pedir(`/api/integrantes/${id}/foto`, { method: 'POST', body });
+}
+
+export async function borrarIntegrante(id) {
+  return pedir(`/api/integrantes/${id}`, { method: 'DELETE' });
+}
+
+export async function getReunionesMes(anio, mes) {
+  return pedir(`/api/reuniones?anio=${anio}&mes=${mes}`);
+}
+
+export async function crearReunion(payload) {
+  return pedir('/api/reuniones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function borrarReunion(id) {
+  return pedir(`/api/reuniones/${id}`, { method: 'DELETE' });
+}
+
+/* ------------------------------------------------------------------- ideas */
+
+export async function getIdeas() {
+  return pedir('/api/ideas');
+}
+
+export async function crearIdea(texto, quien) {
+  return pedir('/api/ideas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ texto, quien }),
+  });
+}
+
+/** @param {number} id @param {{ asignada?: string | null, estado?: string }} patch */
+export async function actualizarIdea(id, patch) {
+  return pedir(`/api/ideas/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function borrarIdea(id) {
+  return pedir(`/api/ideas/${id}`, { method: 'DELETE' });
+}

@@ -1,0 +1,18 @@
+---
+description: Estructura fija frontend/ + backend/ y cómo arrancar el proyecto
+alwaysApply: true
+---
+
+# Estructura del proyecto
+
+Fuente: `docs/plantilla-inicio-proyecto.md`.
+
+- Raíz del repo: solo `frontend/` y `backend/` (no mezclar stacks).
+- Frontend: React + JavaScript con Vite **directamente** en `frontend/` (`frontend/package.json`, `frontend/src/`). Nunca `frontend/my-app/`.
+- Backend: código de dominio en el paquete `src` (`backend/src/`). Imports siempre `src.db`, `src.models`, `src.schemas`, `src.services.*`, `src.controllers.*`.
+- En la raíz de `backend/` solo: `main.py`, `requirements.txt`, `.env.template` (versionado), `.env` (local, no versionar).
+- Obligatorios: `src/db.py`, `src/models.py`, `src/schemas.py`, `src/services/`, `src/controllers/` (con `__init__.py`).
+- API: desde `backend/`, `uvicorn main:app --reload` (sin `PYTHONPATH`).
+- Al agregar un dominio: `src/services/<dominio>_services.py` + `src/controllers/<dominio>_controller.py`. No poner lógica Pony ni rutas en `main.py` más allá de montar routers y lifespan.
+
+Detalle de Pony/servicios/controladores: `docs/convenciones-backend-pony.md`.

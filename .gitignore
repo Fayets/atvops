@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/.venv/
+*.egg-info/
+
+# Entorno local (nunca versionar secretos)
+backend/.env
+
+# Pony / SQLite local
+backend/*.sqlite
+backend/*.sqlite3
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+
+# Fotos de integrantes (locales)
+backend/data/fotos/*
+!backend/data/fotos/.gitkeep
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

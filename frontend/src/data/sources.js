@@ -1,0 +1,184 @@
+/**
+ * Registro de fuentes de datos y de campos.
+ *
+ * El KPI "% de datos automatizados" NO se escribe a mano: se deriva de
+ * `DATA_FIELDS`. Cada campo que el dashboard muestra declara su fuente, y la
+ * fuente declara su estado. Conectar una fuente sube el KPI solo.
+ *
+ * @typedef {import('./types.js').DataSource} DataSource
+ * @typedef {import('./types.js').DataField} DataField
+ * @typedef {import('./types.js').SourceId} SourceId
+ */
+
+/** @type {Record<SourceId, DataSource>} */
+export const SOURCES = {
+  discord_transcripts: {
+    id: 'discord_transcripts',
+    nombre: 'Discord · transcripts',
+    descripcion:
+      'El bot trae el transcript de cada canal de cliente. Es el registro automático de toda la relación: quién escribió, cuándo, cuánto tardó el coach y de qué se habló.',
+    status: 'conectada',
+    lastSyncAt: '2026-09-14T11:10:00-03:00',
+    responsable: 'Franco',
+    metodo: 'Bot de Discord, ingesta continua por canal',
+    proximoPaso:
+      'La cartera (un canal = un cliente) ya sale de los transcripts. Falta el clasificador de activación/mix y payments para MRR/NRR.',
+  },
+  discord_crm: {
+    id: 'discord_crm',
+    nombre: 'Discord / CRM',
+    descripcion: 'Estado de cuenta, churn y datos comerciales que el canal no tiene.',
+    status: 'manual',
+    lastSyncAt: '2026-09-12T18:40:00-03:00',
+    responsable: 'Franco',
+    metodo: 'Export manual del CRM + planilla de cartera',
+    proximoPaso: 'API del CRM para churn, país y MRR. Engagement ya no depende de esto.',
+  },
+  ads_manager: {
+    id: 'ads_manager',
+    nombre: 'Ads Manager (Meta)',
+    descripcion: 'Gasto, alcance, frecuencia y leads por campaña.',
+    status: 'conectada',
+    lastSyncAt: '2026-09-14T07:15:00-03:00',
+    responsable: 'Juan Cruz',
+    metodo: 'Marketing API, sync cada 6 h',
+    proximoPaso: 'Bajar a nivel anuncio (level=ad) para comparar piezas.',
+  },
+  calendly: {
+    id: 'calendly',
+    nombre: 'Calendly',
+    descripcion: 'Llamados agendados, shows y no-shows.',
+    status: 'conectada',
+    lastSyncAt: '2026-09-14T08:02:00-03:00',
+    responsable: 'Lucas',
+    metodo: 'Webhook de invitee.created / invitee.canceled',
+    proximoPaso: 'Cruzar el email del invitee con el lead de ads para atribuir origen.',
+  },
+  payments: {
+    id: 'payments',
+    nombre: 'Payment processor',
+    descripcion: 'Cash collected, cobros recurrentes, fecha de pago.',
+    status: 'sin_conectar',
+    lastSyncAt: null,
+    responsable: 'Lucas',
+    metodo: null,
+    proximoPaso: 'Webhooks de charge.succeeded. Sin esto, el MRR es una estimación.',
+  },
+  atv_clients: {
+    id: 'atv_clients',
+    nombre: 'ATV Clients',
+    descripcion: 'Cuotas, vencimientos, pagos y estado de cada cliente en el CRM.',
+    status: 'conectada',
+    lastSyncAt: new Date().toISOString(),
+    responsable: 'Franco',
+    metodo: 'API agente /api/agent/cobranza-mes',
+    proximoPaso: 'Cobranza ya lee cuotas reales. Falta payments gateway para cash automático.',
+  },
+  manual: {
+    id: 'manual',
+    nombre: 'Carga manual',
+    descripcion: 'Datos que hoy solo existen porque alguien los escribe.',
+    status: 'manual',
+    lastSyncAt: '2026-09-14T09:30:00-03:00',
+    responsable: 'Franco',
+    metodo: 'Formulario interno del dashboard',
+    proximoPaso: 'Cada campo acá es deuda. El objetivo es que esta lista quede vacía.',
+  },
+};
+
+/** @type {DataSource[]} */
+export const SOURCE_LIST = Object.values(SOURCES);
+
+/**
+ * Inventario de campos del dashboard. Uno por cada número que se muestra.
+ *
+ * `sourceId` es de dónde sale el dato HOY. `objetivo` es de dónde debería salir
+ * cuando esté automatizado (`null` = se automatiza dentro del propio ATV Ops).
+ * La diferencia entre ambos es, literalmente, la lista de trabajo pendiente.
+ *
+ * @type {DataField[]}
+ */
+export const DATA_FIELDS = [
+  // Fulfillment · cartera
+  { id: 'clientes_activos', nombre: 'Clientes activos', seccion: 'fulfillment', sourceId: 'discord_crm', objetivo: 'discord_crm' },
+  { id: 'cartera_historica', nombre: 'Evolución de cartera', seccion: 'fulfillment', sourceId: 'discord_crm', objetivo: 'discord_crm' },
+  { id: 'churn_mes', nombre: 'Churn del mes', seccion: 'fulfillment', sourceId: 'discord_crm', objetivo: 'discord_crm' },
+  { id: 'caja_cliente', nombre: 'Caja 1 / Caja 2', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'mrr', nombre: 'MRR / run-rate', seccion: 'home', sourceId: 'manual', objetivo: 'payments' },
+
+  // Fulfillment · lo que sale de contar los transcripts
+  { id: 'ultima_actividad', nombre: 'Última actividad del cliente', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'mensajes_semana', nombre: 'Mensajes por semana', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'interacciones', nombre: 'Interacciones por semana', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'dias_sin_mensaje', nombre: 'Días de silencio', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+
+  // Fulfillment · lo que necesita el clasificador de transcripts
+  { id: 'activacion_30d', nombre: 'Activación a 30 días', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+  { id: 'tiempo_primer_resultado', nombre: 'Tiempo hasta primer resultado', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+  { id: 'blockers_activacion', nombre: 'Blockers de activación', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+  { id: 'mix_conversacion', nombre: 'Mix de conversación', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+  { id: 'outcomes_cliente', nombre: 'Outcomes del cliente', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+
+  // Fulfillment · revenue de la base
+  { id: 'nrr', nombre: 'Net revenue retention', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'expansion_upsell', nombre: 'Expansión y upsells', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'onboarding_cliente', nombre: 'Onboarding de cliente', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+
+  // Ventas
+  { id: 'cash_collected', nombre: 'Cash collected semanal', seccion: 'ventas', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'cuotas_vencidas', nombre: 'Cuotas vencidas', seccion: 'cobranza', sourceId: 'atv_clients', objetivo: 'atv_clients' },
+  { id: 'cuotas_por_vencer', nombre: 'Cuotas por vencer', seccion: 'cobranza', sourceId: 'atv_clients', objetivo: 'atv_clients' },
+  { id: 'cobrado_mes', nombre: 'Cobrado del mes', seccion: 'cobranza', sourceId: 'atv_clients', objetivo: 'atv_clients' },
+  { id: 'metas_mes', nombre: 'Metas del mes por área', seccion: 'home', sourceId: 'manual', objetivo: null },
+  { id: 'chats_abiertos', nombre: 'Chats abiertos por secuencia', seccion: 'marketing', sourceId: 'manual', objetivo: 'discord_crm' },
+  { id: 'llamados_agendados', nombre: 'Llamados agendados', seccion: 'ventas', sourceId: 'calendly', objetivo: 'calendly' },
+  { id: 'shows', nombre: 'Shows y no-shows', seccion: 'ventas', sourceId: 'calendly', objetivo: 'calendly' },
+  { id: 'close_rate', nombre: 'Close rate', seccion: 'ventas', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'origen_lead', nombre: 'Origen del lead', seccion: 'ventas', sourceId: 'manual', objetivo: 'discord_crm' },
+
+  // Marketing
+  { id: 'gasto_ads', nombre: 'Gasto por canal', seccion: 'marketing', sourceId: 'ads_manager', objetivo: 'ads_manager' },
+  { id: 'cpl', nombre: 'Cost per lead', seccion: 'marketing', sourceId: 'ads_manager', objetivo: 'ads_manager' },
+  { id: 'frecuencia', nombre: 'Frecuencia por campaña', seccion: 'marketing', sourceId: 'ads_manager', objetivo: 'ads_manager' },
+  { id: 'campanias_activas', nombre: 'Campañas activas', seccion: 'marketing', sourceId: 'ads_manager', objetivo: 'ads_manager' },
+  { id: 'roas', nombre: 'ROAS', seccion: 'marketing', sourceId: 'manual', objetivo: 'payments' },
+
+  // Sistemas
+  { id: 'onboarding_staff', nombre: 'Onboarding de staff', seccion: 'sistemas', sourceId: 'manual', objetivo: null },
+  { id: 'pedidos_datos', nombre: 'Pedidos de datos por semana', seccion: 'home', sourceId: 'manual', objetivo: null },
+  { id: 'grietas', nombre: 'Grietas detectadas', seccion: 'home', sourceId: 'manual', objetivo: null },
+];
+
+/**
+ * Cobertura de automatización, derivada del inventario de campos.
+ * @returns {{ total: number, automatizados: number, manuales: number, pct: number, deuda: { sourceId: SourceId, campos: DataField[] }[] }}
+ */
+export function coberturaAutomatizacion() {
+  const total = DATA_FIELDS.length;
+  const automatizados = DATA_FIELDS.filter((f) => SOURCES[f.sourceId].status === 'conectada').length;
+  const manualesList = DATA_FIELDS.filter((f) => SOURCES[f.sourceId].status !== 'conectada');
+
+  /** @type {Map<SourceId, DataField[]>} */
+  const porObjetivo = new Map();
+  for (const f of manualesList) {
+    if (!f.objetivo) continue;
+    const arr = porObjetivo.get(f.objetivo) ?? [];
+    arr.push(f);
+    porObjetivo.set(f.objetivo, arr);
+  }
+
+  return {
+    total,
+    automatizados,
+    manuales: manualesList.length,
+    pct: Math.round((automatizados / total) * 100),
+    deuda: [...porObjetivo.entries()]
+      .map(([sourceId, campos]) => ({ sourceId, campos }))
+      .sort((a, b) => b.campos.length - a.campos.length),
+  };
+}
+
+/** Campos que dependen de una fuente dada. @param {SourceId} sourceId */
+export function camposDeFuente(sourceId) {
+  return DATA_FIELDS.filter((f) => f.sourceId === sourceId);
+}
