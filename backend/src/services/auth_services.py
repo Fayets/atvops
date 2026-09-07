@@ -4,6 +4,7 @@ import hashlib
 import logging
 import secrets
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -16,6 +17,9 @@ from src.db import _BACKEND_ROOT
 from src.models import Usuario
 
 _PBKDF2_ROUNDS = 120_000
+# Sesiones validadas en memoria por este tiempo antes de volver a consultar la base.
+_CACHE_SESION_SEGUNDOS = 300
+_CACHE_SESION: dict[int, tuple[float, dict]] = {}
 _TOKEN_DIAS = 7
 _LOCAL_USERNAME = "franco"
 _LOCAL_PASSWORD = "franco"
@@ -179,6 +183,11 @@ class AuthServices:
                     existente.rol = _LOCAL_ROL
                 elif not getattr(existente, "rol", None) or existente.rol not in ROLES_VALIDOS:
                     existente.rol = rol
+                # La clave del .env manda: si cambió, se actualiza al arrancar.
+                deseada = (config(env_var, default="") or "").strip()
+                if deseada and not _verify_password(deseada, existente.password_hash):
+                    existente.password_hash = _hash_password(deseada)
+                    logging.getLogger("atv_ops").info("Clave de %s actualizada desde %s.", username, env_var)
 
     def login(self, username: str, password: str) -> dict:
         with db_session:
@@ -204,8 +213,19 @@ class AuthServices:
         except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
             raise HTTPException(status_code=401, detail="Sesión inválida o vencida.")
 
+        # Caché en memoria: el frontend relee los chats cada 15 s y cada request
+        # valida la sesión. Sin esto, cada relectura es una consulta a la base
+        # (que en el server es Neon y cobra por tiempo despierto).
+        ahora = time.monotonic()
+        cacheado = _CACHE_SESION.get(user_id)
+        if cacheado and ahora - cacheado[0] < _CACHE_SESION_SEGUNDOS:
+            return dict(cacheado[1])
+
         with db_session:
             usuario = Usuario.get(id=user_id)
             if usuario is None:
+                _CACHE_SESION.pop(user_id, None)
                 raise HTTPException(status_code=401, detail="Sesión inválida o vencida.")
-            return _to_response(usuario)
+            datos = _to_response(usuario)
+        _CACHE_SESION[user_id] = (ahora, datos)
+        return dict(datos)
