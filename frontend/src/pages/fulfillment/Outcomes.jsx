@@ -4,40 +4,38 @@ import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/ui/Icon.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../../components/ui/Loading.jsx';
-import PageHeader from '../../components/ui/PageHeader.jsx';
 import Pill from '../../components/ui/Pill.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillment } from '../../data/api.js';
-import { formatMes, formatValue } from '../../lib/format.js';
+import { formatFecha, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
+import { SEMAFORO, VENTANA_ACTIVACION } from '../../lib/scoring.js';
 
-const TIER = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
+const CAT_LABEL = {
+  boost: 'Boost',
+  advantage: 'Advantage',
+  avanzados: 'Avanzados',
+  principiantes: 'Principiantes',
+  mentoria: 'Mentoría',
+};
 
 export default function Outcomes() {
   const { data, loading, error } = useResource(getFulfillment);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
-  const conFactura = data
-    ? data.activos.filter((c) => c.outcome.revenueInicialUsd > 0)
+  const activados = data
+    ? data.activos
+        .filter((c) => c.activacion.activado)
+        .sort((a, b) => (a.activacion.diasHastaResultado ?? 0) - (b.activacion.diasHastaResultado ?? 0))
     : [];
-  const porMultiplo = [...conFactura].sort(
-    (a, b) =>
-      b.outcome.revenueActualUsd / (b.outcome.revenueInicialUsd || 1) -
-      a.outcome.revenueActualUsd / (a.outcome.revenueInicialUsd || 1),
-  );
-  const subieronTier = data ? data.activos.filter((c) => c.tier !== c.expansion.tierInicial) : [];
-  const tieneNrr = Boolean(data?.nrr?.length);
+  const winsRecientes = data?.winsRecientes ?? [];
+  const momentum = data?.momentumPos ?? [];
+  const candidatos = data?.candidatos ?? [];
+  const caida = data?.caidaFuerte ?? [];
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Fulfillment · pilares 5 y 6"
-        title="Outcomes y expansión"
-        desc="Facturación, audiencia y upsells no viven en Discord: salen de payments / CRM. Mientras tanto, acá solo quedan candidatos detectados en el canal (hoy ninguno) y los KPIs en cero."
-        actions={<SourceTag sourceId="manual" />}
-      />
-
       {loading || !data ? (
         <>
           <SkeletonKpis n={4} />
@@ -45,120 +43,149 @@ export default function Outcomes() {
         </>
       ) : (
         <>
+          <div className="filtros" style={{ alignItems: 'center', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-2)' }}>
+              Resultados del canal (wins + momentum) · sin facturación USD · sync {hace(data.syncAt)}
+            </div>
+            <div style={{ marginLeft: 'auto' }}>
+              <SourceTag sourceId="discord_transcripts" updatedAt={data.syncAt} />
+            </div>
+          </div>
+
           <div className="kpi-grid">
             {[...data.kpis.outcomes, ...data.kpis.expansion].map((m) => (
-              <KpiCard key={m.id} metric={m} />
+              <KpiCard key={m.id} metric={m} spark={false} />
             ))}
           </div>
 
-          {conFactura.length > 0 || tieneNrr ? (
-            <div className="split">
-              {conFactura.length > 0 && (
-                <Card
-                  title="Cuánto creció cada cliente"
-                  sub="Facturación de hoy dividida por la de su entrada"
-                  foot="El múltiplo es lo que el cliente cuenta cuando lo llama un conocido."
-                >
-                  <Bars
-                    data={porMultiplo}
-                    x={(c) => c.nombre.split(' ')[0]}
-                    y={(c) => c.outcome.revenueActualUsd / (c.outcome.revenueInicialUsd || 1)}
-                    format="ratio"
-                    label="Múltiplo"
-                    height={252}
-                    color={(c) =>
-                      c.outcome.revenueActualUsd / (c.outcome.revenueInicialUsd || 1) >= 1.5 ? 'var(--ok)' : 'var(--s4)'
-                    }
-                  />
-                </Card>
-              )}
-              {tieneNrr && (
-                <Card
-                  title="Expansión mes a mes"
-                  sub="MRR sumado sobre la base existente"
-                  foot="Expansión vs churn desde payments."
-                >
-                  <Bars
-                    data={data.nrr}
-                    x={(n) => formatMes(n.mes).split(' ')[0]}
-                    y={(n) => n.expansionUsd}
-                    format="usd"
-                    label="Expansión"
-                    height={252}
-                    linea={{ key: (n) => n.churnUsd, label: 'Churn', format: 'usd', escala: 'compartida' }}
-                    color={() => 'var(--ok)'}
-                  />
-                </Card>
-              )}
-            </div>
-          ) : (
+          <div className="split">
             <Card
-              title="Facturación y expansión"
-              sub="Fuente: payments / CRM"
-              foot="Cuando haya revenue real por cliente, acá van a aparecer múltiplos y el puente de expansión."
+              title="Días hasta el win"
+              sub={`${activados.length} con resultado detectado`}
+              foot={`Línea = día ${VENTANA_ACTIVACION}. Heurística sobre el transcript.`}
             >
-              <div className="empty">
-                Ningún cliente tiene facturación cargada todavía. Discord no alcanza para outcomes de plata.
-              </div>
+              {activados.length === 0 ? (
+                <div className="empty">Sin wins detectados todavía.</div>
+              ) : (
+                <Bars
+                  data={activados.slice(0, 20)}
+                  x={(c) => c.nombre.split(' ')[0]}
+                  y={(c) => c.activacion.diasHastaResultado ?? 0}
+                  format="days"
+                  label="Días"
+                  height={252}
+                  color={(c) =>
+                    (c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'var(--ok)' : 'var(--brand)'
+                  }
+                  referencia={{ valor: VENTANA_ACTIVACION, label: `día ${VENTANA_ACTIVACION}` }}
+                />
+              )}
             </Card>
-          )}
+
+            <Card
+              title="Momentum de actividad"
+              sub={`${momentum.length} con tendencia ≥ +20%`}
+              foot="Tendencia de mensajes del cliente vs semanas previas."
+            >
+              {momentum.length === 0 ? (
+                <div className="empty">Nadie con subida fuerte esta semana.</div>
+              ) : (
+                <Bars
+                  data={[...momentum]
+                    .sort((a, b) => (b.engagement.tendencia ?? 0) - (a.engagement.tendencia ?? 0))
+                    .slice(0, 16)}
+                  x={(c) => c.nombre.split(' ')[0]}
+                  y={(c) => c.engagement.tendencia ?? 0}
+                  format="pct"
+                  label="Tendencia"
+                  height={252}
+                  color={() => 'var(--ok)'}
+                />
+              )}
+            </Card>
+          </div>
 
           <Card
-            title="Candidatos a upsell"
-            sub="Detectados por señales en el canal"
+            title="Wins recientes"
+            sub={`${winsRecientes.length} primer resultado en los últimos 30 días`}
             flush
-            foot="La señal típica es el techo de capacidad. Hasta que corra el clasificador, esta lista queda vacía."
+            foot="La frase del canal donde aparece el win."
           >
-            {data.candidatos.length === 0 ? (
-              <div className="empty">Sin candidatos esta semana.</div>
+            {winsRecientes.length === 0 ? (
+              <div className="empty">Ningún win nuevo en 30 días.</div>
             ) : (
-              data.candidatos.map((c) => (
-                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
-                  <span className="who">{c.nombre}</span>
-                  <span className="q">
-                    {TIER[c.tier] ?? c.tier} · #{c.canal}
-                  </span>
-                  <span className="right">
-                    <Pill tone="ok">candidato</Pill>
-                    <Icon name="arrow" size={13} />
-                  </span>
-                </Link>
-              ))
-            )}
-          </Card>
-
-          <Card
-            title="Movimientos de tier"
-            sub={`${subieronTier.length} clientes activos subieron de escalón`}
-            flush
-            foot={
-              subieronTier.length
-                ? `Suman ${formatValue(
-                    data.activos.reduce((s, c) => s + c.expansion.revenueExpansionUsd, 0),
-                    'usd',
-                  )} de expansión acumulada.`
-                : 'Sin CRM / payments: no hay cambios de tier registrados.'
-            }
-          >
-            {subieronTier.length === 0 ? (
-              <div className="empty">Sin movimientos de tier.</div>
-            ) : (
-              subieronTier.map((c) => (
-                <div key={c.id} className="lista-item">
-                  <span className="who">{c.nombre}</span>
-                  <span className="q">
-                    {TIER[c.expansion.tierInicial]} → {TIER[c.tier]} · {c.expansion.upsells}{' '}
-                    {c.expansion.upsells === 1 ? 'upsell' : 'upsells'}
-                  </span>
-                  <span className="right">
-                    <span className="num" style={{ color: 'var(--ok)' }}>
-                      +{formatValue(c.expansion.revenueExpansionUsd, 'usd')}
+              [...winsRecientes]
+                .sort((a, b) => (b.activacion.primerResultadoAt || '').localeCompare(a.activacion.primerResultadoAt || ''))
+                .map((c) => (
+                  <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                    <Pill
+                      tone={(c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'ok' : 'warn'}
+                      dot
+                    >
+                      día {c.activacion.diasHastaResultado}
+                    </Pill>
+                    <span className="who">{c.nombre}</span>
+                    <span className="q">{c.activacion.descripcion}</span>
+                    <span className="right">
+                      <span className="dim" style={{ fontSize: 12 }}>
+                        {formatFecha(c.activacion.primerResultadoAt)}
+                      </span>
+                      <Icon name="arrow" size={13} />
                     </span>
-                  </span>
-                </div>
-              ))
+                  </Link>
+                ))
             )}
           </Card>
+
+          <div className="split">
+            <Card
+              title="Candidatos a upsell"
+              sub={`${candidatos.length} con señal de techo / siguiente nivel`}
+              flush
+              foot="Léxico: upsell, techo, escalar, pasar a Boost/Advantage, etc."
+            >
+              {candidatos.length === 0 ? (
+                <div className="empty">Sin candidatos detectados.</div>
+              ) : (
+                candidatos.map((c) => (
+                  <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                    <Pill tone="ok">candidato</Pill>
+                    <span className="who">{c.nombre}</span>
+                    <span className="q">
+                      {CAT_LABEL[c.categoria] ?? c.categoria} · score {c.salud.score} · #{c.canal}
+                    </span>
+                    <span className="right"><Icon name="arrow" size={13} /></span>
+                  </Link>
+                ))
+              )}
+            </Card>
+
+            <Card
+              title="Caída fuerte de actividad"
+              sub={`${caida.length} con tendencia ≤ −30%`}
+              flush
+              foot="Señal de desenganche antes del silencio total."
+            >
+              {caida.length === 0 ? (
+                <div className="empty">Nadie en caída fuerte.</div>
+              ) : (
+                caida
+                  .sort((a, b) => (a.engagement.tendencia ?? 0) - (b.engagement.tendencia ?? 0))
+                  .map((c) => (
+                    <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                      <Pill tone={SEMAFORO[c.salud.semaforo].tone} dot>
+                        {c.engagement.tendencia}%
+                      </Pill>
+                      <span className="who">{c.nombre}</span>
+                      <span className="q">
+                        {c.engagement.mensajesClienteSemana}/sem · {hace(c.ultimaActividadAt)}
+                      </span>
+                      <span className="right"><Icon name="arrow" size={13} /></span>
+                    </Link>
+                  ))
+              )}
+            </Card>
+          </div>
         </>
       )}
     </div>

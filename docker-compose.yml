@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    container_name: atv-ops-backend
+    environment:
+      PYTHONUNBUFFERED: "1"
+      # El bot de ATV Clients escribe acá; ATV Ops solo lee.
+      TRANSCRIPTS_BASE_PATH: /opt/atv-clients/transcripts
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8010:8000"
+    volumes:
+      - /opt/atv-clients/transcripts:/opt/atv-clients/transcripts:ro
+      - /opt/atv-ops/data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+    container_name: atv-ops-frontend
+    ports:
+      - "8090:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

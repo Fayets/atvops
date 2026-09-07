@@ -5,25 +5,21 @@
  * un casillero deja de funcionar a las dos semanas. Este score se alimenta de
  * data que ya existe —los canales de Discord— así que se actualiza solo.
  *
- * El cálculo es transparente a propósito: la pantalla muestra los factores uno
- * por uno. Si un cliente está en rojo, se tiene que poder ver por qué y
- * discutirlo, no aceptarlo como veredicto de una caja negra.
- *
  * @typedef {import('../data/types.js').Cliente} Cliente
  * @typedef {import('../data/types.js').Salud} Salud
  */
 
 import { ahora, diasEntre } from './format.js';
 
-/** Peso máximo de cada factor. Suman 100. */
+/** Peso máximo de cada factor. Suman 100. Sin MRR: no hay factor de facturación. */
 export const PESOS = {
   activacion: 35,
   ritmo: 35,
-  mix: 20,
-  outcome: 10,
+  mix: 15,
+  momentum: 15,
 };
 
-/** Ventana de activación, en días. Es la promesa: un win tangible antes del día 30. */
+/** Ventana de activación, en días. */
 export const VENTANA_ACTIVACION = 30;
 
 /** Cortes del semáforo. */
@@ -35,12 +31,12 @@ export const CORTES = { verde: 75, amarillo: 50 };
  * @returns {Salud}
  */
 export function calcularSalud(cliente, hoy = ahora()) {
-  const { activacion, engagement, outcome } = cliente;
+  const { activacion, engagement } = cliente;
   const diasDesdeEntrada = diasEntre(cliente.entradaAt, hoy.toISOString());
   const factores = [];
   const alertas = [];
 
-  /* 1 · Activación — la promesa central: primer resultado antes del día 30. */
+  /* 1 · Activación */
   let pActivacion;
   let detalleActivacion;
   if (activacion.activado) {
@@ -63,34 +59,40 @@ export function calcularSalud(cliente, hoy = ahora()) {
     detalleActivacion = `Sin resultado al día ${diasDesdeEntrada}`;
     alertas.push(`Sin activar después de ${diasDesdeEntrada} días`);
   }
-  factores.push({ nombre: 'Activación', puntos: pActivacion, max: PESOS.activacion, detalle: detalleActivacion });
+  factores.push({
+    nombre: 'Activación',
+    puntos: pActivacion,
+    max: PESOS.activacion,
+    detalle: detalleActivacion,
+  });
 
-  /* 2 · Ritmo — cuántos mensajes manda el cliente y hacia dónde va la curva. */
-  const m = engagement.mensajesClienteSemana;
+  /* 2 · Ritmo */
+  const m = engagement.mensajesClienteSemana ?? 0;
   let pRitmo = m >= 4 ? 35 : m >= 2.5 ? 24 : m >= 1.5 ? 14 : 4;
   const notasRitmo = [`${m} mensajes por semana`];
-  if (engagement.tendencia <= -30) {
-    pRitmo -= 10;
-    notasRitmo.push(`cayó ${Math.abs(engagement.tendencia)}%`);
-  }
   if (engagement.diasSinMensaje >= 3) {
     pRitmo -= 7;
     notasRitmo.push(`${engagement.diasSinMensaje} días sin escribir`);
   }
   pRitmo = Math.max(0, pRitmo);
-  factores.push({ nombre: 'Ritmo del cliente', puntos: pRitmo, max: PESOS.ritmo, detalle: notasRitmo.join(' · ') });
+  factores.push({
+    nombre: 'Ritmo del cliente',
+    puntos: pRitmo,
+    max: PESOS.ritmo,
+    detalle: notasRitmo.join(' · '),
+  });
 
-  /* 3 · Mix de conversación — de qué habla el cliente. */
+  /* 3 · Mix de conversación (heurística léxica del transcript). */
   const mix = engagement.mix ?? { implementacion: 0, soporte: 0, queja: 0, celebracion: 0 };
   const mixTotal = mix.implementacion + mix.soporte + mix.queja + mix.celebracion;
   let pMix;
   let detalleMix;
   if (!mixTotal || engagement.mixPendiente) {
-    pMix = 10;
-    detalleMix = 'Mix pendiente del clasificador';
+    pMix = 7;
+    detalleMix = 'Pocos mensajes etiquetables todavía';
   } else {
     const { implementacion, celebracion, queja } = mix;
-    pMix = Math.max(0, Math.min(20, ((implementacion + celebracion) / 100) * 20 - queja * 0.35));
+    pMix = Math.max(0, Math.min(15, ((implementacion + celebracion) / 100) * 15 - queja * 0.25));
     if (queja >= 25) alertas.push(`${queja}% de la conversación son quejas`);
     detalleMix = `${implementacion}% implementación · ${queja}% queja`;
   }
@@ -101,39 +103,63 @@ export function calcularSalud(cliente, hoy = ahora()) {
     detalle: detalleMix,
   });
 
-  /* 4 · Outcome — ¿el cliente está creciendo? Si no crece, se va igual. */
-  let pOutcome;
-  let detalleOutcome;
-  if (!outcome.revenueInicialUsd) {
-    pOutcome = 5;
-    detalleOutcome = 'Facturación pendiente de payments / CRM';
+  /* 4 · Momentum — tendencia de mensajes del cliente. */
+  const tend = engagement.tendencia ?? 0;
+  let pMom;
+  let detalleMom;
+  if (tend >= 20) {
+    pMom = 15;
+    detalleMom = `Tendencia +${tend}% vs semanas previas`;
+  } else if (tend >= 0) {
+    pMom = 10;
+    detalleMom = `Tendencia estable (${tend}%)`;
+  } else if (tend > -30) {
+    pMom = 5;
+    detalleMom = `Tendencia ${tend}%`;
   } else {
-    const crecimiento = outcome.revenueActualUsd / outcome.revenueInicialUsd;
-    pOutcome = crecimiento >= 1.5 ? 10 : crecimiento >= 1.2 ? 7 : crecimiento >= 1.05 ? 4 : 0;
-    detalleOutcome = `Factura ${crecimiento.toFixed(2)}× de lo que facturaba al entrar`;
+    pMom = 0;
+    detalleMom = `Caída fuerte (${tend}%)`;
+    alertas.push(`Actividad cayó ${Math.abs(tend)}%`);
   }
   factores.push({
-    nombre: 'Outcome',
-    puntos: pOutcome,
-    max: PESOS.outcome,
-    detalle: detalleOutcome,
+    nombre: 'Momentum',
+    puntos: pMom,
+    max: PESOS.momentum,
+    detalle: detalleMom,
   });
 
   const score = Math.round(factores.reduce((s, f) => s + f.puntos, 0));
 
-  /* Reglas duras: no importa el puntaje, estas condiciones pintan rojo. */
   let semaforo = score >= CORTES.verde ? 'verde' : score >= CORTES.amarillo ? 'amarillo' : 'rojo';
   if (engagement.diasSinMensaje >= 7) {
     alertas.unshift(`Silencio de ${engagement.diasSinMensaje} días`);
+    semaforo = 'rojo';
+  }
+  if (cliente.churnIntent?.detectado) {
+    alertas.unshift('Intención de baja / reembolso en el canal');
     semaforo = 'rojo';
   }
 
   return { score, semaforo, factores, alertas };
 }
 
-/** Etiquetas y tonos del semáforo, para no repetirlos en cada pantalla. */
+/** Etiquetas y tonos del semáforo. */
 export const SEMAFORO = {
   verde: { label: 'Sano', tone: 'ok', color: 'var(--ok)' },
   amarillo: { label: 'Atención', tone: 'warn', color: 'var(--warn)' },
   rojo: { label: 'En riesgo', tone: 'alert', color: 'var(--brand)' },
+};
+
+/** Blockers de activación derivados del canal. */
+export const BLOCKERS = {
+  cliente_ausente: {
+    label: 'Cliente ausente',
+    descripcion: 'Casi no escribe en el canal desde que entró.',
+    accion: 'Ping personal + chequear accesos / expectativa.',
+  },
+  no_implementa: {
+    label: 'No implementa',
+    descripcion: 'Pasó la ventana de 30 días sin un win detectable en el transcript.',
+    accion: 'Revisión 1:1: oferta, bloqueo y próximo hito concreto.',
+  },
 };

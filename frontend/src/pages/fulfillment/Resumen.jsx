@@ -122,8 +122,10 @@ export default function FulfillmentResumen() {
   const filasVisibles = expandido ? poolHeatmap : poolHeatmap.slice(0, HEATMAP_MAX);
   const hayMas = poolHeatmap.length > HEATMAP_MAX;
   const msgsPulso = filasVisibles.reduce((s, f) => s + f.valores.reduce((a, b) => a + b, 0), 0);
-  const parcial = Boolean(data?.resumen?.parcial);
   const accionVisible = atencion.slice(0, ACCION_MAX);
+  const totalCartera = data?.activos?.length ?? 0;
+  const nAmarillo = data?.semaforoTotales?.amarillo ?? 0;
+  const nRojo = data?.semaforoTotales?.rojo ?? 0;
 
   const elegirFiltro = (id) => {
     setFiltro(id);
@@ -139,20 +141,6 @@ export default function FulfillmentResumen() {
         </>
       ) : (
         <>
-          {parcial && (
-            <Card
-              title="Transcripts parciales"
-              sub="La copia local no tiene el histórico completo del server"
-              foot="Para ponerlos al día: en atv-clients corré el bot (Actualizar Discord) o traé /opt/atv-clients/transcripts al path local."
-            >
-              <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
-                Último mensaje leído: {data.syncAt ? hace(data.syncAt) : '—'}.
-                {' '}Completos: {data.resumen?.canales_completos ?? 0} de {data.activos.length}.
-                El score y el pulso usan lo que hay; puede faltar actividad reciente.
-              </div>
-            </Card>
-          )}
-
           <div className="kpi-grid">
             {titulares.map((m) => (
               <KpiCard key={m.id} metric={m} spark={false} />
@@ -161,27 +149,41 @@ export default function FulfillmentResumen() {
 
           <Card
             title="Semáforo"
-              sub="Ritmo y silencio del canal"
+            sub="Solo lo que requiere acción · click filtra el pulso"
             foot={(data.revision ?? []).join(' ')}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, maxWidth: 420 }}>
-              {['verde', 'amarillo', 'rojo'].map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="resumen-semaforo-btn"
-                  onClick={() => elegirFiltro(s === 'verde' ? 'todos' : 'atencion')}
-                  style={{ borderTop: `2px solid ${SEMAFORO[s].color}` }}
-                >
-                  <div className="num" style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em' }}>
-                    {data.semaforoTotales[s]}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{SEMAFORO[s].label}</div>
-                </button>
-              ))}
+            <div className="resumen-semaforo-stack">
+              {[
+                { id: 'amarillo', n: nAmarillo, filtro: 'atencion' },
+                { id: 'rojo', n: nRojo, filtro: 'atencion' },
+              ].map((s) => {
+                const meta = SEMAFORO[s.id];
+                const pct = totalCartera ? Math.round((s.n / totalCartera) * 100) : 0;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="resumen-semaforo-row"
+                    onClick={() => elegirFiltro(s.filtro)}
+                  >
+                    <div className="resumen-semaforo-row-top">
+                      <span className="resumen-semaforo-dot" style={{ background: meta.color }} />
+                      <span className="resumen-semaforo-label">{meta.label}</span>
+                      <span className="num resumen-semaforo-n">{s.n}</span>
+                      <span className="dim resumen-semaforo-pct">{pct}%</span>
+                    </div>
+                    <div className="resumen-semaforo-track">
+                      <div
+                        className="resumen-semaforo-fill"
+                        style={{ width: `${pct}%`, background: meta.color }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-2)', lineHeight: 1.55 }}>
-              Sync {hace(data.syncAt)}. Mix/NRR no están acá a propósito.
+              Sync {hace(data.syncAt)} · {totalCartera} canales
             </div>
           </Card>
 

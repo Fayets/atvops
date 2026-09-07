@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import HTTPException
 from pony.orm import db_session, flush
 
-from src.models import Integrante, Reunion
+from src.models import Integrante, Reunion, Usuario
 from src.services.integrantes_services import integrante_a_dict
 
 
@@ -23,7 +23,8 @@ def _reunion_a_dict(reunion: Reunion) -> dict:
 
 
 class ReunionesServices:
-    def listar_mes(self, anio: int, mes: int) -> dict:
+    def listar_mes(self, anio: int, mes: int, usuario_id: int) -> dict:
+        """Reuniones del mes DEL USUARIO. El calendario es personal: nadie ve el de otro."""
         if mes < 1 or mes > 12:
             raise HTTPException(status_code=400, detail="El mes tiene que estar entre 1 y 12.")
         inicio = date(anio, mes, 1)
@@ -31,7 +32,8 @@ class ReunionesServices:
         with db_session:
             filas = [
                 r for r in list(Reunion.select())
-                if r.fecha >= inicio and r.fecha <= fin
+                if r.usuario is not None and r.usuario.id == usuario_id
+                and r.fecha >= inicio and r.fecha <= fin
             ]
             filas = sorted(filas, key=lambda r: (r.fecha, r.hora or "", r.id))
             return {
@@ -40,12 +42,24 @@ class ReunionesServices:
                 "reuniones": [_reunion_a_dict(r) for r in filas],
             }
 
-    def crear(self, titulo: str, fecha: date, hora: str | None, notas: str | None, integrante_ids: list[int]) -> dict:
+    def crear(
+        self,
+        usuario_id: int,
+        titulo: str,
+        fecha: date,
+        hora: str | None,
+        notas: str | None,
+        integrante_ids: list[int],
+    ) -> dict:
         limpio = (titulo or "").strip()
         if not limpio:
             raise HTTPException(status_code=400, detail="La reunión necesita un título.")
         with db_session:
+            dueno = Usuario.get(id=usuario_id)
+            if dueno is None:
+                raise HTTPException(status_code=401, detail="Sesión inválida.")
             reunion = Reunion(
+                usuario=dueno,
                 titulo=limpio,
                 fecha=fecha,
                 hora=(hora or "").strip(),
@@ -61,10 +75,11 @@ class ReunionesServices:
             flush()
             return _reunion_a_dict(reunion)
 
-    def borrar(self, reunion_id: int) -> dict:
+    def borrar(self, reunion_id: int, usuario_id: int) -> dict:
         with db_session:
             reunion = Reunion.get(id=reunion_id)
-            if reunion is None:
+            # Ajena = inexistente: no se revela que existe.
+            if reunion is None or reunion.usuario is None or reunion.usuario.id != usuario_id:
                 raise HTTPException(status_code=404, detail="No encontramos esa reunión.")
             data = _reunion_a_dict(reunion)
             reunion.delete()

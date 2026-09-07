@@ -12,6 +12,8 @@ from src.controllers.clientes_controller import router as clientes_router
 from src.controllers.cobranza_controller import router as cobranza_router
 from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.integrantes_controller import router as integrantes_router
+from src.controllers.mkt_controller import router as mkt_router
+from src.controllers.meta_controller import router as meta_router
 from src.controllers.reuniones_controller import router as reuniones_router
 from src.controllers.transcripts_controller import router as transcripts_router
 from src.db import init_db
@@ -50,6 +52,8 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(transcripts_router, prefix="/api/transcripts", tags=["transcripts"])
 app.include_router(clientes_router, prefix="/api/clientes", tags=["clientes"])
 app.include_router(cobranza_router, prefix="/api/cobranza", tags=["cobranza"])
+app.include_router(mkt_router, prefix="/api/mkt", tags=["mkt"])
+app.include_router(meta_router, prefix="/api/meta", tags=["meta"])
 app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(integrantes_router, prefix="/api/integrantes", tags=["integrantes"])
 app.include_router(reuniones_router, prefix="/api/reuniones", tags=["reuniones"])

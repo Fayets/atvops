@@ -1,9 +1,10 @@
-import { NavLink, useLocation } from 'react-router-dom';
-import { GRIETAS } from '../../data/mock/home.js';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { coberturaAutomatizacion } from '../../data/sources.js';
+import { clearSession } from '../../lib/auth.js';
+import { useRol } from '../../lib/RolContext.jsx';
+import { filtrarNav, homeParaRol, ROL_LIST, ROLES } from '../../lib/roles.js';
 import Icon from '../ui/Icon.jsx';
 
-/** Las cuatro áreas del sistema, más la home. */
 const NAV = [
   { to: '/', icon: 'home', label: 'Home', end: true },
   { to: '/calendario', icon: 'calendario', label: 'Calendario' },
@@ -16,12 +17,14 @@ const NAV = [
       { to: '/fulfillment/clientes', label: 'Clientes' },
       { to: '/fulfillment/activacion', label: 'Activación' },
       { to: '/fulfillment/engagement', label: 'Engagement' },
-      { to: '/fulfillment/retencion', label: 'Retención y NRR' },
-      { to: '/fulfillment/outcomes', label: 'Outcomes y expansión' },
+      { to: '/fulfillment/retencion', label: 'Retención y riesgo' },
+      { to: '/fulfillment/outcomes', label: 'Resultados' },
     ],
   },
   { to: '/marketing', icon: 'marketing', label: 'Marketing' },
+  { to: '/ads', icon: 'ads', label: 'Ads' },
   { to: '/ventas', icon: 'ventas', label: 'Ventas' },
+  { to: '/metas', icon: 'check', label: 'Metas' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas' },
   { to: '/cobranza', icon: 'cobranza', label: 'Cobranza' },
   { to: '/ideas', icon: 'ideas', label: 'Ideas' },
@@ -30,22 +33,36 @@ const NAV = [
 
 export default function Sidebar() {
   const cobertura = coberturaAutomatizacion();
-  const grietasAltas = GRIETAS.filter((g) => g.severidad === 'alta').length;
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { user, rol, rolReal, preview, puedePreview, setPreview } = useRol();
+  const nav = filtrarNav(NAV, rol);
+
+  function salir() {
+    setPreview(null);
+    clearSession();
+    navigate('/login', { replace: true });
+  }
+
+  function onPreview(e) {
+    const v = e.target.value;
+    setPreview(v === rolReal ? null : v);
+    navigate(homeParaRol(v), { replace: true });
+  }
 
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">ATV</div>
+        <img className="brand-logo" src="/atv-logo.png" alt="ATV" width={34} height={34} />
         <div>
           <div className="brand-name">ATV Ops</div>
-          <div className="brand-sub">Operaciones y sistemas</div>
+          <div className="brand-sub">Operaciones</div>
         </div>
       </div>
 
       <nav className="nav">
         <div className="nav-group eyebrow">Tablero</div>
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <div key={item.to}>
             <NavLink
               to={item.to}
@@ -54,7 +71,6 @@ export default function Sidebar() {
             >
               <Icon name={item.icon} />
               {item.label}
-              {item.to === '/' && grietasAltas > 0 && <span className="nav-badge">{grietasAltas}</span>}
             </NavLink>
 
             {item.sub && pathname.startsWith(item.to) && (
@@ -76,17 +92,41 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-foot">
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Datos automatizados</span>
-          <span className="num" style={{ fontSize: 14, fontWeight: 600 }}>
-            {cobertura.pct}%
-          </span>
+        <div className="sidebar-account">
+          <div className="sidebar-account-row">
+            <span className="sidebar-account-name">{user?.nombre || user?.username || '—'}</span>
+            <span className={`sidebar-rol${preview ? ' preview' : ''}`}>
+              {ROLES[rol]?.label ?? rol}
+              {preview ? ' · preview' : ''}
+            </span>
+          </div>
+
+          {puedePreview ? (
+            <label className="sidebar-preview">
+              <span>Ver como</span>
+              <select value={preview || rolReal} onChange={onPreview} aria-label="Previsualizar rol">
+                {ROL_LIST.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLES[r].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <button className="sidebar-salir" onClick={salir} type="button">
+            Salir
+          </button>
         </div>
-        <div className="bar">
-          <span style={{ width: `${cobertura.pct}%` }} />
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.45 }}>
-          {cobertura.manuales} de {cobertura.total} campos todavía dependen de que alguien los cargue.
+
+        <div className="sidebar-auto">
+          <div className="sidebar-auto-row">
+            <span>Datos auto</span>
+            <span className="num">{cobertura.pct}%</span>
+          </div>
+          <div className="bar">
+            <span style={{ width: `${cobertura.pct}%` }} />
+          </div>
         </div>
       </div>
     </aside>

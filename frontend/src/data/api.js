@@ -6,24 +6,32 @@
  * se reemplaza el cuerpo de UNA función por un `fetch` al backend y el resto
  * del código no se entera. Ese es el objetivo: migrar fuente por fuente.
  *
- *   getFulfillment() → GET /api/clientes (+ score en frontend)
+ *   getFulfillment() → GET /api/clientes (+ score/heurísticas en frontend)
  *   getClientes()    → GET /api/clientes (boost / advantage / avanzados / principiantes)
  *   getCobranza()    → GET /api/cobranza (ATV Clients cuotas)
+ *   getMetasMes()    → mock decreto + avance + diagnóstico (Marketing/Ventas)
  *   getVentas()      → mock (Calendly + payments)
  *   getMarketing()   → mock (Ads Manager)
  *   getOnboarding()  → mock
  *   getSistemas()    → mock
  *   getHome()        → composición de las anteriores
  *
- * DATOS REALES: transcripts + cartera Discord + cobranza (ATV Clients).
- * El resto del tablero sigue en mock.
+ * FULFILLMENT + acciones de la semana: Discord (+ cobranza si ATV Clients responde).
+ * Marketing/Ventas del cuadro home pueden seguir en mock hasta conectar esas fuentes.
  *
  * @typedef {import('./types.js').Metric} Metric
  * @typedef {import('./types.js').ResumenArea} ResumenArea
  */
 
-import { calcularSalud, SEMAFORO } from '../lib/scoring.js';
-import { getToken } from '../lib/auth.js';
+import { DECRETO_SEPTIEMBRE_2026, REAL_DIA_14, CONTEXTO_MOCK } from './mock/metasMes.js';
+import {
+  calcularAvance,
+  calcularDiagnostico,
+  decretoPlantilla,
+  leerDecretoGuardado,
+  tasasImplicitas,
+} from '../lib/metasMes.js';
+import { contextoDeMes } from '../lib/mes.js';
 import { GRIETAS, PEDIDOS, PEDIDOS_SEMANA } from './mock/home.js';
 import { CAMPANIAS, FRECUENCIA, GASTO_CANAL, GASTO_DIARIO } from './mock/marketing.js';
 import { DURACION_HISTORICA, PROCESOS } from './mock/onboarding.js';
@@ -34,12 +42,15 @@ import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
 import { diaDentroDelMes, diasDelMes, ritmo, semanaIso } from '../lib/pacing.js';
 import {
   accionMarketing,
-  accionSistemas,
   accionVentas,
   accionesCobranza,
   accionesFulfillment,
+  accionesOperativas,
+  grietasOperativas,
   ordenarAcciones,
 } from '../lib/acciones.js';
+import { getToken } from '../lib/auth.js';
+import { calcularSalud } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
 const LATENCIA_MS = 180;
@@ -100,14 +111,16 @@ export async function getClientes() {
       nota: notaPorCategoria(cartera.resumen.por_categoria),
     },
     {
-      id: 'mrr',
-      label: 'MRR',
-      value: activos.reduce((s, c) => s + (c.mrrUsd || 0), 0),
-      format: 'usd',
+      id: 'pct_activados',
+      label: 'Con win en el canal',
+      value: activos.length
+        ? (activos.filter((c) => c.activacion?.activado).length / activos.length) * 100
+        : 0,
+      format: 'pct',
       previous: null,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      nota: 'Todavía no conectamos payments: el MRR no sale del canal.',
+      sourceId: 'discord_transcripts',
+      updatedAt: ahoraIso,
+      nota: 'Heurística sobre el transcript (venta/cierre/cobro).',
     },
     {
       id: 'canales_con_mensajes',
@@ -212,7 +225,7 @@ function metricasCoaches(clientes, coaches) {
     return {
       ...coach,
       clientes: suyos.length,
-      mrrGestionadoUsd: suyos.reduce((s, c) => s + (c.mrrUsd || 0), 0),
+      mrrGestionadoUsd: null,
       scorePromedio: suyos.length ? Math.round(suyos.reduce((s, c) => s + c.salud.score, 0) / suyos.length) : 0,
       respuestaHs: mediana(suyos.map((c) => c.engagement.respuestaCoachHs)),
       activacion30: elegibles.length ? (enVentana.length / elegibles.length) * 100 : 0,
@@ -248,6 +261,7 @@ export async function getFulfillment() {
 
   const verdes = activos.filter((c) => c.salud.semaforo === 'verde');
   const rojos = activos.filter((c) => c.salud.semaforo === 'rojo');
+  const amarillos = activos.filter((c) => c.salud.semaforo === 'amarillo');
   const mixGlobal = ['implementacion', 'soporte', 'queja', 'celebracion'].reduce((acc, k) => {
     acc[k] = 0;
     return acc;
@@ -261,14 +275,22 @@ export async function getFulfillment() {
 
   const coaches = metricasCoaches(clientes, cartera.coaches);
 
-  const crecieron = activos.filter((c) => c.outcome.revenueActualUsd > c.outcome.revenueInicialUsd * 1.05);
-  const multiplos = activos.map((c) =>
-    c.outcome.revenueInicialUsd ? c.outcome.revenueActualUsd / c.outcome.revenueInicialUsd : 1,
-  );
-  const conUpsell = activos.filter((c) => c.expansion.upsells > 0);
-  const candidatos = activos.filter((c) => c.expansion.candidatoUpsell);
-  const mrrEnRiesgo = rojos.reduce((s, c) => s + (c.mrrUsd || 0), 0);
   const silencio = activos.filter((c) => c.engagement.diasSinMensaje >= 7);
+  const caidaFuerte = activos.filter((c) => (c.engagement.tendencia ?? 0) <= -30);
+  const sinActivarFuera = activos.filter(
+    (c) => !c.activacion.activado && diasEntre(c.entradaAt, hoy) > 30,
+  );
+  const churnIntent = activos.filter((c) => c.churnIntent?.detectado);
+  const enRiesgo = activos.filter((c) => c.salud.semaforo !== 'verde');
+  const activados = activos.filter((c) => c.activacion.activado);
+  const winsRecientes = activados.filter((c) => {
+    const at = c.activacion.primerResultadoAt;
+    if (!at) return false;
+    return diasEntre(at, hoy) <= 30;
+  });
+  const momentumPos = activos.filter((c) => (c.engagement.tendencia ?? 0) >= 20);
+  const candidatos = activos.filter((c) => c.expansion?.candidatoUpsell);
+  const pctQueja = mixDisponible ? (mixGlobal.queja ?? 0) : null;
 
   /** @type {Record<string, import('./types.js').Metric[]>} */
   const kpis = {
@@ -279,10 +301,10 @@ export async function getFulfillment() {
         value: pctActivacion,
         format: 'pct',
         previous: null,
-        sourceId: 'manual',
+        sourceId: 'discord_transcripts',
         updatedAt: computedAt,
         objetivo: 85,
-        nota: 'Todavía no corre el clasificador: nadie figura como activado desde el texto.',
+        nota: `${activadosEnVentana.length} de ${elegibles.length || 0} elegibles · win en el transcript.`,
       },
       {
         id: 'tiempo_primer_resultado',
@@ -290,10 +312,11 @@ export async function getFulfillment() {
         value: medianaActivacion,
         format: 'days',
         previous: null,
-        sourceId: 'manual',
+        sourceId: 'discord_transcripts',
         updatedAt: computedAt,
         good: 'down',
         objetivo: 14,
+        nota: 'Días desde el primer mensaje del canal hasta el win detectado.',
       },
       {
         id: 'sin_activar',
@@ -301,11 +324,11 @@ export async function getFulfillment() {
         value: sinActivar.length,
         format: 'count',
         previous: null,
-        sourceId: 'manual',
+        sourceId: 'discord_transcripts',
         updatedAt: computedAt,
         good: 'down',
         objetivo: 0,
-        nota: 'Pendiente del clasificador sobre los transcripts.',
+        nota: 'Sin frase de resultado (venta/cierre/cobro) en el canal todavía.',
       },
     ],
     engagement: [
@@ -318,7 +341,7 @@ export async function getFulfillment() {
         sourceId: 'discord_transcripts',
         updatedAt: computedAt,
         objetivo: 80,
-        nota: `${verdes.length} verdes · ${activos.length - verdes.length - rojos.length} en atención · ${rojos.length} en riesgo.`,
+        nota: `${verdes.length} verdes · ${amarillos.length} en atención · ${rojos.length} en riesgo.`,
       },
       {
         id: 'mensajes_semana',
@@ -343,89 +366,139 @@ export async function getFulfillment() {
         good: 'down',
         nota: silencio.slice(0, 4).map((c) => c.nombre).join(' · ') || 'Ninguno.',
       },
-    ],
-    retencion: [
       {
-        id: 'nrr',
-        label: 'Net revenue retention',
-        value: 0,
+        id: 'mix_queja',
+        label: 'Queja en el mix',
+        value: pctQueja ?? 0,
         format: 'pct',
-        previous: null,
-        sourceId: 'manual',
-        updatedAt: SYNC.man,
-        objetivo: 100,
-        nota: 'Falta payments: el NRR no se puede calcular solo con Discord.',
-      },
-      {
-        id: 'churn_mes',
-        label: 'Churn del mes',
-        value: 0,
-        format: 'pct',
-        previous: null,
-        sourceId: 'discord_crm',
-        updatedAt: SYNC.crm,
-        good: 'down',
-        nota: 'Sin CRM todavía: no marcamos churn desde el canal.',
-      },
-      {
-        id: 'mrr_en_riesgo',
-        label: 'MRR en riesgo',
-        value: mrrEnRiesgo,
-        format: 'usd',
         previous: null,
         sourceId: 'discord_transcripts',
         updatedAt: computedAt,
         good: 'down',
-        nota: `${rojos.length} clientes en rojo por el score del canal.`,
+        nota: mixDisponible
+          ? `Promedio cartera · implementación ${mixGlobal.implementacion}% · celebración ${mixGlobal.celebracion}%.`
+          : 'Aún no hay mensajes etiquetables en mix.',
+      },
+    ],
+    retencion: [
+      {
+        id: 'en_riesgo',
+        label: 'Fuera de verde',
+        value: activos.length ? (enRiesgo.length / activos.length) * 100 : 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        objetivo: 20,
+        nota: `${enRiesgo.length} canales · ${rojos.length} rojos · ${amarillos.length} amarillos.`,
+      },
+      {
+        id: 'silencio_retencion',
+        label: 'Silencio ≥ 7 días',
+        value: silencio.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        nota: 'Señal dura de churn anunciado desde el canal.',
+      },
+      {
+        id: 'sin_activar_fuera',
+        label: 'Sin activar (>30d)',
+        value: sinActivarFuera.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        nota: 'Pasaron la ventana sin win detectable.',
+      },
+      {
+        id: 'intencion_baja',
+        label: 'Intención de baja',
+        value: churnIntent.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        nota: churnIntent.length
+          ? churnIntent.slice(0, 3).map((c) => c.nombre).join(' · ')
+          : 'Sin frases de reembolso / baja en mensajes recientes.',
       },
     ],
     outcomes: [
       {
-        id: 'clientes_creciendo',
-        label: 'Clientes que crecieron',
-        value: activos.length ? (crecieron.length / activos.length) * 100 : 0,
+        id: 'pct_activados',
+        label: 'Con win en el canal',
+        value: activos.length ? (activados.length / activos.length) * 100 : 0,
         format: 'pct',
         previous: null,
-        sourceId: 'manual',
-        updatedAt: SYNC.man,
-        objetivo: 90,
-        nota: 'Outcomes de facturación todavía no salen del transcript.',
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        objetivo: 70,
+        nota: `${activados.length} de ${activos.length} con resultado detectado.`,
       },
       {
-        id: 'multiplo_mediano',
-        label: 'Múltiplo mediano de facturación',
-        value: mediana(multiplos),
-        format: 'x',
+        id: 'wins_30d',
+        label: 'Wins últimos 30 días',
+        value: winsRecientes.length,
+        format: 'count',
         previous: null,
-        sourceId: 'manual',
-        updatedAt: SYNC.man,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        nota: 'Primer resultado detectado en la ventana móvil de 30 días.',
+      },
+      {
+        id: 'momentum_positivo',
+        label: 'Momentum positivo',
+        value: activos.length ? (momentumPos.length / activos.length) * 100 : 0,
+        format: 'pct',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        nota: `${momentumPos.length} canales con tendencia ≥ +20%.`,
       },
     ],
     expansion: [
       {
-        id: 'revenue_expansion',
-        label: 'Revenue de expansión',
-        value: 0,
-        format: 'usd',
+        id: 'candidatos_upsell',
+        label: 'Candidatos a upsell',
+        value: candidatos.length,
+        format: 'count',
         previous: null,
-        sourceId: 'manual',
-        updatedAt: SYNC.man,
-        nota: 'Pendiente de payments / CRM.',
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        nota: 'Señal léxica de techo / siguiente nivel en el canal.',
       },
       {
-        id: 'pct_upsell',
-        label: 'Clientes con upsell',
-        value: activos.length ? (conUpsell.length / activos.length) * 100 : 0,
-        format: 'pct',
+        id: 'caida_actividad',
+        label: 'Caída fuerte de actividad',
+        value: caidaFuerte.length,
+        format: 'count',
         previous: null,
-        sourceId: 'manual',
-        updatedAt: SYNC.man,
-        objetivo: 70,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        nota: 'Tendencia ≤ −30% vs semanas previas.',
       },
     ],
   };
 
   const senales = senalesDesdeActivos(activos);
+  for (const c of churnIntent) {
+    senales.unshift({
+      id: `churn_${c.id}`,
+      clienteId: c.id,
+      tipo: 'queja',
+      peso: 'negativa',
+      extracto: c.churnIntent.extracto || `${c.nombre}: intención de baja/reembolso.`,
+      fechaAt: c.churnIntent.fechaAt ?? c.ultimaActividadAt ?? computedAt,
+    });
+  }
+
   const ultimoMensajeAt =
     activos
       .map((c) => c.ultimaActividadAt)
@@ -440,12 +513,17 @@ export async function getFulfillment() {
     actividad: cartera.actividad,
     semanas: cartera.semanas,
     senales,
-    /** Vacío hasta conectar payments. */
     nrr: [],
     cohortes: cohortesDesdeClientes(clientes),
     blockers: {},
     candidatos,
     sinActivar,
+    silencio,
+    caidaFuerte,
+    sinActivarFuera,
+    churnIntent,
+    winsRecientes,
+    momentumPos,
     kpis,
     mixGlobal,
     mixDisponible,
@@ -453,7 +531,7 @@ export async function getFulfillment() {
     resumen: cartera.resumen,
     semaforoTotales: {
       verde: verdes.length,
-      amarillo: activos.length - verdes.length - rojos.length,
+      amarillo: amarillos.length,
       rojo: rojos.length,
     },
     revision: [
@@ -461,7 +539,8 @@ export async function getFulfillment() {
         ? `${silencio.length} canales con ≥7 días sin mensaje del cliente.`
         : 'Ningún cliente con silencio largo esta semana.',
       `${activos.length} canales de cliente leídos desde Discord (${cartera.resumen.mensajes} mensajes).`,
-    ],
+      churnIntent.length ? `${churnIntent.length} con intención de baja/reembolso en el texto.` : null,
+    ].filter(Boolean),
   };
 }
 
@@ -477,12 +556,26 @@ export async function getFulfillmentCliente(clienteId) {
     data.senales?.length
       ? data.senales
       : senalesDesdeActivos([cliente]).filter((s) => s.clienteId === cliente.id);
+  if (cliente.churnIntent?.detectado) {
+    senales.unshift({
+      id: `churn_${cliente.id}`,
+      clienteId: cliente.id,
+      tipo: 'queja',
+      peso: 'negativa',
+      extracto: cliente.churnIntent.extracto,
+      fechaAt: cliente.churnIntent.fechaAt ?? cliente.ultimaActividadAt,
+    });
+  }
+  const blockerId = cliente.activacion?.blocker;
+  const blocker = blockerId && BLOCKERS[blockerId]
+    ? { id: blockerId, ...BLOCKERS[blockerId] }
+    : null;
   return {
     cliente,
     coach: data.coach,
     actividad: data.actividad,
     senales,
-    blocker: null,
+    blocker,
     semaforo: SEMAFORO[cliente.salud.semaforo],
   };
 }
@@ -552,7 +645,44 @@ export async function getVentas() {
 
 /* --------------------------------------------------------------- marketing */
 
-export async function getMarketing() {
+/** Solo Ads Manager (sin Instagram) — liviano para metas / gasto. */
+export async function getMetaAds(mes) {
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  return pedir(`/api/meta/ads${q}`);
+}
+
+/** Contenido Instagram del mes (reels/posts + stories). */
+export async function getInstagram(mes) {
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  return pedir(`/api/meta/instagram${q}`);
+}
+
+/** Ads + Instagram en paralelo (fallback mock si Ads falla). */
+export async function getMarketing(mes) {
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  try {
+    const [raw, ig] = await Promise.all([
+      pedir(`/api/meta/ads${q}`),
+      pedir(`/api/meta/instagram${q}`).catch(() => null),
+    ]);
+    return {
+      campanias: raw.campanias ?? [],
+      gastoCanal: raw.gastoCanal ?? [],
+      gastoDiario: raw.gastoDiario ?? [],
+      umbrales: raw.umbrales ?? FRECUENCIA,
+      kpis: raw.kpis ?? [],
+      instagram: ig,
+      inversionAds: raw.inversionAds ?? 0,
+      syncAt: raw.syncAt ?? null,
+      fuente: raw.fuente ?? 'meta_ads',
+      mes: raw.mes,
+    };
+  } catch {
+    return getMarketingMock();
+  }
+}
+
+function getMarketingMock() {
   const gasto = CAMPANIAS.reduce((s, c) => s + c.gastoUsd, 0);
   const leads = CAMPANIAS.reduce((s, c) => s + c.leads, 0);
   const revenueAtribuido = GASTO_CANAL.reduce((s, c) => s + c.gastoUsd * c.roas, 0);
@@ -608,13 +738,15 @@ export async function getMarketing() {
     },
   ];
 
-  return responder({
+  return {
     campanias: CAMPANIAS,
     gastoCanal: GASTO_CANAL,
     gastoDiario: GASTO_DIARIO,
     umbrales: FRECUENCIA,
     kpis,
-  });
+    instagram: null,
+    fuente: 'mock',
+  };
 }
 
 /* -------------------------------------------------------------- onboarding */
@@ -690,13 +822,168 @@ export async function getMetas() {
   });
 }
 
+/**
+ * Decreto mensual Marketing↔Ventas + avance + diagnóstico.
+ * @param {string} [mesSel]
+ * @param {{ incluirAds?: boolean }} [opts] — Ads (inversión) solo cuando hace falta (vista Ads).
+ */
+export async function getMetasMes(mesSel, opts = {}) {
+  const ctx = contextoDeMes(mesSel || mesId());
+  const guardado = leerDecretoGuardado(ctx.mes);
+  const decreto = guardado
+    ? { ...guardado, mes: ctx.mes }
+    : decretoPlantilla(ctx.mes);
+
+  let real = {
+    chats: 0,
+    conversaciones: 0,
+    agendas: 0,
+    agendasOrganicas: 0,
+    agendasAds: 0,
+    shows: 0,
+    cierres: 0,
+    inversionAds: 0,
+    cash: 0,
+    cashAds: 0,
+    cashOrganico: 0,
+    syncAt: null,
+    fuente: null,
+  };
+
+  try {
+    const mkt = await getMktResumen(ctx.mes);
+    real = {
+      ...real,
+      chats: mkt.chats ?? 0,
+      conversaciones: mkt.conversaciones ?? 0,
+      agendas: mkt.agendas ?? 0,
+      shows: mkt.shows ?? 0,
+      cierres: mkt.cierres ?? 0,
+      cash: mkt.cash ?? 0,
+      syncAt: mkt.syncAt ?? null,
+      fuente: mkt.fuente ?? 'atv_mkt',
+    };
+  } catch {
+    /* sin MKT: real en cero */
+  }
+
+  if (opts.incluirAds) {
+    try {
+      const ads = await getMetaAds(ctx.mes);
+      real = {
+        ...real,
+        inversionAds: ads.inversionAds ?? 0,
+        syncAt: ads.syncAt || real.syncAt,
+      };
+    } catch {
+      /* sin Meta Ads */
+    }
+  }
+
+  const avance = calcularAvance(decreto, real, ctx, 'full');
+  const avanceMarketing = calcularAvance(decreto, real, ctx, 'marketing');
+  const avanceAds = calcularAvance(decreto, real, ctx, 'ads');
+  const diagnostico = calcularDiagnostico(decreto, real, ctx);
+
+  return responder({
+    contexto: ctx,
+    decreto,
+    real,
+    tasasMeta: tasasImplicitas(decreto),
+    avance,
+    avanceMarketing,
+    avanceAds,
+    diagnostico,
+  });
+}
+
+/** Resumen comercial real desde ATV MKT (vía backend). */
+export async function getMktResumen(mes) {
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  return pedir(`/api/mkt/resumen${q}`);
+}
+
+/**
+ * Serie diaria simple hasta el valor actual (para burn-up en Home).
+ * @param {number} actual
+ * @param {number} diaHoy
+ */
+function serieHasta(actual, diaHoy) {
+  const n = Math.max(1, diaHoy);
+  return Array.from({ length: n }, (_, i) => Math.round(actual * ((i + 1) / n)));
+}
+
+/**
+ * @param {{
+ *   id: string,
+ *   area: string,
+ *   nombre: string,
+ *   meta: number,
+ *   format: string,
+ *   actual: number,
+ *   diaHoy: number,
+ *   diasMes: number,
+ *   mes: string,
+ *   dueno: string,
+ *   sourceId: string,
+ *   principal?: boolean,
+ * }} p
+ */
+function bloqueMeta(p) {
+  const acumulado = serieHasta(p.actual, p.diaHoy);
+  return {
+    meta: {
+      id: p.id,
+      area: p.area,
+      nombre: p.nombre,
+      meta: p.meta,
+      format: p.format,
+      mes: p.mes,
+      dueno: p.dueno,
+      sourceId: p.sourceId,
+      principal: Boolean(p.principal),
+      acumulado,
+    },
+    ritmo: ritmo({
+      meta: p.meta,
+      actual: p.actual,
+      diasMes: p.diasMes,
+      diaHoy: p.diaHoy,
+    }),
+  };
+}
+
 /* ---------------------------------------------------------------- cobranza */
 
-export async function getCobranza() {
-  const raw = await pedir('/api/cobranza');
+/** Payload vacío cuando ATV Clients no responde — la home no puede caerse por esto. */
+export function cobranzaVacia(motivo = 'Cobranza no disponible') {
   const ahoraFecha = ahora();
   const diasMes = diasDelMes(mesId(ahoraFecha));
   const diaHoy = diaDentroDelMes(ahoraFecha, mesId(ahoraFecha));
+  return {
+    cuotas: [],
+    cobrado: 0,
+    esperadoHoy: 0,
+    totalMes: 0,
+    vencidas: { n: 0, usd: 0, detalle: motivo },
+    porVencerSemana: { n: 0, usd: 0 },
+    ritmoCobro: ritmo({ meta: 0, actual: 0, diasMes, diaHoy }),
+    pctSobreVencido: 100,
+    kpis: [],
+    syncAt: null,
+    mes: null,
+    fuente: null,
+    unavailable: true,
+    error: motivo,
+  };
+}
+
+export async function getCobranza(mes) {
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  const raw = await pedir(`/api/cobranza${q}`);
+  const ctx = contextoDeMes(mes || raw.mes || mesId());
+  const diasMes = ctx.diasMes;
+  const diaHoy = ctx.diaHoy;
 
   const cuotas = (raw.cuotas ?? []).map((c) => ({
     id: c.id,
@@ -726,6 +1013,8 @@ export async function getCobranza() {
     syncAt: raw.syncAt ?? null,
     mes: raw.mes,
     fuente: raw.fuente,
+    unavailable: false,
+    error: null,
   };
 }
 
@@ -739,17 +1028,20 @@ export async function getGrietas() {
 
 /**
  * El cuadro de mando: metas con ritmo, acciones prescriptas para la semana y
- * un bloque por área. Los transcripts reales entran si el backend responde;
- * si no, la home sigue funcionando con lo demás.
+ * un bloque por área. Marketing/Ventas/Cobranza salen de ATV MKT + ATV Clients.
  */
-export async function getHome() {
-  const [fulfillment, clientes, sistemas, metasData, cobranza] = await Promise.all([
-    getFulfillment(),
-    getClientes(),
-    getSistemas(),
-    getMetas(),
-    getCobranza(),
-  ]);
+export async function getHome(mesSel) {
+  const [fulfillment, clientes, sistemas, decretoData, cobranzaSettled, mktSettled] =
+    await Promise.all([
+      getFulfillment(),
+      getClientes(),
+      getSistemas(),
+      getMetasMes(mesSel),
+      getCobranza(mesSel).catch((err) => cobranzaVacia(err?.message || 'ATV Clients no responde')),
+      getMktResumen(mesSel).catch(() => null),
+    ]);
+  const cobranza = cobranzaSettled;
+  const mkt = mktSettled;
 
   let transcripts = null;
   try {
@@ -757,33 +1049,117 @@ export async function getHome() {
   } catch {
     transcripts = null;
   }
-  const canalesEnSilencio = transcripts
-    ? transcripts.canales.filter((c) => (c.dias_sin_actividad ?? 0) >= 7).length
-    : null;
 
-  const marketing = metasData.metas.filter((m) => m.meta.area === 'marketing');
-  const ventas = metasData.metas.filter((m) => m.meta.area === 'ventas');
-  const mktPrincipal = marketing.find((m) => m.meta.principal) ?? marketing[0];
-  const venPrincipal = ventas.find((m) => m.meta.principal) ?? ventas[0];
+  const hoy = ahora();
+  const ctx = contextoDeMes(mesSel || decretoData.contexto?.mes || mesId(), hoy);
+  const mes = ctx.mes;
+  const diasMes = ctx.diasMes;
+  const diaHoy = ctx.diaHoy;
+  const decreto = decretoData.decreto;
 
-  const { accion: accMkt, plan: planMkt } = accionMarketing(mktPrincipal);
-  const { accion: accVen, plan: planVen } = accionVentas(venPrincipal, metasData.embudo);
+  const chatsActual = mkt?.chats ?? 0;
+  const agendasActual = mkt?.agendas ?? 0;
+  const cierresActual = mkt?.cierres ?? 0;
+  const cashActual = mkt?.cash ?? 0;
+  const showsEsperados = Math.round(decreto.agendas * (decreto.showUpRate / 100));
+  const cierresMeta = Math.round(showsEsperados * (decreto.closeRateBueno / 100));
+
+  const marketingMetas = [
+    bloqueMeta({
+      id: 'mkt_chats',
+      area: 'marketing',
+      nombre: 'Chats abiertos',
+      meta: decreto.chats,
+      format: 'count',
+      actual: chatsActual,
+      diaHoy,
+      diasMes,
+      mes,
+      dueno: 'Juan Cruz',
+      sourceId: 'atv_mkt',
+      principal: true,
+    }),
+    bloqueMeta({
+      id: 'mkt_agendas',
+      area: 'marketing',
+      nombre: 'Llamadas agendadas',
+      meta: decreto.agendas,
+      format: 'count',
+      actual: agendasActual,
+      diaHoy,
+      diasMes,
+      mes,
+      dueno: 'Juan Cruz',
+      sourceId: 'atv_mkt',
+    }),
+  ];
+
+  const ventasMetas = [
+    bloqueMeta({
+      id: 'ven_cierres',
+      area: 'ventas',
+      nombre: 'Cierres',
+      meta: cierresMeta,
+      format: 'count',
+      actual: cierresActual,
+      diaHoy,
+      diasMes,
+      mes,
+      dueno: 'Lucas',
+      sourceId: 'atv_mkt',
+      principal: true,
+    }),
+    bloqueMeta({
+      id: 'ven_cash',
+      area: 'ventas',
+      nombre: 'Cash collected',
+      meta: decreto.cashMeta,
+      format: 'usd',
+      actual: cashActual,
+      diaHoy,
+      diasMes,
+      mes,
+      dueno: 'Lucas',
+      sourceId: 'atv_mkt',
+    }),
+  ];
+
+  const mktPrincipal = marketingMetas[0];
+  const venPrincipal = ventasMetas[0];
+  const embudo = {
+    chats: chatsActual,
+    conversaciones: mkt?.conversaciones ?? 0,
+    agendas: agendasActual,
+    shows: mkt?.shows ?? 0,
+    cierres: cierresActual,
+    cash: cashActual,
+  };
+
+  const { plan: planMkt } = accionMarketing(mktPrincipal);
+  const { plan: planVen } = accionVentas(venPrincipal, embudo);
 
   const enRiesgo = fulfillment.activos
     .filter((c) => c.salud.semaforo !== 'verde')
     .sort((a, b) => a.salud.score - b.salud.score);
 
+  const backendOk = transcripts !== null;
+  const grietas = grietasOperativas({ cobranza, transcripts, backendOk });
+
   const acciones = ordenarAcciones(
     [
-      accMkt,
-      accVen,
-      ...accionesFulfillment({ enRiesgo, canalesEnSilencio, transcriptsParcial: transcripts?.resumen.parcial ?? false }),
+      ...accionesFulfillment({
+        enRiesgo,
+        silencio: fulfillment.silencio ?? [],
+        churnIntent: fulfillment.churnIntent ?? [],
+        sinActivarFuera: fulfillment.sinActivarFuera ?? [],
+        candidatos: fulfillment.candidatos ?? [],
+      }),
       ...accionesCobranza(cobranza),
-      accionSistemas(GRIETAS),
+      ...accionesOperativas({ transcripts, backendOk }),
     ].filter(Boolean),
   );
 
-  const k = (grupo, id) => fulfillment.kpis[grupo].find((x) => x.id === id);
+  const k = (grupo, id) => fulfillment.kpis[grupo]?.find((x) => x.id === id);
   const silencio = k('engagement', 'silencio_7d');
   const scoreVerde = k('engagement', 'score_verde');
   const revision = [
@@ -793,28 +1169,63 @@ export async function getHome() {
   ].filter(Boolean);
 
   const kpiClientes = clientes.kpis.find((x) => x.id === 'clientes_activos');
-  const kpiMrr = clientes.kpis.find((x) => x.id === 'mrr');
-  const kpiNrr = k('retencion', 'nrr');
+  const kpiEnRiesgo = k('retencion', 'en_riesgo');
+  const kpiActivados = k('outcomes', 'pct_activados');
 
   return responder({
-    mes: metasData.mes,
-    semana: metasData.semana,
+    mes: {
+      id: mes,
+      nombre: ctx.nombreMes,
+      dia: diaHoy,
+      dias: diasMes,
+      fraccion: diaHoy / diasMes,
+    },
+    semana: `S${semanaIso(hoy)}`,
     northStar: [
       kpiClientes,
-      kpiMrr,
-      kpiNrr,
-      { id: 'pct_automatizado', label: 'Automatizado', value: sistemas.cobertura.pct, format: 'pct', previous: 30, sourceId: 'manual', updatedAt: SYNC.man, objetivo: 80 },
+      kpiActivados,
+      kpiEnRiesgo,
+      {
+        id: 'pct_automatizado',
+        label: 'Automatizado',
+        value: sistemas.cobertura.pct,
+        format: 'pct',
+        previous: 30,
+        sourceId: 'manual',
+        updatedAt: SYNC.man,
+        objetivo: 80,
+      },
     ].filter(Boolean),
     acciones,
-    marketing: { metas: marketing, principal: mktPrincipal, plan: planMkt, dueno: 'Juan Cruz' },
-    ventas: { metas: ventas, principal: venPrincipal, plan: planVen, embudo: metasData.embudo, dueno: 'Lucas' },
-    fulfillment: { semaforoTotales: fulfillment.semaforoTotales, enRiesgo: enRiesgo.slice(0, 5), revision, activos: fulfillment.activos.length },
+    marketing: {
+      metas: marketingMetas,
+      principal: mktPrincipal,
+      plan: planMkt,
+      dueno: 'Juan Cruz',
+      fuente: mkt?.fuente ?? null,
+      unavailable: !mkt,
+    },
+    ventas: {
+      metas: ventasMetas,
+      principal: venPrincipal,
+      plan: planVen,
+      embudo,
+      dueno: 'Lucas',
+      fuente: mkt?.fuente ?? null,
+      unavailable: !mkt,
+    },
+    fulfillment: {
+      semaforoTotales: fulfillment.semaforoTotales,
+      enRiesgo: enRiesgo.slice(0, 5),
+      revision,
+      activos: fulfillment.activos.length,
+    },
     sistemas: {
       fuentes: SOURCE_LIST,
       cobertura: sistemas.cobertura,
-      grietas: GRIETAS,
-      pedidosSemana: PEDIDOS_SEMANA.at(-1)?.pedidos ?? 0,
-      backendOk: transcripts !== null,
+      grietas,
+      pedidosSemana: 0,
+      backendOk,
       botUltimaEscritura: transcripts?.resumen.ultimo_mensaje_at ?? null,
       transcriptsCanales: transcripts?.resumen.canales ?? null,
       transcriptsParcial: transcripts?.resumen.parcial ?? null,
@@ -827,7 +1238,7 @@ export async function getHome() {
 /* --------------------------------------------------------------- reales */
 
 /** Base del backend de ATV Ops. Configurable con VITE_API_URL. */
-export const API_BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:8000';
+export const API_BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:8010';
 
 /**
  * @param {string} path
@@ -862,6 +1273,10 @@ export async function login(username, password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
+}
+
+export async function getMe() {
+  return pedir('/api/auth/me');
 }
 
 /**

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { login } from '../data/api.js';
-import { getToken, saveSession } from '../lib/auth.js';
+import { clearSession, getStoredUser, getToken, saveSession } from '../lib/auth.js';
+import { homeParaRol, normalizarRol, setRolPreview } from '../lib/roles.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -11,20 +12,26 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (getToken()) {
-    return <Navigate to="/" replace />;
+  const existing = getToken() && getStoredUser();
+  if (existing) {
+    return <Navigate to={homeParaRol(normalizarRol(getStoredUser()?.rol))} replace />;
   }
 
-  const from = location.state?.from?.pathname ?? '/';
+  const from = location.state?.from?.pathname ?? null;
 
   async function onSubmit(event) {
     event.preventDefault();
     setError('');
     setLoading(true);
+    setRolPreview(null);
+    clearSession();
     try {
-      const session = await login(username, password);
+      const session = await login(username.trim(), password);
       saveSession(session);
-      navigate(from, { replace: true });
+      const dest = from && from !== '/login'
+        ? from
+        : homeParaRol(normalizarRol(session.user?.rol));
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(err.message || 'No se pudo iniciar sesión.');
     } finally {
@@ -34,40 +41,51 @@ export default function Login() {
 
   return (
     <div className="login">
-      <form className="login-card" onSubmit={onSubmit}>
-        <div className="brand login-brand">
-          <div className="brand-mark">ATV</div>
-          <div>
-            <div className="brand-name">ATV Ops</div>
-            <div className="brand-sub">Operaciones y sistemas</div>
-          </div>
-        </div>
+      <div className="login-stack">
+        <img
+          className="login-logo"
+          src="/atv-logo.png"
+          alt="ATV"
+          width={64}
+          height={64}
+        />
 
-        <label className="login-field">
-          Usuario
-          <input
-            autoComplete="username"
-            autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </label>
-        <label className="login-field">
-          Contraseña
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        <form className="login-card" onSubmit={onSubmit}>
+          <h1 className="login-title">Iniciar sesion</h1>
 
-        {error ? <p className="login-error">{error}</p> : null}
+          <label className="login-field">
+            <span>Usuario</span>
+            <input
+              autoComplete="username"
+              autoFocus
+              placeholder="tu_usuario"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
 
-        <button className="btn primary login-submit" disabled={loading || !username || !password} type="submit">
-          {loading ? 'Entrando…' : 'Entrar'}
-        </button>
-      </form>
+          <label className="login-field">
+            <span>Contrasena</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="Minimo 6 caracteres"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+
+          {error ? <p className="login-error">{error}</p> : null}
+
+          <button
+            className="login-submit"
+            disabled={loading || !username || !password}
+            type="submit"
+          >
+            {loading ? 'Entrando…' : 'Iniciar sesion'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

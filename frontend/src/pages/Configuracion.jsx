@@ -1,19 +1,30 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import MetaMesForm from '../components/metas/MetaMesForm.jsx';
 import Avatar from '../components/ui/Avatar.jsx';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import { borrarIntegrante, crearIntegrante, getIntegrantes, subirFotoIntegrante } from '../data/api.js';
+import { borrarIntegrante, crearIntegrante, getIntegrantes, getMetasMes, subirFotoIntegrante } from '../data/api.js';
+import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
 export default function Configuracion() {
+  const { mes } = useMes();
   const [tick, setTick] = useState(0);
+  const [tickMeta, setTickMeta] = useState(0);
   const [nombre, setNombre] = useState('');
   const [errorForm, setErrorForm] = useState('');
   const [guardando, setGuardando] = useState(false);
   const fileRef = useRef(null);
   const [fotoPara, setFotoPara] = useState(null);
   const { data, loading, error } = useResource(getIntegrantes, [tick]);
+  const metas = useResource(() => getMetasMes(mes), [mes, tickMeta]);
+
+  useEffect(() => {
+    if (window.location.hash === '#metas') {
+      document.getElementById('metas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [metas.data]);
 
   async function onCrear(event) {
     event.preventDefault();
@@ -59,8 +70,22 @@ export default function Configuracion() {
       <PageHeader
         eyebrow="Equipo"
         title="Configuración"
-        desc="Cargá a quienes aparecen en el calendario y su foto. El cuadrado de cada día muestra a los que están en las reuniones de ese día."
+        desc="Integrantes del calendario. Las metas mensuales viven en Metas."
       />
+
+      <div id="metas">
+        {metas.data ? (
+          <MetaMesForm
+            decretoInicial={metas.data.decreto}
+            mes={metas.data.contexto.mes}
+            nombreMes={metas.data.contexto.nombreMes}
+            editable={!metas.data.contexto.esPasado}
+            onGuardado={() => setTickMeta((n) => n + 1)}
+          />
+        ) : (
+          <SkeletonBlock height={220} />
+        )}
+      </div>
 
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFoto} />
 

@@ -1,6 +1,5 @@
-import { useLocation, useNavigate } from 'react-router-dom';
-import { clearSession, getStoredUser } from '../../lib/auth.js';
-import { nombreMesAnio } from '../../lib/format.js';
+import { useLocation } from 'react-router-dom';
+import { useMes } from '../../lib/MesContext.jsx';
 import Pill from '../ui/Pill.jsx';
 
 const TITULOS = {
@@ -9,10 +8,12 @@ const TITULOS = {
   '/fulfillment/clientes': 'Fulfillment · Clientes',
   '/fulfillment/activacion': 'Fulfillment · Activación',
   '/fulfillment/engagement': 'Fulfillment · Engagement',
-  '/fulfillment/retencion': 'Fulfillment · Retención y NRR',
-  '/fulfillment/outcomes': 'Fulfillment · Outcomes y expansión',
+  '/fulfillment/retencion': 'Fulfillment · Retención y riesgo',
+  '/fulfillment/outcomes': 'Fulfillment · Resultados',
   '/marketing': 'Marketing',
+  '/ads': 'Ads',
   '/ventas': 'Ventas',
+  '/metas': 'Metas del mes',
   '/sistemas': 'Sistemas · QA de datos',
   '/cobranza': 'Cobranza',
   '/ideas': 'Ideas',
@@ -28,30 +29,27 @@ function tituloDe(pathname) {
 
 export default function Topbar() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const user = getStoredUser();
+  const { mes, setMes, opciones, esActual } = useMes();
   const titulo = tituloDe(pathname);
-
-  function salir() {
-    clearSession();
-    navigate('/login', { replace: true });
-  }
 
   return (
     <header className="topbar">
-      {titulo ? <span className="topbar-title">{titulo}</span> : null}
-      <Pill tone="plain">{nombreMesAnio()}</Pill>
-
-      <div className="topbar-right">
-        {user ? (
-          <span className="topbar-user">
-            {user.nombre || user.username}
-            <button className="btn" onClick={salir} type="button">
-              Salir
-            </button>
-          </span>
-        ) : null}
-      </div>
+      {titulo ? <span className="topbar-title">{titulo}</span> : <span />}
+      <label className="topbar-mes">
+        <span className="dim">Mes</span>
+        <select
+          value={mes}
+          onChange={(e) => setMes(e.target.value)}
+          aria-label="Mes operativo"
+        >
+          {opciones.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {!esActual ? <Pill tone="warn">histórico</Pill> : null}
+      </label>
     </header>
   );
 }

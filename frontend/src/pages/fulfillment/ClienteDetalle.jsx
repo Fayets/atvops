@@ -6,7 +6,6 @@ import Senales from '../../components/fulfillment/Senales.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/ui/Icon.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
-import PageHeader from '../../components/ui/PageHeader.jsx';
 import Pill from '../../components/ui/Pill.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillmentCliente } from '../../data/api.js';
@@ -14,19 +13,13 @@ import { ahora, diasEntre, formatFecha, formatValue, hace } from '../../lib/form
 import { useResource } from '../../lib/hooks.js';
 import { VENTANA_ACTIVACION } from '../../lib/scoring.js';
 
-const TIER = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
-
-/** Bloque de dato suelto, para la ficha. */
-function Dato({ k, v, tono }) {
-  return (
-    <div>
-      <div className="eyebrow">{k}</div>
-      <div className="num" style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 3, color: tono }}>
-        {v}
-      </div>
-    </div>
-  );
-}
+const CAT_LABEL = {
+  boost: 'Boost',
+  advantage: 'Advantage',
+  avanzados: 'Avanzados',
+  principiantes: 'Principiantes',
+  mentoria: 'Mentoría',
+};
 
 export default function ClienteDetalle() {
   const { clienteId } = useParams();
@@ -35,81 +28,159 @@ export default function ClienteDetalle() {
   if (error) return <div className="page"><ErrorState error={error} /></div>;
   if (loading || !data) return <div className="page"><SkeletonBlock height={480} /></div>;
 
-  const { cliente, actividad, senales, blocker, semaforo } = data;
-  const { activacion, engagement, outcome, expansion } = cliente;
+  const { cliente, actividad, senales, blocker, semaforo, coach } = data;
+  const { activacion, engagement, expansion } = cliente;
   const diasDesdeEntrada = diasEntre(cliente.entradaAt, ahora().toISOString());
-  const multiplo = outcome.revenueInicialUsd ? outcome.revenueActualUsd / outcome.revenueInicialUsd : 1;
+  const cat = CAT_LABEL[cliente.categoria] ?? cliente.categoria ?? 'Cliente';
+
+  const actTone = activacion.activado
+    ? (activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION
+      ? 'ok'
+      : 'warn'
+    : 'alert';
+  const actLabel = activacion.activado
+    ? `Win día ${activacion.diasHastaResultado}`
+    : diasDesdeEntrada <= VENTANA_ACTIVACION
+      ? `Día ${diasDesdeEntrada}/${VENTANA_ACTIVACION}`
+      : 'Sin activar';
+
+  const alertas = [];
+  if (cliente.churnIntent?.detectado) {
+    alertas.push({
+      id: 'churn',
+      tone: 'alert',
+      titulo: 'Intención de baja / reembolso',
+      texto: cliente.churnIntent.extracto,
+      meta: formatFecha(cliente.churnIntent.fechaAt),
+    });
+  }
+  if (!activacion.activado && blocker) {
+    alertas.push({
+      id: 'blocker',
+      tone: 'alert',
+      titulo: blocker.label,
+      texto: blocker.descripcion,
+      meta: blocker.accion ? `Acción · ${blocker.accion}` : null,
+    });
+  }
+  if (expansion?.candidatoUpsell) {
+    alertas.push({
+      id: 'upsell',
+      tone: 'ok',
+      titulo: 'Candidato a upsell',
+      texto: 'El canal menciona techo, siguiente nivel o más acompañamiento.',
+      meta: null,
+    });
+  }
+
+  const metricas = [
+    {
+      k: 'Score',
+      v: cliente.salud.score,
+      tono: semaforo.color,
+      sub: semaforo.label,
+    },
+    {
+      k: 'Activación',
+      v: actLabel,
+      tono: actTone === 'ok' ? 'var(--ok)' : actTone === 'warn' ? 'var(--warn)' : 'var(--brand-hi)',
+      sub: activacion.activado
+        ? formatFecha(activacion.primerResultadoAt)
+        : `entrada ${formatFecha(cliente.entradaAt)}`,
+    },
+    {
+      k: 'Silencio',
+      v: `${engagement.diasSinMensaje}d`,
+      tono: engagement.diasSinMensaje >= 7 ? 'var(--brand-hi)' : undefined,
+      sub: hace(cliente.ultimaActividadAt),
+    },
+    {
+      k: 'Msg / sem',
+      v: formatValue(engagement.mensajesClienteSemana ?? 0, 'ratio'),
+      sub: `coach ${formatValue(engagement.mensajesCoachSemana ?? 0, 'ratio')}`,
+    },
+    {
+      k: 'Tendencia',
+      v: `${engagement.tendencia >= 0 ? '+' : ''}${engagement.tendencia}%`,
+      tono:
+        engagement.tendencia >= 20
+          ? 'var(--ok)'
+          : engagement.tendencia <= -30
+            ? 'var(--brand-hi)'
+            : undefined,
+      sub: `${formatValue(cliente.mensajes ?? 0, 'count')} msgs`,
+    },
+  ];
 
   return (
-    <div className="page">
-      <Link to="/fulfillment/clientes" className="source-tag" style={{ gap: 6 }}>
-        <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}>
-          <Icon name="arrow" size={13} />
-        </span>
-        Volver a clientes
-      </Link>
+    <div className="page ficha-cliente">
+      <div className="ficha-nav">
+        <Link to="/fulfillment/clientes" className="ficha-back">
+          <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}>
+            <Icon name="arrow" size={13} />
+          </span>
+          Clientes
+        </Link>
+        <SourceTag sourceId="discord_transcripts" updatedAt={cliente.ultimaActividadAt} />
+      </div>
 
-      <PageHeader
-        eyebrow={`${cliente.categoria ?? 'Cliente'} · ${TIER[cliente.tier] ?? '—'} · canal #${cliente.canal ?? cliente.id}`}
-        title={cliente.nombre}
-        desc={`Primer mensaje el ${formatFecha(cliente.entradaAt)}, hace ${diasDesdeEntrada} días. Último mensaje ${hace(cliente.ultimaActividadAt)}.`}
-        actions={
-          <>
-            <Pill tone={semaforo.tone} dot>
-              {semaforo.label}
-            </Pill>
-            <SourceTag sourceId="discord_transcripts" />
-          </>
-        }
-      />
+      <header className="ficha-head">
+        <div className="ficha-head-main">
+          <div className="eyebrow">
+            {cat}
+            {cliente.canal ? ` · #${cliente.canal}` : ''}
+            {coach?.nombre ? ` · ${coach.nombre}` : ''}
+          </div>
+          <h1>{cliente.nombre}</h1>
+          <p>
+            Entrada {formatFecha(cliente.entradaAt)} · hace {diasDesdeEntrada} días · último mensaje{' '}
+            {hace(cliente.ultimaActividadAt)}
+          </p>
+        </div>
+        <Pill tone={semaforo.tone} dot>
+          {semaforo.label}
+        </Pill>
+      </header>
 
-      <div className="split">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <Card
-            title="Activación"
-            sub={`La promesa: primer resultado tangible antes del día ${VENTANA_ACTIVACION}`}
-            actions={
-              <Pill tone={activacion.activado ? (activacion.diasHastaResultado <= VENTANA_ACTIVACION ? 'ok' : 'warn') : 'alert'} dot>
-                {activacion.activado ? `día ${activacion.diasHastaResultado}` : 'sin activar'}
-              </Pill>
-            }
-            foot={
-              activacion.activado
-                ? `Detectado automáticamente en el canal el ${formatFecha(activacion.primerResultadoAt)} (mensaje ${activacion.evidenciaMensajeId}).`
-                : 'El clasificador todavía no encontró un primer resultado en este canal.'
-            }
-          >
-            {activacion.activado ? (
-              <blockquote style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>{activacion.descripcion}</blockquote>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ fontSize: 13, color: 'var(--text-2)' }}>
-                  Van {diasDesdeEntrada} días sin un resultado tangible.
-                </div>
-                {blocker && (
-                  <>
-                    <div>
-                      <Pill tone="alert">{blocker.label}</Pill>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>{blocker.descripcion}</div>
-                    <div className="fuente-paso">Acción · {blocker.accion}</div>
-                  </>
-                )}
+      <div className="ficha-metricas">
+        {metricas.map((m) => (
+          <div key={m.k} className="ficha-metrica">
+            <div className="eyebrow">{m.k}</div>
+            <div className="num ficha-metrica-v" style={{ color: m.tono }}>{m.v}</div>
+            {m.sub && <div className="ficha-metrica-sub">{m.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {alertas.length > 0 && (
+        <div className="ficha-alertas">
+          {alertas.map((a) => (
+            <div key={a.id} className={`ficha-alerta ficha-alerta-${a.tone}`}>
+              <div className="ficha-alerta-top">
+                <Pill tone={a.tone} dot>{a.titulo}</Pill>
+                {a.meta && <span className="dim">{a.meta}</span>}
               </div>
-            )}
-          </Card>
+              <p>{a.texto}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="split ficha-body">
+        <div className="ficha-col">
+          {activacion.activado && (
+            <Card title="Primer resultado" sub={`Detectado el ${formatFecha(activacion.primerResultadoAt)}`}>
+              <blockquote className="ficha-quote">{activacion.descripcion}</blockquote>
+            </Card>
+          )}
 
           <Card
-            title="Conversación del canal"
-            sub="Mensajes por semana · últimas 12 semanas"
+            title="Actividad del canal"
+            sub="Últimas 12 semanas"
             foot={
               <div className="legend">
-                <span className="k">
-                  <i style={{ background: 'var(--s1)' }} /> Cliente
-                </span>
-                <span className="k">
-                  <i style={{ background: 'var(--s4)' }} /> Coach
-                </span>
+                <span className="k"><i style={{ background: 'var(--s1)' }} /> Cliente</span>
+                <span className="k"><i style={{ background: 'var(--s4)' }} /> Coach</span>
               </div>
             }
           >
@@ -124,12 +195,10 @@ export default function ClienteDetalle() {
               ]}
             />
 
-            <div style={{ marginTop: 20 }}>
-              <div className="eyebrow" style={{ marginBottom: 10 }}>
-                De qué habla
-              </div>
-              {engagement.mixPendiente || !(engagement.mix?.implementacion || engagement.mix?.soporte || engagement.mix?.queja || engagement.mix?.celebracion) ? (
-                <div className="empty">Mix pendiente del clasificador.</div>
+            <div className="ficha-mix">
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Mix léxico</div>
+              {engagement.mixPendiente ? (
+                <div className="empty">Pocos mensajes etiquetables todavía.</div>
               ) : (
                 <StackedBar
                   partes={[
@@ -143,76 +212,15 @@ export default function ClienteDetalle() {
             </div>
           </Card>
 
-          <Card title="Outcome del cliente" sub="Lo que cierra el ciclo: ¿está creciendo?">
-            {!outcome.revenueInicialUsd ? (
-              <div className="empty">Facturación pendiente de payments / CRM. Discord no alcanza para este número.</div>
-            ) : (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 'var(--space-5)' }}>
-                  <Dato
-                    k="Facturación"
-                    v={`${formatValue(outcome.revenueActualUsd, 'usd')}`}
-                    tono={multiplo >= 1.2 ? 'var(--ok)' : undefined}
-                  />
-                  <Dato k="Al entrar" v={formatValue(outcome.revenueInicialUsd, 'usd')} />
-                  <Dato k="Múltiplo" v={`${multiplo.toFixed(2)}×`} tono={multiplo >= 1.5 ? 'var(--ok)' : 'var(--warn)'} />
-                  <Dato
-                    k="Audiencia"
-                    v={`${(outcome.audienciaActual / 1000).toFixed(1)}k`}
-                    tono={outcome.audienciaActual > outcome.audienciaInicial ? 'var(--ok)' : undefined}
-                  />
-                </div>
-                {outcome.ultimoHito && (
-                  <div style={{ marginTop: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
-                    Último hito · {outcome.ultimoHito}{' '}
-                    <span style={{ color: 'var(--text-3)' }}>({formatFecha(outcome.ultimoHitoAt)})</span>
-                  </div>
-                )}
-              </>
-            )}
-          </Card>
+          {senales.length > 0 && (
+            <Senales senales={senales} titulo="Señales del canal" />
+          )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <PanelScore salud={cliente.salud} />
-
-          <Card title="Expansión" sub="El revenue más barato: no tiene CAC">
-            {!expansion.upsells && cliente.tier === expansion.tierInicial ? (
-              <div className="empty">Sin upsells ni cambios de tier (falta CRM / payments).</div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
-                <Dato k="Tier hoy" v={TIER[cliente.tier]} />
-                <Dato k="Tier de entrada" v={TIER[expansion.tierInicial]} />
-                <Dato k="Upsells" v={expansion.upsells} />
-                <Dato
-                  k="Expansión"
-                  v={formatValue(expansion.revenueExpansionUsd, 'usd')}
-                  tono={expansion.revenueExpansionUsd > 0 ? 'var(--ok)' : undefined}
-                />
-              </div>
-            )}
-            {expansion.candidatoUpsell && (
-              <div className="fuente-paso" style={{ marginTop: 16 }}>
-                Candidato a upsell · el canal muestra señales de techo de capacidad. Es una conversación pendiente.
-              </div>
-            )}
-          </Card>
-
-          <Card title="Ritmo" sub="Números crudos del canal">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
-              <Dato k="Mensajes / semana" v={engagement.mensajesClienteSemana} />
-              <Dato k="Interacciones" v={engagement.interaccionesSemana} />
-              <Dato
-                k="Días sin escribir"
-                v={engagement.diasSinMensaje}
-                tono={engagement.diasSinMensaje >= 7 ? 'var(--brand-hi)' : undefined}
-              />
-            </div>
-          </Card>
+        <div className="ficha-col">
+          <PanelScore salud={cliente.salud} compact />
         </div>
       </div>
-
-      <Senales senales={senales} titulo={`Señales del canal de ${cliente.nombre}`} />
     </div>
   );
 }

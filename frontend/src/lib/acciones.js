@@ -1,9 +1,6 @@
 /**
- * Prescripciones semanales: convierte el estado de cada meta en una orden
- * concreta con el número adentro y la cuenta que la justifica.
- *
- * Regla: ninguna acción sin "porqué". Si el sistema no puede mostrar la
- * cuenta, no debe dar la orden.
+ * Prescripciones semanales desde datos reales.
+ * Regla: ninguna acción sin "porqué" auditable. Si la fuente es mock, no entra.
  *
  * @typedef {import('../data/types.js').Accion} Accion
  */
@@ -14,9 +11,236 @@ import { planEmbudo, planPalancas } from './pacing.js';
 const n = (v) => formatValue(Math.round(v), 'count');
 
 /**
- * Marketing: qué palancas correr esta semana para la meta principal.
- * @returns {{ accion: Accion | null, plan: ReturnType<typeof planPalancas> | null }}
+ * Fulfillment: clientes a tocar esta semana (score, silencio, activación, churn).
+ * @param {{
+ *   enRiesgo: any[],
+ *   silencio?: any[],
+ *   churnIntent?: any[],
+ *   sinActivarFuera?: any[],
+ *   candidatos?: any[],
+ * }} p
  */
+export function accionesFulfillment({
+  enRiesgo = [],
+  silencio = [],
+  churnIntent = [],
+  sinActivarFuera = [],
+  candidatos = [],
+}) {
+  /** @type {Accion[]} */
+  const acciones = [];
+  const rojos = enRiesgo.filter((c) => c.salud?.semaforo === 'rojo');
+
+  if (churnIntent.length) {
+    const nombres = churnIntent.slice(0, 3).map((c) => c.nombre.split(' ')[0]).join(', ');
+    acciones.push({
+      id: 'acc_ful_churn',
+      area: 'fulfillment',
+      titulo: `Atender ${churnIntent.length === 1 ? 'intención de baja' : `${churnIntent.length} intenciones de baja`}: ${nombres}${churnIntent.length > 3 ? '…' : ''}`,
+      porque: churnIntent
+        .slice(0, 3)
+        .map((c) => `${c.nombre}: «${(c.churnIntent?.extracto || '').slice(0, 120)}»`)
+        .join(' · '),
+      dueno: 'Franco',
+      prioridad: 'alta',
+      href: '/fulfillment/retencion',
+    });
+  }
+
+  if (rojos.length) {
+    acciones.push({
+      id: 'acc_ful_rojos',
+      area: 'fulfillment',
+      titulo: `Hablar esta semana con ${rojos.length === 1 ? 'el cliente' : `los ${rojos.length} clientes`} en rojo: ${rojos.slice(0, 3).map((c) => c.nombre.split(' ')[0]).join(', ')}${rojos.length > 3 ? '…' : ''}`,
+      porque: `Score < 50 o regla dura (silencio / baja). ${rojos.slice(0, 8).map((c) => `${c.nombre.split(' ')[0]} ${c.salud.score}`).join(' · ')}.`,
+      dueno: 'Franco',
+      prioridad: 'alta',
+      href: '/fulfillment/clientes',
+    });
+  }
+
+  if (silencio.length) {
+    acciones.push({
+      id: 'acc_ful_silencio',
+      area: 'fulfillment',
+      titulo: `Romper el silencio en ${silencio.length} canales (≥7 días sin mensaje del cliente)`,
+      porque: `Dato real de los transcripts. ${silencio.slice(0, 6).map((c) => `${c.nombre.split(' ')[0]} ${c.engagement.diasSinMensaje}d`).join(' · ')}${silencio.length > 6 ? '…' : ''}.`,
+      dueno: 'Equipo',
+      prioridad: silencio.length >= 10 ? 'alta' : 'media',
+      href: '/fulfillment/engagement',
+    });
+  }
+
+  if (sinActivarFuera.length) {
+    acciones.push({
+      id: 'acc_ful_sin_activar',
+      area: 'fulfillment',
+      titulo: `Destrabar ${sinActivarFuera.length} sin win después del día 30`,
+      porque: `Sin resultado detectable en el transcript. ${sinActivarFuera.slice(0, 5).map((c) => c.nombre.split(' ')[0]).join(', ')}${sinActivarFuera.length > 5 ? '…' : ''}.`,
+      dueno: 'Franco',
+      prioridad: 'media',
+      href: '/fulfillment/activacion',
+    });
+  }
+
+  if (candidatos.length) {
+    acciones.push({
+      id: 'acc_ful_upsell',
+      area: 'fulfillment',
+      titulo: `Conversar upsell con ${candidatos.length} candidato${candidatos.length === 1 ? '' : 's'} detectado${candidatos.length === 1 ? '' : 's'} en el canal`,
+      porque: `Señal léxica de techo / siguiente nivel. ${candidatos.slice(0, 5).map((c) => c.nombre.split(' ')[0]).join(', ')}${candidatos.length > 5 ? '…' : ''}.`,
+      dueno: 'Franco',
+      prioridad: 'media',
+      href: '/fulfillment/outcomes',
+    });
+  }
+
+  return acciones;
+}
+
+/**
+ * Cobranza real (ATV Clients).
+ */
+export function accionesCobranza({ vencidas, porVencerSemana, unavailable, error } = {}) {
+  /** @type {Accion[]} */
+  const acciones = [];
+  if (unavailable) {
+    acciones.push({
+      id: 'acc_cob_offline',
+      area: 'cobranza',
+      titulo: 'Levantar ATV Clients para ver cuotas',
+      porque: error || 'La home no puede prescribir cobros sin la API de clientes.',
+      dueno: 'Franco',
+      prioridad: 'alta',
+      href: '/cobranza',
+    });
+    return acciones;
+  }
+  if (!vencidas || !porVencerSemana) return acciones;
+  if (vencidas.n > 0) {
+    acciones.push({
+      id: 'acc_cob_vencidas',
+      area: 'cobranza',
+      titulo: `Cobrar ${vencidas.n === 1 ? 'la cuota vencida' : `las ${vencidas.n} cuotas vencidas`}: ${formatValue(vencidas.usd, 'usd')}`,
+      porque: `${vencidas.detalle}. Cada día de atraso baja la probabilidad de cobro.`,
+      dueno: 'Franco',
+      prioridad: 'alta',
+      href: '/cobranza',
+    });
+  }
+  if (porVencerSemana.n > 0) {
+    acciones.push({
+      id: 'acc_cob_avisar',
+      area: 'cobranza',
+      titulo: `Avisar a ${porVencerSemana.n} con vencimiento en 7 días: ${formatValue(porVencerSemana.usd, 'usd')}`,
+      porque: 'Cuotas pendientes reales de ATV Clients que vencen esta semana.',
+      dueno: 'Franco',
+      prioridad: 'media',
+      href: '/cobranza',
+    });
+  }
+  return acciones;
+}
+
+/**
+ * Operación del tablero (fuentes caídas / parciales), no grietas mock.
+ * @param {{ transcripts: any, backendOk: boolean }} p
+ */
+export function accionesOperativas({ transcripts, backendOk }) {
+  /** @type {Accion[]} */
+  const acciones = [];
+  if (!backendOk) {
+    acciones.push({
+      id: 'acc_ops_backend',
+      area: 'sistemas',
+      titulo: 'Backend / transcripts sin respuesta',
+      porque: 'No se pudo leer /api/transcripts. El score de fulfillment puede estar desactualizado.',
+      dueno: 'Franco',
+      prioridad: 'alta',
+      href: '/sistemas',
+    });
+    return acciones;
+  }
+  if (transcripts?.resumen?.parcial) {
+    const n = transcripts.resumen.canales ?? 0;
+    const ok = transcripts.resumen.canales_completos ?? 0;
+    acciones.push({
+      id: 'acc_ops_parcial',
+      area: 'sistemas',
+      titulo: `Completar sync de transcripts (${ok}/${n} completos)`,
+      porque: 'La copia local no tiene el histórico completo. Corré el bot en atv-clients o sincronizá el path de transcripts.',
+      dueno: 'Franco',
+      prioridad: 'media',
+      href: '/sistemas',
+    });
+  }
+  return acciones;
+}
+
+/**
+ * Grietas operativas reales (para el bloque Sistemas de la home).
+ */
+export function grietasOperativas({ cobranza, transcripts, backendOk }) {
+  const ahora = new Date().toISOString();
+  /** @type {import('../data/types.js').Grieta[]} */
+  const grietas = [];
+  if (cobranza?.unavailable) {
+    grietas.push({
+      id: 'gri_cobranza',
+      metrica: 'Cobranza · ATV Clients',
+      valorDashboard: null,
+      valorFuente: null,
+      format: 'count',
+      sourceId: 'atv_clients',
+      severidad: 'alta',
+      detectadaAt: ahora,
+      causa: cobranza.error || 'La API de cobranza no responde.',
+      seccion: 'cobranza',
+    });
+  }
+  if (!backendOk) {
+    grietas.push({
+      id: 'gri_transcripts',
+      metrica: 'Transcripts Discord',
+      valorDashboard: null,
+      valorFuente: null,
+      format: 'count',
+      sourceId: 'discord_transcripts',
+      severidad: 'alta',
+      detectadaAt: ahora,
+      causa: 'Sin respuesta del backend de transcripts.',
+      seccion: 'sistemas',
+    });
+  } else if (transcripts?.resumen?.parcial) {
+    grietas.push({
+      id: 'gri_parcial',
+      metrica: 'Transcripts parciales',
+      valorDashboard: transcripts.resumen.canales_completos ?? 0,
+      valorFuente: transcripts.resumen.canales ?? 0,
+      format: 'count',
+      sourceId: 'discord_transcripts',
+      severidad: 'media',
+      detectadaAt: ahora,
+      causa: 'La copia local no tiene el histórico completo del server.',
+      seccion: 'fulfillment',
+    });
+  }
+  return grietas;
+}
+
+const ORDEN_PRIORIDAD = { alta: 0, media: 1 };
+
+/** Ordena: prioridad alta primero, y dentro de cada prioridad por área. */
+export function ordenarAcciones(acciones) {
+  const orden = ['cobranza', 'fulfillment', 'sistemas', 'ventas', 'marketing'];
+  return [...acciones].sort(
+    (a, b) => ORDEN_PRIORIDAD[a.prioridad] - ORDEN_PRIORIDAD[b.prioridad] || orden.indexOf(a.area) - orden.indexOf(b.area),
+  );
+}
+
+/* ---- Legacy (páginas Marketing/Ventas todavía mock): no se usan en Home. ---- */
+
+/** @deprecated Solo para bloques mock de Marketing. */
 export function accionMarketing(metaConRitmo) {
   const { meta, ritmo } = metaConRitmo;
   if (!meta.palancas?.length || ritmo.estado === 'cumplida') return { accion: null, plan: null };
@@ -50,9 +274,7 @@ export function accionMarketing(metaConRitmo) {
   };
 }
 
-/**
- * Ventas: cuántos llamados hay que agendar para que los cierres lleguen.
- */
+/** @deprecated Solo para bloques mock de Ventas. */
 export function accionVentas(metaCierres, embudo) {
   const { meta, ritmo } = metaCierres;
   if (ritmo.estado === 'cumplida') return { accion: null, plan: null };
@@ -86,95 +308,17 @@ export function accionVentas(metaCierres, embudo) {
   };
 }
 
-/**
- * Fulfillment: los clientes que hay que tocar esta semana.
- * @param {{ enRiesgo: any[], canalesEnSilencio: number | null, transcriptsParcial?: boolean }} p
- */
-export function accionesFulfillment({ enRiesgo, canalesEnSilencio, transcriptsParcial = false }) {
-  /** @type {Accion[]} */
-  const acciones = [];
-  const rojos = enRiesgo.filter((c) => c.salud.semaforo === 'rojo');
-  if (rojos.length) {
-    acciones.push({
-      id: 'acc_ful_rojos',
-      area: 'fulfillment',
-      titulo: `Hablar esta semana con ${rojos.length === 1 ? 'el cliente' : `los ${rojos.length} clientes`} en rojo: ${rojos.slice(0, 3).map((c) => c.nombre.split(' ')[0]).join(', ')}${rojos.length > 3 ? '…' : ''}`,
-      porque: `Score de salud por debajo de 50. ${rojos.map((c) => `${c.nombre.split(' ')[0]} ${c.salud.score}`).join(' · ')}. Un cliente en rojo que no se toca en la semana es el churn del mes que viene.`,
-      dueno: 'Franco',
-      prioridad: 'alta',
-      href: '/fulfillment/clientes',
-    });
-  }
-  if (canalesEnSilencio) {
-    acciones.push({
-      id: 'acc_ful_silencio',
-      area: 'fulfillment',
-      titulo: transcriptsParcial
-        ? `Traer los transcripts del server: la copia local muestra ${canalesEnSilencio} canales en silencio, pero está vieja`
-        : `Romper el silencio en ${canalesEnSilencio} canales sin mensajes hace 7 días o más`,
-      porque: transcriptsParcial
-        ? 'Dato real de Discord, pero de una copia parcial que no se actualiza desde hace días. Hasta apuntar a /opt/atv-clients/transcripts, el silencio puede ser del archivo, no del cliente.'
-        : 'Dato real de los transcripts de Discord. Un canal callado no es un cliente contento: es un cliente del que no sabemos nada.',
-      dueno: transcriptsParcial ? 'Franco' : 'Equipo',
-      prioridad: 'media',
-      href: '/fulfillment/clientes',
-    });
-  }
-  return acciones;
-}
-
-/**
- * Cobranza: vencidas primero, por vencer después.
- */
-export function accionesCobranza({ vencidas, porVencerSemana }) {
-  /** @type {Accion[]} */
-  const acciones = [];
-  if (vencidas.n > 0) {
-    acciones.push({
-      id: 'acc_cob_vencidas',
-      area: 'cobranza',
-      titulo: `Cobrar ${vencidas.n === 1 ? 'la cuota vencida' : `las ${vencidas.n} cuotas vencidas`}: ${formatValue(vencidas.usd, 'usd')}`,
-      porque: `${vencidas.detalle}. Cada día de atraso baja la probabilidad de cobro; a los 30 días es un churn con otro nombre.`,
-      dueno: 'Franco',
-      prioridad: 'alta',
-      href: '/cobranza',
-    });
-  }
-  if (porVencerSemana.n > 0) {
-    acciones.push({
-      id: 'acc_cob_avisar',
-      area: 'cobranza',
-      titulo: `Avisar antes del vencimiento a ${porVencerSemana.n} clientes: ${formatValue(porVencerSemana.usd, 'usd')} vencen esta semana`,
-      porque: 'Un recordatorio dos días antes evita la mitad de las cuotas vencidas. Hoy ese aviso lo escribe una persona; está en Ideas para automatizarlo.',
-      dueno: 'Franco',
-      prioridad: 'media',
-      href: '/cobranza',
-    });
-  }
-  return acciones;
-}
-
-/** Sistemas: grietas de severidad alta abiertas. */
+/** @deprecated */
 export function accionSistemas(grietas) {
-  const altas = grietas.filter((g) => g.severidad === 'alta');
+  const altas = (grietas || []).filter((g) => g.severidad === 'alta');
   if (!altas.length) return null;
   return {
     id: 'acc_sis_grietas',
     area: 'sistemas',
     titulo: `Cerrar ${altas.length === 1 ? 'la grieta' : `las ${altas.length} grietas`} de severidad alta: ${altas.map((g) => g.metrica.split(' · ')[0]).join(', ')}`,
-    porque: 'Mientras estén abiertas, los números de esas áreas no son confiables y cualquier decisión encima de ellos es a ciegas.',
+    porque: 'Mientras estén abiertas, los números de esas áreas no son confiables.',
     dueno: 'Franco',
     prioridad: 'alta',
     href: '/sistemas',
   };
-}
-
-const ORDEN_PRIORIDAD = { alta: 0, media: 1 };
-
-/** Ordena: prioridad alta primero, y dentro de cada prioridad por área en el orden del cuadro. */
-export function ordenarAcciones(acciones) {
-  const orden = ['cobranza', 'ventas', 'marketing', 'fulfillment', 'sistemas'];
-  return [...acciones].sort(
-    (a, b) => ORDEN_PRIORIDAD[a.prioridad] - ORDEN_PRIORIDAD[b.prioridad] || orden.indexOf(a.area) - orden.indexOf(b.area),
-  );
 }

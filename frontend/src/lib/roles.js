@@ -1,0 +1,191 @@
+/**
+ * Roles de ATV Ops: qué navega y entra cada perfil.
+ *
+ * closer / setter → operación de llamadas
+ * ventas → dueño del área de ventas
+ * marketing → embudo TOFU + decreto
+ * csm → customer success: clientes y fulfillment
+ * operaciones → fulfillment + cobranza + calendario
+ * founder → casi todo (visión)
+ * admin → todo + configuración
+ */
+
+/** @typedef {'closer' | 'setter' | 'csm' | 'operaciones' | 'ventas' | 'marketing' | 'founder' | 'admin'} Rol */
+
+/** @type {Record<Rol, { id: Rol, label: string, descripcion: string }>} */
+export const ROLES = {
+  closer: {
+    id: 'closer',
+    label: 'Closer',
+    descripcion: 'Cierra llamados. Ve Ventas (llamados/cash) y calendario.',
+  },
+  setter: {
+    id: 'setter',
+    label: 'Setter',
+    descripcion: 'Agenda y confirma. Ve Ventas y calendario.',
+  },
+  csm: {
+    id: 'csm',
+    label: 'CSM',
+    descripcion: 'Customer success: clientes, salud de la cartera y fulfillment.',
+  },
+  operaciones: {
+    id: 'operaciones',
+    label: 'Operaciones',
+    descripcion: 'Fulfillment, cobranza y salud de la cartera.',
+  },
+  ventas: {
+    id: 'ventas',
+    label: 'Ventas',
+    descripcion: 'Dueño del área: embudo, metas y equipo comercial.',
+  },
+  marketing: {
+    id: 'marketing',
+    label: 'Marketing',
+    descripcion: 'Top of funnel, decreto mensual y Ads.',
+  },
+  founder: {
+    id: 'founder',
+    label: 'Founder',
+    descripcion: 'Visión completa del tablero (sin config profunda).',
+  },
+  admin: {
+    id: 'admin',
+    label: 'Admin',
+    descripcion: 'Acceso total, incluyendo configuración y sistemas.',
+  },
+};
+
+/** @type {Rol[]} */
+export const ROL_LIST = Object.keys(ROLES);
+
+/**
+ * Áreas / rutas permitidas por rol.
+ * `end: true` en home se resuelve aparte.
+ * @type {Record<Rol, string[]>}
+ */
+export const RUTAS_POR_ROL = {
+  closer: ['/', '/calendario', '/ventas'],
+  setter: ['/', '/calendario', '/ventas'],
+  csm: ['/fulfillment', '/calendario', '/ideas'],
+  operaciones: [
+    '/',
+    '/calendario',
+    '/fulfillment',
+    '/cobranza',
+    '/ideas',
+  ],
+  ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas'],
+  marketing: ['/', '/calendario', '/marketing', '/ads', '/metas', '/ideas'],
+  founder: [
+    '/',
+    '/calendario',
+    '/fulfillment',
+    '/marketing',
+    '/ads',
+    '/ventas',
+    '/metas',
+    '/cobranza',
+    '/ideas',
+    '/sistemas',
+  ],
+  admin: [
+    '/',
+    '/calendario',
+    '/fulfillment',
+    '/marketing',
+    '/ads',
+    '/ventas',
+    '/metas',
+    '/cobranza',
+    '/ideas',
+    '/sistemas',
+    '/configuracion',
+  ],
+};
+
+/** Home por defecto al entrar. */
+export const HOME_POR_ROL = {
+  closer: '/ventas',
+  setter: '/ventas',
+  csm: '/fulfillment',
+  operaciones: '/fulfillment',
+  ventas: '/ventas',
+  marketing: '/marketing',
+  founder: '/',
+  admin: '/',
+};
+
+const OVERRIDE_KEY = 'atv-ops-rol-preview';
+
+/** @param {string | null | undefined} rol */
+export function normalizarRol(rol) {
+  const r = (rol || '').toLowerCase().trim();
+  return ROL_LIST.includes(r) ? /** @type {Rol} */ (r) : 'operaciones';
+}
+
+export function getRolPreview() {
+  try {
+    const v = sessionStorage.getItem(OVERRIDE_KEY);
+    return v && ROL_LIST.includes(v) ? /** @type {Rol} */ (v) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {Rol | null} rol */
+export function setRolPreview(rol) {
+  try {
+    if (!rol) sessionStorage.removeItem(OVERRIDE_KEY);
+    else sessionStorage.setItem(OVERRIDE_KEY, rol);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Rol efectivo: preview (solo si el usuario real puede previsualizar) o el del user.
+ * @param {{ rol?: string } | null} user
+ */
+export function rolEfectivo(user) {
+  const base = normalizarRol(user?.rol);
+  if (base === 'admin' || base === 'founder') {
+    const preview = getRolPreview();
+    if (preview) return preview;
+  }
+  return base;
+}
+
+/**
+ * @param {string} pathname
+ * @param {Rol} rol
+ */
+export function puedeVerRuta(pathname, rol) {
+  const permitidas = RUTAS_POR_ROL[rol] ?? RUTAS_POR_ROL.operaciones;
+  return permitidas.some((p) => {
+    if (p === '/') return pathname === '/';
+    return pathname === p || pathname.startsWith(`${p}/`);
+  });
+}
+
+/**
+ * Filtra ítems de nav (con subnav) según rol.
+ * @param {Array<{ to: string, sub?: Array<{ to: string }> }>} nav
+ * @param {Rol} rol
+ */
+export function filtrarNav(nav, rol) {
+  return nav
+    .map((item) => {
+      if (!puedeVerRuta(item.to, rol) && item.to !== '/') return null;
+      if (item.to === '/' && !puedeVerRuta('/', rol)) return null;
+      if (!item.sub) return item;
+      const sub = item.sub.filter((s) => puedeVerRuta(s.to, rol));
+      if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
+      return { ...item, sub };
+    })
+    .filter(Boolean);
+}
+
+export function homeParaRol(rol) {
+  return HOME_POR_ROL[normalizarRol(rol)] ?? '/';
+}

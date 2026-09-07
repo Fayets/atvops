@@ -99,30 +99,33 @@ export const SOURCE_LIST = Object.values(SOURCES);
  * @type {DataField[]}
  */
 export const DATA_FIELDS = [
-  // Fulfillment · cartera
-  { id: 'clientes_activos', nombre: 'Clientes activos', seccion: 'fulfillment', sourceId: 'discord_crm', objetivo: 'discord_crm' },
-  { id: 'cartera_historica', nombre: 'Evolución de cartera', seccion: 'fulfillment', sourceId: 'discord_crm', objetivo: 'discord_crm' },
-  { id: 'churn_mes', nombre: 'Churn del mes', seccion: 'fulfillment', sourceId: 'discord_crm', objetivo: 'discord_crm' },
-  { id: 'caja_cliente', nombre: 'Caja 1 / Caja 2', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'payments' },
-  { id: 'mrr', nombre: 'MRR / run-rate', seccion: 'home', sourceId: 'manual', objetivo: 'payments' },
+  // Fulfillment · cartera (Discord)
+  { id: 'clientes_activos', nombre: 'Clientes activos', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'cartera_historica', nombre: 'Evolución de cartera', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'en_riesgo', nombre: 'Fuera de verde', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'intencion_baja', nombre: 'Intención de baja', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
 
-  // Fulfillment · lo que sale de contar los transcripts
+  // Fulfillment · conteo de transcripts
   { id: 'ultima_actividad', nombre: 'Última actividad del cliente', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
   { id: 'mensajes_semana', nombre: 'Mensajes por semana', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
   { id: 'interacciones', nombre: 'Interacciones por semana', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
   { id: 'dias_sin_mensaje', nombre: 'Días de silencio', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
 
-  // Fulfillment · lo que necesita el clasificador de transcripts
-  { id: 'activacion_30d', nombre: 'Activación a 30 días', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
-  { id: 'tiempo_primer_resultado', nombre: 'Tiempo hasta primer resultado', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
-  { id: 'blockers_activacion', nombre: 'Blockers de activación', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
-  { id: 'mix_conversacion', nombre: 'Mix de conversación', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
-  { id: 'outcomes_cliente', nombre: 'Outcomes del cliente', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+  // Fulfillment · heurísticas sobre transcripts
+  { id: 'activacion_30d', nombre: 'Activación a 30 días', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'tiempo_primer_resultado', nombre: 'Tiempo hasta primer resultado', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'blockers_activacion', nombre: 'Blockers de activación', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'mix_conversacion', nombre: 'Mix de conversación', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'outcomes_cliente', nombre: 'Wins / resultados en canal', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'candidatos_upsell', nombre: 'Candidatos a upsell', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
+  { id: 'onboarding_cliente', nombre: 'Onboarding de cliente', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
 
-  // Fulfillment · revenue de la base
-  { id: 'nrr', nombre: 'Net revenue retention', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'payments' },
-  { id: 'expansion_upsell', nombre: 'Expansión y upsells', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'payments' },
-  { id: 'onboarding_cliente', nombre: 'Onboarding de cliente', seccion: 'fulfillment', sourceId: 'manual', objetivo: 'discord_transcripts' },
+  // Revenue (fuera de fulfillment hasta conectar payments)
+  { id: 'mrr', nombre: 'MRR / run-rate', seccion: 'home', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'nrr', nombre: 'Net revenue retention', seccion: 'cobranza', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'caja_cliente', nombre: 'Caja 1 / Caja 2', seccion: 'cobranza', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'expansion_upsell', nombre: 'Revenue de expansión', seccion: 'cobranza', sourceId: 'manual', objetivo: 'payments' },
+  { id: 'churn_mes', nombre: 'Churn del mes (CRM)', seccion: 'cobranza', sourceId: 'manual', objetivo: 'payments' },
 
   // Ventas
   { id: 'cash_collected', nombre: 'Cash collected semanal', seccion: 'ventas', sourceId: 'manual', objetivo: 'payments' },

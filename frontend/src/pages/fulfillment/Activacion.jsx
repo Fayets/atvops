@@ -1,15 +1,32 @@
+import { Link } from 'react-router-dom';
 import Bars from '../../components/charts/Bars.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/ui/Icon.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../../components/ui/Loading.jsx';
-import PageHeader from '../../components/ui/PageHeader.jsx';
 import Pill from '../../components/ui/Pill.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillment } from '../../data/api.js';
-import { ahora, diasEntre, formatFecha, formatMes } from '../../lib/format.js';
+import { ahora, diasEntre, formatFecha, formatMes, formatValue, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
 import { VENTANA_ACTIVACION } from '../../lib/scoring.js';
+
+const CAT_LABEL = {
+  boost: 'Boost',
+  advantage: 'Advantage',
+  avanzados: 'Avanzados',
+  principiantes: 'Principiantes',
+  mentoria: 'Mentoría',
+};
+
+const BLOCKER_LABEL = {
+  sin_accesos: 'Sin accesos',
+  no_implementa: 'No implementa',
+  coach_lento: 'Coach lento',
+  expectativa_desalineada: 'Expectativa',
+  problema_tecnico: 'Problema técnico',
+  cliente_ausente: 'Ausente',
+};
 
 export default function Activacion() {
   const { data, loading, error } = useResource(getFulfillment);
@@ -22,15 +39,14 @@ export default function Activacion() {
         .sort((a, b) => (a.activacion.diasHastaResultado ?? 0) - (b.activacion.diasHastaResultado ?? 0))
     : [];
 
+  const sinActivar = data
+    ? [...data.sinActivar].sort(
+        (a, b) => diasEntre(b.entradaAt, ahora().toISOString()) - diasEntre(a.entradaAt, ahora().toISOString()),
+      )
+    : [];
+
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Fulfillment · pilar 1"
-        title="Activación"
-        desc={`Activación es que el cliente haya conseguido un primer resultado tangible dentro de los ${VENTANA_ACTIVACION} días. Hoy la cartera sale de Discord; el clasificador que marca el win en el transcript todavía no corre, así que nadie figura activado.`}
-        actions={<SourceTag sourceId="discord_transcripts" />}
-      />
-
       {loading || !data ? (
         <>
           <SkeletonKpis n={3} />
@@ -38,31 +54,41 @@ export default function Activacion() {
         </>
       ) : (
         <>
+          <div className="filtros" style={{ alignItems: 'center', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-2)' }}>
+              Activación = win en el transcript (venta / cierre / cobro) · ventana {VENTANA_ACTIVACION} días
+              {data.syncAt ? ` · sync ${hace(data.syncAt)}` : ''}
+            </div>
+            <div style={{ marginLeft: 'auto' }}>
+              <SourceTag sourceId="discord_transcripts" updatedAt={data.syncAt} />
+            </div>
+          </div>
+
           <div className="kpi-grid">
             {data.kpis.activacion.map((m) => (
-              <KpiCard key={m.id} metric={m} />
+              <KpiCard key={m.id} metric={m} spark={false} />
             ))}
           </div>
 
           <div className="split">
             <Card
               title="Días hasta el primer resultado"
-              sub="Cada barra es un cliente activo · la línea marca el día 30"
-              foot="Cuando el clasificador lea los transcripts, el win (venta, lead, lanzamiento) va a aparecer acá con la fecha del mensaje."
+              sub={`${activados.length} activados · línea = día ${VENTANA_ACTIVACION}`}
+              foot="Detectado con heurística sobre el texto del cliente (no NLP todavía)."
             >
               {activados.length === 0 ? (
-                <div className="empty">
-                  Todavía no hay activaciones detectadas en los canales. Falta el clasificador sobre el transcript.
-                </div>
+                <div className="empty">Nadie con win detectado en los canales todavía.</div>
               ) : (
                 <Bars
-                  data={activados}
+                  data={activados.slice(0, 24)}
                   x={(c) => c.nombre.split(' ')[0]}
                   y={(c) => c.activacion.diasHastaResultado ?? 0}
                   format="days"
                   label="Días"
                   height={252}
-                  color={(c) => ((c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'var(--ok)' : 'var(--brand)')}
+                  color={(c) =>
+                    (c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'var(--ok)' : 'var(--brand)'
+                  }
                   referencia={{ valor: VENTANA_ACTIVACION, label: `día ${VENTANA_ACTIVACION}` }}
                 />
               )}
@@ -70,26 +96,29 @@ export default function Activacion() {
 
             <Card
               title="Cohortes"
-              sub="Entradas por mes según el primer mensaje del canal"
-              foot="El % de activación en 30 días queda en 0 hasta que corra el clasificador."
+              sub="% activados a 30 días por mes de entrada"
+              foot="Entrada = primer mensaje del canal."
             >
               {data.cohortes.length === 0 ? (
                 <div className="empty">Sin fechas de entrada en los transcripts.</div>
               ) : (
                 <div className="cohorte-grid">
                   {data.cohortes.map((c) => {
-                    const pct = Math.round((c.activados30 / c.entraron) * 100);
+                    const pct = c.entraron ? Math.round((c.activados30 / c.entraron) * 100) : 0;
                     return (
                       <div key={c.mes} className="cohorte">
                         <div className="mes">{formatMes(c.mes)}</div>
                         <div
                           className="pct num"
-                          style={{ color: pct >= 80 ? 'var(--ok)' : pct >= 50 ? 'var(--warn)' : 'var(--brand-hi)' }}
+                          style={{
+                            color: pct >= 80 ? 'var(--ok)' : pct >= 50 ? 'var(--warn)' : 'var(--brand-hi)',
+                          }}
                         >
                           {pct}%
                         </div>
                         <div className="det">
-                          {c.activados30}/{c.entraron} · {c.entraron} canales
+                          {c.activados30}/{c.entraron}
+                          {c.medianaDias ? ` · med ${formatValue(c.medianaDias, 'days')}` : ''}
                         </div>
                       </div>
                     );
@@ -99,61 +128,68 @@ export default function Activacion() {
             </Card>
           </div>
 
+          {activados.length > 0 && (
+            <Card
+              title="Primeros resultados detectados"
+              sub="La frase del canal donde aparece el win"
+              flush
+              foot="Extracción automática · puede haber falsos positivos."
+            >
+              {activados.slice(0, 10).map((c) => (
+                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                  <Pill
+                    tone={(c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'ok' : 'warn'}
+                    dot
+                  >
+                    día {c.activacion.diasHastaResultado}
+                  </Pill>
+                  <span className="who">{c.nombre}</span>
+                  <span className="q">{c.activacion.descripcion}</span>
+                  <span className="right">
+                    <span className="dim" style={{ fontSize: 12 }}>
+                      {formatFecha(c.activacion.primerResultadoAt)}
+                    </span>
+                    <Icon name="arrow" size={13} />
+                  </span>
+                </Link>
+              ))}
+            </Card>
+          )}
+
           <Card
-            title="Sin activar (toda la cartera actual)"
-            sub="Un canal = un cliente · el reloj corre desde el primer mensaje"
+            title="Sin activar"
+            sub={`${sinActivar.length} canales · reloj desde el primer mensaje`}
             flush
-            foot="Los blockers (onboarding trabado, sin entrega, etc.) van a salir del clasificador. Por ahora solo vemos cuántos días lleva cada canal."
+            foot="Blocker grueso: ausente (casi no escribe) o no implementa (pasó la ventana sin win)."
           >
-            {data.sinActivar.length === 0 ? (
-              <div className="empty">Toda la cartera activa llegó a su primer resultado.</div>
+            {sinActivar.length === 0 ? (
+              <div className="empty">Toda la cartera activa tiene win detectado.</div>
             ) : (
-              data.sinActivar.map((c) => {
+              sinActivar.map((c) => {
                 const dias = diasEntre(c.entradaAt, ahora().toISOString());
+                const fuera = dias > VENTANA_ACTIVACION;
                 return (
-                  <div key={c.id} className="fuente-card">
-                    <div className="fuente-top">
-                      <h3>{c.nombre}</h3>
-                      <Pill tone="alert">{c.categoria ?? 'canal'}</Pill>
-                      <div className="meta">
-                        <span>#{c.canal}</span>
-                        <span>Primer mensaje {formatFecha(c.entradaAt)}</span>
-                        <span style={{ color: dias > VENTANA_ACTIVACION ? 'var(--brand-hi)' : 'var(--text-3)' }}>
-                          día {dias}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                    <Pill tone={fuera ? 'alert' : 'warn'} dot>
+                      día {dias}
+                    </Pill>
+                    <span className="who">{c.nombre}</span>
+                    <span className="q">
+                      {CAT_LABEL[c.categoria] ?? c.categoria} · entrada {formatFecha(c.entradaAt)}
+                      {c.activacion.blocker
+                        ? ` · ${BLOCKER_LABEL[c.activacion.blocker] ?? c.activacion.blocker}`
+                        : fuera
+                          ? ' · fuera de ventana'
+                          : ' · ventana abierta'}
+                    </span>
+                    <span className="right">
+                      <Icon name="arrow" size={13} />
+                    </span>
+                  </Link>
                 );
               })
             )}
           </Card>
-
-          {activados.length > 0 && (
-            <Card
-              title="Primeros resultados detectados"
-              sub="El win, tal como apareció en el canal"
-              flush
-              foot="Esto es lo que un formulario nunca captura: la frase exacta del cliente cuando algo funcionó."
-            >
-              {activados.slice(0, 6).map((c) => (
-                <div key={c.id} className="senal positiva">
-                  <i className="marca" />
-                  <div>
-                    <blockquote>{c.activacion.descripcion}</blockquote>
-                    <div className="meta">
-                      <strong style={{ color: 'var(--text-2)' }}>{c.nombre}</strong>
-                      <span>{formatFecha(c.activacion.primerResultadoAt)}</span>
-                    </div>
-                  </div>
-                  <Pill tone={(c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'ok' : 'warn'}>
-                    <Icon name="reloj" size={11} />
-                    día {c.activacion.diasHastaResultado}
-                  </Pill>
-                </div>
-              ))}
-            </Card>
-          )}
         </>
       )}
     </div>

@@ -41,12 +41,17 @@ def _bind_postgres() -> None:
 
 def init_db() -> None:
     import src.models  # noqa: F401 — registra entidades en `db`
+    # Migraciones SQLite ligeras ANTES de generate_mapping (Pony check_tables).
+    from src.services.auth_services import ensure_reunion_usuario_column, ensure_usuario_rol_column
 
     provider = config("DB_PROVIDER", default="sqlite")
     if provider == "postgres":
         _bind_postgres()
     else:
         _bind_sqlite()
+
+    ensure_usuario_rol_column()
+    ensure_reunion_usuario_column()
 
     if db.entities:
         db.generate_mapping(create_tables=True)

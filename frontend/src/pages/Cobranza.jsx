@@ -7,6 +7,7 @@ import SourceTag from '../components/ui/SourceTag.jsx';
 import MetaRow from '../components/home/MetaRow.jsx';
 import { getCobranza } from '../data/api.js';
 import { formatFecha, formatValue, hace } from '../lib/format.js';
+import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
 const ESTADO = {
@@ -64,7 +65,8 @@ const COLUMNAS = [
 ];
 
 export default function Cobranza() {
-  const { data, loading, error } = useResource(getCobranza);
+  const { mes } = useMes();
+  const { data, loading, error } = useResource(() => getCobranza(mes), [mes]);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 

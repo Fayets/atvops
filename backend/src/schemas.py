@@ -19,6 +19,7 @@ class UsuarioResponse(BaseModel):
     id: int
     username: str
     nombre: str | None = None
+    rol: str = "operaciones"
 
 
 class LoginResponse(BaseModel):

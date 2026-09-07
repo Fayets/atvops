@@ -12,10 +12,10 @@ service = ReunionesServices()
 def listar_mes(
     anio: int = Query(..., ge=2000, le=2100),
     mes: int = Query(..., ge=1, le=12),
-    _user=Depends(get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     try:
-        return service.listar_mes(anio, mes)
+        return service.listar_mes(anio, mes, user["id"])
     except HTTPException as e:
         raise e
     except Exception:
@@ -23,9 +23,9 @@ def listar_mes(
 
 
 @router.post("", response_model=schemas.ReunionResponse)
-def crear(body: schemas.ReunionCreate, _user=Depends(get_current_user)):
+def crear(body: schemas.ReunionCreate, user: dict = Depends(get_current_user)):
     try:
-        return service.crear(body.titulo, body.fecha, body.hora, body.notas, body.integrante_ids)
+        return service.crear(user["id"], body.titulo, body.fecha, body.hora, body.notas, body.integrante_ids)
     except HTTPException as e:
         raise e
     except Exception:
@@ -33,9 +33,9 @@ def crear(body: schemas.ReunionCreate, _user=Depends(get_current_user)):
 
 
 @router.delete("/{reunion_id}", response_model=schemas.ReunionResponse)
-def borrar(reunion_id: int, _user=Depends(get_current_user)):
+def borrar(reunion_id: int, user: dict = Depends(get_current_user)):
     try:
-        return service.borrar(reunion_id)
+        return service.borrar(reunion_id, user["id"])
     except HTTPException as e:
         raise e
     except Exception:

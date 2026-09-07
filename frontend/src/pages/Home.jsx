@@ -9,11 +9,13 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { getHome } from '../data/api.js';
 import { formatValue, hace } from '../lib/format.js';
+import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { ESTADO_RITMO } from '../lib/pacing.js';
 
 export default function Home() {
-  const { data, loading, error } = useResource(getHome);
+  const { mes: mesId } = useMes();
+  const { data, loading, error } = useResource(() => getHome(mesId), [mesId]);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
   if (loading || !data) {
@@ -157,9 +159,13 @@ export default function Home() {
               </span>
             </div>
             <div className="estado-item">
-              <i className={`luz ${sistemas.grietas.some((g) => g.severidad === 'alta') ? 'alert' : 'ok'}`} />
-              <span className="nombre">Grietas abiertas</span>
-              <span className="det">{sistemas.grietas.length} · {sistemas.pedidosSemana} pedidos de datos esta semana</span>
+              <i className={`luz ${sistemas.grietas.some((g) => g.severidad === 'alta') ? 'alert' : sistemas.grietas.length ? 'warn' : 'ok'}`} />
+              <span className="nombre">Alertas operativas</span>
+              <span className="det">
+                {sistemas.grietas.length
+                  ? sistemas.grietas.map((g) => g.metrica.split(' · ')[0]).join(' · ')
+                  : 'Sin alertas de fuentes caídas'}
+              </span>
             </div>
           </div>
         </Bloque>
@@ -170,25 +176,33 @@ export default function Home() {
           dueno="Franco"
           href="/cobranza"
         >
-          <MetaRow
-            meta={{ id: 'cobrado', nombre: 'Cobrado del mes', meta: cobranza.totalMes, format: 'usd', acumulado: [cobranza.cobrado] }}
-            ritmo={cobranza.ritmoCobro}
-            compacta
-          />
-          <div className="semaforo-mini">
-            <div className="celda">
-              <div className="n num" style={{ color: cobranza.vencidas.n ? 'var(--brand-hi)' : 'var(--ok)' }}>{cobranza.vencidas.n}</div>
-              <div className="k">vencidas · {formatValue(cobranza.vencidas.usd, 'usd')}</div>
+          {cobranza.unavailable ? (
+            <div className="empty" style={{ padding: '8px 0' }}>
+              Sin datos de cobranza · levantá ATV Clients o revisá ATV_CLIENTS_API_URL
             </div>
-            <div className="celda">
-              <div className="n num" style={{ color: 'var(--warn)' }}>{cobranza.porVencerSemana.n}</div>
-              <div className="k">vencen en 7 d · {formatValue(cobranza.porVencerSemana.usd, 'usd')}</div>
-            </div>
-            <div className="celda">
-              <div className="n num">{Math.round(cobranza.pctSobreVencido)}%</div>
-              <div className="k">cobrado de lo vencido</div>
-            </div>
-          </div>
+          ) : (
+            <>
+              <MetaRow
+                meta={{ id: 'cobrado', nombre: 'Cobrado del mes', meta: cobranza.totalMes, format: 'usd', acumulado: [cobranza.cobrado] }}
+                ritmo={cobranza.ritmoCobro}
+                compacta
+              />
+              <div className="semaforo-mini">
+                <div className="celda">
+                  <div className="n num" style={{ color: cobranza.vencidas.n ? 'var(--brand-hi)' : 'var(--ok)' }}>{cobranza.vencidas.n}</div>
+                  <div className="k">vencidas · {formatValue(cobranza.vencidas.usd, 'usd')}</div>
+                </div>
+                <div className="celda">
+                  <div className="n num" style={{ color: 'var(--warn)' }}>{cobranza.porVencerSemana.n}</div>
+                  <div className="k">vencen en 7 d · {formatValue(cobranza.porVencerSemana.usd, 'usd')}</div>
+                </div>
+                <div className="celda">
+                  <div className="n num">{Math.round(cobranza.pctSobreVencido)}%</div>
+                  <div className="k">cobrado de lo vencido</div>
+                </div>
+              </div>
+            </>
+          )}
         </Bloque>
 
         {/* ---------------------------------------------------------- ideas */}

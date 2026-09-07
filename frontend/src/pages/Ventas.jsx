@@ -1,5 +1,10 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Bars from '../components/charts/Bars.jsx';
 import HBars from '../components/charts/HBars.jsx';
+import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
+import DiagnosticoMes from '../components/metas/DiagnosticoMes.jsx';
+import MetaMesModal from '../components/metas/MetaMesModal.jsx';
 import Card from '../components/ui/Card.jsx';
 import DataTable from '../components/ui/DataTable.jsx';
 import KpiCard from '../components/ui/KpiCard.jsx';
@@ -7,8 +12,9 @@ import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loadin
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
-import { getVentas } from '../data/api.js';
+import { getMetasMes, getVentas } from '../data/api.js';
 import { formatFechaHora, formatRangoSemana, formatValue } from '../lib/format.js';
+import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
 const ESTADO = {
@@ -54,19 +60,31 @@ const COLUMNAS = [
 ];
 
 export default function Ventas() {
+  const { mes } = useMes();
   const { data, loading, error } = useResource(getVentas);
+  const [tickMeta, setTickMeta] = useState(0);
+  const [modalMeta, setModalMeta] = useState(false);
+  const metas = useResource(() => getMetasMes(mes), [mes, tickMeta]);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
   const ultima = data?.semanas[data.semanas.length - 1];
+  const metasData = metas.data;
 
   return (
     <div className="page">
       <PageHeader
         eyebrow="Área · Lucas"
         title="Ventas"
-        desc="Del llamado agendado al cash cobrado. Los agendados y los shows vienen solos de Calendly; el cash todavía se carga a mano y por eso es el número que más se desvía."
-        actions={<SourceTag sourceId="calendly" />}
+        desc="Del llamado agendado al cash. Diagnóstico y avance del decreto; paid media vive en Ads."
+        actions={
+          <>
+            <Link to="/metas" className="btn">
+              Definir meta del mes
+            </Link>
+            <SourceTag sourceId="calendly" />
+          </>
+        }
       />
 
       {loading || !data ? (
@@ -76,6 +94,21 @@ export default function Ventas() {
         </>
       ) : (
         <>
+          {metasData && (
+            <>
+              <DiagnosticoMes
+                alertas={metasData.diagnostico}
+                sub={`${metasData.contexto.nombreMes} · día ${metasData.contexto.diaHoy} de ${metasData.contexto.diasMes} · mock`}
+              />
+              <AvanceVsMeta
+                filas={metasData.avance.filter((f) => !['agendas_ads', 'inversion', 'cash_ads'].includes(f.id))}
+                titulo="Avance vs meta · Ventas"
+                sub="Embudo y cash · paid en /ads"
+                syncAt={metasData.real.syncAt}
+              />
+            </>
+          )}
+
           <div className="kpi-grid">
             {data.kpis.map((m) => (
               <KpiCard key={m.id} metric={m} />
@@ -133,6 +166,17 @@ export default function Ventas() {
             <DataTable columns={COLUMNAS} rows={data.llamados} initialSort={{ key: 'fechaAt', dir: 'desc' }} />
           </Card>
         </>
+      )}
+
+      {metasData && (
+        <MetaMesModal
+          abierto={modalMeta}
+          onCerrar={() => setModalMeta(false)}
+          decreto={metasData.decreto}
+          mes={metasData.contexto.mes}
+          nombreMes={metasData.contexto.nombreMes}
+          onGuardado={() => setTickMeta((n) => n + 1)}
+        />
       )}
     </div>
   );

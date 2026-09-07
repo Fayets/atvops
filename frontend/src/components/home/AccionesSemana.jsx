@@ -46,29 +46,35 @@ export default function AccionesSemana({ acciones, semana }) {
       </button>
 
       {abierto && (
-        <ol className="acciones-lista">
-          {acciones.map((a, i) => {
-            const open = expandida === a.id;
-            return (
-              <li key={a.id} className={`accion ${a.prioridad}${open ? ' abierta' : ''}`}>
-                <span className="accion-n num">{i + 1}</span>
-                <div className="accion-cuerpo">
-                  <div className="accion-titulo">
-                    <Link to={a.href}>{a.titulo}</Link>
-                    <button className="accion-ver" onClick={() => setExpandida(open ? null : a.id)}>
-                      {open ? 'ocultar cuenta' : 'ver cuenta'}
-                    </button>
+        acciones.length === 0 ? (
+          <div className="empty" style={{ padding: '16px 18px' }}>
+            Sin acciones urgentes desde datos reales esta semana.
+          </div>
+        ) : (
+          <ol className="acciones-lista">
+            {acciones.map((a, i) => {
+              const open = expandida === a.id;
+              return (
+                <li key={a.id} className={`accion ${a.prioridad}${open ? ' abierta' : ''}`}>
+                  <span className="accion-n num">{i + 1}</span>
+                  <div className="accion-cuerpo">
+                    <div className="accion-titulo">
+                      <Link to={a.href}>{a.titulo}</Link>
+                      <button type="button" className="accion-ver" onClick={() => setExpandida(open ? null : a.id)}>
+                        {open ? 'ocultar cuenta' : 'ver cuenta'}
+                      </button>
+                    </div>
+                    {open && <div className="accion-porque">{a.porque}</div>}
                   </div>
-                  {open && <div className="accion-porque">{a.porque}</div>}
-                </div>
-                <div className="accion-meta">
-                  <Pill tone={a.prioridad === 'alta' ? 'alert' : 'plain'}>{AREA[a.area]}</Pill>
-                  <span className="accion-dueno">{a.dueno}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                  <div className="accion-meta">
+                    <Pill tone={a.prioridad === 'alta' ? 'alert' : 'plain'}>{AREA[a.area]}</Pill>
+                    <span className="accion-dueno">{a.dueno}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )
       )}
     </section>
   );

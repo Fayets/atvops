@@ -10,7 +10,10 @@ class Usuario(db.Entity):
     username = Required(str, unique=True)
     password_hash = Required(str)
     nombre = Optional(str)
+    # closer | setter | operaciones | ventas | marketing | founder | admin
+    rol = Required(str, default="operaciones")
     creado_at = Required(datetime, default=datetime.utcnow)
+    reuniones = Set("Reunion")
 
 
 class Integrante(db.Entity):
@@ -28,6 +31,8 @@ class Reunion(db.Entity):
     hora = Optional(str, default="")
     notas = Optional(str, default="")
     participantes = Set(Integrante)
+    # El calendario es de cada usuario: una reunión pertenece a quien la creó.
+    usuario = Optional(Usuario)
 
 
 class Idea(db.Entity):

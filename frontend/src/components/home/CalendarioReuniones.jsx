@@ -161,7 +161,7 @@ export default function CalendarioReuniones() {
                   <button
                     key={iso}
                     type="button"
-                    className={`cal-cell${iso === fechaSel ? ' sel' : ''}${iso === hoyStr ? ' hoy' : ''}`}
+                    className={`cal-cell${items.length ? ' con-reu' : ''}${iso === fechaSel ? ' sel' : ''}${iso === hoyStr ? ' hoy' : ''}`}
                     onClick={() => setDiaSel(dia)}
                   >
                     <span className="cal-num num">{dia}</span>

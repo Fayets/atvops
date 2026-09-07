@@ -2,8 +2,8 @@
 Cartera de clientes armada desde los transcripts de Discord.
 
 Un canal en boost / advantage / avanzados / principiantes (= mentoría) = un cliente.
-No hay CRM todavía: nombre, entrada y engagement salen del .txt. MRR, activación
-clasificada, outcomes y mix fino quedan en defaults hasta conectar esas fuentes.
+Nombre, entrada, engagement, activación heurística y mix léxico salen del .txt.
+MRR / NRR / tiers de payments no se inventan acá.
 """
 
 from __future__ import annotations
@@ -29,6 +29,77 @@ CATEGORIAS_CLIENTE = frozenset({
 SEMANAS_VENTANA = 12
 # Autor que escribe en ≥ N canales de cliente = staff/coach (no el cliente).
 STAFF_MIN_CANALES = 2
+VENTANA_ACTIVACION_DIAS = 30
+
+# Señal heurística de "primer resultado" en mensajes del cliente (sin NLP).
+_ACTIVACION_RE = re.compile(
+    r"(?:"
+    r"\bvend[ií]\b|"
+    r"\bvendimos\b|"
+    r"\bya\s+vend|"
+    r"\bprimera?\s+venta\b|"
+    r"\bprimer\s+cliente\b|"
+    r"\bprimer\s+pago\b|"
+    r"\bcobr[eé]\b|"
+    r"\bcobramos\b|"
+    r"\bme\s+pagaron\b|"
+    r"\bme\s+compraron\b|"
+    r"\bcerr[eé]\s+(?:una|la|el|mi|con)\b|"
+    r"\bcerramos\s+(?:una|la|el|venta|lanzamiento|deal)\b|"
+    r"\bconsegu[ií]\s+(?:un\s+)?(?:cliente|venta|pago)\b|"
+    r"\bhicimos\s+(?:una\s+)?venta\b|"
+    r"\bfirm[eé]\b|"
+    r"\binscribi(?:ó|o|eron)\b"
+    r")",
+    re.IGNORECASE,
+)
+_ACTIVACION_EXCLUIR_RE = re.compile(
+    r"(?:objetivo:|avatar:|ya\s+le\s+vend[ií]\s+a\s+todo|que\s+ya\s+venden|"
+    r"estrategia\s+de\s+comunicaci|guiones)",
+    re.IGNORECASE,
+)
+
+# Mix de conversación (heurística léxica; no NLP/LLM).
+_MIX_RES: dict[str, re.Pattern[str]] = {
+    "implementacion": re.compile(
+        r"(?:implement|c[oó]mo\s+(?:hago|armo|lanzo|vendo)|lanz(?:ar|o|amos)|"
+        r"oferta|funnel|landing|copy|ads?|campa[nñ]a|guion|closing|"
+        r"ticket|precio|avatar|embudo|secuencia)",
+        re.IGNORECASE,
+    ),
+    "soporte": re.compile(
+        r"(?:acceso|login|contrase[nñ]a|no\s+puedo|error|link|invite|"
+        r"d[oó]nde\s+est[aá]|no\s+me\s+lleg|plataforma|drive|notion|"
+        r"zoom|grabaci[oó]n|archivo)",
+        re.IGNORECASE,
+    ),
+    "queja": re.compile(
+        r"(?:reembolso|devolver|dinero\s+atr[aá]s|estafa|frustrad|"
+        r"no\s+sirve|no\s+funciona|cancelar|quiero\s+baja|me\s+quiero\s+ir|"
+        r"perdi\s+el\s+tiempo|no\s+es\s+lo\s+que)",
+        re.IGNORECASE,
+    ),
+    "celebracion": re.compile(
+        r"(?:primera?\s+venta|vend[ií]|vendimos|cerr[eé]|cerramos|"
+        r"me\s+pagaron|logr[eé]|consegu[ií]|gracias\s+(?:equipo|coach|chicos)|"
+        r"incre[ií]ble|bomb[aá]|winn?|factur)",
+        re.IGNORECASE,
+    ),
+}
+
+_UPSELL_RE = re.compile(
+    r"(?:upsell|pasar\s+a\s+(?:boost|advantage|scale|growth)|"
+    r"siguiente\s+nivel|quiero\s+m[aá]s\s+(?:mentor|acompa[nñ]|sesion)|"
+    r"aumentar\s+(?:el\s+)?ticket|escalar\s+(?:el\s+)?negocio|"
+    r"me\s+queda\s+chico|techo\s+de\s+capacidad)",
+    re.IGNORECASE,
+)
+
+_CHURN_INTENT_RE = re.compile(
+    r"(?:reembolso|devolver\s+el\s+dinero|cancelar\s+(?:la\s+)?(?:suscri|mentor)|"
+    r"quiero\s+baja|me\s+quiero\s+ir|no\s+renuevo|dar(?:me)?\s+de\s+baja)",
+    re.IGNORECASE,
+)
 
 
 def _nombre_desde_canal(canal: str) -> str:
@@ -82,6 +153,132 @@ def _autor_es_cliente(autor: str, canal: str, staff: set[str]) -> bool:
         return True
     # En un canal de cliente, quien no es staff es el cliente (o pareja).
     return True
+
+
+def _detectar_activacion(
+    mensajes: list[dict],
+    canal_slug: str,
+    staff: set[str],
+    entrada: datetime,
+) -> dict:
+    """
+    Primer mensaje del cliente que parece un win tangible.
+    Heurística léxica hasta que exista clasificador NLP.
+    """
+    if hasattr(entrada, "astimezone"):
+        entrada_ar = entrada.astimezone(AR_TZ)
+    else:
+        entrada_ar = entrada
+
+    for msg in mensajes:
+        if not _autor_es_cliente(msg["autor"], canal_slug, staff):
+            continue
+        contenido = (msg.get("contenido") or "").strip()
+        if len(contenido) < 12 or len(contenido) > 1200:
+            continue
+        if _ACTIVACION_EXCLUIR_RE.search(contenido):
+            continue
+        if not _ACTIVACION_RE.search(contenido):
+            continue
+
+        fecha = msg["fecha_at"]
+        dias = max(0, (fecha.date() - entrada_ar.date()).days)
+        extracto = " ".join(contenido.split())
+        if len(extracto) > 220:
+            extracto = extracto[:217] + "…"
+        return {
+            "activado": True,
+            "diasHastaResultado": dias,
+            "primerResultadoAt": _iso(fecha),
+            "descripcion": extracto,
+            "evidenciaMensajeId": f"idx:{msg.get('indice', 0)}",
+            "blocker": None,
+            "fuente": "heuristica_transcript",
+        }
+
+    # Sin win detectado: blocker grueso según silencio / ventana.
+    ahora = datetime.now(AR_TZ)
+    dias_desde = max(0, (ahora.date() - entrada_ar.date()).days)
+    blocker = None
+    if dias_desde > VENTANA_ACTIVACION_DIAS:
+        msgs_cli = sum(1 for m in mensajes if _autor_es_cliente(m["autor"], canal_slug, staff))
+        if msgs_cli <= 2:
+            blocker = "cliente_ausente"
+        else:
+            blocker = "no_implementa"
+
+    return {
+        "activado": False,
+        "diasHastaResultado": None,
+        "primerResultadoAt": None,
+        "descripcion": None,
+        "evidenciaMensajeId": None,
+        "blocker": blocker,
+        "fuente": "heuristica_transcript",
+    }
+
+
+def _contar_mix(mensajes: list[dict], canal_slug: str, staff: set[str]) -> dict:
+    """% de mensajes del cliente que matchean cada bucket (pueden sumar >100)."""
+    contadores = {k: 0 for k in _MIX_RES}
+    etiquetados = 0
+    for msg in mensajes:
+        if not _autor_es_cliente(msg["autor"], canal_slug, staff):
+            continue
+        contenido = (msg.get("contenido") or "").strip()
+        if len(contenido) < 8:
+            continue
+        hit = False
+        for key, patron in _MIX_RES.items():
+            if patron.search(contenido):
+                contadores[key] += 1
+                hit = True
+        if hit:
+            etiquetados += 1
+
+    if etiquetados == 0:
+        return {
+            "mix": {"implementacion": 0, "soporte": 0, "queja": 0, "celebracion": 0},
+            "mixPendiente": True,
+            "mensajesEtiquetados": 0,
+        }
+
+    mix = {
+        k: round(100.0 * contadores[k] / etiquetados)
+        for k in contadores
+    }
+    # Normalizar a ~100 por redondeo.
+    total = sum(mix.values()) or 1
+    if total != 100:
+        mayor = max(mix, key=mix.get)
+        mix[mayor] = max(0, mix[mayor] + (100 - total))
+    return {"mix": mix, "mixPendiente": False, "mensajesEtiquetados": etiquetados}
+
+
+def _candidato_upsell(mensajes: list[dict], canal_slug: str, staff: set[str]) -> bool:
+    for msg in mensajes[-80:]:
+        if not _autor_es_cliente(msg["autor"], canal_slug, staff):
+            continue
+        if _UPSELL_RE.search(msg.get("contenido") or ""):
+            return True
+    return False
+
+
+def _intencion_churn(mensajes: list[dict], canal_slug: str, staff: set[str]) -> dict | None:
+    for msg in reversed(mensajes[-120:]):
+        if not _autor_es_cliente(msg["autor"], canal_slug, staff):
+            continue
+        contenido = (msg.get("contenido") or "").strip()
+        if _CHURN_INTENT_RE.search(contenido):
+            extracto = " ".join(contenido.split())
+            if len(extracto) > 180:
+                extracto = extracto[:177] + "…"
+            return {
+                "detectado": True,
+                "fechaAt": _iso(msg["fecha_at"]),
+                "extracto": extracto,
+            }
+    return None
 
 
 class ClientesServices:
@@ -157,6 +354,7 @@ class ClientesServices:
         dias_sin = (ahora - ref_silencio).days if ref_silencio else 0
 
         resp = _mediana(gaps_hs)
+        mix_info = _contar_mix(mensajes, canal_slug, staff)
         engagement = {
             "mensajesClienteSemana": round(avg_ult, 1),
             "mensajesCoachSemana": round(
@@ -169,8 +367,9 @@ class ClientesServices:
             ),
             "respuestaCoachHs": round(resp, 1) if resp is not None else None,
             "diasSinMensaje": max(0, dias_sin),
-            "mix": {"implementacion": 0, "soporte": 0, "queja": 0, "celebracion": 0},
-            "mixPendiente": True,
+            "mix": mix_info["mix"],
+            "mixPendiente": mix_info["mixPendiente"],
+            "mensajesEtiquetados": mix_info["mensajesEtiquetados"],
             "tendencia": round(tendencia),
         }
 
@@ -199,15 +398,18 @@ class ClientesServices:
         else:
             entrada_ar = entrada
         entrada_iso = entrada_ar.date().isoformat()
+        activacion = _detectar_activacion(mensajes, canal["canal"], staff, entrada_ar)
+        churn_intent = _intencion_churn(mensajes, canal["canal"], staff)
+        candidato = _candidato_upsell(mensajes, canal["canal"], staff)
 
         return {
             "id": cliente_id,
             "nombre": _nombre_desde_canal(canal["canal"]),
             "pais": None,
             "entradaAt": entrada_iso,
-            "caja": "caja_1",
+            "caja": None,
             "estado": "activo",
-            "mrrUsd": 0,
+            "mrrUsd": None,
             "ultimaActividadAt": _iso(canal["ultimo_mensaje_at"]),
             "onboardingDias": None,
             "coachId": coach_id,
@@ -215,34 +417,28 @@ class ClientesServices:
             "tier": None,
             "churnAt": None,
             "motivoChurn": None,
+            "churnIntent": churn_intent,
             "categoria": canal["categoria"],
             "canal": canal["canal"],
             "canalId": canal["id"],
             "completo": canal["completo"],
             "mensajes": canal["mensajes"],
-            "activacion": {
-                "activado": False,
-                "diasHastaResultado": None,
-                "primerResultadoAt": None,
-                "descripcion": None,
-                "evidenciaMensajeId": None,
-                "blocker": None,
-            },
+            "activacion": activacion,
             "engagement": engagement,
             "outcome": {
-                "revenueInicialUsd": 0,
-                "revenueActualUsd": 0,
-                "audienciaInicial": 0,
-                "audienciaActual": 0,
-                "ultimoHitoAt": None,
-                "ultimoHito": None,
+                "revenueInicialUsd": None,
+                "revenueActualUsd": None,
+                "audienciaInicial": None,
+                "audienciaActual": None,
+                "ultimoHitoAt": activacion.get("primerResultadoAt"),
+                "ultimoHito": activacion.get("descripcion") if activacion.get("activado") else None,
             },
             "expansion": {
                 "tierInicial": None,
                 "upsells": 0,
-                "revenueExpansionUsd": 0,
+                "revenueExpansionUsd": None,
                 "ultimoUpsellAt": None,
-                "candidatoUpsell": False,
+                "candidatoUpsell": candidato,
             },
             "_actividad": actividad,
         }

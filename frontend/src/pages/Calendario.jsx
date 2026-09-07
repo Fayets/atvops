@@ -1,14 +1,17 @@
 import CalendarioReuniones from '../components/home/CalendarioReuniones.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
+import { useRol } from '../lib/RolContext.jsx';
 
+/** El calendario es personal: cada usuario ve y maneja solo sus reuniones. */
 export default function Calendario() {
+  const { user } = useRol();
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Equipo"
-        title="Calendario"
-        desc="Asigná reuniones por día. Las fotos de quienes participan se cargan en Configuración."
-      />
+      <div>
+        <div className="eyebrow">Calendario personal</div>
+        <p className="dim" style={{ fontSize: 12.5, marginTop: 4 }}>
+          Lo que cargues acá lo ves vos{user?.nombre ? `, ${user.nombre}` : ''}. Cada usuario tiene el suyo.
+        </p>
+      </div>
       <CalendarioReuniones />
     </div>
   );
