@@ -19,6 +19,7 @@ const NAV = [
       { to: '/fulfillment/engagement', label: 'Engagement' },
       { to: '/fulfillment/retencion', label: 'Retención y riesgo' },
       { to: '/fulfillment/outcomes', label: 'Resultados' },
+      { to: '/fulfillment/chats', label: 'Chats en vivo' },
     ],
   },
   { to: '/marketing', icon: 'marketing', label: 'Marketing' },

@@ -10,6 +10,7 @@ const TITULOS = {
   '/fulfillment/engagement': 'Fulfillment · Engagement',
   '/fulfillment/retencion': 'Fulfillment · Retención y riesgo',
   '/fulfillment/outcomes': 'Fulfillment · Resultados',
+  '/fulfillment/chats': 'Fulfillment · Chats en vivo',
   '/marketing': 'Marketing',
   '/ads': 'Ads',
   '/ventas': 'Ventas',
@@ -24,6 +25,7 @@ function tituloDe(pathname) {
   if (pathname === '/') return null;
   if (TITULOS[pathname]) return TITULOS[pathname];
   if (pathname.startsWith('/fulfillment/clientes')) return 'Fulfillment · Ficha de cliente';
+  if (pathname.startsWith('/fulfillment/chats')) return 'Fulfillment · Chats en vivo';
   return 'ATV Ops';
 }
 

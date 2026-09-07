@@ -1289,6 +1289,16 @@ export async function getTranscripts() {
   return pedir('/api/transcripts');
 }
 
+/**
+ * Un canal con todos sus mensajes. Se relee cada 15 s desde el visor en vivo;
+ * el backend cachea por mtime, así que solo cuesta cuando el bot escribió.
+ * @param {string} categoria
+ * @param {string} canal
+ */
+export async function getTranscriptCanal(categoria, canal) {
+  return pedir(`/api/transcripts/${encodeURIComponent(categoria)}/${encodeURIComponent(canal)}`);
+}
+
 export function mediaUrl(path) {
   if (!path) return null;
   return path.startsWith('http') ? path : `${API_BASE}${path}`;

@@ -122,6 +122,11 @@ export default function ClienteDetalle() {
           Clientes
         </Link>
         <SourceTag sourceId="discord_transcripts" updatedAt={cliente.ultimaActividadAt} />
+        {cliente.canalId && (
+          <Link to={`/fulfillment/chats/${cliente.canalId}`} className="btn">
+            Abrir chat en vivo
+          </Link>
+        )}
       </div>
 
       <header className="ficha-head">
