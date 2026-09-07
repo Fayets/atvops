@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from src import schemas
+from src.controllers.auth_controller import get_current_user
 from src.services.transcripts_services import TranscriptsServices
 
 router = APIRouter()
@@ -8,7 +9,7 @@ service = TranscriptsServices()
 
 
 @router.get("", response_model=schemas.TranscriptsListResponse)
-def listar_transcripts():
+def listar_transcripts(_user: dict = Depends(get_current_user)):
     try:
         return service.listar()
     except HTTPException as e:
@@ -18,7 +19,7 @@ def listar_transcripts():
 
 
 @router.get("/{categoria}/{canal}", response_model=schemas.CanalDetalleResponse)
-def obtener_canal(categoria: str, canal: str):
+def obtener_canal(categoria: str, canal: str, _user: dict = Depends(get_current_user)):
     try:
         return service.obtener_canal(categoria, canal)
     except HTTPException as e:
