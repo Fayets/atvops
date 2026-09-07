@@ -5,3 +5,4 @@ pydantic
 python-decouple
 PyJWT
 python-multipart
+psycopg2-binary

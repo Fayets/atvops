@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -21,11 +22,22 @@ _LOCAL_PASSWORD = "franco"
 _LOCAL_NOMBRE = "Franco"
 _LOCAL_ROL = "admin"
 
-# Usuarios sembrados al arrancar (dev local). (username, password, nombre, rol)
+# Usuarios sembrados al arrancar: (username, variable de entorno con la clave,
+# clave de desarrollo, nombre, rol). En SQLite local vale la clave de desarrollo;
+# en Postgres (server) la clave TIENE que venir del .env, si no el usuario no se crea.
 _USUARIOS_SEMILLA = (
-    (_LOCAL_USERNAME, _LOCAL_PASSWORD, _LOCAL_NOMBRE, _LOCAL_ROL),
-    ("mauri", "mauri", "Mauri", "csm"),  # CSM: clientes y fulfillment
+    (_LOCAL_USERNAME, "SEED_FRANCO_PASSWORD", _LOCAL_PASSWORD, _LOCAL_NOMBRE, _LOCAL_ROL),
+    ("mauri", "SEED_MAURI_PASSWORD", "mauri", "Mauri", "csm"),  # CSM: clientes y fulfillment
 )
+
+
+def _password_semilla(env_var: str, dev_default: str) -> str | None:
+    from src.db import ES_POSTGRES
+
+    valor = (config(env_var, default="") or "").strip()
+    if valor:
+        return valor
+    return None if ES_POSTGRES else dev_default
 
 ROLES_VALIDOS = frozenset({
     "closer",
@@ -146,9 +158,15 @@ class AuthServices:
         """Crea los usuarios locales de desarrollo que todavía no existan."""
         ensure_usuario_rol_column()
         with db_session:
-            for username, password, nombre, rol in _USUARIOS_SEMILLA:
+            for username, env_var, dev_default, nombre, rol in _USUARIOS_SEMILLA:
                 existente = Usuario.get(username=username)
                 if existente is None:
+                    password = _password_semilla(env_var, dev_default)
+                    if password is None:
+                        logging.getLogger("atv_ops").warning(
+                            "Usuario %s no sembrado: falta %s en el .env.", username, env_var
+                        )
+                        continue
                     Usuario(
                         username=username,
                         password_hash=_hash_password(password),
