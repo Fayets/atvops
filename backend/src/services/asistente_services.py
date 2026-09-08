@@ -22,7 +22,7 @@ from src.services.activacion_ia_services import cli_disponible, invocar_claude_t
 from src.services.asistente_manual import MANUAL
 from src.services.transcripts_services import AR_TZ
 
-MODELO = config("ASISTENTE_MODEL", default="claude-sonnet-5")
+MODELO = config("ASISTENTE_MODEL", default="claude-haiku-4-5")
 MAX_CLIENTES_DETALLE = 3
 MENSAJES_POR_CANAL = 60
 MAX_CHARS_CANAL = 12_000
