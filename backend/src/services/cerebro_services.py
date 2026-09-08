@@ -181,6 +181,43 @@ def ultimo_update() -> str | None:
     return f"({archivos[-1].stem})\n" + cuerpo.strip().strip("`").strip()
 
 
+def equipo() -> list[dict]:
+    """[{nombre, alias:[...]}] leídos de general/equipo.md (editable en Obsidian)."""
+    ruta = CEREBRO_DIR / "general" / "equipo.md"
+    if not ruta.exists():
+        ruta = SEMILLA_DIR / "general" / "equipo.md"
+    salida = []
+    try:
+        _, cuerpo = _frontmatter(ruta.read_text(encoding="utf-8"))
+    except OSError:
+        return salida
+    for linea in cuerpo.splitlines():
+        m = re.match(r"^\s*-\s*([^·\n]+?)\s*(?:·\s*alias:\s*(.*))?$", linea)
+        if m and not linea.strip().startswith("- id:"):
+            nombre = m.group(1).strip()
+            alias = [a.strip() for a in (m.group(2) or "").split(",") if a.strip()]
+            salida.append({"nombre": nombre, "alias": alias})
+    return salida
+
+
+def normalizar_responsable(nombre: str | None) -> str | None:
+    """Lleva 'Juan pablo', 'Fayet' o 'Emi Enrique' al nombre canónico de la nota de equipo."""
+    if not nombre:
+        return nombre
+    n = _norm(nombre).strip()
+    if not n:
+        return nombre
+    miembros = equipo()
+    for m in miembros:
+        if n == _norm(m["nombre"]).strip() or n in {_norm(a).strip() for a in m["alias"]}:
+            return m["nombre"]
+    primero = n.split()[0]
+    candidatos = [m for m in miembros if _norm(m["nombre"]).split()[:1] == [primero] or any(_norm(a).split()[:1] == [primero] for a in m["alias"])]
+    if len(candidatos) == 1:
+        return candidatos[0]["nombre"]
+    return nombre.strip()
+
+
 def resumen() -> dict:
     conteo = {a: sum(1 for _ in (CEREBRO_DIR / a).rglob("*.md")) if (CEREBRO_DIR / a).exists() else 0 for a in AREAS}
     return {"dir": str(CEREBRO_DIR), "notas": conteo, "total": sum(conteo.values())}

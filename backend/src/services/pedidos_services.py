@@ -80,6 +80,9 @@ Reglas de los pedidos:
 - Un saludo, un agradecimiento o un comentario sin pedido NO es un pedido. No inventes pedidos.
 - Varias preguntas del mismo tema en el mismo mensaje son UN solo pedido. No fragmentes.
 - Si un pedido registrado ya no tiene sentido (el cliente lo descartó), marcalo resuelto con nota.
+- Si un pedido tiene más de 2 semanas, el cliente no volvió a insistir y la conversación siguió por otro lado,
+  marcalo resuelto con nota "quedó atrás". El update es lo que el equipo debe HOY, no un archivo histórico.
+- responsable: usá EXACTAMENTE uno de los nombres de la lista de equipo. Si no sabés, null.
 - Mantené los ids de los pedidos existentes.
 
 Reglas de la ficha:
@@ -93,8 +96,10 @@ Sin texto fuera del JSON."""
 
 
 def _system_prompt() -> str:
+    from src.services import cerebro_services as cerebro
     from src.services.fichas_services import nota_fases
-    return SYSTEM_PROMPT_BASE + "\n\n## Fases posibles (usá el id)\n" + nota_fases()
+    nombres = ", ".join(m["nombre"] for m in cerebro.equipo()) or "(sin lista)"
+    return SYSTEM_PROMPT_BASE + "\n\n## Equipo (nombres exactos para 'responsable')\n" + nombres + "\n\n## Fases posibles (usá el id)\n" + nota_fases()
 
 
 # ------------------------------------------------------------- progreso
@@ -196,6 +201,7 @@ def _parsear_fecha(texto: str | None, default: datetime) -> datetime:
 
 def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tuple[dict, dict]:
     """Pide a Claude la lista actualizada de pedidos de un canal. NO escribe nada."""
+    from src.services import cerebro_services as cerebro
     from src.services import fichas_services as fichas
     from src.services.activacion_ia_services import _extraer_json, invocar_claude_texto
     from src.services.clientes_services import _autor_es_cliente
@@ -251,7 +257,7 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
         creado = _parsear_fecha(item.get("creado_at"), nuevos[0]["fecha_at"] if nuevos else datetime.now(AR_TZ))
         pedidos.append({
             "id": pid, "tipo": tipo, "tema": (str(item.get("tema") or "").strip()[:120] or "(sin tema)"), "estado": estado,
-            "responsable": (str(item.get("responsable"))[:200] if item.get("responsable") else (cliente.get("coachNombre") if pid is None else None)),
+            "responsable": cerebro.normalizar_responsable(str(item.get("responsable"))[:200] if item.get("responsable") else (cliente.get("coachNombre") if pid is None else None)),
             "creadoAt": creado.isoformat(), "nota": (str(item.get("nota"))[:500] if item.get("nota") else None),
         })
     # los abiertos que Claude no mencionó se conservan tal cual (una omisión no borra nada)
@@ -444,9 +450,11 @@ def estado() -> dict:
     abiertos = [p for p in todos if p["estado"] != "resuelto"]
     resueltos7 = [p for p in todos if p["estado"] == "resuelto" and p["resueltoAt"] and datetime.fromisoformat(p["resueltoAt"]) >= hace7]
 
+    from src.services import cerebro_services as cerebro
     por_resp: dict[str, dict] = {}
     for p in abiertos:
-        r = p["responsable"] or "Sin asignar"
+        r = cerebro.normalizar_responsable(p["responsable"]) or "Sin asignar"
+        p["responsable"] = r
         b = por_resp.setdefault(r, {"responsable": r, "esperando_equipo": [], "en_proceso": [], "esperando_cliente": []})
         b[p["estado"]].append(p)
     for b in por_resp.values():
@@ -498,8 +506,39 @@ def _ultimo_confirmado() -> dict | None:
 
 # --------------------------------------------------------------- confirmar
 
+def _norm_txt(t: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", " ", t).strip()
+
+
+def _lineas_confirmadas(texto: str) -> dict[str, list[str]]:
+    """canal → temas (normalizados) que quedaron en el texto que confirmó el CSM."""
+    salida: dict[str, list[str]] = {}
+    for linea in texto.splitlines():
+        m = re.search(r"#\s*([a-z0-9_\-]+)\s+(.*)$", linea.strip(), re.IGNORECASE)
+        if not m:
+            continue
+        canal = m.group(1).lower()
+        resto = m.group(2).split("|")[0]
+        resto = resto.split(":", 1)[1] if ":" in resto else resto
+        salida.setdefault(canal, []).append(_norm_txt(resto))
+    return salida
+
+
+def _sigue_en_texto(canal: str, tema: str, presentes: dict[str, list[str]]) -> bool:
+    temas = presentes.get(canal.lower())
+    if temas is None:
+        return False
+    t = _norm_txt(tema)
+    if not t:
+        return True
+    return any(t == x or t in x or x in t for x in temas)
+
+
 def confirmar_update(texto: str, usuario: dict) -> dict:
-    """Aplica el borrador al registro, mueve los ledgers, guarda el texto confirmado y exporta al cerebro."""
+    """Aplica el borrador al registro, mueve los ledgers, guarda el texto confirmado y exporta al cerebro.
+    Lo que el CSM borró del texto se cierra en el registro (el update confirmado y el registro son lo mismo)."""
     global version
     texto = (texto or "").strip()
     if not texto:
@@ -508,11 +547,28 @@ def confirmar_update(texto: str, usuario: dict) -> dict:
         raise HTTPException(status_code=409, detail="Hay una ronda en curso; esperá a que termine para confirmar.")
     quien = usuario.get("nombre") or usuario.get("username") or "?"
     borrador = _borrador_leer()
+    presentes = _lineas_confirmadas(texto)
     ahora_utc = datetime.utcnow()
-    aplicados = 0
+    aplicados = quitados = 0
     with db_session:
+        # Pedidos ya registrados (confirmados antes) que el CSM sacó del texto: se cierran.
+        canales_borrador = set(borrador.get("canales", {}))
+        for obj in PedidoAbierto.select():
+            if obj.estado not in ("esperando_equipo", "en_proceso") or obj.canal_id in canales_borrador:
+                continue
+            if not _sigue_en_texto(obj.canal_id.split("/")[-1], obj.tema, presentes):
+                obj.estado, obj.resuelto_at, obj.actualizado_at = "resuelto", ahora_utc, ahora_utc
+                obj.nota = f"Quitado del update por {quien}"
+                quitados += 1
         for canal_id, prop in borrador.get("canales", {}).items():
+            canal = canal_id.split("/")[-1]
             for p in prop.get("pedidos", []):
+                if p["estado"] in ("esperando_equipo", "en_proceso") and not _sigue_en_texto(canal, p["tema"], presentes):
+                    if p["id"] is None:
+                        quitados += 1
+                        continue  # nunca existió: no se crea
+                    p = dict(p, estado="resuelto", nota=f"Quitado del update por {quien}")
+                    quitados += 1
                 creado = datetime.fromisoformat(p["creadoAt"]).astimezone(timezone.utc).replace(tzinfo=None)
                 obj = PedidoAbierto.get(id=p["id"]) if p["id"] is not None else None
                 if obj is None:
@@ -565,8 +621,8 @@ def confirmar_update(texto: str, usuario: dict) -> dict:
         exportar_cerebro()
     except Exception as e:  # noqa: BLE001
         logger.warning("Exportar cerebro: %s", e)
-    logger.info("Update confirmado por %s: %s cambios aplicados", quien, aplicados)
-    return _ultimo_confirmado()
+    logger.info("Update confirmado por %s: %s cambios aplicados, %s quitados del texto", quien, aplicados, quitados)
+    return dict(_ultimo_confirmado(), aplicados=aplicados, quitados=quitados)
 
 
 def descartar_borrador() -> dict:
@@ -580,15 +636,16 @@ def texto_update(est: dict) -> str:
     hoy = datetime.now(AR_TZ)
     lineas = ["=" * 40, "Buenas, buenasss!!", f"Update: {hoy.strftime('%d-%m-%Y')} · {hoy.strftime('%H:%M')}", ""]
     for b in est["porResponsable"]:
-        if not (b["esperando_equipo"] or b["en_proceso"] or b["esperando_cliente"]):
+        if not (b["esperando_equipo"] or b["en_proceso"]):
             continue
         lineas.append(f"• @{b['responsable']}")
         for p in b["esperando_equipo"]:
             lineas.append(f"⚠️ ⏳ {int(round(p['horasAbierto']))}h  # {p['canal']}  {p['tipo'].capitalize()}: {p['tema']}")
         for p in b["en_proceso"]:
             lineas.append(f"🔲  # {p['canal']}  {p['tipo'].capitalize()}: {p['tema']} | En proceso")
-        for p in b["esperando_cliente"]:
-            lineas.append(f"⏸️  # {p['canal']}  {p['tipo'].capitalize()}: {p['tema']} | Esperando al cliente")
+        if b["esperando_cliente"]:
+            n = len(b["esperando_cliente"])
+            lineas.append(f"⏸️  {n} pedido{'s' if n != 1 else ''} esperando respuesta del cliente (no van en el update; están en las fichas)")
         lineas.append("")
     hace24 = hoy - timedelta(hours=24)
     rec = [p for p in est["resueltosRecientes"] if datetime.fromisoformat(p["resueltoAt"]) >= hace24]
