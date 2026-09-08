@@ -1408,3 +1408,13 @@ export async function actualizarIdea(id, patch) {
 export async function borrarIdea(id) {
   return pedir(`/api/ideas/${id}`, { method: 'DELETE' });
 }
+
+/** Estado del análisis de activación con Claude Code (corridas, costo del mes). */
+export async function getActivacionIa() {
+  return pedir('/api/activacion-ia/estado');
+}
+
+/** Dispara una corrida ahora (admin / founder). */
+export async function ejecutarActivacionIa() {
+  return pedir('/api/activacion-ia/ejecutar', { method: 'POST' });
+}

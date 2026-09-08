@@ -162,4 +162,19 @@ export const BLOCKERS = {
     descripcion: 'Pasó la ventana de 30 días sin un win detectable en el transcript.',
     accion: 'Revisión 1:1: oferta, bloqueo y próximo hito concreto.',
   },
+  bloqueo_tecnico: {
+    label: 'Bloqueo técnico',
+    descripcion: 'Algo concreto (herramienta, acceso, setup) lo frena.',
+    accion: 'Destrabarlo con el equipo esta semana; es lo más barato de resolver.',
+  },
+  expectativa: {
+    label: 'Expectativa desalineada',
+    descripcion: 'Esperaba otra cosa del programa o del ritmo.',
+    accion: 'Llamada de realineación: qué se prometió, qué se puede y cuándo.',
+  },
+  esperando_equipo: {
+    label: 'Esperando al equipo',
+    descripcion: 'El cliente avanzó y está esperando una devolución nuestra.',
+    accion: 'Responder hoy. El bloqueo es nuestro, no de él.',
+  },
 };

@@ -12,7 +12,7 @@ import re
 from functools import lru_cache
 import statistics
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
@@ -469,10 +469,10 @@ class ClientesServices:
                         continue
         return tuple(sorted(partes))
 
-    def listar(self) -> dict:
-        """Cartera completa. El análisis de 60k+ mensajes cuesta segundos, así
-        que se recalcula solo cuando cambió algún transcript; entre medio, se
-        devuelve el último resultado."""
+    def listar_base(self) -> dict:
+        """Cartera desde los transcripts (heurística). El análisis de 60k+
+        mensajes cuesta segundos, así que se recalcula solo cuando cambió algún
+        transcript; entre medio, se devuelve el último resultado."""
         firma = self._firma_transcripts()
         cacheado = getattr(self, "_cache_listar", None)
         if cacheado and cacheado[0] == firma:
@@ -480,6 +480,70 @@ class ClientesServices:
         resultado = self._listar_sin_cache()
         self._cache_listar = (firma, resultado)
         return resultado
+
+    def listar(self) -> dict:
+        """Cartera con el análisis de Claude Code superpuesto donde existe.
+        Los análisis se leen de la base solo cuando hubo una corrida nueva."""
+        from src.services import activacion_ia_services as ia
+
+        base = self.listar_base()
+        cache_ia = getattr(self, "_cache_ia", None)
+        if cache_ia is None or cache_ia[0] != ia.version:
+            try:
+                cache_ia = (ia.version, ia.resultados_actuales())
+            except Exception:  # noqa: BLE001 — sin base de análisis, la cartera sigue
+                cache_ia = (ia.version, {})
+            self._cache_ia = cache_ia
+        analisis = cache_ia[1]
+        if not analisis:
+            return base
+
+        clientes = []
+        for c in base["clientes"]:
+            a = analisis.get(c["id"])
+            res = (a or {}).get("resultado") or {}
+            if not a or not res:
+                clientes.append(c)
+                continue
+            c2 = dict(c)
+            act = dict(c["activacion"])
+            if res.get("activado"):
+                dias = None
+                try:
+                    dias = max(0, (date.fromisoformat(res["primer_resultado_at"]) - date.fromisoformat(c["entradaAt"])).days)
+                except (TypeError, ValueError):
+                    pass
+                act.update({
+                    "activado": True,
+                    "diasHastaResultado": dias if dias is not None else act.get("diasHastaResultado"),
+                    "primerResultadoAt": res.get("primer_resultado_at") or act.get("primerResultadoAt"),
+                    "descripcion": res.get("descripcion") or act.get("descripcion"),
+                    "blocker": None,
+                })
+            elif not act.get("activado") or res.get("_modo") == "desde_entrada":
+                act.update({
+                    "activado": False,
+                    "diasHastaResultado": None,
+                    "primerResultadoAt": None,
+                    "descripcion": None,
+                    "blocker": res.get("blocker") or act.get("blocker"),
+                })
+            act["blockerDetalle"] = res.get("blocker_detalle")
+            act["confianza"] = res.get("confianza")
+            act["tipo"] = res.get("tipo")
+            act["resumen"] = res.get("resumen")
+            act["fuente"] = "claude_code"
+            act["analizadoAt"] = a["analizado_at"].replace(tzinfo=timezone.utc).astimezone(AR_TZ).isoformat()
+            c2["activacion"] = act
+            if res.get("intencion_baja"):
+                c2["churnIntent"] = {
+                    "detectado": True,
+                    "extracto": res.get("intencion_baja_extracto"),
+                    "fechaAt": c2["activacion"]["analizadoAt"],
+                    "fuente": "claude_code",
+                }
+            clientes.append(c2)
+        return {**base, "clientes": clientes}
 
     def _listar_sin_cache(self) -> dict:
         ahora = datetime.now(AR_TZ)

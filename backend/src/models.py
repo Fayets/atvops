@@ -64,3 +64,41 @@ class Idea(db.Entity):
     creado_at = Required(datetime, default=datetime.utcnow)
     # Las ideas son de cada usuario: nadie ve las de otro.
     usuario = Optional(Usuario)
+
+
+class AnalisisActivacion(db.Entity):
+    """Último análisis de Claude Code sobre un cliente: activación, blocker e
+    intención de baja. Una fila por cliente, se actualiza en cada corrida."""
+
+    _table_ = _tabla("analisis_activacion", "AnalisisActivacion")
+
+    id = PrimaryKey(int, auto=True)
+    cliente_id = Required(str, unique=True)
+    canal_id = Required(str)
+    resultado = Required(str)  # JSON del clasificador
+    analizado_hasta = Required(int, default=0)  # cantidad de mensajes que vio
+    analizado_at = Required(datetime, default=datetime.utcnow)
+    modelo = Optional(str)
+    tokens_entrada = Required(int, default=0)
+    tokens_salida = Required(int, default=0)
+    costo_usd = Required(float, default=0.0)
+    error = Optional(str, nullable=True)
+
+
+class AnalisisCorrida(db.Entity):
+    """Registro de cada corrida (programada o manual): cuántos clientes,
+    cuánto costó, cuánto tardó. Es lo que se mira al mes para decidir."""
+
+    _table_ = _tabla("analisis_corridas", "AnalisisCorrida")
+
+    id = PrimaryKey(int, auto=True)
+    ejecutado_at = Required(datetime, default=datetime.utcnow)
+    origen = Required(str, default="programado")  # programado | manual
+    clientes_analizados = Required(int, default=0)
+    clientes_omitidos = Required(int, default=0)
+    errores = Required(int, default=0)
+    tokens_entrada = Required(int, default=0)
+    tokens_salida = Required(int, default=0)
+    costo_usd = Required(float, default=0.0)
+    duracion_s = Required(float, default=0.0)
+    detalle = Optional(str, nullable=True)

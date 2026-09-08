@@ -8,7 +8,8 @@ import Bar from '../components/ui/Bar.jsx';
 import Stepper from '../components/ui/Stepper.jsx';
 import GrietasPanel from '../components/home/GrietasPanel.jsx';
 import PedidosPanel from '../components/home/PedidosPanel.jsx';
-import { getGrietas, getOnboarding, getSistemas } from '../data/api.js';
+import { ejecutarActivacionIa, getActivacionIa, getGrietas, getOnboarding, getSistemas } from '../data/api.js';
+import { useState } from 'react';
 import { SOURCES } from '../data/sources.js';
 import { formatFecha, formatFechaHora, hace } from '../lib/format.js';
 import { useResource } from '../lib/hooks.js';
@@ -32,6 +33,9 @@ export default function Sistemas() {
   const { data, loading, error } = useResource(getSistemas);
   const onboarding = useResource(getOnboarding);
   const qa = useResource(getGrietas);
+  const [tickIa, setTickIa] = useState(0);
+  const ia = useResource(getActivacionIa, [tickIa]);
+  const [corriendo, setCorriendo] = useState(false);
   const staff = (onboarding.data?.procesos ?? []).filter((p) => p.tipo === 'staff');
   const kpiStaff = onboarding.data?.kpis.find((k) => k.id === 'onboarding_staff');
 
@@ -83,6 +87,68 @@ export default function Sistemas() {
         title="Sistemas"
         desc="El inventario honesto del tablero: qué fuente alimenta cada número, cuál sincroniza sola y cuál depende de que alguien la cargue. De acá sale el KPI de datos automatizados; no es un número escrito a mano."
       />
+
+      {ia.data && (
+        <Card
+          title="Activación con Claude Code"
+          sub={`${ia.data.modelo} · corre a las ${ia.data.horarios.join(' y ')} (Argentina)`}
+          actions={
+            <button
+              className="btn primary"
+              disabled={corriendo || ia.data.en_ejecucion || !ia.data.cli_disponible}
+              onClick={async () => {
+                setCorriendo(true);
+                try {
+                  await ejecutarActivacionIa();
+                } catch (e) {
+                  alert(e.message);
+                } finally {
+                  setCorriendo(false);
+                  setTickIa((t) => t + 1);
+                }
+              }}
+            >
+              {corriendo || ia.data.en_ejecucion ? 'Analizando…' : 'Correr ahora'}
+            </button>
+          }
+          foot={
+            !ia.data.cli_disponible
+              ? `No se encuentra el CLI (${ia.data.cli}) en este servidor.`
+              : !ia.data.token_configurado
+                ? 'Falta CLAUDE_CODE_OAUTH_TOKEN en el .env: el CLI no puede autenticarse.'
+                : `Próxima corrida ${formatFechaHora(ia.data.proximo_at)}.`
+          }
+        >
+          <div className="semaforo-mini" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            <div className="celda">
+              <div className="n num">{ia.data.clientes_con_analisis}</div>
+              <div className="k">clientes analizados</div>
+            </div>
+            <div className="celda">
+              <div className="n num" style={{ color: 'var(--ok)' }}>{ia.data.clientes_activados_ia}</div>
+              <div className="k">activados según Claude</div>
+            </div>
+            <div className="celda">
+              <div className="n num">{ia.data.mes.corridas}</div>
+              <div className="k">corridas este mes</div>
+            </div>
+            <div className="celda">
+              <div className="n num">US$ {ia.data.mes.costo_usd.toFixed(2)}</div>
+              <div className="k">{Math.round((ia.data.mes.tokens_entrada + ia.data.mes.tokens_salida) / 1000)}k tokens este mes</div>
+            </div>
+          </div>
+          {ia.data.ultima_corrida && (
+            <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--text-2)' }}>
+              Última corrida {hace(ia.data.ultima_corrida.ejecutado_at, new Date())} ({ia.data.ultima_corrida.origen}):{' '}
+              {ia.data.ultima_corrida.clientes_analizados} analizados · {ia.data.ultima_corrida.clientes_omitidos} sin cambios ·{' '}
+              {ia.data.ultima_corrida.errores} errores · {ia.data.ultima_corrida.duracion_s}s
+              {ia.data.ultima_corrida.detalle && (
+                <div style={{ marginTop: 6, color: 'var(--warn)', whiteSpace: 'pre-wrap' }}>{ia.data.ultima_corrida.detalle}</div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {qa.data && (
         <div className="split">

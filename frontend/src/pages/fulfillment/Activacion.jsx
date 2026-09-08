@@ -20,12 +20,11 @@ const CAT_LABEL = {
 };
 
 const BLOCKER_LABEL = {
-  sin_accesos: 'Sin accesos',
-  no_implementa: 'No implementa',
-  coach_lento: 'Coach lento',
-  expectativa_desalineada: 'Expectativa',
-  problema_tecnico: 'Problema técnico',
-  cliente_ausente: 'Ausente',
+  cliente_ausente: 'ausente',
+  no_implementa: 'no implementa',
+  bloqueo_tecnico: 'bloqueo técnico',
+  expectativa: 'expectativa',
+  esperando_equipo: 'esperando al equipo',
 };
 
 export default function Activacion() {
@@ -44,6 +43,9 @@ export default function Activacion() {
         (a, b) => diasEntre(b.entradaAt, ahora().toISOString()) - diasEntre(a.entradaAt, ahora().toISOString()),
       )
     : [];
+  const nIa = (data?.activos ?? []).filter((c) => c.activacion?.fuente === 'claude_code').length;
+  const conIa = nIa > 0;
+  const modeloIa = 'haiku';
 
   return (
     <div className="page">
@@ -74,7 +76,7 @@ export default function Activacion() {
             <Card
               title="Días hasta el primer resultado"
               sub={`${activados.length} activados · línea = día ${VENTANA_ACTIVACION}`}
-              foot="Detectado con heurística sobre el texto del cliente (no NLP todavía)."
+              foot={conIa ? `Analizado por Claude Code (${modeloIa}) a las 08:00 y 18:00 · ${nIa} clientes con análisis` : "Detectado con heurística sobre el texto del cliente (Claude Code todavía no corrió)."}
             >
               {activados.length === 0 ? (
                 <div className="empty">Nadie con win detectado en los canales todavía.</div>
@@ -160,7 +162,7 @@ export default function Activacion() {
             title="Sin activar"
             sub={`${sinActivar.length} canales · reloj desde el primer mensaje`}
             flush
-            foot="Blocker grueso: ausente (casi no escribe) o no implementa (pasó la ventana sin win)."
+            foot={conIa ? "Blocker según Claude Code, en palabras del cliente cuando hay detalle." : "Blocker grueso: ausente (casi no escribe) o no implementa (pasó la ventana sin win)."}
           >
             {sinActivar.length === 0 ? (
               <div className="empty">Toda la cartera activa tiene win detectado.</div>
@@ -177,7 +179,7 @@ export default function Activacion() {
                     <span className="q">
                       {CAT_LABEL[c.categoria] ?? c.categoria} · entrada {formatFecha(c.entradaAt)}
                       {c.activacion.blocker
-                        ? ` · ${BLOCKER_LABEL[c.activacion.blocker] ?? c.activacion.blocker}`
+                        ? ` · ${BLOCKER_LABEL[c.activacion.blocker] ?? c.activacion.blocker}${c.activacion.blockerDetalle ? ` — ${c.activacion.blockerDetalle}` : ''}`
                         : fuera
                           ? ' · fuera de ventana'
                           : ' · ventana abierta'}
