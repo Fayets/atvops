@@ -49,16 +49,23 @@ def _leer_directorio(base: Path) -> dict:
         return {"usuarios": {}, "roles": {}, "canales": {}, "canales_cliente": {}}
 
 
-def _canales_vivos(base: Path) -> set[str] | None:
-    """Nombres de los canales que existen hoy en Discord (el bot los vuelca al
-    directorio en cada ciclo). None si todavía no hay directorio: entonces no
-    se puede saber y se asume que todos siguen vivos."""
+def _canales_vivos(base: Path) -> dict[str, str] | None:
+    """nombre → categoría actual de los canales que hoy están en una categoría
+    de cliente (el bot lo escribe en cada ciclo). None si todavía no hay
+    directorio: entonces no se puede saber y se asume que todos siguen vivos.
+
+    Se compara nombre Y categoría: cuando un cliente cambia de programa el bot
+    crea una carpeta nueva en la categoría nueva y la vieja queda en disco. Solo
+    la carpeta de la categoría actual es el canal vivo; la otra es historial."""
     directorio = _leer_directorio(base)
-    # `canales_cliente` es la foto de los canales que hoy están en una categoría
-    # de cliente (la escribe el bot en cada ciclo). Un canal que existe en Discord
-    # pero fue movido a otra categoría (egresados, archivo) no está acá: cerrado.
-    nombres = set(directorio.get("canales_cliente") or {})
-    return nombres or None
+    vivos = {str(k): str(v) for k, v in (directorio.get("canales_cliente") or {}).items()}
+    return vivos or None
+
+
+def _esta_vivo(datos: dict, vivos: dict[str, str] | None) -> bool:
+    if vivos is None:
+        return True
+    return vivos.get(datos["canal"]) == datos["categoria"]
 
 
 def _resolver_menciones(texto: str, directorio: dict) -> str:
@@ -257,7 +264,7 @@ class TranscriptsServices:
                 if datos:
                     # Un canal que está en disco pero ya no en Discord es un cliente
                     # que terminó o un canal archivado: se conserva, pero cerrado.
-                    datos["en_discord"] = True if vivos is None else datos["canal"] in vivos
+                    datos["en_discord"] = _esta_vivo(datos, vivos)
                     canales.append(datos)
         return canales
 
@@ -340,7 +347,6 @@ class TranscriptsServices:
         datos = self._leer_canal(categoria, carpeta)
         if not datos:
             raise HTTPException(status_code=404, detail=f"El canal #{canal} no tiene transcript.")
-        vivos = _canales_vivos(base)
-        datos["en_discord"] = True if vivos is None else datos["canal"] in vivos
+        datos["en_discord"] = _esta_vivo(datos, _canales_vivos(base))
 
         return {"canal": self._sin_mensajes(datos), "mensajes": datos["_mensajes"]}
