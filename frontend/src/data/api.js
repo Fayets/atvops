@@ -1442,6 +1442,11 @@ export async function confirmarUpdate(texto) {
   return pedir('/api/pendientes/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
 }
 
+/** Tira el borrador de la última ronda sin aplicarlo. */
+export async function descartarBorrador() {
+  return pedir('/api/pendientes/borrador', { method: 'DELETE' });
+}
+
 /** Progreso de la ronda en curso (o de la última). */
 export async function getProgresoRonda() {
   return pedir('/api/pendientes/progreso');

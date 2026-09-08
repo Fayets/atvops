@@ -50,6 +50,13 @@ def confirmar_update(user: dict = Depends(get_current_user), payload: dict = Bod
         raise HTTPException(status_code=500, detail="Error inesperado al guardar el update.")
 
 
+@router.delete("/borrador")
+def descartar(user: dict = Depends(get_current_user)):
+    if user.get("rol") not in ROLES_RONDA:
+        raise HTTPException(status_code=403, detail="Tu rol no puede descartar el borrador.")
+    return pedidos.descartar_borrador()
+
+
 @router.get("/progreso")
 def progreso(_user: dict = Depends(get_current_user)):
     return pedidos.progreso()

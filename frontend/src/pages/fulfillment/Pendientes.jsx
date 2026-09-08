@@ -1,38 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { ErrorState } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
-import { confirmarUpdate, ejecutarRondaPendientes, getPendientes, getProgresoRonda, getUpdateTexto } from '../../data/api.js';
+import { confirmarUpdate, descartarBorrador, ejecutarRondaPendientes, getPendientes, getProgresoRonda, getUpdateTexto } from '../../data/api.js';
 import { hace } from '../../lib/format.js';
 
 /**
- * Updates: un botón. Corre la ronda en el servidor (Claude lee lo nuevo de cada
- * canal y actualiza los pedidos abiertos), muestra el avance canal por canal y
- * deja el update listo para editar y copiar a #updates.
+ * Updates: un botón. La ronda solo propone (Claude lee lo nuevo de cada canal);
+ * nada queda guardado hasta que el CSM confirma el update. Confirmar aplica la
+ * propuesta al registro, mueve los ledgers y guarda el texto en el cerebro.
  */
 export default function Pendientes() {
   const [estado, setEstado] = useState(null);
   const [texto, setTexto] = useState('');
   const [progreso, setProgreso] = useState(null);
   const [copiado, setCopiado] = useState(false);
-  const [confirmado, setConfirmado] = useState(null); // { texto, confirmadoPor, confirmadoAt }
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
   const timer = useRef(null);
   const feedRef = useRef(null);
 
-  const cargar = async ({ tomarBorrador = false } = {}) => {
+  const cargar = async () => {
     const [e, t] = await Promise.all([getPendientes(), getUpdateTexto()]);
     setEstado(e);
-    const conf = e.updateConfirmado;
-    // Si hay un update confirmado después de la última ronda, se muestra ese; si no, el borrador de la ronda.
-    const confirmadoVigente = conf && e.ultimaRonda && new Date(conf.confirmadoAt) >= new Date(e.ultimaRonda.ejecutadoAt);
-    if (!tomarBorrador && confirmadoVigente) {
-      setConfirmado(conf);
-      setTexto(conf.texto);
-    } else if (e.ultimaRonda) {
-      setConfirmado(null);
-      setTexto(t);
-    }
+    setTexto(e.borrador ? t : (e.updateConfirmado?.texto ?? ''));
   };
 
   const seguir = () => {
@@ -42,7 +32,7 @@ export default function Pendientes() {
         const p = await getProgresoRonda();
         setProgreso(p);
         if (p.enCurso) seguir();
-        else await cargar({ tomarBorrador: true });
+        else await cargar();
       } catch (err) {
         setError(err);
       }
@@ -74,12 +64,25 @@ export default function Pendientes() {
     setGuardando(true);
     setError(null);
     try {
-      const c = await confirmarUpdate(texto);
-      setConfirmado(c);
+      await confirmarUpdate(texto);
+      setProgreso(null);
+      await cargar();
     } catch (err) {
       setError(err);
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const descartar = async () => {
+    if (!window.confirm('¿Descartar la propuesta de esta ronda? El registro queda como estaba.')) return;
+    setError(null);
+    try {
+      await descartarBorrador();
+      setProgreso(null);
+      await cargar();
+    } catch (err) {
+      setError(err);
     }
   };
 
@@ -94,15 +97,20 @@ export default function Pendientes() {
   };
 
   const enCurso = Boolean(progreso?.enCurso);
-  const ultima = estado?.ultimaRonda;
+  const borrador = estado?.borrador;
+  const confirmado = estado?.updateConfirmado;
   const pct = progreso?.total ? Math.round((progreso.procesados / progreso.total) * 100) : 0;
+
+  let desc = 'Todavía no se corrió ningún update.';
+  if (borrador) desc = `Propuesta sin confirmar de ${hace(borrador.terminadoAt ?? borrador.generadoAt, new Date())} · ${borrador.canales} canales con novedades. Nada queda guardado hasta que confirmes.`;
+  else if (confirmado) desc = `Último update confirmado por ${confirmado.confirmadoPor} ${hace(confirmado.confirmadoAt, new Date())}.`;
 
   return (
     <div className="page">
       <PageHeader
         eyebrow="Fulfillment"
         title="Updates"
-        desc={ultima ? `Último update ${hace(ultima.ejecutadoAt, new Date())} · ${ultima.canales_leidos ?? 0} canales leídos` : 'Todavía no se corrió ningún update.'}
+        desc={desc}
         actions={
           <button className="btn primary" onClick={correr} disabled={enCurso}>
             {enCurso ? 'Leyendo canales…' : 'Correr update'}
@@ -112,13 +120,13 @@ export default function Pendientes() {
 
       {error && <ErrorState error={error} />}
 
-      {progreso && (enCurso || !texto) && (
+      {progreso && enCurso && (
         <div className="ronda-progreso">
           <div className="ronda-barra"><div className="ronda-barra-fill" style={{ width: `${pct}%` }} /></div>
           <div className="ronda-cifras">
             <span className="strong">{progreso.total ? `${progreso.procesados} / ${progreso.total} canales` : 'Preparando…'}</span>
-            <span className="dim">{progreso.leidos} con novedades · {progreso.saltados} sin cambios · {progreso.cambios} pedidos actualizados · US$ {(progreso.costoUsd ?? 0).toFixed(3)}</span>
-            {enCurso && progreso.canalActual && <span className="dim">leyendo #{progreso.canalActual}</span>}
+            <span className="dim">{progreso.leidos} leídos · {progreso.saltados} sin cambios · {progreso.reutilizados ?? 0} ya propuestos · {progreso.cambios} cambios propuestos · US$ {(progreso.costoUsd ?? 0).toFixed(3)}</span>
+            {progreso.canalActual && <span className="dim">leyendo {progreso.canalActual.split(', ').map((c) => `#${c}`).join(', ')}</span>}
           </div>
           <div className="ronda-feed" ref={feedRef}>
             {(progreso.eventos ?? []).map((ev, i) => (
@@ -130,6 +138,7 @@ export default function Pendientes() {
 
       {texto && !enCurso && (
         <div className="update-editor">
+          {borrador?.error && <div className="ronda-evento error" style={{ fontSize: 12.5 }}>Canales con error en la ronda (se reintentan en la próxima): {borrador.error.split('\n').length}</div>}
           <textarea
             className="update-texto"
             value={texto}
@@ -139,23 +148,26 @@ export default function Pendientes() {
           />
           <div className="update-acciones">
             <span className="dim">
-              {confirmado && confirmado.texto === texto
-                ? `Confirmado por ${confirmado.confirmadoPor} ${hace(confirmado.confirmadoAt, new Date())}. Guardado en el cerebro.`
+              {borrador
+                ? 'Editá lo que haga falta. Confirmar guarda el update y aplica la propuesta al registro.'
                 : confirmado
-                  ? 'Editaste el update confirmado. Confirmalo de nuevo para guardar los cambios.'
-                  : 'Editá lo que haga falta y confirmá para guardarlo.'}
+                  ? `Confirmado por ${confirmado.confirmadoPor} ${hace(confirmado.confirmadoAt, new Date())}. Guardado en el cerebro.`
+                  : ''}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
+              {borrador && <button className="btn" onClick={descartar}>Descartar</button>}
               <button className="btn" onClick={copiar}>{copiado ? 'Copiado ✓' : 'Copiar'}</button>
-              <button className="btn primary" onClick={confirmar} disabled={guardando || (confirmado && confirmado.texto === texto)}>
-                {guardando ? 'Guardando…' : confirmado && confirmado.texto === texto ? 'Confirmado ✓' : 'Confirmar update'}
-              </button>
+              {borrador && (
+                <button className="btn primary" onClick={confirmar} disabled={guardando}>
+                  {guardando ? 'Guardando…' : 'Confirmar update'}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {!texto && !progreso && !error && <div className="empty">Tocá “Correr update” para armar el primero.</div>}
+      {!texto && !enCurso && !error && <div className="empty">Tocá “Correr update” para armar el primero.</div>}
     </div>
   );
 }
