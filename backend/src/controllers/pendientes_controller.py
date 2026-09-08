@@ -31,11 +31,16 @@ def ronda(user: dict = Depends(get_current_user)):
     if user.get("rol") not in ROLES_RONDA:
         raise HTTPException(status_code=403, detail="Tu rol no puede disparar una ronda.")
     try:
-        return pedidos.ejecutar_ronda(origen="manual")
+        return pedidos.iniciar_ronda_en_fondo(origen="manual")
     except HTTPException as e:
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al correr la ronda.")
+
+
+@router.get("/progreso")
+def progreso(_user: dict = Depends(get_current_user)):
+    return pedidos.progreso()
 
 
 @router.get("/update-texto", response_class=PlainTextResponse)

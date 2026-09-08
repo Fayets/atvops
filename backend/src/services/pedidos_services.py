@@ -35,6 +35,25 @@ from src.services.cerebro_services import CEREBRO_DIR  # noqa: E402
 
 _lock = threading.Lock()
 version = 0
+_progreso: dict = {"enCurso": False}
+
+
+def _progreso_reset(origen: str, total: int) -> None:
+    _progreso.clear()
+    _progreso.update({
+        "enCurso": True, "origen": origen, "inicioAt": datetime.now(AR_TZ).isoformat(), "finAt": None,
+        "total": total, "procesados": 0, "leidos": 0, "saltados": 0, "cambios": 0, "errores": 0, "costoUsd": 0.0,
+        "canalActual": None, "eventos": [],
+    })
+
+
+def _evento(texto: str, tipo: str = "info") -> None:
+    _progreso.setdefault("eventos", []).append({"at": datetime.now(AR_TZ).strftime("%H:%M:%S"), "tipo": tipo, "texto": texto})
+    del _progreso["eventos"][:-60]
+
+
+def progreso() -> dict:
+    return json.loads(json.dumps(_progreso))
 
 SYSTEM_PROMPT = """Sos el asistente de operaciones de ATV. Mantenés el registro de PEDIDOS ABIERTOS de un
 cliente: cada cosa que el cliente pidió al equipo (consulta, entregable, agenda de llamada, feedback,
@@ -195,6 +214,11 @@ def _actualizar_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> t
                 if estado == "resuelto" and obj.resuelto_at is None:
                     obj.resuelto_at = ahora_utc
             vistos.add(obj.id)
+        objetos = [PedidoAbierto.get(id=pid) for pid in vistos]
+        resumen = {
+            "abiertos": sum(1 for o in objetos if o is not None and o.estado != "resuelto"),
+            "resueltos": sum(1 for o in objetos if o is not None and o.estado == "resuelto" and o.resuelto_at == ahora_utc),
+        }
         # lo que estaba abierto y Claude no devolvió, se conserva (no se pierde nada por una omisión)
         led = LedgerCanal.get(canal_id=canal_id)
         if led is None:
@@ -202,6 +226,7 @@ def _actualizar_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> t
         else:
             led.analizado_hasta = len(mensajes)
             led.actualizado_at = ahora_utc
+    meta = dict(meta, nuevos=len(nuevos), **resumen)
     return cambios, meta
 
 
@@ -224,13 +249,19 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
         coaches = {c["id"]: c["nombre"] for c in data.get("coaches", [])}
         activos = [c | {"coachNombre": coaches.get(c.get("coachId"))} for c in data["clientes"] if c.get("estado") == "activo"]
         staff = _staff_desde_canales(clientes_service._canales_cliente())
+        _progreso_reset(origen, len(activos))
+        _evento(f"Arranca la ronda: {len(activos)} canales activos")
         for cliente in activos:
             categoria, _, canal = (cliente.get("canalId") or "").partition("/")
+            _progreso["canalActual"] = canal
             try:
                 mensajes = clientes_service._tx.obtener_canal(categoria, canal)["mensajes"]
             except HTTPException:
+                _progreso["procesados"] += 1
                 continue
             if len(mensajes) <= _ledger(cliente["canalId"]):
+                _progreso["procesados"] += 1
+                _progreso["saltados"] += 1
                 continue
             try:
                 n, meta = _actualizar_canal(cliente, mensajes, staff)
@@ -239,10 +270,14 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                 tok_in += meta.get("tokens_entrada", 0)
                 tok_out += meta.get("tokens_salida", 0)
                 costo += meta.get("costo_usd", 0.0)
+                _evento(f"#{canal}: {meta.get('nuevos', 0)} mensajes nuevos → {meta.get('abiertos', 0)} abiertos, {meta.get('resueltos', 0)} resueltos", "ok" if n else "info")
             except Exception as e:  # noqa: BLE001
                 errores += 1
                 detalle.append(f"#{canal}: {str(e)[:120]}")
                 logger.warning("Ronda pedidos #%s: %s", canal, str(e)[:200])
+                _evento(f"#{canal}: error ({str(e)[:80]})", "error")
+            _progreso["procesados"] += 1
+            _progreso.update(leidos=canales_leidos, cambios=cambios, errores=errores, costoUsd=round(costo, 4))
         version += 1
         with db_session:
             RondaPendientes(
@@ -255,9 +290,36 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
         except Exception as e:  # noqa: BLE001
             logger.warning("Exportar cerebro: %s", e)
         logger.info("Ronda pedidos (%s): %s canales, %s cambios, %s errores, %.3f USD", origen, canales_leidos, cambios, errores, costo)
+        _evento(f"Listo: {canales_leidos} canales leídos, {_progreso.get('saltados', 0)} sin novedades, {cambios} cambios, US$ {costo:.3f}", "fin")
+    except Exception as e:  # noqa: BLE001
+        _evento(f"La ronda falló: {str(e)[:120]}", "error")
+        raise
     finally:
+        _progreso["enCurso"] = False
+        _progreso["canalActual"] = None
+        _progreso["finAt"] = datetime.now(AR_TZ).isoformat()
         _lock.release()
     return estado()
+
+
+def iniciar_ronda_en_fondo(origen: str = "manual") -> dict:
+    """Dispara la ronda en un hilo y devuelve el progreso; el frontend lo va consultando."""
+    if _lock.locked():
+        return progreso()
+    from src.services.activacion_ia_services import cli_disponible
+    if not cli_disponible():
+        raise HTTPException(status_code=503, detail="No se encuentra el CLI de Claude Code.")
+    _progreso_reset(origen, 0)
+    _evento("Preparando la cartera…")
+
+    def _correr():
+        try:
+            ejecutar_ronda(origen)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Ronda en fondo falló: %s", e)
+
+    threading.Thread(target=_correr, daemon=True, name="pedidos-manual").start()
+    return progreso()
 
 
 # ---------------------------------------------------------------- lectura

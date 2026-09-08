@@ -1437,6 +1437,11 @@ export async function ejecutarRondaPendientes() {
   return pedir('/api/pendientes/ronda', { method: 'POST' });
 }
 
+/** Progreso de la ronda en curso (o de la última). */
+export async function getProgresoRonda() {
+  return pedir('/api/pendientes/progreso');
+}
+
 /** Texto del update en el formato de #updates (texto plano). */
 export async function getUpdateTexto() {
   const token = getToken();
