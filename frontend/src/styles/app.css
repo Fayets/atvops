@@ -3818,3 +3818,13 @@ table.data .dim {
 .atvai-marca h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 .atvai-marca p { color: var(--text-2); font-size: 13px; max-width: 46ch; }
 @media (max-width: 900px) { .atvai { grid-template-columns: minmax(0, 1fr); height: auto; } .atvai-lista { max-height: 180px; } }
+
+/* --------------------------------------------------- pendientes de respuesta */
+.pendientes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--space-4); align-items: start; }
+.pendiente { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: start; padding: 10px var(--space-5); border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.pendiente:last-child { border-bottom: none; }
+.pendiente.cortesia { opacity: 0.6; }
+.pendiente-cuerpo { min-width: 0; }
+.pendiente-etiqueta { color: var(--text-2); }
+.pendiente-extracto { font-size: 12px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-texto { width: 100%; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text); font: 12.5px/1.5 var(--font); padding: 12px; resize: vertical; }

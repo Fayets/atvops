@@ -1427,3 +1427,20 @@ export async function preguntarAsistente(pregunta, historial = []) {
     body: JSON.stringify({ pregunta, historial }),
   });
 }
+
+/** Pendientes de respuesta por coach, en vivo desde los transcripts. */
+export async function getPendientes() {
+  return pedir('/api/pendientes');
+}
+
+export async function ejecutarRondaPendientes() {
+  return pedir('/api/pendientes/ronda', { method: 'POST' });
+}
+
+/** Texto del update en el formato de #updates (texto plano). */
+export async function getUpdateTexto() {
+  const token = getToken();
+  const r = await fetch(`${API_BASE}/api/pendientes/update-texto`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!r.ok) throw new Error(`El backend respondió ${r.status}`);
+  return r.text();
+}

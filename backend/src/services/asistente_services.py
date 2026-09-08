@@ -19,7 +19,7 @@ from decouple import config
 from fastapi import HTTPException
 
 from src.services.activacion_ia_services import cli_disponible, invocar_claude_texto
-from src.services.asistente_manual import MANUAL
+from src.services import cerebro_services as cerebro
 from src.services.transcripts_services import AR_TZ
 
 MODELO = config("ASISTENTE_MODEL", default="claude-haiku-4-5")
@@ -37,14 +37,16 @@ quiero saber ultimo ultima ultimos ultimas todo todos toda todas algo alguien co
 
 SYSTEM_PROMPT = """Sos el asistente interno de ATV Ops para el equipo de fulfillment de ATV (agencia de growth
 para creadores y emprendedores). Respondés en español rioplatense, directo y corto, como un colega que
-conoce la cartera. Tenés: el manual de cómo funciona cada vista, la cartera de clientes con sus métricas,
-y extractos de los transcripts de Discord relevantes a la pregunta.
+conoce la cartera. Tenés: el cerebro (notas del equipo: manual de cada vista, reglas, procesos y el registro de
+pedidos abiertos por cliente), la cartera de clientes con sus métricas, y extractos de los transcripts de
+Discord relevantes a la pregunta.
 
 Reglas:
 - Respondé con los datos que te di. Si no están, decilo ("no tengo ese dato" / "no aparece en el transcript"),
   no inventes. Nunca inventes frases de clientes.
 - Cuando cites algo de un transcript, indicá el canal y la fecha: (#canal, 5 sep).
-- Si preguntan cómo funciona una vista o un número, explicá con el manual, en 3-6 líneas.
+- Si preguntan cómo funciona una vista, un número o un proceso, explicá con las notas del cerebro, en 3-6 líneas.
+- Si preguntan qué debe un cliente o qué está pendiente, usá el registro de pedidos abiertos, no adivines por el último mensaje.
 - Si la pregunta es sobre un cliente puntual, empezá por su estado (score, silencio, activación) y después el detalle.
 - Formato: texto plano con párrafos cortos; listas con guiones solo si ayudan. Sin títulos, sin markdown pesado.
 - Cerrá, cuando corresponda, con una acción concreta sugerida en una línea."""
@@ -149,9 +151,13 @@ def preguntar(pregunta: str, historial: list[dict] | None, usuario: dict) -> dic
     contexto = [f"Hoy: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')} (Argentina). Usuario: {usuario.get('nombre') or usuario.get('username')} ({usuario.get('rol')})."]
     contexto.append("\n## Cartera (clientes activos)\n" + "\n".join(_linea_cliente(c) for c in activos))
     for c in mencionados:
+        canal = (c.get('canalId') or '').split('/')[-1]
+        pedidos = cerebro.pedidos_de(canal)
+        if pedidos:
+            contexto.append(f"\n## Pedidos registrados de #{canal} ({c['nombre']})\n{pedidos}")
         extracto = _extracto_canal(clientes_service._tx, c, staff)
         if extracto:
-            contexto.append(f"\n## Últimos mensajes de #{(c.get('canalId') or '').split('/')[-1]} ({c['nombre']})\n{extracto}")
+            contexto.append(f"\n## Últimos mensajes de #{canal} ({c['nombre']})\n{extracto}")
     if hits:
         contexto.append("\n## Mensajes que coinciden con la búsqueda (" + ", ".join(palabras) + ")\n" + "\n".join(hits))
 
@@ -162,7 +168,7 @@ def preguntar(pregunta: str, historial: list[dict] | None, usuario: dict) -> dic
 
     user_prompt = (
         "\n".join(contexto)
-        + "\n\n## Manual del sistema\n" + MANUAL
+        + "\n\n## Cerebro (notas del equipo)\n" + (cerebro.contexto(cerebro.areas_para(usuario.get("rol")), pregunta) or "(sin notas)")
         + ("\n\n## Conversación previa\n" + conversacion if conversacion else "")
         + f"\n\n## Pregunta\n{pregunta}"
     )

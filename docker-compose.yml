@@ -11,6 +11,8 @@ services:
       PYTHONUNBUFFERED: "1"
       # El bot de ATV Clients escribe acá; ATV Ops solo lee.
       TRANSCRIPTS_BASE_PATH: /opt/atv-clients/transcripts
+      # El cerebro (notas markdown) vive en el volumen data; rclone lo sube a Google Drive.
+      CEREBRO_DIR: /app/data/cerebro
     volumes:
       - /opt/atv-clients/transcripts:/opt/atv-clients/transcripts:ro
       - /opt/atv-ops/data:/app/data

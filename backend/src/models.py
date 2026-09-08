@@ -102,3 +102,53 @@ class AnalisisCorrida(db.Entity):
     costo_usd = Required(float, default=0.0)
     duracion_s = Required(float, default=0.0)
     detalle = Optional(str, nullable=True)
+
+
+class RondaPendientes(db.Entity):
+    """Una ronda de revisión (09, 13, 16, 19 AR): la foto de quién debía
+    respuesta, con etiquetas de Claude, y qué se resolvió desde la anterior."""
+
+    _table_ = _tabla("rondas_pendientes", "RondaPendientes")
+
+    id = PrimaryKey(int, auto=True)
+    ejecutado_at = Required(datetime, default=datetime.utcnow)
+    origen = Required(str, default="programada")  # programada | manual
+    pendientes = Required(str)  # JSON
+    resueltos = Required(str, default="[]")  # JSON
+    etiquetados = Required(int, default=0)
+    tokens_entrada = Required(int, default=0)
+    tokens_salida = Required(int, default=0)
+    costo_usd = Required(float, default=0.0)
+    error = Optional(str, nullable=True)
+
+
+class PedidoAbierto(db.Entity):
+    """Un pedido del cliente (consulta, entregable, agenda…) desde que lo pide
+    hasta que se resuelve de verdad. Lo mantiene Claude ronda a ronda leyendo
+    solo los mensajes nuevos de cada canal."""
+
+    _table_ = _tabla("pedidos_abiertos", "PedidoAbierto")
+
+    id = PrimaryKey(int, auto=True)
+    cliente_id = Required(str)
+    canal_id = Required(str)
+    tipo = Required(str)          # consulta | entregable | agenda | feedback | seguimiento | problema
+    tema = Required(str)
+    estado = Required(str, default="esperando_equipo")  # esperando_equipo | en_proceso | esperando_cliente | resuelto
+    responsable = Optional(str)
+    creado_at = Required(datetime)          # fecha del mensaje del cliente que lo abrió
+    actualizado_at = Required(datetime)
+    resuelto_at = Optional(datetime)
+    nota = Optional(str)
+    clave_ia = Optional(str)      # id que usa Claude entre rondas para el mismo pedido
+
+
+class LedgerCanal(db.Entity):
+    """Hasta qué mensaje de cada canal se leyó para el registro de pedidos."""
+
+    _table_ = _tabla("ledger_canales", "LedgerCanal")
+
+    id = PrimaryKey(int, auto=True)
+    canal_id = Required(str, unique=True)
+    analizado_hasta = Required(int, default=0)
+    actualizado_at = Required(datetime)

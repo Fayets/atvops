@@ -1,8 +1,9 @@
-"""Manual del sistema para el asistente: qué muestra cada vista y cómo se
-calcula cada número. Se mantiene a mano y a propósito corto: es lo que Claude
-lee antes de responder 'cómo funciona X'."""
-
-MANUAL = """
+---
+area: fulfillment
+tipo: manual
+siempre: true
+tags: [manual, vistas]
+---
 # ATV Ops — cómo funciona cada vista
 
 ATV Ops es el tablero interno de operaciones de ATV. Fulfillment (lo que ve el CSM) se construye
@@ -75,4 +76,3 @@ Son personales: cada usuario ve y maneja solo sus reuniones y sus ideas. Una ide
 ## Roles
 admin y founder ven todo; csm (Mauri) ve Fulfillment, Calendario e Ideas; operaciones, ventas, marketing,
 closer y setter ven su área.
-"""

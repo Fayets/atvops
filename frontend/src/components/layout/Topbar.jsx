@@ -5,6 +5,7 @@ import Pill from '../ui/Pill.jsx';
 const TITULOS = {
   '/calendario': 'Calendario',
   '/fulfillment': 'Fulfillment',
+  '/fulfillment/pendientes': 'Fulfillment · Pedidos abiertos',
   '/fulfillment/clientes': 'Fulfillment · Clientes',
   '/fulfillment/activacion': 'Fulfillment · Activación',
   '/fulfillment/engagement': 'Fulfillment · Engagement',

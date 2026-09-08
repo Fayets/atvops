@@ -16,6 +16,7 @@ import Ventas from './pages/Ventas.jsx';
 import Metas from './pages/Metas.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
+import Pendientes from './pages/fulfillment/Pendientes.jsx';
 import ClienteDetalle from './pages/fulfillment/ClienteDetalle.jsx';
 import Clientes from './pages/fulfillment/Clientes.jsx';
 import Engagement from './pages/fulfillment/Engagement.jsx';
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="engagement" element={<Engagement />} />
               <Route path="retencion" element={<Retencion />} />
               <Route path="outcomes" element={<Outcomes />} />
+          <Route path="pendientes" element={<Pendientes />} />
           <Route path="chats" element={<Chats />} />
           <Route path="chats/:categoria/:canal" element={<Chats />} />
             </Route>
