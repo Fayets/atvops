@@ -112,7 +112,7 @@ export async function getClientes() {
     },
     {
       id: 'pct_activados',
-      detalle: detalleDe([...activados].sort((a, b) => (b.activacion.primerResultadoAt ?? '').localeCompare(a.activacion.primerResultadoAt ?? '')), (c) => (c.activacion.primerResultadoAt ? formatFecha(c.activacion.primerResultadoAt) : null), () => 'ok', 'Clientes con resultado detectado en el canal.'),
+      detalle: detalleDe(activos.filter((c) => c.activacion?.activado), (c) => (c.activacion?.primerResultadoAt ? formatFecha(c.activacion.primerResultadoAt) : null), () => 'ok', 'Clientes con resultado detectado en el canal.'),
       label: 'Con win en el canal',
       value: activos.length
         ? (activos.filter((c) => c.activacion?.activado).length / activos.length) * 100
@@ -137,7 +137,7 @@ export async function getClientes() {
     },
     {
       id: 'silencio_7d',
-      detalle: detalleDe([...silencio].sort((a, b) => b.engagement.diasSinMensaje - a.engagement.diasSinMensaje), (c) => `${c.engagement.diasSinMensaje} d sin mensaje`, (c) => (c.engagement.diasSinMensaje >= 14 ? 'alert' : 'warn'), 'Canales sin mensaje del cliente hace 7 días o más.'),
+      detalle: detalleDe(activos.filter((c) => c.engagement.diasSinMensaje >= 7).sort((a, b) => b.engagement.diasSinMensaje - a.engagement.diasSinMensaje), (c) => `${c.engagement.diasSinMensaje} d sin mensaje`, (c) => (c.engagement.diasSinMensaje >= 14 ? 'alert' : 'warn'), 'Canales sin mensaje del cliente hace 7 días o más.'),
       label: 'En silencio ≥ 7 días',
       value: activos.filter((c) => c.engagement.diasSinMensaje >= 7).length,
       format: 'count',
@@ -385,6 +385,7 @@ export async function getFulfillment() {
       },
       {
         id: 'silencio_7d',
+        detalle: detalleDe([...silencio].sort((a, b) => b.engagement.diasSinMensaje - a.engagement.diasSinMensaje), (c) => `${c.engagement.diasSinMensaje} d sin mensaje`, (c) => (c.engagement.diasSinMensaje >= 14 ? 'alert' : 'warn'), 'Canales sin mensaje del cliente hace 7 días o más.'),
         label: 'Silencio ≥ 7 días',
         value: silencio.length,
         format: 'count',
@@ -465,6 +466,7 @@ export async function getFulfillment() {
     outcomes: [
       {
         id: 'pct_activados',
+        detalle: detalleDe([...activados].sort((a, b) => (b.activacion.primerResultadoAt ?? '').localeCompare(a.activacion.primerResultadoAt ?? '')), (c) => (c.activacion.primerResultadoAt ? formatFecha(c.activacion.primerResultadoAt) : null), () => 'ok', 'Clientes con resultado detectado en el canal.'),
         label: 'Con win en el canal',
         value: activos.length ? (activados.length / activos.length) * 100 : 0,
         format: 'pct',
