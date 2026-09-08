@@ -100,11 +100,11 @@ def _extraer_json(texto: str) -> dict:
     return data
 
 
-def invocar_claude(system_prompt: str, user_prompt: str) -> tuple[dict, dict]:
-    """Corre `claude -p` y devuelve (json_del_analisis, meta con tokens y costo)."""
+def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | None = None) -> tuple[str, dict]:
+    """Corre `claude -p` y devuelve (texto_de_respuesta, meta con tokens y costo)."""
     cmd = [
         CLAUDE_BIN, "-p",
-        "--model", MODELO,
+        "--model", modelo or MODELO,
         "--output-format", "json",
         "--max-turns", "1",
         "--no-session-persistence",
@@ -123,14 +123,20 @@ def invocar_claude(system_prompt: str, user_prompt: str) -> tuple[dict, dict]:
         raise RuntimeError(str(envoltura.get("result") or envoltura.get("subtype"))[:400])
     uso = envoltura.get("usage") or {}
     meta = {
-        "modelo": next(iter((envoltura.get("modelUsage") or {}).keys()), MODELO),
+        "modelo": next(iter((envoltura.get("modelUsage") or {}).keys()), modelo or MODELO),
         "tokens_entrada": int(uso.get("input_tokens") or 0) + int(uso.get("cache_read_input_tokens") or 0)
         + int(uso.get("cache_creation_input_tokens") or 0),
         "tokens_salida": int(uso.get("output_tokens") or 0),
         "costo_usd": float(envoltura.get("total_cost_usd") or 0.0),
         "duracion_ms": duracion_ms,
     }
-    return _extraer_json(str(envoltura.get("result") or "")), meta
+    return str(envoltura.get("result") or "").strip(), meta
+
+
+def invocar_claude(system_prompt: str, user_prompt: str) -> tuple[dict, dict]:
+    """Variante JSON: (json_del_analisis, meta)."""
+    texto, meta = invocar_claude_texto(system_prompt, user_prompt)
+    return _extraer_json(texto), meta
 
 
 # ------------------------------------------------------------ selección

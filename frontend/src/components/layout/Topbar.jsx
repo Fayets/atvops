@@ -17,6 +17,7 @@ const TITULOS = {
   '/metas': 'Metas del mes',
   '/sistemas': 'Sistemas · QA de datos',
   '/cobranza': 'Cobranza',
+  '/asistente': 'Asistente',
   '/ideas': 'Ideas',
   '/configuracion': 'Configuración',
 };

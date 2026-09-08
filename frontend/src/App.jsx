@@ -3,6 +3,7 @@ import RequireAuth from './components/auth/RequireAuth.jsx';
 import RequireRole from './components/auth/RequireRole.jsx';
 import AppShell from './components/layout/AppShell.jsx';
 import Calendario from './pages/Calendario.jsx';
+import Asistente from './pages/Asistente.jsx';
 import Cobranza from './pages/Cobranza.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="metas" element={<Metas />} />
             <Route path="sistemas" element={<Sistemas />} />
             <Route path="cobranza" element={<Cobranza />} />
+        <Route path="asistente" element={<Asistente />} />
             <Route path="ideas" element={<Ideas />} />
             <Route path="configuracion" element={<Configuracion />} />
           </Route>

@@ -3774,3 +3774,26 @@ table.data .dim {
 .tira-dia i { position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--text); transform: translateX(-50%); opacity: 0.85; }
 .tira-dias-pie { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--text-3); }
 .tira-dias-pie b { color: var(--text-2); }
+
+/* ------------------------------------------------------------ asistente */
+.chat-asistente { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h) - 210px); min-height: 480px; }
+.chat-asistente-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-5); display: flex; flex-direction: column; gap: 14px; }
+.asistente-vacio { margin: auto; text-align: center; max-width: 640px; }
+.sugerencias { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.chip.sugerencia { cursor: pointer; padding: 7px 12px; font-size: 12.5px; }
+.chip.sugerencia:hover { border-color: var(--brand-line); color: var(--text); }
+.burbuja { max-width: 78ch; padding: 11px 14px; border-radius: 12px; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.burbuja.usuario { align-self: flex-end; background: var(--brand-dim); border: 1px solid var(--brand-line); }
+.burbuja.asistente { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border-soft); }
+.burbuja.error { align-self: center; color: var(--brand-hi); background: var(--brand-dim); font-size: 12.5px; }
+.burbuja.pensando { color: var(--text-3); display: flex; align-items: center; gap: 10px; }
+.burbuja-citas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.burbuja-citas .chip:hover { color: var(--brand-hi); }
+.burbuja-meta { font-size: 10.5px; color: var(--text-3); margin-top: 6px; }
+.chat-asistente-input { display: flex; gap: 8px; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border-soft); }
+.chat-asistente-input input { flex: 1; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text); font: inherit; font-size: 13.5px; padding: 9px 12px; }
+.chat-asistente-input input:focus { outline: none; border-color: var(--brand-line); }
+.pulso-dots { display: inline-flex; gap: 4px; }
+.pulso-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); animation: pulse 1.2s ease-in-out infinite; }
+.pulso-dots i:nth-child(2) { animation-delay: 0.2s; }
+.pulso-dots i:nth-child(3) { animation-delay: 0.4s; }

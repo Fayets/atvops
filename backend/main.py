@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.controllers.activacion_ia_controller import router as activacion_ia_router
+from src.controllers.asistente_controller import router as asistente_router
 from src.controllers.auth_controller import router as auth_router
 from src.controllers.clientes_controller import router as clientes_router
 from src.controllers.cobranza_controller import router as cobranza_router
@@ -88,6 +89,7 @@ app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(integrantes_router, prefix="/api/integrantes", tags=["integrantes"])
 app.include_router(reuniones_router, prefix="/api/reuniones", tags=["reuniones"])
 app.include_router(activacion_ia_router, prefix="/api/activacion-ia", tags=["activacion-ia"])
+app.include_router(asistente_router, prefix="/api/asistente", tags=["asistente"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

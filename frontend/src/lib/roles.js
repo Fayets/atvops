@@ -67,9 +67,10 @@ export const ROL_LIST = Object.keys(ROLES);
 export const RUTAS_POR_ROL = {
   closer: ['/', '/calendario', '/ventas'],
   setter: ['/', '/calendario', '/ventas'],
-  csm: ['/fulfillment', '/calendario', '/ideas'],
+  csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   operaciones: [
     '/',
+    '/asistente',
     '/calendario',
     '/fulfillment',
     '/cobranza',
@@ -79,6 +80,7 @@ export const RUTAS_POR_ROL = {
   marketing: ['/', '/calendario', '/marketing', '/ads', '/metas', '/ideas'],
   founder: [
     '/',
+    '/asistente',
     '/calendario',
     '/fulfillment',
     '/marketing',
@@ -91,6 +93,7 @@ export const RUTAS_POR_ROL = {
   ],
   admin: [
     '/',
+    '/asistente',
     '/calendario',
     '/fulfillment',
     '/marketing',

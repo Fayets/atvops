@@ -1418,3 +1418,12 @@ export async function getActivacionIa() {
 export async function ejecutarActivacionIa() {
   return pedir('/api/activacion-ia/ejecutar', { method: 'POST' });
 }
+
+/** Asistente del equipo: pregunta libre sobre cartera, transcripts y vistas. */
+export async function preguntarAsistente(pregunta, historial = []) {
+  return pedir('/api/asistente/preguntar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pregunta, historial }),
+  });
+}

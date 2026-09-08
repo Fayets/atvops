@@ -160,3 +160,33 @@ class IdeaResponse(BaseModel):
     fechaAt: str
     asignada: str | None = None
     estado: str
+
+
+# ---------------------------------------------------------------- asistente
+
+
+class AsistenteTurno(BaseModel):
+    rol: str  # 'usuario' | 'asistente'
+    texto: str
+
+
+class AsistentePregunta(BaseModel):
+    pregunta: str
+    historial: list[AsistenteTurno] = []
+
+
+class AsistenteCita(BaseModel):
+    nombre: str
+    canalId: str | None = None
+    canal: str
+
+
+class AsistenteRespuesta(BaseModel):
+    respuesta: str
+    citas: list[AsistenteCita]
+    coincidencias: int
+    modelo: str | None = None
+    tokens_entrada: int = 0
+    tokens_salida: int = 0
+    costo_usd: float = 0.0
+    duracion_ms: int = 0
