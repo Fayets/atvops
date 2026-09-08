@@ -44,9 +44,9 @@ def _leer_directorio(base: Path) -> dict:
     try:
         import json
         data = json.loads((base / "_directorio.json").read_text(encoding="utf-8"))
-        return {k: dict(data.get(k) or {}) for k in ("usuarios", "roles", "canales")}
+        return {k: dict(data.get(k) or {}) for k in ("usuarios", "roles", "canales", "canales_cliente")}
     except (OSError, ValueError):
-        return {"usuarios": {}, "roles": {}, "canales": {}}
+        return {"usuarios": {}, "roles": {}, "canales": {}, "canales_cliente": {}}
 
 
 def _canales_vivos(base: Path) -> set[str] | None:
@@ -54,7 +54,10 @@ def _canales_vivos(base: Path) -> set[str] | None:
     directorio en cada ciclo). None si todavía no hay directorio: entonces no
     se puede saber y se asume que todos siguen vivos."""
     directorio = _leer_directorio(base)
-    nombres = set(directorio["canales"].values())
+    # `canales_cliente` es la foto de los canales que hoy están en una categoría
+    # de cliente (la escribe el bot en cada ciclo). Un canal que existe en Discord
+    # pero fue movido a otra categoría (egresados, archivo) no está acá: cerrado.
+    nombres = set(directorio.get("canales_cliente") or {})
     return nombres or None
 
 
