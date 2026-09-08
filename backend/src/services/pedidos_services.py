@@ -20,7 +20,7 @@ from decouple import config
 from fastapi import HTTPException
 from pony.orm import db_session, desc, flush
 
-from src.models import LedgerCanal, PedidoAbierto, RondaPendientes
+from src.models import LedgerCanal, PedidoAbierto, RondaPendientes, UpdateConfirmado
 from src.services.transcripts_services import AR_TZ
 
 logger = logging.getLogger("atv_ops.pedidos")
@@ -379,8 +379,44 @@ def estado() -> dict:
             "error": ultima.error,
         },
         "mes": {"rondas": len(mes), "costo_usd": round(sum(r.costo_usd for r in mes), 4), "tokens": sum(r.tokens_entrada + r.tokens_salida for r in mes)},
+        "updateConfirmado": _ultimo_confirmado(),
         "cerebroDir": str(CEREBRO_DIR),
     }
+
+
+def _ultimo_confirmado() -> dict | None:
+    u = UpdateConfirmado.select().order_by(desc(UpdateConfirmado.id)).first()
+    if u is None:
+        return None
+    return {
+        "id": u.id, "texto": u.texto, "confirmadoPor": u.confirmado_por,
+        "confirmadoAt": u.confirmado_at.replace(tzinfo=timezone.utc).astimezone(AR_TZ).isoformat(), "rondaId": u.ronda_id,
+    }
+
+
+def confirmar_update(texto: str, usuario: dict) -> dict:
+    """Guarda el update tal como quedó (editado o no) y lo deja en el cerebro con fecha y hora."""
+    texto = (texto or "").strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="El update está vacío.")
+    quien = usuario.get("nombre") or usuario.get("username") or "?"
+    with db_session:
+        ultima = RondaPendientes.select().order_by(desc(RondaPendientes.id)).first()
+        u = UpdateConfirmado(texto=texto[:20000], confirmado_por=quien, ronda_id=ultima.id if ultima else None)
+        flush()
+        uid = u.id
+    ahora = datetime.now(AR_TZ)
+    carpeta = CEREBRO_DIR / "fulfillment" / "updates"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / f"{ahora.strftime('%Y-%m-%d-%H%M')}.md").write_text(
+        f"---\nfecha: {ahora.strftime('%Y-%m-%d %H:%M')}\nconfirmado_por: {quien}\n---\n\n```\n{texto}\n```\n", encoding="utf-8"
+    )
+    borrador = carpeta / "borrador.md"
+    if borrador.exists():
+        borrador.unlink()
+    logger.info("Update confirmado por %s (#%s)", quien, uid)
+    with db_session:
+        return _ultimo_confirmado()
 
 
 def texto_update(est: dict) -> str:
@@ -430,8 +466,8 @@ def exportar_cerebro() -> Path:
             md.append("- (nada abierto)")
         md += ["", "## Resueltos recientes"] + [f"- ✅ **{p['tipo']}**: {p['tema']} · {p['resueltoAt'][:10]} · tardó {int(p['horasAbierto'])} h" for p in resueltos]
         (base / "pedidos" / f"{nombre}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
-    (base / "updates" / f"{datetime.now(AR_TZ).strftime('%Y-%m-%d')}.md").write_text(
-        f"---\nfecha: {datetime.now(AR_TZ).strftime('%Y-%m-%d')}\n---\n\n```\n{texto_update(est)}\n```\n", encoding="utf-8"
+    (base / "updates" / "borrador.md").write_text(
+        f"---\nfecha: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')}\nestado: borrador (sin confirmar)\n---\n\n```\n{texto_update(est)}\n```\n", encoding="utf-8"
     )
     return base
 

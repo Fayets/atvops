@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 
 from src.controllers.auth_controller import get_current_user
@@ -36,6 +36,18 @@ def ronda(user: dict = Depends(get_current_user)):
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al correr la ronda.")
+
+
+@router.post("/update")
+def confirmar_update(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+    if user.get("rol") not in ROLES_RONDA:
+        raise HTTPException(status_code=403, detail="Tu rol no puede confirmar el update.")
+    try:
+        return pedidos.confirmar_update(payload.get("texto", ""), user)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al guardar el update.")
 
 
 @router.get("/progreso")

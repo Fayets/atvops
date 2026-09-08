@@ -145,6 +145,18 @@ def pedidos_de(canal: str) -> str | None:
     return cuerpo.strip()
 
 
+def ultimo_update() -> str | None:
+    """El último update confirmado por el CSM (lo escribe el sistema en fulfillment/updates)."""
+    carpeta = CEREBRO_DIR / "fulfillment" / "updates"
+    if not carpeta.exists():
+        return None
+    archivos = sorted(p for p in carpeta.glob("*.md") if p.name != "borrador.md")
+    if not archivos:
+        return None
+    _, cuerpo = _frontmatter(archivos[-1].read_text(encoding="utf-8"))
+    return f"({archivos[-1].stem})\n" + cuerpo.strip().strip("`").strip()
+
+
 def resumen() -> dict:
     conteo = {a: sum(1 for _ in (CEREBRO_DIR / a).rglob("*.md")) if (CEREBRO_DIR / a).exists() else 0 for a in AREAS}
     return {"dir": str(CEREBRO_DIR), "notas": conteo, "total": sum(conteo.values())}

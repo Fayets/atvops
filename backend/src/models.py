@@ -152,3 +152,15 @@ class LedgerCanal(db.Entity):
     canal_id = Required(str, unique=True)
     analizado_hasta = Required(int, default=0)
     actualizado_at = Required(datetime)
+
+
+class UpdateConfirmado(db.Entity):
+    """El texto del update tal como lo confirmó el CSM (editado a mano si hizo falta)."""
+
+    _table_ = _tabla("updates_confirmados", "UpdateConfirmado")
+
+    id = PrimaryKey(int, auto=True)
+    texto = Required(str)
+    confirmado_por = Required(str)
+    confirmado_at = Required(datetime, default=datetime.utcnow)
+    ronda_id = Optional(int)

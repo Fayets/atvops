@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ErrorState } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
-import { ejecutarRondaPendientes, getPendientes, getProgresoRonda, getUpdateTexto } from '../../data/api.js';
+import { confirmarUpdate, ejecutarRondaPendientes, getPendientes, getProgresoRonda, getUpdateTexto } from '../../data/api.js';
 import { hace } from '../../lib/format.js';
 
 /**
@@ -14,14 +14,25 @@ export default function Pendientes() {
   const [texto, setTexto] = useState('');
   const [progreso, setProgreso] = useState(null);
   const [copiado, setCopiado] = useState(false);
+  const [confirmado, setConfirmado] = useState(null); // { texto, confirmadoPor, confirmadoAt }
+  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
   const timer = useRef(null);
   const feedRef = useRef(null);
 
-  const cargar = async () => {
+  const cargar = async ({ tomarBorrador = false } = {}) => {
     const [e, t] = await Promise.all([getPendientes(), getUpdateTexto()]);
     setEstado(e);
-    if (e.ultimaRonda) setTexto(t);
+    const conf = e.updateConfirmado;
+    // Si hay un update confirmado después de la última ronda, se muestra ese; si no, el borrador de la ronda.
+    const confirmadoVigente = conf && e.ultimaRonda && new Date(conf.confirmadoAt) >= new Date(e.ultimaRonda.ejecutadoAt);
+    if (!tomarBorrador && confirmadoVigente) {
+      setConfirmado(conf);
+      setTexto(conf.texto);
+    } else if (e.ultimaRonda) {
+      setConfirmado(null);
+      setTexto(t);
+    }
   };
 
   const seguir = () => {
@@ -31,7 +42,7 @@ export default function Pendientes() {
         const p = await getProgresoRonda();
         setProgreso(p);
         if (p.enCurso) seguir();
-        else await cargar();
+        else await cargar({ tomarBorrador: true });
       } catch (err) {
         setError(err);
       }
@@ -56,6 +67,19 @@ export default function Pendientes() {
       seguir();
     } catch (err) {
       setError(err);
+    }
+  };
+
+  const confirmar = async () => {
+    setGuardando(true);
+    setError(null);
+    try {
+      const c = await confirmarUpdate(texto);
+      setConfirmado(c);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -114,8 +138,19 @@ export default function Pendientes() {
             spellCheck={false}
           />
           <div className="update-acciones">
-            <span className="dim">Editá lo que haga falta y copialo a #updates.</span>
-            <button className="btn" onClick={copiar}>{copiado ? 'Copiado ✓' : 'Copiar'}</button>
+            <span className="dim">
+              {confirmado && confirmado.texto === texto
+                ? `Confirmado por ${confirmado.confirmadoPor} ${hace(confirmado.confirmadoAt, new Date())}. Guardado en el cerebro.`
+                : confirmado
+                  ? 'Editaste el update confirmado. Confirmalo de nuevo para guardar los cambios.'
+                  : 'Editá lo que haga falta y confirmá para guardarlo.'}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={copiar}>{copiado ? 'Copiado ✓' : 'Copiar'}</button>
+              <button className="btn primary" onClick={confirmar} disabled={guardando || (confirmado && confirmado.texto === texto)}>
+                {guardando ? 'Guardando…' : confirmado && confirmado.texto === texto ? 'Confirmado ✓' : 'Confirmar update'}
+              </button>
+            </div>
           </div>
         </div>
       )}

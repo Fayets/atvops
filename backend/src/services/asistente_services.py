@@ -150,6 +150,10 @@ def preguntar(pregunta: str, historial: list[dict] | None, usuario: dict) -> dic
 
     contexto = [f"Hoy: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')} (Argentina). Usuario: {usuario.get('nombre') or usuario.get('username')} ({usuario.get('rol')})."]
     contexto.append("\n## Cartera (clientes activos)\n" + "\n".join(_linea_cliente(c) for c in activos))
+    if "fulfillment" in cerebro.areas_para(usuario.get("rol")):
+        ultimo = cerebro.ultimo_update()
+        if ultimo:
+            contexto.append("\n## Último update confirmado del equipo (pedidos abiertos por responsable)\n" + ultimo)
     for c in mencionados:
         canal = (c.get('canalId') or '').split('/')[-1]
         pedidos = cerebro.pedidos_de(canal)

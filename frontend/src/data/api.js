@@ -1437,6 +1437,11 @@ export async function ejecutarRondaPendientes() {
   return pedir('/api/pendientes/ronda', { method: 'POST' });
 }
 
+/** Guarda el update tal como lo dejó el CSM. */
+export async function confirmarUpdate(texto) {
+  return pedir('/api/pendientes/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+}
+
 /** Progreso de la ronda en curso (o de la última). */
 export async function getProgresoRonda() {
   return pedir('/api/pendientes/progreso');
