@@ -3739,3 +3739,19 @@ table.data .dim {
 .en-vivo i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); }
 @keyframes pulso { 0%, 100% { box-shadow: 0 0 0 3px var(--ok-dim); } 50% { box-shadow: 0 0 0 6px transparent; } }
 .en-vivo i.pulso { animation: pulso 0.9s ease-in-out infinite; }
+
+/* ------------------------------------------- KPI con detalle (drill-down) */
+
+.kpi.con-detalle { cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease; }
+.kpi.con-detalle:hover { border-color: var(--border); transform: translateY(-1px); }
+.kpi-ver { margin-left: auto; font-size: 10.5px; color: var(--text-3); opacity: 0; transition: opacity 0.15s ease; }
+.kpi.con-detalle:hover .kpi-ver, .kpi.con-detalle:focus-visible .kpi-ver { opacity: 1; color: var(--brand-hi); }
+.modal-card.detalle-kpi { width: min(720px, 92vw); max-height: 84vh; display: flex; flex-direction: column; }
+.detalle-kpi-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4); }
+.detalle-kpi-head h3 { margin-top: 2px; }
+.detalle-kpi-lista { overflow-y: auto; min-height: 0; border-top: 1px solid var(--border-soft); }
+.detalle-kpi-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-4); align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.detalle-kpi-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalle-kpi-links { display: flex; gap: 12px; font-size: 12px; }
+.detalle-kpi-links a { color: var(--text-2); }
+.detalle-kpi-links a:hover { color: var(--brand-hi); }

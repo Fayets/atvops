@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { formatValue } from '../../lib/format.js';
+import DetalleKpi from './DetalleKpi.jsx';
 import Sparkline from '../charts/Sparkline.jsx';
 import Bar from './Bar.jsx';
 import Delta from './Delta.jsx';
@@ -10,7 +12,9 @@ import SourceTag from './SourceTag.jsx';
  * @param {{ metric: import('../../data/types.js').Metric, size?: 'md' | 'sm', spark?: boolean }} props
  */
 export default function KpiCard({ metric, size = 'md', spark = true }) {
-  const { label, value, format, previous, sourceId, updatedAt, good, nota, objetivo, serie } = metric;
+  const { label, value, format, previous, sourceId, updatedAt, good, nota, objetivo, serie, detalle } = metric;
+  const [abierto, setAbierto] = useState(false);
+  const conDetalle = Boolean(detalle?.items?.length);
   const pctObjetivo = objetivo ? (objetivo === 0 ? (value === 0 ? 100 : 0) : (value / objetivo) * 100) : null;
   const cumple = objetivo !== null && objetivo !== undefined
     ? good === 'down'
@@ -19,8 +23,18 @@ export default function KpiCard({ metric, size = 'md', spark = true }) {
     : null;
 
   return (
-    <article className={`kpi${size === 'sm' ? ' sm' : ''}`}>
-      <div className="kpi-label">{label}</div>
+    <article
+      className={`kpi${size === 'sm' ? ' sm' : ''}${conDetalle ? ' con-detalle' : ''}`}
+      onClick={conDetalle ? () => setAbierto(true) : undefined}
+      onKeyDown={conDetalle ? (e) => (e.key === 'Enter' || e.key === ' ') && setAbierto(true) : undefined}
+      role={conDetalle ? 'button' : undefined}
+      tabIndex={conDetalle ? 0 : undefined}
+      title={conDetalle ? 'Ver los canales que componen este número' : undefined}
+    >
+      <div className="kpi-label">
+        {label}
+        {conDetalle && <span className="kpi-ver">ver canales →</span>}
+      </div>
 
       <div className="kpi-value-row">
         <span className="kpi-value num">{formatValue(value, format)}</span>
@@ -51,6 +65,8 @@ export default function KpiCard({ metric, size = 'md', spark = true }) {
       <div style={{ marginTop: 'auto', paddingTop: 4 }}>
         <SourceTag sourceId={sourceId} updatedAt={updatedAt} />
       </div>
+
+      {abierto && <DetalleKpi metric={metric} onClose={() => setAbierto(false)} />}
     </article>
   );
 }

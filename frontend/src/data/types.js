@@ -67,6 +67,7 @@
  * @property {string} [nota]              Contexto corto, se muestra al pie.
  * @property {number | null} [objetivo]   Meta explícita, si la métrica tiene una.
  * @property {number[]} [serie]           Puntos para la sparkline, del más viejo al más nuevo.
+ * @property {{ titulo?: string, items: { id: string, nombre: string, canalId?: string, categoria?: string, valor?: string | null, tono?: string }[] }} [detalle]  Los canales que componen el número; si está, la tarjeta se abre.
  */
 
 /**

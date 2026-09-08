@@ -37,7 +37,7 @@ import { CAMPANIAS, FRECUENCIA, GASTO_CANAL, GASTO_DIARIO } from './mock/marketi
 import { DURACION_HISTORICA, PROCESOS } from './mock/onboarding.js';
 import { LLAMADOS, SEMANAS } from './mock/ventas.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
-import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio } from '../lib/format.js';
+import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
 import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
 import { diaDentroDelMes, diasDelMes, ritmo, semanaIso } from '../lib/pacing.js';
 import {
@@ -112,6 +112,7 @@ export async function getClientes() {
     },
     {
       id: 'pct_activados',
+      detalle: detalleDe([...activados].sort((a, b) => (b.activacion.primerResultadoAt ?? '').localeCompare(a.activacion.primerResultadoAt ?? '')), (c) => (c.activacion.primerResultadoAt ? formatFecha(c.activacion.primerResultadoAt) : null), () => 'ok', 'Clientes con resultado detectado en el canal.'),
       label: 'Con win en el canal',
       value: activos.length
         ? (activos.filter((c) => c.activacion?.activado).length / activos.length) * 100
@@ -136,6 +137,7 @@ export async function getClientes() {
     },
     {
       id: 'silencio_7d',
+      detalle: detalleDe([...silencio].sort((a, b) => b.engagement.diasSinMensaje - a.engagement.diasSinMensaje), (c) => `${c.engagement.diasSinMensaje} d sin mensaje`, (c) => (c.engagement.diasSinMensaje >= 14 ? 'alert' : 'warn'), 'Canales sin mensaje del cliente hace 7 días o más.'),
       label: 'En silencio ≥ 7 días',
       value: activos.filter((c) => c.engagement.diasSinMensaje >= 7).length,
       format: 'count',
@@ -240,6 +242,27 @@ function metricasCoaches(clientes, coaches) {
   });
 }
 
+
+/**
+ * Lista de canales detrás de un número, para que cualquier KPI pueda mostrar
+ * de dónde sale. @param {any[]} clientes @param {(c: any) => string | null} [valor] @param {(c: any) => string} [tono]
+ */
+function detalleDe(clientes, valor, tono, titulo) {
+  return {
+    titulo,
+    items: clientes.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      canalId: c.canalId,
+      categoria: c.categoria,
+      valor: valor ? valor(c) : null,
+      tono: tono ? tono(c) : 'plain',
+    })),
+  };
+}
+
+const tonoSemaforo = (c) => (c.salud?.semaforo === 'verde' ? 'ok' : c.salud?.semaforo === 'amarillo' ? 'warn' : 'alert');
+
 export async function getFulfillment() {
   const cartera = await cargarCarteraDiscord();
   const clientes = clientesConSalud(cartera.clientes);
@@ -297,6 +320,7 @@ export async function getFulfillment() {
     activacion: [
       {
         id: 'activacion_30d',
+        detalle: detalleDe(activadosEnVentana, (c) => `${c.activacion.diasHastaResultado ?? '?'} d`, () => 'ok', 'Clientes con win detectado dentro de los 30 días de entrada.'),
         label: 'Activados en 30 días',
         value: pctActivacion,
         format: 'pct',
@@ -308,6 +332,7 @@ export async function getFulfillment() {
       },
       {
         id: 'tiempo_primer_resultado',
+        detalle: detalleDe([...activados].sort((a, b) => (a.activacion.diasHastaResultado ?? 0) - (b.activacion.diasHastaResultado ?? 0)), (c) => `${c.activacion.diasHastaResultado ?? '?'} d`, (c) => ((c.activacion.diasHastaResultado ?? 99) <= 14 ? 'ok' : 'warn'), 'Días desde el primer mensaje del canal hasta el primer resultado.'),
         label: 'Mediana hasta primer resultado',
         value: medianaActivacion,
         format: 'days',
@@ -320,6 +345,7 @@ export async function getFulfillment() {
       },
       {
         id: 'sin_activar',
+        detalle: detalleDe([...sinActivar].sort((a, b) => diasEntre(a.entradaAt, hoy) - diasEntre(b.entradaAt, hoy)).reverse(), (c) => `${diasEntre(c.entradaAt, hoy)} d en el programa`, (c) => (diasEntre(c.entradaAt, hoy) > 30 ? 'alert' : 'warn'), 'Sin frase de resultado (venta / cierre / cobro) en el canal.'),
         label: 'Sin activar',
         value: sinActivar.length,
         format: 'count',
@@ -334,6 +360,7 @@ export async function getFulfillment() {
     engagement: [
       {
         id: 'score_verde',
+        detalle: detalleDe([...verdes].sort((a, b) => b.salud.score - a.salud.score), (c) => `score ${c.salud.score}`, () => 'ok', 'Clientes con score de salud en verde.'),
         label: 'Clientes en verde',
         value: activos.length ? (verdes.length / activos.length) * 100 : 0,
         format: 'pct',
@@ -345,6 +372,7 @@ export async function getFulfillment() {
       },
       {
         id: 'mensajes_semana',
+        detalle: detalleDe([...activos].sort((a, b) => b.engagement.mensajesClienteSemana - a.engagement.mensajesClienteSemana), (c) => `${formatValue(c.engagement.mensajesClienteSemana, 'ratio')}/sem`, (c) => (c.engagement.mensajesClienteSemana >= 2 ? 'ok' : c.engagement.mensajesClienteSemana > 0 ? 'warn' : 'alert'), 'Mensajes del cliente por semana, últimas 4 semanas.'),
         label: 'Mensajes del cliente / semana',
         value: activos.length
           ? activos.reduce((s, c) => s + c.engagement.mensajesClienteSemana, 0) / activos.length
@@ -368,6 +396,7 @@ export async function getFulfillment() {
       },
       {
         id: 'mix_queja',
+        detalle: detalleDe([...activos].filter((c) => (c.engagement.mix?.queja ?? 0) > 0).sort((a, b) => (b.engagement.mix?.queja ?? 0) - (a.engagement.mix?.queja ?? 0)), (c) => `${c.engagement.mix?.queja ?? 0}% queja`, (c) => ((c.engagement.mix?.queja ?? 0) >= 30 ? 'alert' : 'warn'), 'Canales con mensajes de queja en el mix de conversación.'),
         label: 'Queja en el mix',
         value: pctQueja ?? 0,
         format: 'pct',
@@ -383,6 +412,7 @@ export async function getFulfillment() {
     retencion: [
       {
         id: 'en_riesgo',
+        detalle: detalleDe([...enRiesgo].sort((a, b) => a.salud.score - b.salud.score), (c) => `score ${c.salud.score}`, tonoSemaforo, 'Clientes fuera de verde, peor score primero.'),
         label: 'Fuera de verde',
         value: activos.length ? (enRiesgo.length / activos.length) * 100 : 0,
         format: 'pct',
@@ -395,6 +425,7 @@ export async function getFulfillment() {
       },
       {
         id: 'silencio_retencion',
+        detalle: detalleDe([...silencio].sort((a, b) => b.engagement.diasSinMensaje - a.engagement.diasSinMensaje), (c) => `${c.engagement.diasSinMensaje} d`, (c) => (c.engagement.diasSinMensaje >= 14 ? 'alert' : 'warn')),
         label: 'Silencio ≥ 7 días',
         value: silencio.length,
         format: 'count',
@@ -406,6 +437,7 @@ export async function getFulfillment() {
       },
       {
         id: 'sin_activar_fuera',
+        detalle: detalleDe([...sinActivarFuera].sort((a, b) => diasEntre(b.entradaAt, hoy) - diasEntre(a.entradaAt, hoy)), (c) => `${diasEntre(c.entradaAt, hoy)} d sin win`, () => 'alert', 'Pasaron la ventana de 30 días sin resultado detectable.'),
         label: 'Sin activar (>30d)',
         value: sinActivarFuera.length,
         format: 'count',
@@ -417,6 +449,7 @@ export async function getFulfillment() {
       },
       {
         id: 'intencion_baja',
+        detalle: detalleDe(churnIntent, (c) => (c.churnIntent?.extracto ? c.churnIntent.extracto.slice(0, 60) : 'intención de baja'), () => 'alert', 'Frases de reembolso / baja en mensajes recientes.'),
         label: 'Intención de baja',
         value: churnIntent.length,
         format: 'count',
@@ -443,6 +476,7 @@ export async function getFulfillment() {
       },
       {
         id: 'wins_30d',
+        detalle: detalleDe(winsRecientes, (c) => (c.activacion.primerResultadoAt ? formatFecha(c.activacion.primerResultadoAt) : null), () => 'ok', 'Primer resultado detectado en los últimos 30 días.'),
         label: 'Wins últimos 30 días',
         value: winsRecientes.length,
         format: 'count',
@@ -453,6 +487,7 @@ export async function getFulfillment() {
       },
       {
         id: 'momentum_positivo',
+        detalle: detalleDe([...momentumPos].sort((a, b) => (b.engagement.tendencia ?? 0) - (a.engagement.tendencia ?? 0)), (c) => `+${Math.round(c.engagement.tendencia ?? 0)}%`, () => 'ok', 'Tendencia de actividad ≥ +20% vs semanas previas.'),
         label: 'Momentum positivo',
         value: activos.length ? (momentumPos.length / activos.length) * 100 : 0,
         format: 'pct',
@@ -465,6 +500,7 @@ export async function getFulfillment() {
     expansion: [
       {
         id: 'candidatos_upsell',
+        detalle: detalleDe(candidatos, (c) => 'señal de techo', () => 'ok', 'Señal léxica de techo / siguiente nivel en el canal.'),
         label: 'Candidatos a upsell',
         value: candidatos.length,
         format: 'count',
@@ -475,6 +511,7 @@ export async function getFulfillment() {
       },
       {
         id: 'caida_actividad',
+        detalle: detalleDe([...caidaFuerte].sort((a, b) => (a.engagement.tendencia ?? 0) - (b.engagement.tendencia ?? 0)), (c) => `${Math.round(c.engagement.tendencia ?? 0)}%`, () => 'alert', 'Tendencia ≤ −30% vs semanas previas.'),
         label: 'Caída fuerte de actividad',
         value: caidaFuerte.length,
         format: 'count',

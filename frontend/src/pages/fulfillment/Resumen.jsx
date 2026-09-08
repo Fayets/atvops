@@ -100,6 +100,12 @@ export default function FulfillmentResumen() {
           id: 'canales_activos',
           label: 'Canales de cliente',
           value: data.activos.length,
+          detalle: {
+            titulo: 'Un canal de Discord en boost / advantage / mentoría = un cliente.',
+            items: [...data.activos]
+              .sort((a, b) => (b.ultimaActividadAt ?? '').localeCompare(a.ultimaActividadAt ?? ''))
+              .map((c) => ({ id: c.id, nombre: c.nombre, canalId: c.canalId, categoria: c.categoria, valor: `${c.mensajes ?? 0} msgs`, tono: 'plain' })),
+          },
           format: 'count',
           previous: null,
           sourceId: 'discord_transcripts',
