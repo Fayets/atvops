@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Pill from './Pill.jsx';
 
@@ -22,8 +23,17 @@ export default function DetalleKpi({ metric, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
+  // Portal sobre el body: adentro de la tarjeta (overflow hidden + transform al
+  // hover) la ventana quedaba recortada. Y se corta la propagación para que el
+  // clic no vuelva a la tarjeta y la reabra.
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
       <div className="modal-card detalle-kpi" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="detalle-kpi-head">
           <div>
@@ -62,5 +72,5 @@ export default function DetalleKpi({ metric, onClose }) {
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }

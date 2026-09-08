@@ -25,7 +25,7 @@ export default function KpiCard({ metric, size = 'md', spark = true }) {
   return (
     <article
       className={`kpi${size === 'sm' ? ' sm' : ''}${conDetalle ? ' con-detalle' : ''}`}
-      onClick={conDetalle ? () => setAbierto(true) : undefined}
+      onClick={conDetalle && !abierto ? () => setAbierto(true) : undefined}
       onKeyDown={conDetalle ? (e) => (e.key === 'Enter' || e.key === ' ') && setAbierto(true) : undefined}
       role={conDetalle ? 'button' : undefined}
       tabIndex={conDetalle ? 0 : undefined}
