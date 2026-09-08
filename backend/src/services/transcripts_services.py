@@ -34,6 +34,46 @@ AR_TZ = timezone(timedelta(hours=-3))
 _HEADER_SEP = "=" * 20
 _MSG_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\] (.+)$", re.MULTILINE)
 _ADJUNTO_RE = re.compile(r"^\s*📎\s*(\S+)\s*$")
+_MENCION_RE = re.compile(r"<@!?(\d+)>|<@&(\d+)>|<#(\d+)>")
+_ATTACHMENT_ID_RE = re.compile(r"/attachments/\d+/(\d+)/")
+_IMAGEN_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+
+def _leer_directorio(base: Path) -> dict:
+    """id → nombre que escribe el bot de ATV Clients (_directorio.json)."""
+    try:
+        import json
+        data = json.loads((base / "_directorio.json").read_text(encoding="utf-8"))
+        return {k: dict(data.get(k) or {}) for k in ("usuarios", "roles", "canales")}
+    except (OSError, ValueError):
+        return {"usuarios": {}, "roles": {}, "canales": {}}
+
+
+def _resolver_menciones(texto: str, directorio: dict) -> str:
+    """<@id> → @Nombre, <@&id> → @rol, <#id> → #canal. Si no se conoce el id,
+    queda una etiqueta corta legible en vez del número entero."""
+    def rep(m):
+        uid, rid, cid = m.group(1), m.group(2), m.group(3)
+        if uid:
+            return "@" + directorio["usuarios"].get(uid, f"usuario·{uid[-4:]}")
+        if rid:
+            return "@" + directorio["roles"].get(rid, f"rol·{rid[-4:]}")
+        return "#" + directorio["canales"].get(cid, f"canal·{cid[-4:]}")
+    return _MENCION_RE.sub(rep, texto)
+
+
+def _describir_adjunto(url: str, carpeta_adjuntos: Path) -> dict:
+    """Un adjunto: si el bot lo descargó, se sirve desde disco (los links de
+    Discord caducan a las 24 h)."""
+    nombre = url.split("/")[-1].split("?")[0] or "adjunto"
+    es_imagen = nombre.lower().endswith(_IMAGEN_EXT)
+    local = None
+    m = _ATTACHMENT_ID_RE.search(url)
+    if m and carpeta_adjuntos.is_dir():
+        for f in carpeta_adjuntos.glob(f"{m.group(1)}_*"):
+            local = f.name
+            break
+    return {"url": url, "nombre": nombre, "es_imagen": es_imagen, "local": local}
 
 
 class TranscriptsServices:
@@ -61,7 +101,7 @@ class TranscriptsServices:
         fin = texto.find("\n", corte)
         return texto[fin + 1:] if fin != -1 else texto
 
-    def _parsear(self, texto: str) -> list[dict]:
+    def _parsear(self, texto: str, directorio: dict, carpeta_adjuntos: Path) -> list[dict]:
         cuerpo = self._sin_header(texto)
         matches = list(_MSG_RE.finditer(cuerpo))
         mensajes: list[dict] = []
@@ -89,8 +129,8 @@ class TranscriptsServices:
                 "indice": len(mensajes),
                 "fecha_at": self._a_ar(fecha),
                 "autor": match.group(2).strip(),
-                "contenido": "\n".join(lineas).strip(),
-                "adjuntos": adjuntos,
+                "contenido": _resolver_menciones("\n".join(lineas).strip(), directorio),
+                "adjuntos": [_describir_adjunto(u, carpeta_adjuntos) for u in adjuntos],
             })
 
         return mensajes
@@ -113,8 +153,16 @@ class TranscriptsServices:
 
         stat = archivo.stat()
         clave = str(archivo)
+        # El directorio de nombres y los adjuntos también cambian el resultado.
+        try:
+            dir_mtime = (get_transcripts_base() / "_directorio.json").stat().st_mtime
+        except OSError:
+            dir_mtime = 0.0
+        adj_dir = carpeta / "adjuntos"
+        adj_n = sum(1 for _ in adj_dir.iterdir()) if adj_dir.is_dir() else 0
+        firma = (stat.st_mtime + dir_mtime, stat.st_size + adj_n)
         cacheado = self._cache.get(clave)
-        if cacheado and cacheado[0] == stat.st_mtime and cacheado[1] == stat.st_size:
+        if cacheado and cacheado[0] == firma[0] and cacheado[1] == firma[1]:
             return cacheado[2]
 
         try:
@@ -126,7 +174,7 @@ class TranscriptsServices:
         # (cuando todavía no hay `ultimo_mensaje_id` en la base). Un archivo sin
         # encabezado es un fragmento: la historia previa quedó en otra máquina.
         tiene_header = texto.startswith("Canal:")
-        mensajes = self._parsear(texto)
+        mensajes = self._parsear(texto, _leer_directorio(get_transcripts_base()), carpeta / "adjuntos")
         autores: dict[str, dict] = {}
         adjuntos = 0
         caracteres = 0
@@ -177,7 +225,7 @@ class TranscriptsServices:
             "_mensajes": mensajes,
         }
 
-        self._cache[clave] = (stat.st_mtime, stat.st_size, datos)
+        self._cache[clave] = (firma[0], firma[1], datos)
         return datos
 
     # ---------------------------------------------------------------- API
@@ -249,6 +297,15 @@ class TranscriptsServices:
             reverse=True,
         )
         return {"resumen": resumen, "canales": [self._sin_mensajes(c) for c in ordenados]}
+
+    def ruta_adjunto(self, categoria: str, canal: str, archivo: str) -> Path:
+        """Archivo de adjunto descargado por el bot, con el nombre saneado."""
+        if "/" in archivo or "\\" in archivo or archivo.startswith("."):
+            raise HTTPException(status_code=400, detail="Nombre de adjunto inválido.")
+        ruta = get_transcripts_base() / categoria / canal / "adjuntos" / archivo
+        if not ruta.is_file():
+            raise HTTPException(status_code=404, detail="Ese adjunto no está guardado.")
+        return ruta
 
     def obtener_canal(self, categoria: str, canal: str) -> dict:
         """Un canal con todos sus mensajes."""

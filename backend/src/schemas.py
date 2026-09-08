@@ -80,12 +80,19 @@ class TranscriptsListResponse(BaseModel):
     canales: list[CanalResumen]
 
 
+class AdjuntoTranscript(BaseModel):
+    url: str
+    nombre: str
+    es_imagen: bool = False
+    local: str | None = None   # nombre del archivo guardado por el bot, si existe
+
+
 class MensajeTranscript(BaseModel):
     indice: int
     fecha_at: datetime
     autor: str
     contenido: str
-    adjuntos: list[str]
+    adjuntos: list[AdjuntoTranscript]
 
 
 class CanalDetalleResponse(BaseModel):

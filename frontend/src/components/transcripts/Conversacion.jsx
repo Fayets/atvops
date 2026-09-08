@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { colorAutor, inicialesAutor } from '../../lib/autores.js';
 import { formatFecha, hace } from '../../lib/format.js';
 import Pill from '../ui/Pill.jsx';
+import Adjunto from './Adjunto.jsx';
 
 const CATEGORIA_TONO = { boost: 'alert', advantage: 'warn', mentoria: 'plain', avanzados: 'plain', principiantes: 'plain', updates: 'ok' };
 const diaDe = (iso) => iso.slice(0, 10);
@@ -16,17 +17,29 @@ export default function Conversacion({ canal, mensajes, resaltar = '' }) {
   const ahora = new Date();
   const q = resaltar.trim().toLowerCase();
 
+  // Un chat se lee desde el final: al abrir (o cambiar de canal) arranca abajo
+  // del todo; si llegan mensajes nuevos al canal abierto, baja suave.
   const scrollRef = useRef(null);
-  const previo = useRef({ canal: canal.id, n: mensajes.length });
-  useEffect(() => {
+  const canalMostrado = useRef(null);
+  const cantidad = useRef(0);
+  const alFinal = useCallback(() => {
     const el = scrollRef.current;
-    const p = previo.current;
-    if (el) {
-      if (p.canal !== canal.id) el.scrollTop = el.scrollHeight;
-      else if (mensajes.length > p.n) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+  useLayoutEffect(() => {
+    if (canalMostrado.current !== canal.id) {
+      alFinal();
+      canalMostrado.current = canal.id;
+    } else if (mensajes.length > cantidad.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
-    previo.current = { canal: canal.id, n: mensajes.length };
-  }, [canal.id, mensajes.length]);
+    cantidad.current = mensajes.length;
+  }, [canal.id, mensajes.length, alFinal]);
+  // Las imágenes cargan después del layout y empujan el contenido: volver al final.
+  useEffect(() => {
+    const t = setTimeout(alFinal, 250);
+    return () => clearTimeout(t);
+  }, [canal.id, alFinal]);
 
   return (
     <section className="chat-panel">
@@ -79,10 +92,14 @@ export default function Conversacion({ canal, mensajes, resaltar = '' }) {
                     {m.contenido ? <div className="msg-cuerpo">{m.contenido}</div> : <div className="msg-cuerpo msg-vacio">— sin texto —</div>}
                     {m.adjuntos.length > 0 && (
                       <div className="msg-adjuntos">
-                        {m.adjuntos.map((url) => (
-                          <a key={url} className="msg-adjunto" href={url} target="_blank" rel="noreferrer noopener">
-                            📎 {url.split('/').pop()?.split('?')[0] || url}
-                          </a>
+                        {m.adjuntos.map((a) => (
+                          <Adjunto
+                            key={a.url}
+                            adjunto={a}
+                            categoria={canal.categoria}
+                            canal={canal.canal}
+                            onCarga={canalMostrado.current === canal.id && mensajes.length === cantidad.current ? undefined : alFinal}
+                          />
                         ))}
                       </div>
                     )}

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from src import schemas
 from src.controllers.auth_controller import get_current_user
@@ -26,3 +27,13 @@ def obtener_canal(categoria: str, canal: str, _user: dict = Depends(get_current_
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al leer el transcript.")
+
+
+@router.get("/{categoria}/{canal}/adjuntos/{archivo}")
+def obtener_adjunto(categoria: str, canal: str, archivo: str, _user: dict = Depends(get_current_user)):
+    try:
+        return FileResponse(service.ruta_adjunto(categoria, canal, archivo))
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer el adjunto.")

@@ -3755,3 +3755,10 @@ table.data .dim {
 .detalle-kpi-links { display: flex; gap: 12px; font-size: 12px; }
 .detalle-kpi-links a { color: var(--text-2); }
 .detalle-kpi-links a:hover { color: var(--brand-hi); }
+
+/* ------------------------------------------------- imágenes en el chat */
+
+.msg-imagen-link { display: inline-block; max-width: 100%; margin-top: 4px; }
+.msg-imagen { display: block; max-width: min(100%, 440px); max-height: 360px; border-radius: var(--radius-sm); border: 1px solid var(--border-soft); object-fit: contain; background: var(--surface-2); }
+.msg-imagen.cargando { width: 240px; height: 140px; animation: pulse 1.4s ease-in-out infinite; }
+.msg-adjunto.vencida { color: var(--text-3); border-style: dashed; }
