@@ -16,6 +16,7 @@ Recorte para no leer todo el historial:
 from __future__ import annotations
 
 import json
+import os
 import logging
 import re
 import shutil
@@ -108,10 +109,14 @@ def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | Non
         "--output-format", "json",
         "--max-turns", "1",
         "--no-session-persistence",
+        # Sin herramientas ni MCP: solo texto → arranque más rápido y muchos menos tokens por llamada.
+        "--tools", "",
+        "--strict-mcp-config",
         "--system-prompt", system_prompt,
     ]
+    env = dict(os.environ, DISABLE_AUTOUPDATER="1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")
     t = time.perf_counter()
-    proc = subprocess.run(cmd, input=user_prompt, capture_output=True, text=True, timeout=TIMEOUT_S)
+    proc = subprocess.run(cmd, input=user_prompt, capture_output=True, text=True, timeout=TIMEOUT_S, env=env)
     duracion_ms = int((time.perf_counter() - t) * 1000)
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or proc.stdout or "").strip()[:400] or f"exit {proc.returncode}")
