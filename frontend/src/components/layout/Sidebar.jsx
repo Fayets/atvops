@@ -1,5 +1,4 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { coberturaAutomatizacion } from '../../data/sources.js';
 import { clearSession } from '../../lib/auth.js';
 import { useRol } from '../../lib/RolContext.jsx';
 import { filtrarNav, homeParaRol, ROL_LIST, ROLES } from '../../lib/roles.js';
@@ -33,7 +32,6 @@ const NAV = [
 ];
 
 export default function Sidebar() {
-  const cobertura = coberturaAutomatizacion();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user, rol, rolReal, preview, puedePreview, setPreview } = useRol();
@@ -91,45 +89,6 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-
-      <div className="sidebar-foot">
-        <div className="sidebar-account">
-          <div className="sidebar-account-row">
-            <span className="sidebar-account-name">{user?.nombre || user?.username || '—'}</span>
-            <span className={`sidebar-rol${preview ? ' preview' : ''}`}>
-              {ROLES[rol]?.label ?? rol}
-              {preview ? ' · preview' : ''}
-            </span>
-          </div>
-
-          {puedePreview ? (
-            <label className="sidebar-preview">
-              <span>Ver como</span>
-              <select value={preview || rolReal} onChange={onPreview} aria-label="Previsualizar rol">
-                {ROL_LIST.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLES[r].label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          <button className="sidebar-salir" onClick={salir} type="button">
-            Salir
-          </button>
-        </div>
-
-        <div className="sidebar-auto">
-          <div className="sidebar-auto-row">
-            <span>Datos auto</span>
-            <span className="num">{cobertura.pct}%</span>
-          </div>
-          <div className="bar">
-            <span style={{ width: `${cobertura.pct}%` }} />
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

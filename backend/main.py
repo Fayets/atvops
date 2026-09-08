@@ -19,6 +19,29 @@ from src.controllers.transcripts_controller import router as transcripts_router
 from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
+from src.controllers.clientes_controller import service as clientes_service
+
+import logging
+import threading
+import time
+
+_log = logging.getLogger("atv_ops")
+
+
+def _precalentar_cartera(stop: threading.Event) -> None:
+    """Recalcula la cartera en segundo plano apenas el bot escribe un transcript,
+    así ninguna pantalla de Fulfillment paga el análisis: siempre encuentra el
+    resultado listo. Cuando nada cambió, cuesta un stat por archivo."""
+    while not stop.is_set():
+        try:
+            t = time.perf_counter()
+            clientes_service.listar()
+            dt = time.perf_counter() - t
+            if dt > 0.5:
+                _log.info("Cartera recalculada en %.1fs", dt)
+        except Exception as e:  # noqa: BLE001
+            _log.warning("Precalentador de cartera: %s", e)
+        stop.wait(10)
 
 
 @asynccontextmanager
@@ -26,7 +49,10 @@ async def lifespan(_app: FastAPI):
     init_db()
     AuthServices().ensure_local_user()
     IntegrantesServices().ensure_defaults()
+    stop = threading.Event()
+    threading.Thread(target=_precalentar_cartera, args=(stop,), daemon=True, name="precalentador").start()
     yield
+    stop.set()
 
 
 app = FastAPI(title="atv-ops", lifespan=lifespan)
