@@ -82,7 +82,8 @@ Reglas:
 # ------------------------------------------------------------------ CLI
 
 def cli_disponible() -> bool:
-    return shutil.which(CLAUDE_BIN) is not None
+    """Hay forma de hablar con Claude: API key o CLI instalado."""
+    return bool(config("ANTHROPIC_API_KEY", default="")) or shutil.which(CLAUDE_BIN) is not None
 
 
 def _extraer_json(texto: str) -> dict:
@@ -101,8 +102,48 @@ def _extraer_json(texto: str) -> dict:
     return data
 
 
+API_KEY = config("ANTHROPIC_API_KEY", default="")
+# Precio por millón de tokens (entrada, salida) para estimar el costo cuando va por API.
+PRECIOS_USD = {"claude-haiku-4-5": (1.0, 5.0), "claude-sonnet-5": (3.0, 15.0), "claude-opus-5": (5.0, 25.0)}
+_cliente_api = None
+
+
+def via_api() -> bool:
+    """Si hay ANTHROPIC_API_KEY, las llamadas van directo por HTTP (3-5 s) en vez del CLI (30-160 s en el VPS)."""
+    return bool(API_KEY)
+
+
+def cli_o_api_disponible() -> bool:
+    return via_api() or cli_disponible()
+
+
+def _invocar_api(system_prompt: str, user_prompt: str, modelo: str) -> tuple[str, dict]:
+    global _cliente_api
+    import anthropic
+
+    if _cliente_api is None:
+        _cliente_api = anthropic.Anthropic(api_key=API_KEY, timeout=TIMEOUT_S, max_retries=2)
+    t = time.perf_counter()
+    msg = _cliente_api.messages.create(
+        model=modelo, max_tokens=4000, system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    duracion_ms = int((time.perf_counter() - t) * 1000)
+    texto = "".join(getattr(b, "text", "") for b in msg.content)
+    uso = msg.usage
+    entrada = int(getattr(uso, "input_tokens", 0) or 0) + int(getattr(uso, "cache_read_input_tokens", 0) or 0) + int(getattr(uso, "cache_creation_input_tokens", 0) or 0)
+    salida = int(getattr(uso, "output_tokens", 0) or 0)
+    p_in, p_out = next((v for k, v in PRECIOS_USD.items() if modelo.startswith(k)), (1.0, 5.0))
+    return texto.strip(), {
+        "modelo": msg.model, "tokens_entrada": entrada, "tokens_salida": salida,
+        "costo_usd": round(entrada / 1e6 * p_in + salida / 1e6 * p_out, 6), "duracion_ms": duracion_ms, "via": "api",
+    }
+
+
 def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | None = None) -> tuple[str, dict]:
-    """Corre `claude -p` y devuelve (texto_de_respuesta, meta con tokens y costo)."""
+    """Devuelve (texto_de_respuesta, meta con tokens y costo). Por API si hay clave; si no, `claude -p`."""
+    if via_api():
+        return _invocar_api(system_prompt, user_prompt, modelo or MODELO)
     cmd = [
         CLAUDE_BIN, "-p",
         "--model", modelo or MODELO,
@@ -134,6 +175,7 @@ def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | Non
         "tokens_salida": int(uso.get("output_tokens") or 0),
         "costo_usd": float(envoltura.get("total_cost_usd") or 0.0),
         "duracion_ms": duracion_ms,
+        "via": "cli",
     }
     return str(envoltura.get("result") or "").strip(), meta
 

@@ -307,7 +307,7 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                     costo += meta.get("costo_usd", 0.0)
                     _evento(
                         f"#{canal}: {meta['nuevos']} mensajes nuevos → {meta['abiertos']} abiertos, {meta['resueltos']} resueltos"
-                        f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')})",
+                        f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')} · {meta.get('via', 'cli')})",
                         "ok" if meta["cambios"] else "info",
                     )
             except Exception as e:  # noqa: BLE001
