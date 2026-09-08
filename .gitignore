@@ -28,3 +28,6 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Cerebro en runtime (se siembra desde backend/cerebro; lo edita el equipo en Obsidian)
+backend/data/cerebro/
