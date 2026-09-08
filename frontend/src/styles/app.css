@@ -3828,3 +3828,6 @@ table.data .dim {
 .pendiente-etiqueta { color: var(--text-2); }
 .pendiente-extracto { font-size: 12px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .update-texto { width: 100%; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text); font: 12.5px/1.5 var(--font); padding: 12px; resize: vertical; }
+.update-editor { display: grid; gap: var(--space-3); max-width: 760px; }
+.update-editor .update-texto { min-height: 320px; font-size: 13.5px; }
+.update-acciones { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font-size: 12.5px; }

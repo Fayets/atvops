@@ -13,7 +13,7 @@ const NAV = [
     label: 'Fulfillment',
     sub: [
       { to: '/fulfillment', label: 'Resumen', end: true },
-      { to: '/fulfillment/pendientes', label: 'Pedidos abiertos' },
+      { to: '/fulfillment/pendientes', label: 'Updates' },
       { to: '/fulfillment/clientes', label: 'Clientes' },
       { to: '/fulfillment/activacion', label: 'Activación' },
       { to: '/fulfillment/engagement', label: 'Engagement' },
