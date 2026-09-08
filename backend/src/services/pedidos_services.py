@@ -13,6 +13,7 @@ import json
 import logging
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -27,6 +28,7 @@ logger = logging.getLogger("atv_ops.pedidos")
 
 HORARIOS_AR = ((9, 0), (13, 0), (16, 0), (19, 0))
 MAX_MSGS_NUEVOS = 80
+PARALELO = int(config("PEDIDOS_PARALELO", default=4))
 MAX_CHARS = 14_000
 TIPOS = ("consulta", "entregable", "agenda", "feedback", "seguimiento", "problema")
 ESTADOS = ("esperando_equipo", "en_proceso", "esperando_cliente", "resuelto")
@@ -250,10 +252,10 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
         activos = [c | {"coachNombre": coaches.get(c.get("coachId"))} for c in data["clientes"] if c.get("estado") == "activo"]
         staff = _staff_desde_canales(clientes_service._canales_cliente())
         _progreso_reset(origen, len(activos))
-        _evento(f"Arranca la ronda: {len(activos)} canales activos")
+        # Primero, qué canales tienen mensajes nuevos (barato, sin Claude).
+        pendientes: list[tuple[dict, str, list[dict]]] = []
         for cliente in activos:
             categoria, _, canal = (cliente.get("canalId") or "").partition("/")
-            _progreso["canalActual"] = canal
             try:
                 mensajes = clientes_service._tx.obtener_canal(categoria, canal)["mensajes"]
             except HTTPException:
@@ -263,21 +265,42 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                 _progreso["procesados"] += 1
                 _progreso["saltados"] += 1
                 continue
+            pendientes.append((cliente, canal, mensajes))
+        _evento(f"Arranca la ronda: {len(activos)} canales activos, {len(pendientes)} con mensajes nuevos, {PARALELO} en paralelo")
+        estado_lock = threading.Lock()
+        en_curso: list[str] = []
+
+        def _procesar(item: tuple[dict, str, list[dict]]) -> None:
+            nonlocal canales_leidos, cambios, tok_in, tok_out, costo, errores
+            cliente, canal, mensajes = item
+            with estado_lock:
+                en_curso.append(canal)
+                _progreso["canalActual"] = ", ".join(en_curso)
             try:
                 n, meta = _actualizar_canal(cliente, mensajes, staff)
-                canales_leidos += 1
-                cambios += n
-                tok_in += meta.get("tokens_entrada", 0)
-                tok_out += meta.get("tokens_salida", 0)
-                costo += meta.get("costo_usd", 0.0)
-                _evento(f"#{canal}: {meta.get('nuevos', 0)} mensajes nuevos → {meta.get('abiertos', 0)} abiertos, {meta.get('resueltos', 0)} resueltos", "ok" if n else "info")
+                with estado_lock:
+                    canales_leidos += 1
+                    cambios += n
+                    tok_in += meta.get("tokens_entrada", 0)
+                    tok_out += meta.get("tokens_salida", 0)
+                    costo += meta.get("costo_usd", 0.0)
+                    _evento(f"#{canal}: {meta.get('nuevos', 0)} mensajes nuevos → {meta.get('abiertos', 0)} abiertos, {meta.get('resueltos', 0)} resueltos", "ok" if n else "info")
             except Exception as e:  # noqa: BLE001
-                errores += 1
-                detalle.append(f"#{canal}: {str(e)[:120]}")
+                with estado_lock:
+                    errores += 1
+                    detalle.append(f"#{canal}: {str(e)[:120]}")
+                    _evento(f"#{canal}: error ({str(e)[:80]})", "error")
                 logger.warning("Ronda pedidos #%s: %s", canal, str(e)[:200])
-                _evento(f"#{canal}: error ({str(e)[:80]})", "error")
-            _progreso["procesados"] += 1
-            _progreso.update(leidos=canales_leidos, cambios=cambios, errores=errores, costoUsd=round(costo, 4))
+            finally:
+                with estado_lock:
+                    if canal in en_curso:
+                        en_curso.remove(canal)
+                    _progreso["canalActual"] = ", ".join(en_curso) or None
+                    _progreso["procesados"] += 1
+                    _progreso.update(leidos=canales_leidos, cambios=cambios, errores=errores, costoUsd=round(costo, 4))
+
+        with ThreadPoolExecutor(max_workers=max(1, PARALELO), thread_name_prefix="pedidos-canal") as pool:
+            list(pool.map(_procesar, pendientes))
         version += 1
         with db_session:
             RondaPendientes(
