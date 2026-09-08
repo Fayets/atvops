@@ -43,12 +43,11 @@ _borrador_lock = threading.Lock()  # escritura del JSON
 version = 0
 _progreso: dict = {"enCurso": False}
 
-SYSTEM_PROMPT = """Sos el asistente de operaciones de ATV. Mantenés el registro de PEDIDOS ABIERTOS de un
-cliente: cada cosa que el cliente pidió al equipo (consulta, entregable, agenda de llamada, feedback,
-seguimiento, problema) desde que la pide hasta que se resuelve DE VERDAD.
+SYSTEM_PROMPT_BASE = """Sos el asistente de operaciones de ATV (agencia de growth para creadores y emprendedores).
+Mantenés, para UN cliente, dos cosas: el registro de PEDIDOS ABIERTOS y su FICHA viva.
 
-Te doy: los pedidos que ya estaban registrados (con id) y los mensajes NUEVOS del canal desde la última vez.
-Devolvé ÚNICAMENTE un JSON con la lista completa actualizada:
+Te doy: la ficha anterior, los pedidos que ya estaban registrados (con id) y los mensajes NUEVOS del canal desde
+la última vez. Devolvé ÚNICAMENTE un JSON:
 
 {"pedidos": [
   {"id": "<mismo id si ya existía, o 'nuevo-1', 'nuevo-2'...>",
@@ -58,9 +57,22 @@ Devolvé ÚNICAMENTE un JSON con la lista completa actualizada:
    "responsable": "nombre del miembro del equipo que debería resolverlo, o null",
    "creado_at": "YYYY-MM-DD HH:MM del mensaje del cliente que lo abrió",
    "nota": "una línea con el último avance, en tus palabras"}
-]}
+ ],
+ "ficha": {
+   "fase": "<id de la lista de fases>",
+   "fase_motivo": "una línea: por qué está en esa fase",
+   "resumen": "2 o 3 líneas: en qué está el cliente HOY, qué construyó, qué le falta",
+   "proximos_pasos": ["hasta 3 acciones concretas, del cliente o del equipo"],
+   "riesgo": "bajo|medio|alto",
+   "riesgo_motivo": "una línea o null",
+   "intencion_baja": true|false,
+   "intencion_baja_extracto": "frase textual del cliente o null",
+   "wins": [{"fecha": "YYYY-MM-DD", "tipo": "venta|cobro|cliente_nuevo|metrica|otro", "descripcion": "frase textual corta del cliente"}],
+   "upsell": true|false,
+   "upsell_motivo": "una línea o null"
+ }}
 
-Reglas:
+Reglas de los pedidos:
 - esperando_equipo: el cliente pidió algo y el equipo todavía no respondió o no entregó.
 - en_proceso: el equipo respondió y dijo que lo está haciendo, pero no entregó ("dale, mañana te lo mando" NO resuelve).
 - esperando_cliente: el equipo pidió algo al cliente (datos, accesos, confirmar horario) y el cliente no contestó.
@@ -68,7 +80,21 @@ Reglas:
 - Un saludo, un agradecimiento o un comentario sin pedido NO es un pedido. No inventes pedidos.
 - Varias preguntas del mismo tema en el mismo mensaje son UN solo pedido. No fragmentes.
 - Si un pedido registrado ya no tiene sentido (el cliente lo descartó), marcalo resuelto con nota.
-- Mantené los ids de los pedidos existentes. Sin texto fuera del JSON."""
+- Mantené los ids de los pedidos existentes.
+
+Reglas de la ficha:
+- Partí de la ficha anterior y actualizala con lo nuevo; no la reescribas desde cero si nada cambió.
+- wins: solo resultados tangibles YA ocurridos (venta, cobro, cliente cerrado, métrica concreta con número), en palabras
+  del cliente. Conservá los wins anteriores y agregá los nuevos. Intenciones o planes NO son wins.
+- intencion_baja: solo si el cliente habla de reembolso, cancelar, irse o no seguir. Frase textual.
+- upsell: el cliente muestra techo, pide más, o está listo para el siguiente nivel.
+- Lo que dice el equipo no es evidencia de resultado; lo que dice el cliente sí.
+Sin texto fuera del JSON."""
+
+
+def _system_prompt() -> str:
+    from src.services.fichas_services import nota_fases
+    return SYSTEM_PROMPT_BASE + "\n\n## Fases posibles (usá el id)\n" + nota_fases()
 
 
 # ------------------------------------------------------------- progreso
@@ -170,6 +196,7 @@ def _parsear_fecha(texto: str | None, default: datetime) -> datetime:
 
 def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tuple[dict, dict]:
     """Pide a Claude la lista actualizada de pedidos de un canal. NO escribe nada."""
+    from src.services import fichas_services as fichas
     from src.services.activacion_ia_services import _extraer_json, invocar_claude_texto
     from src.services.clientes_services import _autor_es_cliente
 
@@ -187,17 +214,26 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
         rol = "cliente" if _autor_es_cliente(m["autor"], canal, staff) else "equipo"
         lineas.append(f"[{m['fecha_at'].strftime('%Y-%m-%d %H:%M')}] {m['autor']} ({rol}): {' '.join((m.get('contenido') or '').split())}{' [adjunto]' if m.get('adjuntos') else ''}")
     texto = "\n".join(lineas)[-MAX_CHARS:]
+    ficha_previa = fichas.para_prompt(cliente["id"])
     user = (
-        f"Cliente: {cliente['nombre']} · canal #{canal} · programa {cliente.get('categoria')} · coach habitual: {cliente.get('coachNombre') or '?'}\n"
+        f"Cliente: {cliente['nombre']} · canal #{canal} · programa {cliente.get('categoria')} · coach habitual: {cliente.get('coachNombre') or '?'}"
+        f" · entró el {cliente.get('entradaAt') or '?'}\n"
         f"Hoy: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')}\n\n"
+        f"## Ficha anterior\n{json.dumps(ficha_previa, ensure_ascii=False) if ficha_previa else '(primera vez: armala desde cero con lo que hay)'}\n\n"
         f"## Pedidos registrados\n{json.dumps(existentes, ensure_ascii=False) if existentes else '(ninguno)'}\n\n"
         f"## Mensajes nuevos del canal\n{texto}"
     )
-    respuesta, meta = invocar_claude_texto(SYSTEM_PROMPT, user)
+    respuesta, meta = invocar_claude_texto(_system_prompt(), user)
     data = _extraer_json(respuesta)
     lista = data.get("pedidos") if isinstance(data, dict) else None
     if not isinstance(lista, list):
         raise ValueError("Claude no devolvió 'pedidos'")
+    ficha_nueva = data.get("ficha") if isinstance(data.get("ficha"), dict) else None
+    if ficha_nueva:
+        try:
+            fichas.guardar(cliente["id"], canal_id, ficha_nueva, len(mensajes))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Ficha #%s no se pudo guardar: %s", canal, str(e)[:200])
 
     ids_existentes = {a["id"] for a in abiertos}
     pedidos: list[dict] = []
@@ -231,7 +267,8 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
         "nuevos": len(nuevos), "pedidos": pedidos, "cambios": cambios, "propuestoAt": datetime.now(AR_TZ).isoformat(),
     }
     meta = dict(meta, nuevos=len(nuevos), abiertos=sum(1 for p in pedidos if p["estado"] != "resuelto"),
-                resueltos=sum(1 for p in pedidos if p["estado"] == "resuelto"), cambios=cambios)
+                resueltos=sum(1 for p in pedidos if p["estado"] == "resuelto"), cambios=cambios,
+                fase=(ficha_nueva or {}).get("fase"), riesgo=(ficha_nueva or {}).get("riesgo"))
     return propuesta, meta
 
 
@@ -307,6 +344,7 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                     costo += meta.get("costo_usd", 0.0)
                     _evento(
                         f"#{canal}: {meta['nuevos']} mensajes nuevos → {meta['abiertos']} abiertos, {meta['resueltos']} resueltos"
+                        f" · fase {meta.get('fase') or '?'} · riesgo {meta.get('riesgo') or '?'}"
                         f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')} · {meta.get('via', 'cli')})",
                         "ok" if meta["cambios"] else "info",
                     )
@@ -334,7 +372,11 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
         borrador["terminadoAt"] = datetime.now(AR_TZ).isoformat()
         _borrador_escribir(borrador)
         logger.info("Ronda pedidos (%s): %s canales, %s cambios, %s errores, %.3f USD (borrador, sin confirmar)", origen, canales_leidos, cambios, errores, costo)
-        _evento(f"Listo: {canales_leidos} canales leídos, {reutilizados} ya propuestos, {cambios} cambios propuestos, US$ {costo:.3f}. Nada se guarda hasta que confirmes.", "fin")
+        try:
+            exportar_cerebro()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Exportar cerebro: %s", e)
+        _evento(f"Listo: {canales_leidos} canales leídos, {reutilizados} ya propuestos, {cambios} cambios propuestos, US$ {costo:.3f}. Fichas actualizadas; los pedidos se guardan cuando confirmes.", "fin")
     except Exception as e:  # noqa: BLE001
         _evento(f"La ronda falló: {str(e)[:120]}", "error")
         raise
@@ -560,24 +602,44 @@ def texto_update(est: dict) -> str:
 # -------------------------------------------------------------- cerebro
 
 def exportar_cerebro() -> Path:
-    """Escribe el registro CONFIRMADO en markdown: un archivo por canal. Es la parte de fulfillment del cerebro."""
+    """Una nota por cliente en fulfillment/clientes/<canal>.md: ficha viva + pedidos confirmados."""
+    import shutil
+
+    from src.services import fichas_services as fichas
+
     base = CEREBRO_DIR / "fulfillment"
-    (base / "pedidos").mkdir(parents=True, exist_ok=True)
+    (base / "clientes").mkdir(parents=True, exist_ok=True)
+    viejo = base / "pedidos"
+    if viejo.exists():
+        shutil.rmtree(viejo, ignore_errors=True)
     with db_session:
         por_canal: dict[str, list[dict]] = {}
         for p in PedidoAbierto.select():
             por_canal.setdefault(p.canal_id, []).append(_pedido_a_dict(p))
-    for canal_id, pedidos in por_canal.items():
-        nombre = re.sub(r"[^a-z0-9_-]", "-", canal_id.split("/")[-1].lower())
+    todas = fichas.todas()
+    canales = set(por_canal) | {f["canalId"] for f in todas.values()}
+    ficha_por_canal = {f["canalId"]: f for f in todas.values()}
+    for canal_id in canales:
+        canal = canal_id.split("/")[-1]
+        nombre = re.sub(r"[^a-z0-9_-]", "-", canal.lower())
+        pedidos = por_canal.get(canal_id, [])
+        ficha = ficha_por_canal.get(canal_id)
         abiertos = [p for p in pedidos if p["estado"] != "resuelto"]
         resueltos = sorted([p for p in pedidos if p["estado"] == "resuelto"], key=lambda p: p["resueltoAt"] or "", reverse=True)[:20]
-        md = [f"---\ncanal: {canal_id}\nactualizado: {datetime.now(AR_TZ).isoformat()}\nabiertos: {len(abiertos)}\n---", f"# #{canal_id.split('/')[-1]}", "", "## Abiertos"]
+        md = [
+            f"---\ncanal: {canal_id}\nfase: {(ficha or {}).get('fase') or ''}\nriesgo: {(ficha or {}).get('riesgo') or ''}\nabiertos: {len(abiertos)}\nactualizado: {datetime.now(AR_TZ).isoformat()}\n---",
+            f"# #{canal}", "",
+        ]
+        if ficha:
+            md += [fichas.markdown(ficha), ""]
+        md.append("## Pedidos abiertos")
         for p in sorted(abiertos, key=lambda p: -p["horasAbierto"]):
             md.append(f"- [{p['estado']}] **{p['tipo']}**: {p['tema']} · responsable {p['responsable'] or '—'} · desde {p['creadoAt'][:16].replace('T', ' ')} ({int(p['horasAbierto'])} h)" + (f"\n  - {p['nota']}" if p["nota"] else ""))
         if not abiertos:
             md.append("- (nada abierto)")
-        md += ["", "## Resueltos recientes"] + [f"- ✅ **{p['tipo']}**: {p['tema']} · {p['resueltoAt'][:10]} · tardó {int(p['horasAbierto'])} h" for p in resueltos]
-        (base / "pedidos" / f"{nombre}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+        if resueltos:
+            md += ["", "## Resueltos recientes"] + [f"- ✅ **{p['tipo']}**: {p['tema']} · {p['resueltoAt'][:10]} · tardó {int(p['horasAbierto'])} h" for p in resueltos]
+        (base / "clientes" / f"{nombre}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     return base
 
 

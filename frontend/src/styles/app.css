@@ -3840,3 +3840,14 @@ table.data .dim {
 .ronda-evento.info { color: var(--text-2); }
 .ronda-evento.error { color: var(--brand-hi); }
 .ronda-evento.fin { color: var(--ok); font-weight: 600; }
+
+.fase-pill { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.01em; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border-soft); vertical-align: middle; }
+.fase-pill.fase-onboarding { color: var(--s4); }
+.fase-pill.fase-implementacion { color: var(--s3); }
+.fase-pill.fase-lanzamiento { color: var(--ok); }
+.fase-pill.fase-escalando { color: var(--ok); border-color: var(--ok); }
+.fase-pill.fase-estancado { color: var(--warn); }
+.fase-pill.fase-en_riesgo { color: var(--brand-hi); border-color: var(--brand); }
+.ficha-viva-resumen { margin: 0 0 14px; font-size: 14px; line-height: 1.55; }
+.ficha-viva-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); font-size: 13px; }
+.ficha-viva-lista { margin: 6px 0 0; padding-left: 18px; line-height: 1.55; }

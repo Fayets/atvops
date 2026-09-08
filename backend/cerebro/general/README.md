@@ -18,9 +18,13 @@ lee estas notas antes de responder, así que lo que está acá no hay que volver
 - Escribir el estado actual, no el historial. Si algo cambió, se corrige la nota, no se agrega abajo.
 
 ## Qué escribe el sistema solo
-- `fulfillment/pedidos/<canal>.md`: pedidos abiertos y resueltos de cada cliente, actualizados por Claude
-  en las rondas de las 09, 13, 16 y 19 (hora Argentina). No editar a mano: se pisa en la próxima ronda.
-- `fulfillment/updates/<fecha>.md`: el update del día para #updates, mismo formato que usa el equipo.
+- `fulfillment/clientes/<canal>.md`: la ficha viva de cada cliente (fase, en qué está, próximos pasos,
+  riesgo, resultados) más sus pedidos abiertos y resueltos. Claude la actualiza en las rondas de las
+  09, 13, 16 y 19 (hora Argentina) leyendo solo los mensajes nuevos. No editar a mano: se pisa.
+- `fulfillment/updates/<fecha-hora>.md`: cada update confirmado por el CSM. `borrador.md` es la propuesta
+  de la última ronda todavía sin confirmar.
+- Las notas que trae el sistema (README, manual, fases) se actualizan solas con cada deploy mientras
+  nadie las edite; si el equipo las edita, quedan como las dejó.
 
 ## Equipo
 - Franco: operaciones y sistemas.

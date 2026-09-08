@@ -10,6 +10,7 @@ El cerebro: notas markdown por área (general, fulfillment, ventas, marketing, s
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
@@ -34,7 +35,7 @@ AREAS_POR_ROL = {
 }
 MAX_CHARS_SIEMPRE = 16_000
 MAX_CHARS_RELEVANTES = 8_000
-CARPETAS_SISTEMA = ("pedidos", "updates")  # las escribe el sistema; no entran al ranking
+CARPETAS_SISTEMA = ("pedidos", "updates", "clientes")  # las escribe el sistema; no entran al ranking
 
 
 def areas_para(rol: str | None) -> tuple[str, ...]:
@@ -42,24 +43,47 @@ def areas_para(rol: str | None) -> tuple[str, ...]:
 
 
 def sembrar() -> int:
-    """Copia las notas del repo a CEREBRO_DIR sin pisar nada. Devuelve cuántas copió."""
+    """Copia las notas del repo a CEREBRO_DIR. Nunca pisa una nota que el equipo editó:
+    guarda en .semilla.json el hash de lo que escribió, y solo actualiza si el archivo
+    sigue igual a esa versión. Devuelve cuántas escribió."""
+    import hashlib
+
     if not SEMILLA_DIR.exists():
         return 0
-    copiadas = 0
+    registro_path = CEREBRO_DIR / ".semilla.json"
+    try:
+        registro = json.loads(registro_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        registro = {}
+    escritas = 0
     for origen in SEMILLA_DIR.rglob("*"):
         if origen.is_dir() or origen.name.startswith("."):
             continue
-        destino = CEREBRO_DIR / origen.relative_to(SEMILLA_DIR)
+        rel = str(origen.relative_to(SEMILLA_DIR))
+        destino = CEREBRO_DIR / rel
+        nuevo = origen.read_bytes()
+        h_nuevo = hashlib.sha256(nuevo).hexdigest()
         if destino.exists():
-            continue
+            h_actual = hashlib.sha256(destino.read_bytes()).hexdigest()
+            if h_actual == h_nuevo:
+                registro[rel] = h_nuevo
+                continue
+            if registro.get(rel) != h_actual:
+                continue  # la editó el equipo: se respeta
         destino.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(origen, destino)
-        copiadas += 1
+        destino.write_bytes(nuevo)
+        registro[rel] = h_nuevo
+        escritas += 1
     for area in AREAS:
         (CEREBRO_DIR / area).mkdir(parents=True, exist_ok=True)
-    if copiadas:
-        logger.info("Cerebro: %s notas sembradas en %s", copiadas, CEREBRO_DIR)
-    return copiadas
+    try:
+        CEREBRO_DIR.mkdir(parents=True, exist_ok=True)
+        registro_path.write_text(json.dumps(registro, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+    if escritas:
+        logger.info("Cerebro: %s notas sembradas/actualizadas en %s", escritas, CEREBRO_DIR)
+    return escritas
 
 
 def _frontmatter(texto: str) -> tuple[dict, str]:
@@ -136,9 +160,9 @@ def contexto(areas: tuple[str, ...] | list[str], pregunta: str = "") -> str:
 
 
 def pedidos_de(canal: str) -> str | None:
-    """La nota de pedidos de un canal (la escribe el sistema), si existe."""
+    """La nota del cliente (ficha + pedidos, la escribe el sistema), si existe."""
     nombre = re.sub(r"[^a-z0-9_-]", "-", canal.lower())
-    ruta = CEREBRO_DIR / "fulfillment" / "pedidos" / f"{nombre}.md"
+    ruta = CEREBRO_DIR / "fulfillment" / "clientes" / f"{nombre}.md"
     if not ruta.exists():
         return None
     _, cuerpo = _frontmatter(ruta.read_text(encoding="utf-8"))

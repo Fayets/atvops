@@ -315,6 +315,20 @@ export async function getFulfillment() {
   const candidatos = activos.filter((c) => c.expansion?.candidatoUpsell);
   const pctQueja = mixDisponible ? (mixGlobal.queja ?? 0) : null;
 
+  // Ficha viva de Claude (cerebro): fases, riesgo y wins con fecha.
+  const conFicha = activos.filter((c) => c.ficha);
+  const fases = (cartera.fases ?? []).map((f) => ({
+    ...f,
+    clientes: activos.filter((c) => c.fase?.id === f.id),
+  }));
+  const sinFase = activos.filter((c) => !c.fase);
+  const riesgoAlto = conFicha.filter((c) => c.ficha.riesgo === 'alto').sort((a, b) => a.salud.score - b.salud.score);
+  const riesgoMedio = conFicha.filter((c) => c.ficha.riesgo === 'medio');
+  const winsIA = conFicha
+    .flatMap((c) => (c.ficha.wins ?? []).map((w) => ({ ...w, clienteId: c.id, nombre: c.nombre, canal: c.canal, categoria: c.categoria })))
+    .filter((w) => w.fecha && diasEntre(w.fecha, hoy) <= 30)
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+
   /** @type {Record<string, import('./types.js').Metric[]>} */
   const kpis = {
     activacion: [
@@ -563,6 +577,12 @@ export async function getFulfillment() {
     churnIntent,
     winsRecientes,
     momentumPos,
+    fases,
+    sinFase,
+    conFicha,
+    riesgoAlto,
+    riesgoMedio,
+    winsIA,
     kpis,
     mixGlobal,
     mixDisponible,

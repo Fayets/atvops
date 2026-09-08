@@ -164,3 +164,27 @@ class UpdateConfirmado(db.Entity):
     confirmado_por = Required(str)
     confirmado_at = Required(datetime, default=datetime.utcnow)
     ronda_id = Optional(int)
+
+
+class FichaCliente(db.Entity):
+    """Ficha viva del cliente que mantiene Claude ronda a ronda: fase, en qué está,
+    resultados, riesgo y próximos pasos. Las vistas leen esto en vez de releer transcripts."""
+
+    _table_ = _tabla("fichas_clientes", "FichaCliente")
+
+    id = PrimaryKey(int, auto=True)
+    cliente_id = Required(str, unique=True)
+    canal_id = Required(str)
+    fase = Optional(str)
+    fase_motivo = Optional(str)
+    resumen = Optional(str)
+    proximos_pasos = Optional(str)     # JSON list
+    riesgo = Optional(str)             # bajo | medio | alto
+    riesgo_motivo = Optional(str)
+    intencion_baja = Required(bool, default=False)
+    intencion_baja_extracto = Optional(str)
+    wins = Optional(str)               # JSON list [{fecha, tipo, descripcion}]
+    upsell = Required(bool, default=False)
+    upsell_motivo = Optional(str)
+    actualizado_at = Required(datetime)
+    hasta = Required(int, default=0)

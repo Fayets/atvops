@@ -30,6 +30,7 @@ export default function Outcomes() {
         .sort((a, b) => (a.activacion.diasHastaResultado ?? 0) - (b.activacion.diasHastaResultado ?? 0))
     : [];
   const winsRecientes = data?.winsRecientes ?? [];
+  const winsIA = data?.winsIA ?? [];
   const momentum = data?.momentumPos ?? [];
   const candidatos = data?.candidatos ?? [];
   const caida = data?.caidaFuerte ?? [];
@@ -105,6 +106,27 @@ export default function Outcomes() {
             </Card>
           </div>
 
+          {winsIA.length > 0 && (
+            <Card
+              title="Resultados reportados (Claude)"
+              sub={`${winsIA.length} en los últimos 30 días · de las fichas vivas`}
+              flush
+              foot="Solo resultados tangibles ya ocurridos, en palabras del cliente."
+            >
+              {winsIA.map((w, i) => (
+                <Link key={`${w.clienteId}-${i}`} to={`/fulfillment/clientes/${w.clienteId}`} className="lista-item">
+                  <Pill tone="ok" dot>{w.tipo}</Pill>
+                  <span className="who">{w.nombre}</span>
+                  <span className="q">«{w.descripcion}»</span>
+                  <span className="right">
+                    <span className="dim" style={{ fontSize: 12 }}>{formatFecha(w.fecha)}</span>
+                    <Icon name="arrow" size={13} />
+                  </span>
+                </Link>
+              ))}
+            </Card>
+          )}
+
           <Card
             title="Wins recientes"
             sub={`${winsRecientes.length} primer resultado en los últimos 30 días`}
@@ -142,7 +164,7 @@ export default function Outcomes() {
               title="Candidatos a upsell"
               sub={`${candidatos.length} con señal de techo / siguiente nivel`}
               flush
-              foot="Léxico: upsell, techo, escalar, pasar a Boost/Advantage, etc."
+              foot={data.conFicha?.length ? 'Según la ficha viva de Claude; sin ficha, léxico del canal.' : 'Léxico: upsell, techo, escalar, pasar a Boost/Advantage, etc.'}
             >
               {candidatos.length === 0 ? (
                 <div className="empty">Sin candidatos detectados.</div>
@@ -152,7 +174,7 @@ export default function Outcomes() {
                     <Pill tone="ok">candidato</Pill>
                     <span className="who">{c.nombre}</span>
                     <span className="q">
-                      {CAT_LABEL[c.categoria] ?? c.categoria} · score {c.salud.score} · #{c.canal}
+                      {c.expansion?.motivo ? c.expansion.motivo : `${CAT_LABEL[c.categoria] ?? c.categoria} · score ${c.salud.score} · #${c.canal}`}
                     </span>
                     <span className="right"><Icon name="arrow" size={13} /></span>
                   </Link>

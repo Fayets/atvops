@@ -495,7 +495,17 @@ class ClientesServices:
                 cache_ia = (ia.version, {})
             self._cache_ia = cache_ia
         analisis = cache_ia[1]
-        if not analisis:
+
+        from src.services import fichas_services as fichas
+        cache_f = getattr(self, "_cache_fichas", None)
+        if cache_f is None or cache_f[0] != fichas.version:
+            try:
+                cache_f = (fichas.version, fichas.todas())
+            except Exception:  # noqa: BLE001
+                cache_f = (fichas.version, {})
+            self._cache_fichas = cache_f
+        todas_fichas = cache_f[1]
+        if not analisis and not todas_fichas:
             return base
 
         clientes = []
@@ -503,7 +513,7 @@ class ClientesServices:
             a = analisis.get(c["id"])
             res = (a or {}).get("resultado") or {}
             if not a or not res:
-                clientes.append(c)
+                clientes.append(self._con_ficha(c, todas_fichas.get(c["id"])))
                 continue
             c2 = dict(c)
             act = dict(c["activacion"])
@@ -542,8 +552,35 @@ class ClientesServices:
                     "fechaAt": c2["activacion"]["analizadoAt"],
                     "fuente": "claude_code",
                 }
-            clientes.append(c2)
-        return {**base, "clientes": clientes}
+            clientes.append(self._con_ficha(c2, todas_fichas.get(c["id"])))
+        return {**base, "clientes": clientes, "fases": fichas.fases()}
+
+    @staticmethod
+    def _con_ficha(c: dict, ficha: dict | None) -> dict:
+        """Superpone la ficha viva de Claude: fase, riesgo, wins, upsell, intención de baja."""
+        if not ficha:
+            return c
+        c2 = dict(c)
+        c2["ficha"] = ficha
+        c2["fase"] = {"id": ficha["fase"], "label": ficha["faseLabel"], "motivo": ficha["faseMotivo"]} if ficha.get("fase") else None
+        if ficha.get("intencionBaja"):
+            c2["churnIntent"] = {"detectado": True, "extracto": ficha.get("intencionBajaExtracto"), "fechaAt": ficha["actualizadoAt"], "fuente": "claude_code"}
+        exp = dict(c2.get("expansion") or {})
+        exp["candidatoUpsell"] = bool(ficha.get("upsell"))
+        exp["motivo"] = ficha.get("upsellMotivo")
+        exp["fuente"] = "claude_code"
+        c2["expansion"] = exp
+        wins = [w for w in ficha.get("wins") or [] if w.get("fecha")]
+        act = dict(c2.get("activacion") or {})
+        if wins and not act.get("activado"):
+            primero = min(wins, key=lambda w: w["fecha"])
+            try:
+                dias = max(0, (date.fromisoformat(primero["fecha"]) - date.fromisoformat(c2["entradaAt"])).days)
+            except (TypeError, ValueError):
+                dias = None
+            act.update({"activado": True, "primerResultadoAt": primero["fecha"], "diasHastaResultado": dias, "descripcion": primero["descripcion"], "blocker": None, "fuente": "claude_code", "tipo": primero.get("tipo")})
+            c2["activacion"] = act
+        return c2
 
     def _listar_sin_cache(self) -> dict:
         ahora = datetime.now(AR_TZ)

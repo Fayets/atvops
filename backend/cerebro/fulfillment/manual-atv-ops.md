@@ -66,6 +66,21 @@ Los transcripts reales: lista de canales con el último mensaje, conversación c
 final, se relee cada 15 segundos, menciones con nombre e imágenes visibles. Pestañas: Activos, Boost,
 Advantage, Avanzados, Principiantes, Updates. Buscador por canal, autor o texto.
 
+## Fulfillment · Updates
+Un botón: "Correr update". Claude lee, por canal con mensajes nuevos, los pedidos que estaban abiertos y solo
+los mensajes nuevos, y propone la lista actualizada (esperando al equipo / en proceso / esperando al cliente /
+resuelto). La propuesta se muestra como texto con el formato de #updates; el CSM la edita y confirma. Recién al
+confirmar se guarda en el registro, se mueve el puntero de lectura de cada canal y queda en el cerebro.
+Las rondas también corren solas a las 09, 13, 16 y 19; el CSM entra y confirma.
+
+## Ficha viva (fase, riesgo, resultados)
+En la misma ronda Claude actualiza la ficha de cada cliente: fase (onboarding, implementación, lanzamiento,
+escalando, estancado, en riesgo; se definen en la nota `fases.md`), en qué está hoy, próximos pasos, riesgo
+(bajo / medio / alto) con motivo, intención de baja con frase textual, resultados con fecha y si es candidato
+a upsell. La ficha se guarda al instante y vive en `clientes/<canal>.md`. La usan: Clientes (pill de fase y
+filtro por fase), Resumen (tarjeta "En implementación"), Retención (riesgo alto e intención de baja),
+Resultados (resultados reportados y candidatos a upsell) y la ficha del cliente.
+
 ## Calendario e Ideas
 Son personales: cada usuario ve y maneja solo sus reuniones y sus ideas. Una idea pasa a tarea al asignarla.
 

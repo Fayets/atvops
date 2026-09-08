@@ -21,6 +21,7 @@ const CAT_ORDER = ['boost', 'advantage', 'avanzados', 'principiantes', 'mentoria
 export default function FulfillmentClientes() {
   const { data, loading, error } = useResource(getFulfillment);
   const [categoria, setCategoria] = useState('todas');
+  const [fase, setFase] = useState('todas');
   const [busqueda, setBusqueda] = useState('');
 
   const porCategoria = data?.resumen?.por_categoria ?? {};
@@ -29,6 +30,7 @@ export default function FulfillmentClientes() {
     if (!data) return [];
     return data.activos
       .filter((c) => (categoria === 'todas' ? true : c.categoria === categoria))
+      .filter((c) => (fase === 'todas' ? true : fase === 'sin' ? !c.fase : c.fase?.id === fase))
       .filter((c) => {
         const q = busqueda.trim().toLowerCase();
         if (!q) return true;
@@ -39,13 +41,21 @@ export default function FulfillmentClientes() {
         );
       })
       .sort((a, b) => a.salud.score - b.salud.score);
-  }, [busqueda, categoria, data]);
+  }, [busqueda, categoria, fase, data]);
 
   const serie = (id) => (data?.actividad ?? [])
     .filter((a) => a.clienteId === id)
     .map((a) => a.mensajesCliente);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
+
+  const tabsFase = data?.fases?.length
+    ? [
+        { value: 'todas', label: 'Todas las fases' },
+        ...data.fases.filter((f) => f.clientes.length).map((f) => ({ value: f.id, label: `${f.label} ${f.clientes.length}` })),
+        ...(data.sinFase?.length ? [{ value: 'sin', label: `Sin ficha ${data.sinFase.length}` }] : []),
+      ]
+    : [];
 
   const tabsCategoria = [
     { value: 'todas', label: `Todas ${data?.activos.length ?? 0}` },
@@ -91,6 +101,11 @@ export default function FulfillmentClientes() {
               options={tabsCategoria}
             />
           </div>
+          {tabsFase.length > 1 && (
+            <div className="filtros">
+              <Tabs value={fase} onChange={setFase} options={tabsFase} />
+            </div>
+          )}
 
           {filas.length === 0 ? (
             <Card>

@@ -127,6 +127,22 @@ export default function FulfillmentResumen() {
         k('engagement', 'score_verde'),
         k('engagement', 'silencio_7d'),
         k('engagement', 'mensajes_semana'),
+        data.conFicha?.length
+          ? {
+              id: 'por_fase',
+              label: 'En implementación',
+              value: (data.fases.find((f) => f.id === 'implementacion')?.clientes.length ?? 0),
+              format: 'count',
+              previous: null,
+              sourceId: 'discord_transcripts',
+              updatedAt: data.syncAt,
+              detalle: {
+                titulo: 'Fase de cada cliente según la ficha viva de Claude.',
+                items: data.fases.flatMap((f) => f.clientes.map((c) => ({ id: c.id, nombre: c.nombre, canalId: c.canalId, categoria: c.categoria, valor: f.label, tono: f.id === 'en_riesgo' ? 'alert' : f.id === 'estancado' ? 'warn' : 'plain' }))),
+              },
+              nota: data.fases.filter((f) => f.clientes.length).map((f) => `${f.clientes.length} ${f.label}`).join(' · ') + (data.sinFase?.length ? ` · ${data.sinFase.length} sin ficha` : ''),
+            }
+          : null,
       ].filter(Boolean)
     : [];
 

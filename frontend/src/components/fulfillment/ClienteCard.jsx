@@ -26,8 +26,9 @@ export default function ClienteCard({ cliente, serie }) {
       <div className="cliente-top">
         <div className="cliente-identidad">
           <h3>{cliente.nombre}</h3>
-          <div className="meta" title={cat}>
+          <div className="meta" title={cliente.fase?.motivo || cat}>
             {cat}
+            {cliente.fase ? <span className={`fase-pill fase-${cliente.fase.id}`}>{cliente.fase.label}</span> : null}
           </div>
         </div>
         <span className={`score-badge ${salud.semaforo}`} title={`${semaforo.label} — score ${salud.score}/100`}>

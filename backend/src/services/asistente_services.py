@@ -158,7 +158,7 @@ def preguntar(pregunta: str, historial: list[dict] | None, usuario: dict) -> dic
         canal = (c.get('canalId') or '').split('/')[-1]
         pedidos = cerebro.pedidos_de(canal)
         if pedidos:
-            contexto.append(f"\n## Pedidos registrados de #{canal} ({c['nombre']})\n{pedidos}")
+            contexto.append(f"\n## Ficha y pedidos de #{canal} ({c['nombre']}) — del cerebro\n{pedidos}")
         extracto = _extracto_canal(clientes_service._tx, c, staff)
         if extracto:
             contexto.append(f"\n## Últimos mensajes de #{canal} ({c['nombre']})\n{extracto}")

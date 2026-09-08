@@ -31,6 +31,7 @@ export default function Retencion() {
     : [];
   const silenciosos = data?.silencio ?? [];
   const churnIntent = data?.churnIntent ?? [];
+  const riesgoAlto = data?.riesgoAlto ?? [];
   const sinActivarFuera = data?.sinActivarFuera ?? [];
   const caida = data?.caidaFuerte ?? [];
 
@@ -93,12 +94,30 @@ export default function Retencion() {
             )}
           </Card>
 
+          {riesgoAlto.length > 0 && (
+            <Card
+              title="Riesgo alto según la ficha viva"
+              sub={`${riesgoAlto.length} clientes · Claude, en cada ronda`}
+              flush
+              foot="El motivo sale de la ficha del cerebro; abrí la ficha para ver próximos pasos."
+            >
+              {riesgoAlto.map((c) => (
+                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                  <Pill tone="alert" dot>{c.fase?.label ?? 'riesgo alto'}</Pill>
+                  <span className="who">{c.nombre}</span>
+                  <span className="q">{c.ficha.riesgoMotivo || c.ficha.resumen}</span>
+                  <span className="right"><Icon name="arrow" size={13} /></span>
+                </Link>
+              ))}
+            </Card>
+          )}
+
           {churnIntent.length > 0 && (
             <Card
               title="Intención de baja / reembolso"
               sub={`${churnIntent.length} canales con frase detectada`}
               flush
-              foot="Heurística léxica sobre mensajes recientes del cliente."
+              foot={data.conFicha?.length ? 'Frase textual detectada por Claude en la ficha viva.' : 'Heurística léxica sobre mensajes recientes del cliente.'}
             >
               {churnIntent.map((c) => (
                 <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">

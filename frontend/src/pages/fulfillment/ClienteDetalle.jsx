@@ -173,6 +173,48 @@ export default function ClienteDetalle() {
         </div>
       )}
 
+      {cliente.ficha && (
+        <Card
+          title="Ficha viva"
+          sub={`Claude la actualiza en cada ronda · ${hace(cliente.ficha.actualizadoAt)} · también en el cerebro`}
+          actions={cliente.fase ? <span className={`fase-pill fase-${cliente.fase.id}`}>{cliente.fase.label}</span> : null}
+        >
+          <div className="ficha-viva">
+            {cliente.fase?.motivo && <div className="dim" style={{ marginBottom: 8 }}>{cliente.fase.motivo}</div>}
+            {cliente.ficha.resumen && <p className="ficha-viva-resumen">{cliente.ficha.resumen}</p>}
+            <div className="ficha-viva-grid">
+              {cliente.ficha.proximosPasos?.length > 0 && (
+                <div>
+                  <div className="eyebrow">Próximos pasos</div>
+                  <ul className="ficha-viva-lista">{cliente.ficha.proximosPasos.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                </div>
+              )}
+              <div>
+                <div className="eyebrow">Riesgo</div>
+                <div>
+                  <Pill tone={cliente.ficha.riesgo === 'alto' ? 'alert' : cliente.ficha.riesgo === 'medio' ? 'warn' : 'ok'} dot>{cliente.ficha.riesgo ?? '—'}</Pill>
+                  {cliente.ficha.riesgoMotivo && <span className="dim" style={{ marginLeft: 8 }}>{cliente.ficha.riesgoMotivo}</span>}
+                </div>
+                {cliente.ficha.upsell && (
+                  <div style={{ marginTop: 8 }}>
+                    <Pill tone="ok">candidato a upsell</Pill>
+                    {cliente.ficha.upsellMotivo && <span className="dim" style={{ marginLeft: 8 }}>{cliente.ficha.upsellMotivo}</span>}
+                  </div>
+                )}
+              </div>
+              {cliente.ficha.wins?.length > 0 && (
+                <div>
+                  <div className="eyebrow">Resultados</div>
+                  <ul className="ficha-viva-lista">
+                    {cliente.ficha.wins.map((w, i) => <li key={i}><span className="dim">{w.fecha ? formatFecha(w.fecha) : '¿fecha?'} · {w.tipo}</span> «{w.descripcion}»</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       <div className="split ficha-body">
         <div className="ficha-col">
           {activacion.activado && (
