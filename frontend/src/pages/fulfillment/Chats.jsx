@@ -10,6 +10,10 @@ import { useResource } from '../../lib/hooks.js';
 
 const INTERVALO_MS = 15000;
 
+/** Solo canales de cliente, en este orden. Lo demás (updates, cerrados) no es cartera. */
+const CATEGORIAS = ['boost', 'advantage', 'avanzados', 'principiantes'];
+const ETIQUETA = { boost: 'Boost', advantage: 'Advantage', avanzados: 'Avanzados', principiantes: 'Principiantes' };
+
 /**
  * Chats de Discord en vivo. El bot de ATV Clients escribe cada mensaje al
  * instante; acá se vuelve a leer cada 15 s sin parpadear, y el chat abierto
@@ -37,11 +41,8 @@ export default function Chats() {
     if (!data) return [];
     const q = busqueda.trim().toLowerCase();
     return data.canales
-      .filter((c) => {
-        if (categoria === 'cerrados') return !c.en_discord;
-        if (!c.en_discord) return false;
-        return categoria === 'activos' ? true : c.categoria === categoria;
-      })
+      .filter((c) => c.en_discord && CATEGORIAS.includes(c.categoria))
+      .filter((c) => (categoria === 'activos' ? true : c.categoria === categoria))
       .filter((c) => {
         if (!q) return true;
         if (c.canal.toLowerCase().includes(q)) return true;
@@ -94,20 +95,17 @@ export default function Chats() {
         <>
           <div className="filtros">
             <div className="tabs" role="tablist">
-              {['activos', ...Object.keys(data.resumen.por_categoria), ...(data.resumen.canales_cerrados ? ['cerrados'] : [])].map((cat) => (
+              {['activos', ...CATEGORIAS.filter((c) => (data.resumen.por_categoria[c] ?? 0) > 0)].map((cat) => (
                 <button
                   key={cat}
                   role="tab"
                   aria-selected={categoria === cat}
                   className={`tab${categoria === cat ? ' active' : ''}`}
                   onClick={() => setCategoria(cat)}
-                  title={cat === 'cerrados' ? 'En disco pero ya no existen en Discord: clientes que terminaron o canales archivados' : undefined}
                 >
                   {cat === 'activos'
-                    ? `Activos ${data.resumen.canales}`
-                    : cat === 'cerrados'
-                      ? `Cerrados ${data.resumen.canales_cerrados}`
-                      : `${cat} ${data.resumen.por_categoria[cat]}`}
+                    ? `Activos ${CATEGORIAS.reduce((n, c) => n + (data.resumen.por_categoria[c] ?? 0), 0)}`
+                    : `${ETIQUETA[cat]} ${data.resumen.por_categoria[cat]}`}
                 </button>
               ))}
             </div>
