@@ -3762,3 +3762,5 @@ table.data .dim {
 .msg-imagen { display: block; max-width: min(100%, 440px); max-height: 360px; border-radius: var(--radius-sm); border: 1px solid var(--border-soft); object-fit: contain; background: var(--surface-2); }
 .msg-imagen.cargando { width: 240px; height: 140px; animation: pulse 1.4s ease-in-out infinite; }
 .msg-adjunto.vencida { color: var(--text-3); border-style: dashed; }
+
+.chat-item-meta .cat.cerrado { color: var(--text-3); border: 1px dashed var(--border); background: transparent; }

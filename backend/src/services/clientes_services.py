@@ -408,7 +408,7 @@ class ClientesServices:
             "pais": None,
             "entradaAt": entrada_iso,
             "caja": None,
-            "estado": "activo",
+            "estado": "activo" if canal.get("en_discord", True) else "cerrado",
             "mrrUsd": None,
             "ultimaActividadAt": _iso(canal["ultimo_mensaje_at"]),
             "onboardingDias": None,

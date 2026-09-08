@@ -49,6 +49,15 @@ def _leer_directorio(base: Path) -> dict:
         return {"usuarios": {}, "roles": {}, "canales": {}}
 
 
+def _canales_vivos(base: Path) -> set[str] | None:
+    """Nombres de los canales que existen hoy en Discord (el bot los vuelca al
+    directorio en cada ciclo). None si todavía no hay directorio: entonces no
+    se puede saber y se asume que todos siguen vivos."""
+    directorio = _leer_directorio(base)
+    nombres = set(directorio["canales"].values())
+    return nombres or None
+
+
 def _resolver_menciones(texto: str, directorio: dict) -> str:
     """<@id> → @Nombre, <@&id> → @rol, <#id> → #canal. Si no se conoce el id,
     queda una etiqueta corta legible en vez del número entero."""
@@ -235,11 +244,17 @@ class TranscriptsServices:
         if not base.is_dir():
             return []
 
+        vivos = _canales_vivos(base)
         canales: list[dict] = []
         for categoria_dir in sorted(p for p in base.iterdir() if p.is_dir()):
+            if categoria_dir.name.startswith("_"):
+                continue
             for canal_dir in sorted(p for p in categoria_dir.iterdir() if p.is_dir()):
                 datos = self._leer_canal(categoria_dir.name, canal_dir)
                 if datos:
+                    # Un canal que está en disco pero ya no en Discord es un cliente
+                    # que terminó o un canal archivado: se conserva, pero cerrado.
+                    datos["en_discord"] = True if vivos is None else datos["canal"] in vivos
                     canales.append(datos)
         return canales
 
@@ -258,9 +273,13 @@ class TranscriptsServices:
         primeros: list[datetime] = []
         ultimos: list[datetime] = []
 
+        cerrados = 0
         for canal in canales:
             for autor in canal["autores"]:
                 autores_unicos.add(autor["nombre"])
+            if not canal.get("en_discord", True):
+                cerrados += 1
+                continue
             por_categoria[canal["categoria"]] = por_categoria.get(canal["categoria"], 0) + 1
             mensajes_por_categoria[canal["categoria"]] = (
                 mensajes_por_categoria.get(canal["categoria"], 0) + canal["mensajes"]
@@ -280,7 +299,8 @@ class TranscriptsServices:
             # apendeó sobre un cursor que vive en la base de ATV Clients, así que
             # el histórico completo está en otro lado (el server).
             "parcial": bool(canales) and completos == 0,
-            "canales": len(canales),
+            "canales": len(canales) - cerrados,
+            "canales_cerrados": cerrados,
             "mensajes": sum(c["mensajes"] for c in canales),
             "autores": len(autores_unicos),
             "adjuntos": sum(c["adjuntos"] for c in canales),
@@ -317,5 +337,7 @@ class TranscriptsServices:
         datos = self._leer_canal(categoria, carpeta)
         if not datos:
             raise HTTPException(status_code=404, detail=f"El canal #{canal} no tiene transcript.")
+        vivos = _canales_vivos(base)
+        datos["en_discord"] = True if vivos is None else datos["canal"] in vivos
 
         return {"canal": self._sin_mensajes(datos), "mensajes": datos["_mensajes"]}

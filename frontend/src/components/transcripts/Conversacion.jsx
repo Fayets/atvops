@@ -50,6 +50,7 @@ export default function Conversacion({ canal, mensajes, resaltar = '' }) {
             {canal.canal}
           </h2>
           <Pill tone={CATEGORIA_TONO[canal.categoria] ?? 'plain'}>{canal.categoria}</Pill>
+          {canal.en_discord === false && <Pill tone="off" title="Este canal ya no existe en Discord">cerrado</Pill>}
           <span className="chat-panel-stats">
             {canal.mensajes} mensajes · {formatFecha(canal.primer_mensaje_at)} → {formatFecha(canal.ultimo_mensaje_at)} · último{' '}
             <span style={{ color: (canal.dias_sin_actividad ?? 0) >= 7 ? 'var(--warn)' : 'inherit' }}>

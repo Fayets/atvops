@@ -39,6 +39,7 @@ export default function ChatRail({ canales, activo, onSelect, busqueda, onBuscar
             </div>
             <div className="chat-item-meta">
               <span className="cat">{c.categoria}</span>
+              {c.en_discord === false && <span className="cat cerrado">cerrado</span>}
               <span>{c.mensajes} msgs</span>
               <span>·</span>
               <span>{c.autores.length} {c.autores.length === 1 ? 'autor' : 'autores'}</span>

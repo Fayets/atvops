@@ -19,7 +19,7 @@ export default function Chats() {
   const navigate = useNavigate();
   const params = useParams();
   const [busqueda, setBusqueda] = useState('');
-  const [categoria, setCategoria] = useState('todas');
+  const [categoria, setCategoria] = useState('activos');
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -37,7 +37,11 @@ export default function Chats() {
     if (!data) return [];
     const q = busqueda.trim().toLowerCase();
     return data.canales
-      .filter((c) => (categoria === 'todas' ? true : c.categoria === categoria))
+      .filter((c) => {
+        if (categoria === 'cerrados') return !c.en_discord;
+        if (!c.en_discord) return false;
+        return categoria === 'activos' ? true : c.categoria === categoria;
+      })
       .filter((c) => {
         if (!q) return true;
         if (c.canal.toLowerCase().includes(q)) return true;
@@ -90,15 +94,20 @@ export default function Chats() {
         <>
           <div className="filtros">
             <div className="tabs" role="tablist">
-              {['todas', ...Object.keys(data.resumen.por_categoria)].map((cat) => (
+              {['activos', ...Object.keys(data.resumen.por_categoria), ...(data.resumen.canales_cerrados ? ['cerrados'] : [])].map((cat) => (
                 <button
                   key={cat}
                   role="tab"
                   aria-selected={categoria === cat}
                   className={`tab${categoria === cat ? ' active' : ''}`}
                   onClick={() => setCategoria(cat)}
+                  title={cat === 'cerrados' ? 'En disco pero ya no existen en Discord: clientes que terminaron o canales archivados' : undefined}
                 >
-                  {cat === 'todas' ? `Todos ${data.resumen.canales}` : `${cat} ${data.resumen.por_categoria[cat]}`}
+                  {cat === 'activos'
+                    ? `Activos ${data.resumen.canales}`
+                    : cat === 'cerrados'
+                      ? `Cerrados ${data.resumen.canales_cerrados}`
+                      : `${cat} ${data.resumen.por_categoria[cat]}`}
                 </button>
               ))}
             </div>

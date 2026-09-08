@@ -55,6 +55,7 @@ class CanalResumen(BaseModel):
     archivo: str
     bytes: int
     completo: bool = False
+    en_discord: bool = True   # False = está en disco pero ya no existe en Discord (cerrado)
     actualizado_at: datetime | None = None
 
 
@@ -65,6 +66,7 @@ class TranscriptsResumen(BaseModel):
     canales_completos: int = 0
     parcial: bool = False
     canales: int
+    canales_cerrados: int = 0
     mensajes: int
     autores: int
     adjuntos: int
