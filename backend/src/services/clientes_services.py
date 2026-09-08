@@ -9,6 +9,7 @@ MRR / NRR / tiers de payments no se inventan acá.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -106,6 +107,7 @@ def _nombre_desde_canal(canal: str) -> str:
     return " ".join(p.capitalize() for p in canal.replace("_", "-").split("-") if p)
 
 
+@lru_cache(maxsize=8192)
 def _norm(texto: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (texto or "").lower())
 
@@ -443,7 +445,41 @@ class ClientesServices:
             "_actividad": actividad,
         }
 
+    def _firma_transcripts(self) -> tuple:
+        """Cambia solo cuando el bot escribió algo (o cambió el directorio)."""
+        from src.transcripts_source import get_transcripts_base
+        base = get_transcripts_base()
+        partes = []
+        try:
+            partes.append(("_directorio", (base / "_directorio.json").stat().st_mtime))
+        except OSError:
+            pass
+        if base.is_dir():
+            for cat in base.iterdir():
+                if not cat.is_dir() or cat.name.startswith("_"):
+                    continue
+                for canal in cat.iterdir():
+                    txt = canal / f"{canal.name}.txt"
+                    try:
+                        st = txt.stat()
+                        partes.append((str(txt), st.st_mtime, st.st_size))
+                    except OSError:
+                        continue
+        return tuple(sorted(partes))
+
     def listar(self) -> dict:
+        """Cartera completa. El análisis de 60k+ mensajes cuesta segundos, así
+        que se recalcula solo cuando cambió algún transcript; entre medio, se
+        devuelve el último resultado."""
+        firma = self._firma_transcripts()
+        cacheado = getattr(self, "_cache_listar", None)
+        if cacheado and cacheado[0] == firma:
+            return cacheado[1]
+        resultado = self._listar_sin_cache()
+        self._cache_listar = (firma, resultado)
+        return resultado
+
+    def _listar_sin_cache(self) -> dict:
         ahora = datetime.now(AR_TZ)
         canales = self._canales_cliente()
         staff = _staff_desde_canales(canales)
