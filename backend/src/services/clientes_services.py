@@ -125,7 +125,9 @@ def _iso(dt: datetime | None) -> str | None:
 
 
 def _semana_label(fecha: datetime) -> str:
-    return f"S{fecha.isocalendar().week:02d}"
+    """Clave de la semana: el lunes en ISO ('2026-09-07'). Nadie sabe qué es
+    'S37'; una fecha la lee cualquiera y el frontend la muestra como quiera."""
+    return fecha.date().isoformat()
 
 
 def _staff_desde_canales(canales: list[dict]) -> set[str]:
@@ -549,6 +551,35 @@ class ClientesServices:
             "cliente": cliente,
             "coach": coach,
             "actividad": actividad,
+            "actividadDiaria": self._actividad_diaria(cliente),
             "senales": [],
             "blocker": None,
         }
+
+    def _actividad_diaria(self, cliente: dict, dias: int = 30) -> list[dict]:
+        """Día a día de los últimos N días: cuántos mensajes escribió el cliente y
+        cuántos el equipo. Es la vista más honesta del vínculo, y solo tiene
+        sentido en la ficha (en la cartera entera sería ilegible)."""
+        categoria, _, canal = (cliente.get("canalId") or "").partition("/")
+        if not categoria or not canal:
+            return []
+        try:
+            mensajes = self._tx.obtener_canal(categoria, canal)["mensajes"]
+        except HTTPException:
+            return []
+        staff = _staff_desde_canales(self._canales_cliente())
+        hoy = datetime.now(AR_TZ).date()
+        desde = hoy - timedelta(days=dias - 1)
+        por_dia = {desde + timedelta(days=i): {"cliente": 0, "coach": 0} for i in range(dias)}
+        for msg in mensajes:
+            d = msg["fecha_at"].date()
+            if d not in por_dia:
+                continue
+            if _autor_es_cliente(msg["autor"], canal, staff):
+                por_dia[d]["cliente"] += 1
+            else:
+                por_dia[d]["coach"] += 1
+        return [
+            {"fecha": d.isoformat(), "cliente": v["cliente"], "coach": v["coach"]}
+            for d, v in sorted(por_dia.items())
+        ]

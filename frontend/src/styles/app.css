@@ -3764,3 +3764,13 @@ table.data .dim {
 .msg-adjunto.vencida { color: var(--text-3); border-style: dashed; }
 
 .chat-item-meta .cat.cerrado { color: var(--text-3); border: 1px dashed var(--border); background: transparent; }
+
+/* --------------------------------------- semanas: contexto atenuado + tira de días */
+.heatmap-col.contexto { opacity: 0.45; }
+.heatmap-cell.contexto { opacity: 0.4; }
+.tira-dias { display: flex; flex-direction: column; gap: 8px; }
+.tira-dias-grid { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
+.tira-dia { position: relative; aspect-ratio: 1; border-radius: 3px; min-width: 0; }
+.tira-dia i { position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--text); transform: translateX(-50%); opacity: 0.85; }
+.tira-dias-pie { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--text-3); }
+.tira-dias-pie b { color: var(--text-2); }

@@ -50,7 +50,7 @@ import {
   ordenarAcciones,
 } from '../lib/acciones.js';
 import { getToken } from '../lib/auth.js';
-import { calcularSalud, BLOCKERS } from '../lib/scoring.js';
+import { calcularSalud, BLOCKERS, SEMAFORO } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
 const LATENCIA_MS = 180;
@@ -613,6 +613,7 @@ export async function getFulfillmentCliente(clienteId) {
     cliente,
     coach: data.coach,
     actividad: data.actividad,
+    actividadDiaria: data.actividadDiaria ?? [],
     senales,
     blocker,
     semaforo: SEMAFORO[cliente.salud.semaforo],

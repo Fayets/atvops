@@ -16,6 +16,7 @@ import { getMetasMes, getVentas } from '../data/api.js';
 import { formatFechaHora, formatRangoSemana, formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
+import { etiquetaSemana, rangoSemana } from '../lib/semanas.js';
 
 const ESTADO = {
   agendado: { tone: 'plain', label: 'agendado' },
@@ -123,7 +124,7 @@ export default function Ventas() {
             >
               <Bars
                 data={data.semanas}
-                x={(s) => s.semana}
+                x={(s) => etiquetaSemana(s.desdeAt)}
                 y={(s) => s.cashUsd}
                 format="usd"
                 label="Cash"
@@ -133,7 +134,7 @@ export default function Ventas() {
             </Card>
 
             <Card
-              title={`Embudo · ${ultima.semana}`}
+              title={`Embudo · ${rangoSemana(ultima.desdeAt)}`}
               sub={formatRangoSemana()}
               foot={`Del agendado al cierre se pierde el ${Math.round((1 - ultima.cierres / ultima.agendados) * 100)}% de las oportunidades.`}
             >

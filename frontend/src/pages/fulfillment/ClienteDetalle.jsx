@@ -11,6 +11,8 @@ import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillmentCliente } from '../../data/api.js';
 import { ahora, diasEntre, formatFecha, formatValue, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
+import { etiquetaSemana } from '../../lib/semanas.js';
+import TiraDias from '../../components/fulfillment/TiraDias.jsx';
 import { VENTANA_ACTIVACION } from '../../lib/scoring.js';
 
 const CAT_LABEL = {
@@ -179,6 +181,10 @@ export default function ClienteDetalle() {
             </Card>
           )}
 
+          <Card title="Últimos 30 días" sub="Qué días escribió el cliente y qué días respondió el equipo">
+            <TiraDias dias={data.actividadDiaria ?? []} />
+          </Card>
+
           <Card
             title="Actividad del canal"
             sub="Últimas 12 semanas"
@@ -191,7 +197,7 @@ export default function ClienteDetalle() {
           >
             <LineArea
               data={actividad}
-              x={(a) => a.semana}
+              x={(a) => etiquetaSemana(a.semana)}
               format="ratio"
               height={200}
               series={[

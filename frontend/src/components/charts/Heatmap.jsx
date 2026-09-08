@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { etiquetaSemana, rangoSemana } from '../../lib/semanas.js';
 
 /**
  * Mapa de calor de actividad: una fila por cliente, una columna por semana.
@@ -7,9 +8,10 @@ import { useState } from 'react';
  *
  * @param {{ filas: { id: string, label: string, valores: number[], sub?: string, tono?: string }[],
  *           columnas: string[], max?: number, onClickFila?: (id: string) => void,
- *           unidad?: string }} props
+ *           unidad?: string, resaltadas?: Set<string> }} props
  */
-export default function Heatmap({ filas, columnas, max, onClickFila, unidad = 'mensajes' }) {
+export default function Heatmap({ filas, columnas, max, onClickFila, unidad = 'mensajes', resaltadas }) {
+  const esContexto = (c) => Boolean(resaltadas && !resaltadas.has(c));
   const [hover, setHover] = useState(null);
   const tope = max ?? Math.max(1, ...filas.flatMap((f) => f.valores));
 
@@ -32,8 +34,8 @@ export default function Heatmap({ filas, columnas, max, onClickFila, unidad = 'm
       <div className="heatmap-head">
         <span />
         {columnas.map((c) => (
-          <span key={c} className="heatmap-col" title={c}>
-            {c}
+          <span key={c} className={`heatmap-col${esContexto(c) ? ' contexto' : ''}`} title={rangoSemana(c)}>
+            {etiquetaSemana(c)}
           </span>
         ))}
       </div>
@@ -55,9 +57,9 @@ export default function Heatmap({ filas, columnas, max, onClickFila, unidad = 'm
             return (
               <span
                 key={`${f.id}-${col}`}
-                className="heatmap-cell"
+                className={`heatmap-cell${esContexto(col) ? ' contexto' : ''}`}
                 style={{ background: color(v) }}
-                onMouseEnter={() => setHover({ fila: f.label, col, v })}
+                onMouseEnter={() => setHover({ fila: f.label, col: rangoSemana(col), v })}
                 onMouseLeave={() => setHover(null)}
               />
             );

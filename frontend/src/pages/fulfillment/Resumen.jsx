@@ -11,6 +11,9 @@ import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillment } from '../../data/api.js';
 import { formatValue, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
+import { useMes } from '../../lib/MesContext.jsx';
+import { ventanaMes } from '../../lib/semanas.js';
+import { formatMes } from '../../lib/format.js';
 import { SEMAFORO } from '../../lib/scoring.js';
 
 const HEATMAP_MAX = 12;
@@ -46,6 +49,8 @@ function labelFiltro(filtro, porCategoria, nAtencion, nTodos) {
 export default function FulfillmentResumen() {
   const navigate = useNavigate();
   const { data, loading, error } = useResource(getFulfillment);
+  const { mes } = useMes();
+  const ventana = useMemo(() => ventanaMes(data?.semanas ?? [], mes), [data, mes]);
   const [filtro, setFiltro] = useState('atencion');
   const [expandido, setExpandido] = useState(false);
 
@@ -86,9 +91,9 @@ export default function FulfillmentResumen() {
       label: c.nombre,
       sub: SEMAFORO[c.salud.semaforo].label,
       tono: SEMAFORO[c.salud.semaforo].color,
-      valores: serieCanal(data.actividad, c.id, data.semanas),
+      valores: serieCanal(data.actividad, c.id, ventana.columnas),
     }));
-  }, [atencion, data, filtro]);
+  }, [atencion, data, filtro, ventana]);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
@@ -195,7 +200,7 @@ export default function FulfillmentResumen() {
 
           <Card
             title="Pulso de la cartera"
-            sub={`${labelFiltro(filtro, porCategoria, atencion.length, data.activos.length)} · ${data.semanas.length} semanas · ${msgsPulso} msgs en vista`}
+            sub={`${labelFiltro(filtro, porCategoria, atencion.length, data.activos.length)} · ${formatMes(mes)} (${ventana.resaltadas.size} semanas) + ${ventana.columnas.length - ventana.resaltadas.size} previas · ${msgsPulso} msgs en vista`}
             actions={<SourceTag sourceId="discord_transcripts" updatedAt={data.syncAt} conNombre={false} />}
             foot="Por defecto solo atención (máx. 12 filas). Click en una fila → ficha. Tabs: Boost / Advantage / Avanzados / Principiantes."
           >
@@ -225,7 +230,8 @@ export default function FulfillmentResumen() {
                 <div className="heatmap-scroll">
                   <Heatmap
                     filas={filasVisibles}
-                    columnas={data.semanas}
+                    columnas={ventana.columnas}
+                    resaltadas={ventana.resaltadas}
                     onClickFila={(id) => navigate(`/fulfillment/clientes/${id}`)}
                     unidad="msgs"
                   />

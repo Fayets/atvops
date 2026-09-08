@@ -10,12 +10,17 @@ import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillment } from '../../data/api.js';
 import { hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
+import { useMes } from '../../lib/MesContext.jsx';
+import { ventanaMes } from '../../lib/semanas.js';
+import { formatMes } from '../../lib/format.js';
 import { CORTES, PESOS, SEMAFORO } from '../../lib/scoring.js';
 
 const HEATMAP_MAX = 24;
 
 export default function Engagement() {
   const { data, loading, error } = useResource(getFulfillment);
+  const { mes } = useMes();
+  const ventana = ventanaMes(data?.semanas ?? [], mes);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
@@ -58,7 +63,7 @@ export default function Engagement() {
 
           <Card
             title="Actividad semana a semana"
-            sub={`Top ${heatmapFilas.length} por ritmo · ${data.semanas.length} semanas`}
+            sub={`Top ${heatmapFilas.length} por ritmo · ${formatMes(mes)} + ${ventana.columnas.length - ventana.resaltadas.size} semanas previas`}
             actions={<SourceTag sourceId="discord_transcripts" updatedAt={data.syncAt} conNombre={false} />}
             foot="Pendiente de la fila importa más que el nivel. Tres semanas apagadas = churn anunciado."
           >
@@ -73,13 +78,14 @@ export default function Engagement() {
                     label: c.nombre,
                     sub: `${c.engagement.mensajesClienteSemana}/sem`,
                     tono: SEMAFORO[c.salud.semaforo].color,
-                    valores: data.semanas.map((sem) => {
+                    valores: ventana.columnas.map((sem) => {
                       const a = porSemana.get(sem);
                       return (a?.mensajesCliente ?? 0) + (a?.mensajesCoach ?? 0);
                     }),
                   };
                 })}
-                columnas={data.semanas}
+                columnas={ventana.columnas}
+                resaltadas={ventana.resaltadas}
                 unidad="msgs"
               />
             </div>
