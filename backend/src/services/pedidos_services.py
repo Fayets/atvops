@@ -284,7 +284,11 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                     tok_in += meta.get("tokens_entrada", 0)
                     tok_out += meta.get("tokens_salida", 0)
                     costo += meta.get("costo_usd", 0.0)
-                    _evento(f"#{canal}: {meta.get('nuevos', 0)} mensajes nuevos → {meta.get('abiertos', 0)} abiertos, {meta.get('resueltos', 0)} resueltos", "ok" if n else "info")
+                    _evento(
+                        f"#{canal}: {meta.get('nuevos', 0)} mensajes nuevos → {meta.get('abiertos', 0)} abiertos, {meta.get('resueltos', 0)} resueltos"
+                        f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')})",
+                        "ok" if n else "info",
+                    )
             except Exception as e:  # noqa: BLE001
                 with estado_lock:
                     errores += 1
