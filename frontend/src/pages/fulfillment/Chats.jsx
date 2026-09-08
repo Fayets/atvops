@@ -10,9 +10,10 @@ import { useResource } from '../../lib/hooks.js';
 
 const INTERVALO_MS = 15000;
 
-/** Solo canales de cliente, en este orden. Lo demás (updates, cerrados) no es cartera. */
-const CATEGORIAS = ['boost', 'advantage', 'avanzados', 'principiantes'];
-const ETIQUETA = { boost: 'Boost', advantage: 'Advantage', avanzados: 'Avanzados', principiantes: 'Principiantes' };
+/** Pestañas en este orden. Updates es el canal interno del equipo; los cerrados no se muestran. */
+const CATEGORIAS = ['boost', 'advantage', 'avanzados', 'principiantes', 'updates'];
+const ETIQUETA = { boost: 'Boost', advantage: 'Advantage', avanzados: 'Avanzados', principiantes: 'Principiantes', updates: 'Updates' };
+const CATEGORIAS_CLIENTE = ['boost', 'advantage', 'avanzados', 'principiantes'];
 
 /**
  * Chats de Discord en vivo. El bot de ATV Clients escribe cada mensaje al
@@ -42,7 +43,7 @@ export default function Chats() {
     const q = busqueda.trim().toLowerCase();
     return data.canales
       .filter((c) => c.en_discord && CATEGORIAS.includes(c.categoria))
-      .filter((c) => (categoria === 'activos' ? true : c.categoria === categoria))
+      .filter((c) => (categoria === 'activos' ? CATEGORIAS_CLIENTE.includes(c.categoria) : c.categoria === categoria))
       .filter((c) => {
         if (!q) return true;
         if (c.canal.toLowerCase().includes(q)) return true;
@@ -104,7 +105,7 @@ export default function Chats() {
                   onClick={() => setCategoria(cat)}
                 >
                   {cat === 'activos'
-                    ? `Activos ${CATEGORIAS.reduce((n, c) => n + (data.resumen.por_categoria[c] ?? 0), 0)}`
+                    ? `Activos ${CATEGORIAS_CLIENTE.reduce((n, c) => n + (data.resumen.por_categoria[c] ?? 0), 0)}`
                     : `${ETIQUETA[cat]} ${data.resumen.por_categoria[cat]}`}
                 </button>
               ))}
