@@ -199,8 +199,10 @@ def _parsear_fecha(texto: str | None, default: datetime) -> datetime:
 
 # --------------------------------------------------------------- propuesta
 
-def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tuple[dict, dict]:
-    """Pide a Claude la lista actualizada de pedidos de un canal. NO escribe nada."""
+def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str], solo_ficha: bool = False) -> tuple[dict, dict]:
+    """Pide a Claude la lista actualizada de pedidos de un canal (y la ficha). NO escribe pedidos.
+    Con solo_ficha=True (cliente sin ficha todavía) lee los últimos mensajes solo para armar la ficha
+    y deja los pedidos como están."""
     from src.services import cerebro_services as cerebro
     from src.services import fichas_services as fichas
     from src.services.activacion_ia_services import _extraer_json, invocar_claude_texto
@@ -209,7 +211,7 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
     canal_id = cliente["canalId"]
     canal = canal_id.split("/")[-1]
     hasta = _ledger(canal_id)
-    nuevos = mensajes[hasta:][-MAX_MSGS_NUEVOS:]
+    nuevos = mensajes[-MAX_MSGS_NUEVOS:] if solo_ficha else mensajes[hasta:][-MAX_MSGS_NUEVOS:]
     abiertos = _abiertos_de(canal_id)
     existentes = [
         {"id": f"p{a['id']}", "tipo": a["tipo"], "tema": a["tema"], "estado": a["estado"], "responsable": a["responsable"], "creado_at": a["creadoAt"][:16].replace("T", " "), "nota": a["nota"]}
@@ -227,7 +229,9 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
         f"Hoy: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')}\n\n"
         f"## Ficha anterior\n{json.dumps(ficha_previa, ensure_ascii=False) if ficha_previa else '(primera vez: armala desde cero con lo que hay)'}\n\n"
         f"## Pedidos registrados\n{json.dumps(existentes, ensure_ascii=False) if existentes else '(ninguno)'}\n\n"
-        f"## Mensajes nuevos del canal\n{texto}"
+        + ("## Mensajes recientes del canal (SOLO para armar la ficha: devolvé los pedidos registrados tal cual, sin agregar ni cambiar ninguno)\n"
+           if solo_ficha else "## Mensajes nuevos del canal\n")
+        + texto
     )
     respuesta, meta = invocar_claude_texto(_system_prompt(), user)
     data = _extraer_json(respuesta)
@@ -243,6 +247,8 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
 
     ids_existentes = {a["id"] for a in abiertos}
     pedidos: list[dict] = []
+    if solo_ficha:
+        lista = []  # los pedidos no se tocan en modo ficha
     for item in lista:
         if not isinstance(item, dict):
             continue
@@ -268,8 +274,10 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str]) -> tup
 
     por_id = {a["id"]: a for a in abiertos}
     cambios = sum(1 for p in pedidos if p["id"] is None or (por_id.get(p["id"]) or {}).get("estado") != p["estado"] or (por_id.get(p["id"]) or {}).get("nota") != p["nota"])
+    if solo_ficha:
+        cambios = 0
     propuesta = {
-        "clienteId": cliente["id"], "canalId": canal_id, "canal": canal, "desde": hasta, "hasta": len(mensajes),
+        "clienteId": cliente["id"], "canalId": canal_id, "canal": canal, "desde": hasta, "hasta": len(mensajes), "soloFicha": solo_ficha,
         "nuevos": len(nuevos), "pedidos": pedidos, "cambios": cambios, "propuestoAt": datetime.now(AR_TZ).isoformat(),
     }
     meta = dict(meta, nuevos=len(nuevos), abiertos=sum(1 for p in pedidos if p["estado"] != "resuelto"),
@@ -301,9 +309,11 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
         staff = _staff_desde_canales(clientes_service._canales_cliente())
         _progreso_reset(origen, len(activos))
 
+        from src.services import fichas_services as fichas
+        con_ficha = set(fichas.todas())
         previo = _borrador_leer().get("canales", {})
         borrador = {"generadoAt": datetime.now(AR_TZ).isoformat(), "origen": origen, "canales": {}, "stats": {}}
-        pendientes: list[tuple[dict, str, list[dict]]] = []
+        pendientes: list[tuple[dict, str, list[dict], bool]] = []
         for cliente in activos:
             categoria, _, canal = (cliente.get("canalId") or "").partition("/")
             try:
@@ -313,6 +323,9 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                 continue
             desde = _ledger(cliente["canalId"])
             if len(mensajes) <= desde:
+                if mensajes and cliente["id"] not in con_ficha:
+                    pendientes.append((cliente, canal, mensajes, True))  # sin novedades, pero sin ficha: se arma
+                    continue
                 _progreso["procesados"] += 1
                 _progreso["saltados"] += 1
                 continue
@@ -325,32 +338,34 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                 _progreso["procesados"] += 1
                 _progreso["reutilizados"] = reutilizados
                 continue
-            pendientes.append((cliente, canal, mensajes))
+            pendientes.append((cliente, canal, mensajes, False))
         _borrador_escribir(borrador)
         _evento(f"Arranca la ronda: {len(activos)} canales activos · {len(pendientes)} con mensajes nuevos · {reutilizados} ya propuestos · {PARALELO} en paralelo")
 
         estado_lock = threading.Lock()
         en_curso: list[str] = []
 
-        def _procesar(item: tuple[dict, str, list[dict]]) -> None:
+        def _procesar(item: tuple[dict, str, list[dict], bool]) -> None:
             nonlocal canales_leidos, cambios, tok_in, tok_out, costo, errores
-            cliente, canal, mensajes = item
+            cliente, canal, mensajes, solo_ficha = item
             with estado_lock:
                 en_curso.append(canal)
                 _progreso["canalActual"] = ", ".join(en_curso)
             try:
-                propuesta, meta = _proponer_canal(cliente, mensajes, staff)
+                propuesta, meta = _proponer_canal(cliente, mensajes, staff, solo_ficha=solo_ficha)
                 with estado_lock:
-                    borrador["canales"][cliente["canalId"]] = propuesta
-                    _borrador_escribir(borrador)
+                    if not solo_ficha:
+                        borrador["canales"][cliente["canalId"]] = propuesta
+                        _borrador_escribir(borrador)
                     canales_leidos += 1
                     cambios += meta["cambios"]
                     tok_in += meta.get("tokens_entrada", 0)
                     tok_out += meta.get("tokens_salida", 0)
                     costo += meta.get("costo_usd", 0.0)
                     _evento(
-                        f"#{canal}: {meta['nuevos']} mensajes nuevos → {meta['abiertos']} abiertos, {meta['resueltos']} resueltos"
-                        f" · fase {meta.get('fase') or '?'} · riesgo {meta.get('riesgo') or '?'}"
+                        (f"#{canal}: ficha armada con los últimos {meta['nuevos']} mensajes" if solo_ficha
+                         else f"#{canal}: {meta['nuevos']} mensajes nuevos → {meta['abiertos']} abiertos, {meta['resueltos']} resueltos")
+                        + f" · fase {meta.get('fase') or '?'} · riesgo {meta.get('riesgo') or '?'}"
                         f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')} · {meta.get('via', 'cli')})",
                         "ok" if meta["cambios"] else "info",
                     )
