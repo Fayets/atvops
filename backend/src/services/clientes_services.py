@@ -520,11 +520,14 @@ class ClientesServices:
             "actividad": actividad,
             "semanas": semanas,
             "resumen": {
-                "clientes": len(clientes),
-                "mensajes": sum(c["mensajes"] for c in clientes),
+                # Solo clientes activos: las carpetas cerradas (categorías viejas,
+                # egresados) no cuentan como cartera.
+                "clientes": sum(1 for c in clientes if c["estado"] == "activo"),
+                "cerrados": sum(1 for c in clientes if c["estado"] != "activo"),
+                "mensajes": sum(c["mensajes"] for c in clientes if c["estado"] == "activo"),
                 "por_categoria": {
-                    cat: sum(1 for c in clientes if c["categoria"] == cat)
-                    for cat in sorted({c["categoria"] for c in clientes})
+                    cat: sum(1 for c in clientes if c["categoria"] == cat and c["estado"] == "activo")
+                    for cat in sorted({c["categoria"] for c in clientes if c["estado"] == "activo"})
                 },
                 "parcial": any(not c.get("completo") for c in clientes) if clientes else False,
                 "canales_completos": sum(1 for c in clientes if c.get("completo")),
