@@ -50,7 +50,7 @@ import {
   ordenarAcciones,
 } from '../lib/acciones.js';
 import { getToken } from '../lib/auth.js';
-import { calcularSalud } from '../lib/scoring.js';
+import { calcularSalud, BLOCKERS } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
 const LATENCIA_MS = 180;
