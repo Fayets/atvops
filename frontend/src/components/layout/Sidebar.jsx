@@ -21,7 +21,7 @@ const NAV = [
       { to: '/fulfillment/chats', label: 'Chats en vivo' },
     ],
   },
-  { to: '/asistente', icon: 'ideas', label: 'Asistente' },
+  { to: '/asistente', icon: 'ideas', label: 'ATV AI' },
   { to: '/marketing', icon: 'marketing', label: 'Marketing' },
   { to: '/ads', icon: 'ads', label: 'Ads' },
   { to: '/ventas', icon: 'ventas', label: 'Ventas' },

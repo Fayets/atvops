@@ -59,9 +59,10 @@ export function useLocalState(key, inicial) {
   const [value, setValue] = useState(() => {
     try {
       const raw = localStorage.getItem(key);
-      return raw === null ? inicial : JSON.parse(raw);
+      const base = typeof inicial === 'function' ? inicial() : inicial;
+      return raw === null ? base : JSON.parse(raw);
     } catch {
-      return inicial;
+      return typeof inicial === 'function' ? inicial() : inicial;
     }
   });
 

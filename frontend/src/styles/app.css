@@ -3797,3 +3797,24 @@ table.data .dim {
 .pulso-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); animation: pulse 1.2s ease-in-out infinite; }
 .pulso-dots i:nth-child(2) { animation-delay: 0.2s; }
 .pulso-dots i:nth-child(3) { animation-delay: 0.4s; }
+
+/* ------------------------------------------------------------- ATV AI */
+.atvai-page { padding-top: var(--space-4); }
+.atvai { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); height: calc(100vh - var(--topbar-h) - 40px); min-height: 520px; }
+.atvai .chat-asistente { height: auto; min-height: 0; }
+.atvai-rail { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; }
+.atvai-nuevo { margin: var(--space-3); justify-content: center; }
+.atvai-lista { overflow-y: auto; min-height: 0; flex: 1; }
+.atvai-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-left: 2px solid transparent; }
+.atvai-item:hover { background: var(--surface-2); }
+.atvai-item.activo { background: var(--surface-2); border-left-color: var(--brand); }
+.atvai-item-btn { text-align: left; padding: 9px var(--space-3); min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.atvai-item-titulo { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atvai-item-fecha { font-size: 10.5px; color: var(--text-3); }
+.atvai-item-borrar { color: var(--text-3); padding: 6px 10px; font-size: 11px; opacity: 0; }
+.atvai-item:hover .atvai-item-borrar { opacity: 1; }
+.atvai-item-borrar:hover { color: var(--brand-hi); }
+.atvai-marca { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 18px; }
+.atvai-marca h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.atvai-marca p { color: var(--text-2); font-size: 13px; max-width: 46ch; }
+@media (max-width: 900px) { .atvai { grid-template-columns: minmax(0, 1fr); height: auto; } .atvai-lista { max-height: 180px; } }
