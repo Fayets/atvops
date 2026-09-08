@@ -157,6 +157,66 @@ def ensure_reunion_usuario_column() -> None:
         con.close()
 
 
+def ensure_idea_usuario_column() -> None:
+    """Tabla de ideas creada antes de que fueran por usuario: agrega la columna
+    y asigna las huérfanas a Franco. Cubre SQLite (local) y Postgres (server)."""
+    from src.db import DB_SCHEMA, ES_POSTGRES
+
+    if ES_POSTGRES:
+        import psycopg2
+        from src.db import _postgres_kwargs
+
+        kw = _postgres_kwargs()
+        conn = psycopg2.connect(
+            user=kw["user"], password=kw["password"], host=kw["host"], port=kw["port"],
+            dbname=kw["database"], **({"sslmode": kw["sslmode"]} if "sslmode" in kw else {}),
+        )
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables WHERE table_schema=%s AND table_name='ideas'",
+                        (DB_SCHEMA,),
+                    )
+                    if cur.fetchone() is None:
+                        return  # la crea Pony con la columna incluida
+                    cur.execute(
+                        f'ALTER TABLE "{DB_SCHEMA}".ideas ADD COLUMN IF NOT EXISTS usuario INTEGER REFERENCES "{DB_SCHEMA}".usuarios(id)'
+                    )
+                    cur.execute(
+                        f'UPDATE "{DB_SCHEMA}".ideas SET usuario = (SELECT id FROM "{DB_SCHEMA}".usuarios WHERE username = %s) WHERE usuario IS NULL',
+                        (_LOCAL_USERNAME,),
+                    )
+        finally:
+            conn.close()
+        return
+
+    filename = config("DB_FILENAME", default="data/atv_ops.db")
+    if filename in {":memory:", ":sharedmemory:"}:
+        return
+    path = Path(filename)
+    if not path.is_absolute():
+        path = _BACKEND_ROOT / path
+    if not path.exists():
+        return
+    con = sqlite3.connect(path)
+    try:
+        tablas = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "Idea" not in tablas:
+            return
+        cols = {row[1] for row in con.execute("PRAGMA table_info(Idea)")}
+        if "usuario" not in cols:
+            con.execute("ALTER TABLE Idea ADD COLUMN usuario INTEGER REFERENCES Usuario(id)")
+        if "Usuario" in tablas:
+            con.execute(
+                "UPDATE Idea SET usuario = (SELECT id FROM Usuario WHERE username = ?) WHERE usuario IS NULL",
+                (_LOCAL_USERNAME,),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
 class AuthServices:
     def ensure_local_user(self) -> None:
         """Crea los usuarios locales de desarrollo que todavía no existan."""

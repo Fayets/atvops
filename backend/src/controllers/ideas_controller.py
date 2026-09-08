@@ -9,9 +9,9 @@ service = IdeasServices()
 
 
 @router.get("", response_model=list[schemas.IdeaResponse])
-def listar(_user=Depends(get_current_user)):
+def listar(user: dict = Depends(get_current_user)):
     try:
-        return service.listar()
+        return service.listar(user["id"])
     except HTTPException as e:
         raise e
     except Exception:
@@ -22,7 +22,7 @@ def listar(_user=Depends(get_current_user)):
 def crear(body: schemas.IdeaCreate, user=Depends(get_current_user)):
     try:
         quien = body.quien or user.get("nombre") or user.get("username") or "Franco"
-        return service.crear(body.texto, quien)
+        return service.crear(user["id"], body.texto, quien)
     except HTTPException as e:
         raise e
     except Exception:
@@ -30,10 +30,11 @@ def crear(body: schemas.IdeaCreate, user=Depends(get_current_user)):
 
 
 @router.patch("/{idea_id}", response_model=schemas.IdeaResponse)
-def actualizar(idea_id: int, body: schemas.IdeaUpdate, _user=Depends(get_current_user)):
+def actualizar(idea_id: int, body: schemas.IdeaUpdate, user: dict = Depends(get_current_user)):
     try:
         return service.actualizar(
             idea_id,
+            user["id"],
             texto=body.texto,
             asignada=body.asignada,
             estado=body.estado,
@@ -46,9 +47,9 @@ def actualizar(idea_id: int, body: schemas.IdeaUpdate, _user=Depends(get_current
 
 
 @router.delete("/{idea_id}", response_model=schemas.IdeaResponse)
-def borrar(idea_id: int, _user=Depends(get_current_user)):
+def borrar(idea_id: int, user: dict = Depends(get_current_user)):
     try:
-        return service.borrar(idea_id)
+        return service.borrar(idea_id, user["id"])
     except HTTPException as e:
         raise e
     except Exception:

@@ -26,6 +26,7 @@ class Usuario(db.Entity):
     rol = Required(str, default="operaciones")
     creado_at = Required(datetime, default=datetime.utcnow)
     reuniones = Set("Reunion")
+    ideas = Set("Idea")
 
 
 class Integrante(db.Entity):
@@ -61,3 +62,5 @@ class Idea(db.Entity):
     asignada = Optional(str, nullable=True)  # 'Ale' | 'Franco' | None
     estado = Required(str, default="idea")  # idea | tarea | hecha
     creado_at = Required(datetime, default=datetime.utcnow)
+    # Las ideas son de cada usuario: nadie ve las de otro.
+    usuario = Optional(Usuario)

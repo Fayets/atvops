@@ -1,4 +1,4 @@
-"""Lluvia de ideas del equipo: persistida en SQLite."""
+"""Ideas de cada usuario: cada uno ve, crea y toca solo las suyas."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import date
 from fastapi import HTTPException
 from pony.orm import db_session, desc, flush
 
-from src.models import Idea
+from src.models import Idea, Usuario
 
 ASIGNABLES = frozenset({"Ale", "Franco"})
 ESTADOS = frozenset({"idea", "tarea", "hecha"})
@@ -25,18 +25,29 @@ def idea_a_dict(idea: Idea) -> dict:
 
 
 class IdeasServices:
-    def listar(self) -> list[dict]:
+    @staticmethod
+    def _propia(idea: Idea | None, usuario_id: int) -> Idea:
+        # Ajena = inexistente: no se revela que existe.
+        if idea is None or idea.usuario is None or idea.usuario.id != usuario_id:
+            raise HTTPException(status_code=404, detail="No existe esa idea.")
+        return idea
+
+    def listar(self, usuario_id: int) -> list[dict]:
         with db_session:
-            filas = list(Idea.select().order_by(desc(Idea.id)))
+            filas = [i for i in Idea.select().order_by(desc(Idea.id)) if i.usuario is not None and i.usuario.id == usuario_id]
             return [idea_a_dict(i) for i in filas]
 
-    def crear(self, texto: str, quien: str | None = None) -> dict:
+    def crear(self, usuario_id: int, texto: str, quien: str | None = None) -> dict:
         limpio = (texto or "").strip()
         if not limpio:
             raise HTTPException(status_code=400, detail="La idea no puede estar vacía.")
         autor = (quien or "").strip() or "Franco"
         with db_session:
+            dueno = Usuario.get(id=usuario_id)
+            if dueno is None:
+                raise HTTPException(status_code=401, detail="Sesión inválida.")
             idea = Idea(
+                usuario=dueno,
                 texto=limpio,
                 quien=autor,
                 fecha_at=date.today(),
@@ -48,6 +59,7 @@ class IdeasServices:
     def actualizar(
         self,
         idea_id: int,
+        usuario_id: int,
         *,
         texto: str | None = None,
         asignada: str | None = None,
@@ -55,9 +67,7 @@ class IdeasServices:
         tocar_asignada: bool = False,
     ) -> dict:
         with db_session:
-            idea = Idea.get(id=idea_id)
-            if idea is None:
-                raise HTTPException(status_code=404, detail=f"No existe la idea {idea_id}.")
+            idea = self._propia(Idea.get(id=idea_id), usuario_id)
 
             if texto is not None:
                 limpio = texto.strip()
@@ -94,11 +104,9 @@ class IdeasServices:
 
             return idea_a_dict(idea)
 
-    def borrar(self, idea_id: int) -> dict:
+    def borrar(self, idea_id: int, usuario_id: int) -> dict:
         with db_session:
-            idea = Idea.get(id=idea_id)
-            if idea is None:
-                raise HTTPException(status_code=404, detail=f"No existe la idea {idea_id}.")
+            idea = self._propia(Idea.get(id=idea_id), usuario_id)
             data = idea_a_dict(idea)
             idea.delete()
             return data
