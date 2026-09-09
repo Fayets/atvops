@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import LineArea from '../../components/charts/LineArea.jsx';
 import StackedBar from '../../components/charts/StackedBar.jsx';
+import DatosClienteForm from '../../components/fulfillment/DatosClienteForm.jsx';
+import LogEventos from '../../components/fulfillment/LogEventos.jsx';
 import PanelScore from '../../components/fulfillment/PanelScore.jsx';
 import Senales from '../../components/fulfillment/Senales.jsx';
 import Card from '../../components/ui/Card.jsx';
@@ -11,6 +14,7 @@ import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillmentCliente } from '../../data/api.js';
 import { ahora, diasEntre, formatFecha, formatValue, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
+import { useRol } from '../../lib/RolContext.jsx';
 import { etiquetaSemana } from '../../lib/semanas.js';
 import TiraDias from '../../components/fulfillment/TiraDias.jsx';
 import { VENTANA_ACTIVACION } from '../../lib/scoring.js';
@@ -25,12 +29,17 @@ const CAT_LABEL = {
 
 export default function ClienteDetalle() {
   const { clienteId } = useParams();
+  const { rol } = useRol();
   const { data, loading, error } = useResource(() => getFulfillmentCliente(clienteId), [clienteId]);
+  const [editandoDatos, setEditandoDatos] = useState(false);
+  const [datosLocales, setDatosLocales] = useState(null);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
   if (loading || !data) return <div className="page"><SkeletonBlock height={480} /></div>;
 
-  const { cliente, actividad, senales, blocker, semaforo, coach } = data;
+  const { cliente, actividad, senales, blocker, semaforo, coach, eventos } = data;
+  const datos = datosLocales ?? data.datos;
+  const puedeEditar = ['admin', 'founder', 'csm', 'operaciones'].includes(rol);
   const { activacion, engagement, expansion } = cliente;
   const diasDesdeEntrada = diasEntre(cliente.entradaAt, ahora().toISOString());
   const cat = CAT_LABEL[cliente.categoria] ?? cliente.categoria ?? 'Cliente';
@@ -215,6 +224,38 @@ export default function ClienteDetalle() {
         </Card>
       )}
 
+      <Card
+        title="Datos del cliente"
+        sub={datos ? `Objetivo, ICP y contacto · ${datos.completitud}% cargado · última edición de ${datos.actualizadoPor ?? '—'}` : 'Objetivo, ICP y contacto. Los carga el CSM; el contrato y los pagos viven en ATV Clients.'}
+        actions={puedeEditar && !editandoDatos ? <button className="btn" onClick={() => setEditandoDatos(true)}>{datos ? 'Editar' : 'Cargar datos'}</button> : null}
+      >
+        {editandoDatos ? (
+          <DatosClienteForm
+            clienteId={cliente.id}
+            datos={datos}
+            onGuardado={(d) => { setDatosLocales(d); setEditandoDatos(false); }}
+            onCerrar={() => setEditandoDatos(false)}
+          />
+        ) : datos ? (
+          <dl className="datos-vista">
+            {datos.objetivo && <div><dt>Objetivo</dt><dd>{datos.objetivo}</dd></div>}
+            {datos.nicho && <div><dt>Nicho</dt><dd>{datos.nicho}</dd></div>}
+            {datos.ticketPromedioUsd != null && <div><dt>Ticket promedio</dt><dd className="num">{formatValue(datos.ticketPromedioUsd, 'usd')}</dd></div>}
+            {datos.stage && <div><dt>Stage</dt><dd>{datos.stage.replace('_', ' ')}</dd></div>}
+            {datos.nombreCompleto && <div><dt>Nombre</dt><dd>{datos.nombreCompleto}</dd></div>}
+            {datos.email && <div><dt>Email</dt><dd>{datos.email}</dd></div>}
+            {datos.whatsapp && <div><dt>WhatsApp</dt><dd>{datos.whatsapp}</dd></div>}
+            {(datos.pais || datos.zonaHoraria) && <div><dt>Zona</dt><dd>{[datos.pais, datos.zonaHoraria].filter(Boolean).join(' · ')}</dd></div>}
+            {datos.equipo?.length > 0 && (
+              <div><dt>Su equipo</dt><dd>{datos.equipo.map((m) => `${m.nombre}${m.rol ? ` (${m.rol})` : ''}`).join(' · ')}</dd></div>
+            )}
+            {datos.notas && <div className="datos-notas"><dt>Notas</dt><dd>{datos.notas}</dd></div>}
+          </dl>
+        ) : (
+          <div className="empty">Sin datos cargados. {puedeEditar ? 'Tocá “Cargar datos”.' : ''}</div>
+        )}
+      </Card>
+
       <div className="split ficha-body">
         <div className="ficha-col">
           {activacion.activado && (
@@ -263,6 +304,14 @@ export default function ClienteDetalle() {
                 />
               )}
             </div>
+          </Card>
+
+          <Card
+            title="Log de eventos"
+            sub="Hechos con fecha que registró Claude en cada ronda · también en el cerebro"
+            flush
+          >
+            <LogEventos eventos={eventos} />
           </Card>
 
           {senales.length > 0 && (

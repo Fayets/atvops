@@ -648,9 +648,13 @@ class ClientesServices:
             raise HTTPException(status_code=404, detail=f"No existe el cliente {cliente_id}.")
         coach = next((c for c in data["coaches"] if c["id"] == cliente["coachId"]), None)
         actividad = [a for a in data["actividad"] if a["clienteId"] == cliente_id]
+        from src.services import datos_cliente_services as datos_srv
+        from src.services import eventos_services as eventos_srv
         return {
             "cliente": cliente,
             "coach": coach,
+            "datos": datos_srv.obtener(cliente_id),
+            "eventos": eventos_srv.listar(cliente_id=cliente_id, limite=60),
             "actividad": actividad,
             "actividadDiaria": self._actividad_diaria(cliente),
             "senales": [],

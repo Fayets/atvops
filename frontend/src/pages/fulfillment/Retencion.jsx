@@ -3,10 +3,11 @@ import Bars from '../../components/charts/Bars.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/ui/Icon.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
+import LogEventos from '../../components/fulfillment/LogEventos.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../../components/ui/Loading.jsx';
 import Pill from '../../components/ui/Pill.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
-import { getFulfillment } from '../../data/api.js';
+import { getEventos, getFulfillment } from '../../data/api.js';
 import { ahora, diasEntre, formatFecha, formatMes, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
 import { SEMAFORO, VENTANA_ACTIVACION } from '../../lib/scoring.js';
@@ -21,6 +22,8 @@ const CAT_LABEL = {
 
 export default function Retencion() {
   const { data, loading, error } = useResource(getFulfillment);
+  const { data: log } = useResource(() => getEventos({ estado: 'abierto', abiertosHace: 7 }), []);
+  const blockersViejos = log?.eventos ?? [];
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
@@ -92,6 +95,17 @@ export default function Retencion() {
               />
             )}
           </Card>
+
+          {blockersViejos.length > 0 && (
+            <Card
+              title="Blockers abiertos hace 7 días o más"
+              sub={`${blockersViejos.length} sin cerrar · del log de eventos`}
+              flush
+              foot="Se cierran solos cuando Claude ve que se destrabaron, o a las dos semanas sin mención."
+            >
+              <LogEventos eventos={blockersViejos} limite={15} />
+            </Card>
+          )}
 
           {riesgoAlto.length > 0 && (
             <Card

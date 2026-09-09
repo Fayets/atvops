@@ -3941,3 +3941,25 @@ table.data .dim {
 .ficha-viva-resumen { margin: 0 0 14px; font-size: 14px; line-height: 1.55; }
 .ficha-viva-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); font-size: 13px; }
 .ficha-viva-lista { margin: 6px 0 0; padding-left: 18px; line-height: 1.55; }
+
+.datos-form { display: grid; gap: var(--space-4); }
+.datos-grupo { display: grid; gap: var(--space-2); }
+.datos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-3); }
+.datos-equipo { padding-bottom: var(--space-2); }
+.campo { display: grid; gap: 4px; font-size: 12.5px; }
+.campo > span { color: var(--text-3); }
+.campo input, .campo select, .campo textarea { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text); font: 13px var(--font); padding: 8px 10px; width: 100%; }
+.campo input:focus, .campo select:focus, .campo textarea:focus { outline: none; border-color: var(--brand); }
+.datos-vista { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3) var(--space-4); margin: 0; font-size: 13px; }
+.datos-vista dt { color: var(--text-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+.datos-vista dd { margin: 0; }
+.datos-vista .datos-notas { grid-column: 1 / -1; }
+.log-eventos { display: grid; }
+.log-evento { display: grid; grid-template-columns: 82px 22px minmax(0, 1fr); gap: var(--space-2); padding: 11px var(--space-5); border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.log-evento:last-child { border-bottom: none; }
+.log-fecha { color: var(--text-3); font-size: 12px; padding-top: 2px; }
+.log-marca { font-size: 14px; line-height: 1.4; }
+.log-titulo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 500; }
+.log-extracto { color: var(--text-2); font-size: 12.5px; margin-top: 3px; }
+.log-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px; font-size: 11.5px; }
+.log-tag { color: var(--text-3); background: var(--surface-2); border-radius: 999px; padding: 1px 7px; }

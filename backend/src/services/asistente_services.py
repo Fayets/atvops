@@ -47,6 +47,8 @@ Reglas:
 - Cuando cites algo de un transcript, indicá el canal y la fecha: (#canal, 5 sep).
 - Si preguntan cómo funciona una vista, un número o un proceso, explicá con las notas del cerebro, en 3-6 líneas.
 - Si preguntan qué debe un cliente o qué está pendiente, usá el registro de pedidos abiertos, no adivines por el último mensaje.
+- Para preguntas sobre historia ("qué pasó con X", "quién está trabado", "hitos del mes") usá el log de eventos:
+  cada evento tiene fecha, tipo, tags y la frase textual. Citá la fecha.
 - Si la pregunta es sobre un cliente puntual, empezá por su estado (score, silencio, activación) y después el detalle.
 - Formato: texto plano con párrafos cortos; listas con guiones solo si ayudan. Sin títulos, sin markdown pesado.
 - Cerrá, cuando corresponda, con una acción concreta sugerida en una línea."""
@@ -154,6 +156,26 @@ def preguntar(pregunta: str, historial: list[dict] | None, usuario: dict) -> dic
         ultimo = cerebro.ultimo_update()
         if ultimo:
             contexto.append("\n## Último update confirmado del equipo (pedidos abiertos por responsable)\n" + ultimo)
+        try:
+            from src.services import eventos_services as eventos_srv
+            abiertos = eventos_srv.listar(estado="abierto", limite=60)
+            if abiertos:
+                nombre_por_cliente = {c["id"]: c["nombre"] for c in activos}
+                lineas = [
+                    f"- #{e['canal']} ({nombre_por_cliente.get(e['clienteId'], e['canal'])}) · {e['titulo']}"
+                    f" · abierto hace {int(e['diasAbierto'] or 0)} d"
+                    + (f" · {' '.join('#' + t for t in e['tags'])}" if e["tags"] else "")
+                    for e in sorted(abiertos, key=lambda e: -(e["diasAbierto"] or 0))
+                ]
+                contexto.append("\n## Blockers abiertos en la cartera (log de eventos)\n" + "\n".join(lineas))
+            recientes = eventos_srv.listar(tipo="hito", desde_dias=30, limite=40)
+            if recientes:
+                nombre_por_cliente = {c["id"]: c["nombre"] for c in activos}
+                contexto.append("\n## Hitos de los últimos 30 días\n" + "\n".join(
+                    f"- {e['fecha'][:10]} · #{e['canal']} ({nombre_por_cliente.get(e['clienteId'], e['canal'])}) · {e['titulo']}"
+                    + (f" · «{e['extracto']}»" if e["extracto"] else "") for e in recientes))
+        except Exception:  # noqa: BLE001 — sin log, el asistente sigue
+            pass
     for c in mencionados:
         canal = (c.get('canalId') or '').split('/')[-1]
         pedidos = cerebro.pedidos_de(canal)

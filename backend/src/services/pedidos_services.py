@@ -70,7 +70,16 @@ la última vez. Devolvé ÚNICAMENTE un JSON:
    "wins": [{"fecha": "YYYY-MM-DD", "tipo": "venta|cobro|cliente_nuevo|metrica|otro", "descripcion": "frase textual corta del cliente"}],
    "upsell": true|false,
    "upsell_motivo": "una línea o null"
- }}
+ },
+ "eventos": [
+   {"fecha": "YYYY-MM-DD del mensaje donde pasó",
+    "tipo": "<id de la lista de tipos>",
+    "titulo": "5 a 10 palabras: qué pasó",
+    "extracto": "frase textual del cliente o null",
+    "responsable": "nombre del equipo si aplica, o null",
+    "tags": ["hasta 3 de la lista de tags"],
+    "estado": "abierto|resuelto (solo para blocker)"}
+ ]}
 
 Reglas de los pedidos:
 - esperando_equipo: el cliente pidió algo y el equipo todavía no respondió o no entregó.
@@ -92,14 +101,27 @@ Reglas de la ficha:
 - intencion_baja: solo si el cliente habla de reembolso, cancelar, irse o no seguir. Frase textual.
 - upsell: el cliente muestra techo, pide más, o está listo para el siguiente nivel.
 - Lo que dice el equipo no es evidencia de resultado; lo que dice el cliente sí.
+
+Reglas de los eventos:
+- Un evento es un HECHO CON FECHA que pasó en los mensajes nuevos: un hito, algo que el cliente anunció,
+  un blocker que apareció o se destrabó, una señal de riesgo. Si no pasó nada de eso, devolvé [].
+- No conviertas en evento lo que el equipo debe entregar: eso ya es un pedido.
+- No repitas como evento algo que ya está en la ficha desde antes; solo lo que pasó en estos mensajes.
+- Usá solo los tags de la lista. Si ninguno encaja, dejá la lista vacía.
+- Un blocker se abre con estado "abierto" y, cuando hay evidencia de que se destrabó, mandalo de nuevo
+  con el MISMO título, la fecha original y estado "resuelto".
 Sin texto fuera del JSON."""
 
 
 def _system_prompt() -> str:
     from src.services import cerebro_services as cerebro
+    from src.services import eventos_services as eventos
     from src.services.fichas_services import nota_fases
     nombres = ", ".join(m["nombre"] for m in cerebro.equipo()) or "(sin lista)"
-    return SYSTEM_PROMPT_BASE + "\n\n## Equipo (nombres exactos para 'responsable')\n" + nombres + "\n\n## Fases posibles (usá el id)\n" + nota_fases()
+    return (SYSTEM_PROMPT_BASE
+            + "\n\n## Equipo (nombres exactos para 'responsable')\n" + nombres
+            + "\n\n## Fases posibles (usá el id)\n" + nota_fases()
+            + "\n\n## Vocabulario del log de eventos\n" + eventos.vocabulario_para_prompt())
 
 
 # ------------------------------------------------------------- progreso
@@ -204,6 +226,8 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str], solo_f
     Con solo_ficha=True (cliente sin ficha todavía) lee los últimos mensajes solo para armar la ficha
     y deja los pedidos como están."""
     from src.services import cerebro_services as cerebro
+    from src.services import datos_cliente_services as datos
+    from src.services import eventos_services as eventos_srv
     from src.services import fichas_services as fichas
     from src.services.activacion_ia_services import _extraer_json, invocar_claude_texto
     from src.services.clientes_services import _autor_es_cliente
@@ -223,10 +247,13 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str], solo_f
         lineas.append(f"[{m['fecha_at'].strftime('%Y-%m-%d %H:%M')}] {m['autor']} ({rol}): {' '.join((m.get('contenido') or '').split())}{' [adjunto]' if m.get('adjuntos') else ''}")
     texto = "\n".join(lineas)[-MAX_CHARS:]
     ficha_previa = fichas.para_prompt(cliente["id"])
+    ficha_anterior_fase = (ficha_previa or {}).get("fase")
+    linea_datos = datos.para_prompt(cliente["id"])
     user = (
         f"Cliente: {cliente['nombre']} · canal #{canal} · programa {cliente.get('categoria')} · coach habitual: {cliente.get('coachNombre') or '?'}"
         f" · entró el {cliente.get('entradaAt') or '?'}\n"
-        f"Hoy: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')}\n\n"
+        + (f"Lo que sabemos de él: {linea_datos}\n" if linea_datos else "")
+        + f"Hoy: {datetime.now(AR_TZ).strftime('%Y-%m-%d %H:%M')}\n\n"
         f"## Ficha anterior\n{json.dumps(ficha_previa, ensure_ascii=False) if ficha_previa else '(primera vez: armala desde cero con lo que hay)'}\n\n"
         f"## Pedidos registrados\n{json.dumps(existentes, ensure_ascii=False) if existentes else '(ninguno)'}\n\n"
         + ("## Mensajes recientes del canal (SOLO para armar la ficha: devolvé los pedidos registrados tal cual, sin agregar ni cambiar ninguno)\n"
@@ -244,6 +271,27 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str], solo_f
             fichas.guardar(cliente["id"], canal_id, ficha_nueva, len(mensajes))
         except Exception as e:  # noqa: BLE001
             logger.warning("Ficha #%s no se pudo guardar: %s", canal, str(e)[:200])
+    n_eventos = 0
+    try:
+        lista_ev = list(data.get("eventos") or []) if isinstance(data.get("eventos"), list) else []
+        fase_nueva = (ficha_nueva or {}).get("fase")
+        if fase_nueva and ficha_anterior_fase and fase_nueva != ficha_anterior_fase:
+            lista_ev.append({
+                "fecha": datetime.now(AR_TZ).strftime("%Y-%m-%d"), "tipo": "cambio_fase",
+                "titulo": f"Pasó de {ficha_anterior_fase} a {fase_nueva}",
+                "extracto": (ficha_nueva or {}).get("fase_motivo"), "tags": [],
+            })
+        dias_silencio = cliente.get("engagement", {}).get("diasSinMensaje") if isinstance(cliente.get("engagement"), dict) else None
+        if isinstance(dias_silencio, (int, float)) and dias_silencio >= eventos_srv.DIAS_SILENCIO:
+            lista_ev.append({
+                "fecha": datetime.now(AR_TZ).strftime("%Y-%m-%d"), "tipo": "silencio",
+                "titulo": f"{int(dias_silencio)} días sin mensajes del cliente", "tags": ["bajo_engagement"],
+            })
+        n_eventos = eventos_srv.registrar(cliente["id"], canal_id, lista_ev, contexto={
+            "fase": (ficha_nueva or {}).get("fase"), "score": (cliente.get("salud") or {}).get("score"),
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Eventos #%s no se pudieron guardar: %s", canal, str(e)[:200])
 
     ids_existentes = {a["id"] for a in abiertos}
     pedidos: list[dict] = []
@@ -282,7 +330,7 @@ def _proponer_canal(cliente: dict, mensajes: list[dict], staff: set[str], solo_f
     }
     meta = dict(meta, nuevos=len(nuevos), abiertos=sum(1 for p in pedidos if p["estado"] != "resuelto"),
                 resueltos=sum(1 for p in pedidos if p["estado"] == "resuelto"), cambios=cambios,
-                fase=(ficha_nueva or {}).get("fase"), riesgo=(ficha_nueva or {}).get("riesgo"))
+                fase=(ficha_nueva or {}).get("fase"), riesgo=(ficha_nueva or {}).get("riesgo"), eventos=n_eventos)
     return propuesta, meta
 
 
@@ -366,7 +414,8 @@ def ejecutar_ronda(origen: str = "programada") -> dict:
                         (f"#{canal}: ficha armada con los últimos {meta['nuevos']} mensajes" if solo_ficha
                          else f"#{canal}: {meta['nuevos']} mensajes nuevos → {meta['abiertos']} abiertos, {meta['resueltos']} resueltos")
                         + f" · fase {meta.get('fase') or '?'} · riesgo {meta.get('riesgo') or '?'}"
-                        f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')} · {meta.get('via', 'cli')})",
+                        + (f" · {meta['eventos']} eventos" if meta.get("eventos") else "")
+                        + f"  ({meta.get('duracion_ms', 0) / 1000:.0f} s · {meta.get('tokens_entrada', 0) // 1000}k tokens · {meta.get('modelo', '')} · {meta.get('via', 'cli')})",
                         "ok" if meta["cambios"] else "info",
                     )
             except Exception as e:  # noqa: BLE001
@@ -677,6 +726,8 @@ def exportar_cerebro() -> Path:
     """Una nota por cliente en fulfillment/clientes/<canal>.md: ficha viva + pedidos confirmados."""
     import shutil
 
+    from src.services import datos_cliente_services as datos_srv
+    from src.services import eventos_services as eventos_srv
     from src.services import fichas_services as fichas
 
     base = CEREBRO_DIR / "fulfillment"
@@ -689,19 +740,33 @@ def exportar_cerebro() -> Path:
         for p in PedidoAbierto.select():
             por_canal.setdefault(p.canal_id, []).append(_pedido_a_dict(p))
     todas = fichas.todas()
-    canales = set(por_canal) | {f["canalId"] for f in todas.values()}
+    datos_todos = datos_srv.todos()
+    canales = set(por_canal) | {f["canalId"] for f in todas.values()} | {d["canalId"] for d in datos_todos.values()}
     ficha_por_canal = {f["canalId"]: f for f in todas.values()}
+    datos_por_canal = {d["canalId"]: d for d in datos_todos.values()}
+    cliente_por_canal: dict[str, str] = {}
+    for cid, f in todas.items():
+        cliente_por_canal[f["canalId"]] = cid
+    for cid, d in datos_todos.items():
+        cliente_por_canal.setdefault(d["canalId"], cid)
     for canal_id in canales:
         canal = canal_id.split("/")[-1]
         nombre = re.sub(r"[^a-z0-9_-]", "-", canal.lower())
         pedidos = por_canal.get(canal_id, [])
         ficha = ficha_por_canal.get(canal_id)
+        dato = datos_por_canal.get(canal_id)
+        cid = cliente_por_canal.get(canal_id) or (pedidos[0]["clienteId"] if pedidos else None)
+        log = eventos_srv.listar(cliente_id=cid, limite=25) if cid else []
         abiertos = [p for p in pedidos if p["estado"] != "resuelto"]
         resueltos = sorted([p for p in pedidos if p["estado"] == "resuelto"], key=lambda p: p["resueltoAt"] or "", reverse=True)[:20]
         md = [
             f"---\ncanal: {canal_id}\nfase: {(ficha or {}).get('fase') or ''}\nriesgo: {(ficha or {}).get('riesgo') or ''}\nabiertos: {len(abiertos)}\nactualizado: {datetime.now(AR_TZ).isoformat()}\n---",
             f"# #{canal}", "",
         ]
+        if dato:
+            bloque = datos_srv.markdown(dato)
+            if bloque:
+                md += [bloque, ""]
         if ficha:
             md += [fichas.markdown(ficha), ""]
         md.append("## Pedidos abiertos")
@@ -711,6 +776,8 @@ def exportar_cerebro() -> Path:
             md.append("- (nada abierto)")
         if resueltos:
             md += ["", "## Resueltos recientes"] + [f"- ✅ **{p['tipo']}**: {p['tema']} · {p['resueltoAt'][:10]} · tardó {int(p['horasAbierto'])} h" for p in resueltos]
+        if log:
+            md += ["", eventos_srv.markdown(log)]
         (base / "clientes" / f"{nombre}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     return base
 

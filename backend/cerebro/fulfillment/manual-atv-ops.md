@@ -81,6 +81,14 @@ a upsell. La ficha se guarda al instante y vive en `clientes/<canal>.md`. La usa
 filtro por fase), Resumen (tarjeta "En implementación"), Retención (riesgo alto e intención de baja),
 Resultados (resultados reportados y candidatos a upsell) y la ficha del cliente.
 
+## Datos del cliente y log de eventos
+En la ficha de cada cliente hay dos bloques que completan lo que el canal no dice. "Datos del cliente"
+lo carga el CSM: objetivo, ICP, contacto y la gente del equipo del cliente (ver `log-cliente.md`); el
+contrato y los pagos se cargan en ATV Clients. "Log de eventos" es la línea de tiempo que escribe Claude
+en cada ronda: hitos, intenciones, blockers que se abren y se cierran, cambios de fase y silencios, cada
+uno con fecha, tags y la frase textual. Retención muestra los blockers abiertos hace 7 días o más, y
+ATV AI responde preguntas de historial sobre este log.
+
 ## Calendario e Ideas
 Son personales: cada usuario ve y maneja solo sus reuniones y sus ideas. Una idea pasa a tarea al asignarla.
 

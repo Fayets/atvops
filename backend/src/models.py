@@ -188,3 +188,60 @@ class FichaCliente(db.Entity):
     upsell_motivo = Optional(str)
     actualizado_at = Required(datetime)
     hasta = Required(int, default=0)
+
+
+class DatosCliente(db.Entity):
+    """Lo que el sistema NO puede deducir del canal: objetivo, ICP, contacto y
+    la gente del equipo del cliente. Lo carga el CSM una vez y se corrige cuando cambia.
+    El contrato y los pagos NO viven acá: son de ATV Clients."""
+
+    _table_ = _tabla("datos_clientes", "DatosCliente")
+
+    id = PrimaryKey(int, auto=True)
+    cliente_id = Required(str, unique=True)
+    canal_id = Required(str)
+    # Objetivo
+    objetivo = Optional(str)              # "50k USD en 90 días"
+    objetivo_monto_usd = Optional(float)
+    objetivo_plazo_dias = Optional(int)
+    # ICP del cliente (a quién le vende él)
+    nicho = Optional(str)
+    ticket_promedio_usd = Optional(float)
+    stage = Optional(str)                 # pre_lanzamiento | lanzando | escalando
+    # Contacto
+    nombre_completo = Optional(str)
+    email = Optional(str)
+    whatsapp = Optional(str)
+    pais = Optional(str)
+    zona_horaria = Optional(str)
+    linkedin = Optional(str)
+    # Equipo del cliente (setters, closers, editores): JSON [{nombre, rol, contacto}]
+    equipo = Optional(str)
+    notas = Optional(str)
+    actualizado_por = Optional(str)
+    actualizado_at = Required(datetime)
+
+
+class EventoCliente(db.Entity):
+    """Un hecho con fecha en la vida del cliente. Los escribe Claude en cada ronda
+    (hitos, intenciones, cambios de fase, blockers, silencios) y el sistema en los
+    cambios que calcula. Es el log que se consulta por tipo, tag, fecha o responsable."""
+
+    _table_ = _tabla("eventos_clientes", "EventoCliente")
+
+    id = PrimaryKey(int, auto=True)
+    cliente_id = Required(str)
+    canal_id = Required(str)
+    fecha = Required(datetime)            # cuándo pasó (no cuándo se registró)
+    tipo = Required(str)                  # hito | intencion | cambio_fase | blocker | silencio | riesgo
+    titulo = Required(str)
+    extracto = Optional(str)              # frase textual del canal
+    responsable = Optional(str)
+    tags = Optional(str)                  # JSON list del vocabulario del cerebro
+    estado = Optional(str)                # abierto | resuelto (para blockers)
+    resuelto_at = Optional(datetime)
+    fase = Optional(str)                  # fase del cliente cuando pasó
+    score = Optional(int)
+    clave = Required(str)                 # dedupe: canal|fecha|tipo|titulo normalizado
+    fuente = Required(str, default="claude")
+    registrado_at = Required(datetime, default=datetime.utcnow)

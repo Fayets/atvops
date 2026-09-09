@@ -12,6 +12,7 @@ from src.controllers.asistente_controller import router as asistente_router
 from src.controllers.pendientes_controller import router as pendientes_router
 from src.controllers.auth_controller import router as auth_router
 from src.controllers.clientes_controller import router as clientes_router
+from src.controllers.eventos_controller import router as eventos_router
 from src.controllers.cobranza_controller import router as cobranza_router
 from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.integrantes_controller import router as integrantes_router
@@ -95,6 +96,7 @@ app.include_router(reuniones_router, prefix="/api/reuniones", tags=["reuniones"]
 app.include_router(activacion_ia_router, prefix="/api/activacion-ia", tags=["activacion-ia"])
 app.include_router(asistente_router, prefix="/api/asistente", tags=["asistente"])
 app.include_router(pendientes_router, prefix="/api/pendientes", tags=["pendientes"])
+app.include_router(eventos_router, prefix="/api/eventos", tags=["eventos"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

@@ -738,6 +738,8 @@ export async function getFulfillmentCliente(clienteId) {
   return {
     cliente,
     coach: data.coach,
+    datos: data.datos ?? null,
+    eventos: data.eventos ?? [],
     actividad: data.actividad,
     actividadDiaria: data.actividadDiaria ?? [],
     senales,
@@ -1566,6 +1568,25 @@ export async function ejecutarRondaPendientes() {
 /** Guarda el update tal como lo dejó el CSM. */
 export async function confirmarUpdate(texto) {
   return pedir('/api/pendientes/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+}
+
+/** Datos del cliente que carga el CSM (objetivo, ICP, contacto, su equipo). */
+export async function guardarDatosCliente(clienteId, payload) {
+  return pedir(`/api/clientes/${encodeURIComponent(clienteId)}/datos`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Log de eventos: por cliente, tipo, tag, estado, responsable o antigüedad. */
+export async function getEventos(filtros = {}) {
+  const q = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v !== null && v !== undefined && v !== ''));
+  return pedir(`/api/eventos${q.toString() ? `?${q}` : ''}`);
+}
+
+export async function getResumenEventos() {
+  return pedir('/api/eventos/resumen');
 }
 
 /** Tira el borrador de la última ronda sin aplicarlo. */
