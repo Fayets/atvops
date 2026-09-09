@@ -6,13 +6,15 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
 import { getVentasOps } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
+import { useMes } from '../lib/MesContext.jsx';
 
 /**
  * Vista OPS de Ventas: ¿llegamos a la meta? ¿dónde está el cuello?
  * Para Franco (admin/ops) y reporte al Founder — sin día a día del equipo.
  */
 export default function VentasOps() {
-  const { data, loading, error } = useResource(getVentasOps);
+  const { mes } = useMes();
+  const { data, loading, error } = useResource(() => getVentasOps(mes), [mes]);
 
   if (error) {
     return (
@@ -28,7 +30,7 @@ export default function VentasOps() {
         eyebrow="OPS · Ventas"
         title="Salud vs meta"
         desc="Proyección, funnel math y rates. Para decidir y reportar — no para operar el día a día."
-        actions={<SourceTag sourceId="manual" updatedAt={data?.syncAt} />}
+        actions={<SourceTag sourceId="mkt_crm" updatedAt={data?.syncAt} />}
       />
 
       {loading || !data ? (

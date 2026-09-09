@@ -14,6 +14,7 @@ from src.controllers.auth_controller import router as auth_router
 from src.controllers.clientes_controller import router as clientes_router
 from src.controllers.eventos_controller import router as eventos_router
 from src.controllers.gcal_controller import router as gcal_router
+from src.controllers.ventas_controller import router as ventas_router
 from src.controllers.cobranza_controller import router as cobranza_router
 from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.integrantes_controller import router as integrantes_router
@@ -99,6 +100,7 @@ app.include_router(asistente_router, prefix="/api/asistente", tags=["asistente"]
 app.include_router(pendientes_router, prefix="/api/pendientes", tags=["pendientes"])
 app.include_router(eventos_router, prefix="/api/eventos", tags=["eventos"])
 app.include_router(gcal_router, prefix="/api/calendario-ventas", tags=["calendario"])
+app.include_router(ventas_router, prefix="/api/ventas", tags=["ventas"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

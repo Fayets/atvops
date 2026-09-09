@@ -111,8 +111,8 @@ export const RUTAS_POR_ROL = {
 
 /** Home por defecto al entrar. */
 export const HOME_POR_ROL = {
-  closer: '/ventas',
-  setter: '/ventas',
+  closer: '/ventas/mi-dia',
+  setter: '/ventas/mi-progreso',
   csm: '/fulfillment',
   operaciones: '/fulfillment',
   ventas: '/ventas',
@@ -191,8 +191,14 @@ export function filtrarNav(nav, rol) {
       if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
       if (item.to.startsWith('/ventas') && sub.length === 0) return null;
       // Operaciones: el link padre de Ventas apunta a la vista OPS.
-      if (item.to === '/ventas' && !puedeVerVentasDirector(rol) && puedeVerVentasOps(rol)) {
+      if (item.to === '/ventas' && !puedeVerVentasDirector(rol) && !puedeVerVentasCloser(rol) && !puedeVerVentasSetter(rol) && puedeVerVentasOps(rol)) {
         return { ...item, to: '/ventas/ops', sub };
+      }
+      if (item.to === '/ventas' && puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
+        return { ...item, to: '/ventas/mi-dia', sub };
+      }
+      if (item.to === '/ventas' && puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
+        return { ...item, to: '/ventas/mi-progreso', sub };
       }
       return { ...item, sub };
     })
@@ -218,5 +224,17 @@ export function puedeVerVentasOps(rol) {
 /** Quién ve Operativa / Performance del Director de Ventas. */
 export function puedeVerVentasDirector(rol) {
   const r = normalizarRol(rol);
-  return r === 'ventas' || r === 'closer' || r === 'setter' || r === 'admin' || r === 'founder';
+  return r === 'ventas' || r === 'admin' || r === 'founder';
+}
+
+/** Quién ve el dashboard personal del Closer. */
+export function puedeVerVentasCloser(rol) {
+  const r = normalizarRol(rol);
+  return r === 'closer' || r === 'admin' || r === 'founder';
+}
+
+/** Quién ve vistas del Setter (progreso diario / reporte). */
+export function puedeVerVentasSetter(rol) {
+  const r = normalizarRol(rol);
+  return r === 'setter' || r === 'admin' || r === 'founder';
 }

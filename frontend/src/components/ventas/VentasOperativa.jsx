@@ -12,21 +12,24 @@ const REPORTE_TONE = {
 };
 
 const EVENTO_TONE = {
-  cierre: 'alert',
-  show: 'ok',
-  no_show: 'warn',
-  agendado: 'plain',
-  perdido: 'off',
-  reporte: 'ok',
+  cierre: 'ok',
+  seguimiento: 'plain',
+  sin_reporte: 'warn',
+  no_show: 'alert',
+};
+
+const EVENTO_LABEL = {
+  cierre: 'cierre',
+  seguimiento: 'seguimiento',
+  sin_reporte: 'sin reporte',
+  no_show: 'no show',
 };
 
 const EVENTO_TIPOS = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'cierre', label: 'Cierre' },
-  { value: 'show', label: 'Show' },
-  { value: 'no_show', label: 'No show' },
-  { value: 'agendado', label: 'Agendado' },
-  { value: 'perdido', label: 'Perdido' },
+  { value: 'todos', label: 'Todo' },
+  { value: 'cierre', label: 'Cierres' },
+  { value: 'sin_reporte', label: 'Sin reporte' },
+  { value: 'seguimiento', label: 'Seguimientos' },
 ];
 
 function urgenciaFollow(dias) {
@@ -133,8 +136,8 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
 
       <div className="split">
         <Card
-          title="Actividad en tiempo real"
-          sub="Feed del día"
+          title="Lo que pasó en las llamadas"
+          sub="Cierres, seguimientos y llamadas sin reporte, del CRM"
           actions={
             <select
               className="select sm"
@@ -157,7 +160,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
             actividad.map((e) => (
               <div key={e.id} className="lista-item ventas-feed">
                 <Pill tone={EVENTO_TONE[e.tipo] ?? 'plain'} dot>
-                  {e.tipo.replace('_', ' ')}
+                  {EVENTO_LABEL[e.tipo] ?? e.tipo.replace('_', ' ')}
                 </Pill>
                 <span className="q">{e.texto}</span>
                 <span className="right dim" style={{ fontSize: 11 }}>
@@ -217,7 +220,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
 
       <Card
         title="Follow-ups pendientes"
-        sub="Ordenados por urgencia (más días sin contacto primero)"
+        sub="Leads en seguimiento, ordenados por días desde la llamada"
         flush
         foot="Verde <3 d · amarillo 3–7 d · rojo >7 d"
       >

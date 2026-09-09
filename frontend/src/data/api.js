@@ -35,25 +35,7 @@ import { contextoDeMes } from '../lib/mes.js';
 import { GRIETAS, PEDIDOS, PEDIDOS_SEMANA } from './mock/home.js';
 import { CAMPANIAS, FRECUENCIA, GASTO_CANAL, GASTO_DIARIO } from './mock/marketing.js';
 import { DURACION_HISTORICA, PROCESOS } from './mock/onboarding.js';
-import {
-  ACTIVIDAD,
-  CLOSERS,
-  FOLLOW_UPS,
-  LLAMADOS,
-  META_MES,
-  PERF_CLOSERS,
-  PERF_SETTERS,
-  REPORTES_CLOSERS,
-  REPORTES_SETTERS,
-  SEMANAS,
-  SETTERS,
-} from './mock/ventas.js';
-import {
-  OPS_VENTAS_ACTUAL,
-  OPS_VENTAS_CONTEXTO,
-  OPS_VENTAS_META,
-  OPS_VENTAS_SEMANAS,
-} from './mock/ventasOps.js';
+import { OPS_VENTAS_META } from './mock/ventasOps.js';
 import {
   OPS_FF_CALIDAD,
   OPS_FF_CONTEXTO,
@@ -62,6 +44,40 @@ import {
   OPS_FF_RESUMEN,
   OPS_FF_SALUD,
 } from './mock/fulfillmentOps.js';
+import {
+  CLOSER_ACTUAL,
+  CLOSER_CONTEXTO,
+  CLOSER_EQUIPO,
+  CLOSER_FOLLOW_UPS,
+  CLOSER_METAS,
+  CLOSER_PERFIL,
+  CLOSER_SEMANAS,
+} from './mock/closer.js';
+import {
+  getCloserAgenda,
+  getCloserDisposicionesRecientes,
+  guardarDispositionEnStore,
+  simularDispositionDemo,
+  subscribeCloserAgenda,
+} from './mock/closerStore.js';
+import {
+  SETTER_ACTUAL_DIA,
+  SETTER_ACTUAL_MES,
+  SETTER_APLICACIONES,
+  SETTER_CONTEXTO,
+  SETTER_EQUIPO,
+  SETTER_METAS_DIA,
+  SETTER_METAS_MES,
+  SETTER_PERFIL,
+  SETTER_SEMANAS,
+} from './mock/setter.js';
+import { completarSetterReporte, getSetterReporte } from './mock/setterStore.js';
+import {
+  calcularCloseRate,
+  calcularShowRate,
+  esShow,
+  resumenCalendarioHoy,
+} from '../lib/dispositions.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
 import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
 import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
@@ -776,126 +792,172 @@ export async function getFulfillmentCliente(clienteId) {
 
 /* ------------------------------------------------------------------ ventas */
 
-export async function getVentas() {
-  const actual = SEMANAS[SEMANAS.length - 1];
-  const previa = SEMANAS[SEMANAS.length - 2];
+/** Métricas reales del CRM de Marketing (leads, llamadas, cierres, reportes diarios). */
+export async function getVentasReal(mes, { refrescar = false } = {}) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  if (refrescar) q.set('refrescar', 'true');
+  return pedir(`/api/ventas${q.toString() ? `?${q}` : ''}`);
+}
 
-  const closeRate = (actual.cierres / (actual.shows || 1)) * 100;
-  const closeRatePrevio = (previa.cierres / (previa.shows || 1)) * 100;
-  const showRate = (actual.shows / (actual.agendados || 1)) * 100;
-  const showRatePrevio = (previa.shows / (previa.agendados || 1)) * 100;
-  const avgSale = actual.cierres ? actual.cashUsd / actual.cierres : 0;
-  const avgSalePrev = previa.cierres ? previa.cashUsd / previa.cierres : 0;
+/** Meta del mes: el decreto que carga el equipo; si no hay, los objetivos por defecto. */
+function metaDelMes(mes) {
+  const guardado = leerDecretoGuardado?.(mes) ?? null;
+  if (!guardado) return { ...OPS_VENTAS_META, fuente: 'default' };
+  return {
+    conversaciones: guardado.conversaciones ?? OPS_VENTAS_META.conversaciones,
+    aplicaciones: guardado.aplicaciones ?? OPS_VENTAS_META.aplicaciones,
+    agendas: guardado.agendas ?? OPS_VENTAS_META.agendas,
+    shows: guardado.shows ?? OPS_VENTAS_META.shows,
+    cierres: guardado.cierres ?? OPS_VENTAS_META.cierres,
+    cashUsd: guardado.cashMeta ?? OPS_VENTAS_META.cashUsd,
+    showRate: guardado.showRate ?? OPS_VENTAS_META.showRate,
+    closeRate: guardado.closeRate ?? OPS_VENTAS_META.closeRate,
+    averageSaleUsd: guardado.averageSaleUsd ?? OPS_VENTAS_META.averageSaleUsd,
+    fuente: 'decreto',
+  };
+}
 
-  const serieShow = SEMANAS.map((s) => (s.shows / (s.agendados || 1)) * 100);
-  const serieClose = SEMANAS.map((s) => (s.cierres / (s.shows || 1)) * 100);
-  const serieCash = SEMANAS.map((s) => s.cashUsd);
-  const serieAvg = SEMANAS.map((s) => (s.cierres ? s.cashUsd / s.cierres : 0));
+/** Feed del día armado con lo que pasó de verdad en el CRM. */
+function actividadDesdeCrm(real) {
+  const eventos = [];
+  for (const c of real.cierresRecientes ?? []) {
+    eventos.push({
+      id: `cierre_${c.id}`, tipo: 'cierre', at: c.fechaAt,
+      texto: `${c.prospecto} cerró${c.montoUsd ? ` ${formatValue(c.montoUsd, 'usd')}` : ''} con ${c.closer}`,
+    });
+  }
+  for (const l of real.sinReportar ?? []) {
+    eventos.push({
+      id: `pend_${l.id}`, tipo: 'sin_reporte', at: l.fechaAt,
+      texto: `${l.prospecto} · llamada de ${l.closer} sin reporte hace ${l.diasDesde} d`,
+    });
+  }
+  for (const l of real.seguimientos ?? []) {
+    eventos.push({ id: `seg_${l.id}`, tipo: 'seguimiento', at: l.fechaAt, texto: `${l.prospecto} quedó en seguimiento con ${l.closer}` });
+  }
+  return eventos.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? '')).slice(0, 40);
+}
 
-  /** @type {Metric[]} */
+export async function getVentas(mes) {
+  const real = await getVentasReal(mes);
+  const { actual, previo, semanas, contexto } = real;
+  const meta = metaDelMes(real.mes);
+
+  const serie = (campo) => semanas.map((s) => s[campo] ?? 0);
+  const kpi = (id, label, value, previous, format, objetivo, campoSerie, nota, sourceId = 'manual') => ({
+    id, label, value: value ?? 0, format, previous: previous ?? null, objetivo,
+    serie: serie(campoSerie), sourceId, updatedAt: real.generadoAt, nota,
+  });
+
   const kpis = [
-    {
-      id: 'show_rate',
-      label: 'Show rate',
-      value: showRate,
-      format: 'pct',
-      previous: showRatePrevio,
-      sourceId: 'calendly',
-      updatedAt: SYNC.cal,
-      objetivo: 70,
-      serie: serieShow,
-      nota: 'Shows sobre agendados · semana S37.',
-    },
-    {
-      id: 'close_rate',
-      label: 'Close rate',
-      value: closeRate,
-      format: 'pct',
-      previous: closeRatePrevio,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      objetivo: 30,
-      serie: serieClose,
-      nota: 'Cierres sobre llamados con show.',
-    },
-    {
-      id: 'cash_collected',
-      label: 'Cash collected',
-      value: actual.cashUsd,
-      format: 'usd',
-      previous: previa.cashUsd,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      objetivo: 55000,
-      serie: serieCash,
-      nota: 'Cash de la última semana cerrada.',
-    },
-    {
-      id: 'average_sale',
-      label: 'Average sale',
-      value: avgSale,
-      format: 'usd',
-      previous: avgSalePrev,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      objetivo: 11000,
-      serie: serieAvg,
-      nota: 'Ticket promedio de cierres de la semana.',
-    },
+    kpi('show_rate', 'Show rate', actual.showRate, previo.showRate, 'pct', meta.showRate, 'showRate',
+      'Llamadas con resultado cargado sobre las que ya pasaron.', 'calendly'),
+    kpi('close_rate', 'Close rate', actual.closeRate, previo.closeRate, 'pct', meta.closeRate, 'closeRate',
+      'Cierres sobre llamadas con show.'),
+    kpi('cash_collected', 'Cash collected', actual.cashUsd, previo.cashUsd, 'usd', meta.cashUsd, 'cashUsd',
+      `Cobrado en el mes. Pendiente de cobro: ${formatValue(actual.deudaUsd, 'usd')}.`),
+    kpi('average_sale', 'Average sale', actual.averageSaleUsd, previo.averageSaleUsd, 'usd', meta.averageSaleUsd, 'averageSaleUsd',
+      'Ticket promedio de los cierres del mes.'),
   ];
 
-  const ritmo = META_MES.diaHoy / META_MES.diasMes;
-  const proyectado = ritmo > 0 ? META_MES.revenueActualUsd / ritmo : META_MES.revenueActualUsd;
-  const gap = META_MES.revenueMetaUsd - META_MES.revenueActualUsd;
-  const pctMeta = (META_MES.revenueActualUsd / META_MES.revenueMetaUsd) * 100;
-  const pctRitmoEsperado = ritmo * 100;
+  const perfClosers = (real.porCloser ?? []).map((c) => ({
+    id: c.nombre, nombre: c.nombre, llamadas: c.agendados, shows: c.shows, cierres: c.cierres,
+    cashUsd: c.cashUsd, noShows: c.noShows, sinReportar: c.sinReportar,
+    closeRate: c.closeRate ?? 0, showRate: c.showRate ?? 0,
+    averageSaleUsd: c.averageSaleUsd, promedioVentaUsd: c.averageSaleUsd,
+  }));
+  const perfSetters = (real.settersMes ?? []).map((s) => ({
+    id: s.nombre, nombre: s.nombre, conversaciones: s.conversaciones, aplicaciones: s.links_enviados,
+    agendadas: s.agendas, seguimientos: s.seguimientos, reportes: s.reportes,
+    tasaApp: s.conversaciones ? (s.links_enviados / s.conversaciones) * 100 : 0,
+    tasaAgendado: s.links_enviados ? (s.agendas / s.links_enviados) * 100 : 0,
+  }));
+
+  const fraccion = contexto.diaHoy / contexto.diasMes;
+  const proyectado = fraccion > 0 ? actual.cashUsd / fraccion : actual.cashUsd;
+  const gap = meta.cashUsd - actual.cashUsd;
+  const pctMeta = meta.cashUsd ? (actual.cashUsd / meta.cashUsd) * 100 : 0;
+  const pctRitmoEsperado = fraccion * 100;
   let proyeccionEstado = 'en_camino';
   if (pctMeta < pctRitmoEsperado - 15) proyeccionEstado = 'critico';
   else if (pctMeta < pctRitmoEsperado - 5) proyeccionEstado = 'atencion';
 
-  const perfClosers = PERF_CLOSERS.map((c) => ({
-    ...c,
-    closeRate: c.shows ? (c.cierres / c.shows) * 100 : 0,
-  }));
-  const perfSetters = PERF_SETTERS.map((s) => ({
-    ...s,
-    tasaApp: s.conversaciones ? (s.aplicaciones / s.conversaciones) * 100 : 0,
-    tasaAgendado: s.aplicaciones ? (s.agendadas / s.aplicaciones) * 100 : 0,
-  }));
-
-  return responder({
-    semanas: SEMANAS,
-    llamados: LLAMADOS,
-    closers: CLOSERS,
-    setters: SETTERS,
-    reportesClosers: REPORTES_CLOSERS,
-    reportesSetters: REPORTES_SETTERS,
-    actividad: ACTIVIDAD,
-    followUps: FOLLOW_UPS,
+  return {
+    real,
+    semanas: semanas.map((s) => ({ ...s, semana: s.label, desdeAt: `${s.semana}T00:00:00-03:00` })),
+    llamados: real.proximas ?? [],
+    closers: (real.equipo ?? []).filter((m) => m.rol === 'closer'),
+    setters: (real.equipo ?? []).filter((m) => m.rol === 'setter'),
+    reportesClosers: (real.reportesClosers ?? []).map((r) => ({
+      ...r,
+      metricas: {
+        llamadas: r.metricas?.llamadas_agendadas ?? 0,
+        shows: r.metricas?.shows ?? 0,
+        cierres: r.metricas?.cierres ?? 0,
+        cashUsd: r.metricas?.ingreso ?? 0,
+      },
+    })),
+    reportesSetters: (real.reportesSetters ?? []).map((r) => ({
+      ...r,
+      metricas: {
+        conversaciones: r.metricas?.conversaciones ?? 0,
+        aplicaciones: r.metricas?.links_enviados ?? 0,
+        agendadas: r.metricas?.agendas ?? 0,
+      },
+    })),
+    actividad: actividadDesdeCrm(real),
+    followUps: (real.seguimientos ?? []).map((l) => ({
+      id: l.id, prospecto: l.prospecto, closer: l.closer,
+      diasSinContacto: l.diasDesde ?? 0, ultimoContactoAt: l.fechaAt,
+      proximoPaso: l.notas ? l.notas.slice(0, 90) : 'Seguimiento sin nota cargada',
+    })),
+    sinReportar: real.sinReportar ?? [],
     perfClosers,
     perfSetters,
     metaMes: {
-      ...META_MES,
-      gap,
-      proyectado,
-      pctMeta,
-      pctRitmoEsperado,
-      estado: proyeccionEstado,
+      mes: real.mes, diaHoy: contexto.diaHoy, diasMes: contexto.diasMes,
+      revenueMetaUsd: meta.cashUsd, revenueActualUsd: actual.cashUsd,
+      cierresMeta: meta.cierres, cierresActual: actual.cierres,
+      gap, proyectado, pctMeta, pctRitmoEsperado, estado: proyeccionEstado, fuenteMeta: meta.fuente,
     },
     kpis,
-    syncAt: SYNC.cal,
-  });
+    syncAt: real.generadoAt,
+  };
 }
 
 /**
  * Vista OPS de Ventas: proyección vs meta, funnel math y salud de rates.
  * Para admin / operaciones / founder — no es el día a día del Director.
+ * Todo sale del CRM real; la meta, del decreto del mes.
  */
-export async function getVentasOps() {
-  const ctx = OPS_VENTAS_CONTEXTO;
-  const meta = OPS_VENTAS_META;
-  const actual = OPS_VENTAS_ACTUAL;
-  const semanas = OPS_VENTAS_SEMANAS;
+export async function getVentasOps(mes) {
+  const real = await getVentasReal(mes);
+  const meta = metaDelMes(real.mes);
+  const ctxMes = contextoDeMes(real.mes);
+  const ctx = {
+    mes: real.mes,
+    nombreMes: ctxMes?.nombreMes ?? real.mes,
+    diaHoy: real.contexto.diaHoy,
+    diasMes: real.contexto.diasMes,
+    syncAt: real.generadoAt,
+  };
+  const top = real.topFunnel ?? {};
+  const actual = {
+    chats: top.conversaciones ?? 0,
+    conversaciones: top.conversaciones ?? 0,
+    aplicaciones: top.links_enviados ?? 0,
+    agendas: real.actual.agendados,
+    shows: real.actual.shows,
+    cierres: real.actual.cierres,
+    cashUsd: real.actual.cashUsd,
+  };
+  const semanas = (real.semanas ?? []).map((s) => ({
+    semana: s.label,
+    showRate: s.showRate ?? 0,
+    closeRate: s.closeRate ?? 0,
+    averageSaleUsd: s.averageSaleUsd ?? 0,
+  }));
 
   const fraccion = ctx.diaHoy / ctx.diasMes;
   const proyectado = fraccion > 0 ? (actual.cashUsd / ctx.diaHoy) * ctx.diasMes : actual.cashUsd;
@@ -904,10 +966,7 @@ export async function getVentasOps() {
   const pctRitmo = fraccion * 100;
   const ritmoActualSemana = ctx.diaHoy > 0 ? (actual.cashUsd / ctx.diaHoy) * 7 : 0;
   const ritmoNecesarioSemana = ((meta.cashUsd - actual.cashUsd) / Math.max(1, ctx.diasMes - ctx.diaHoy)) * 7;
-  const probabilidad = Math.max(
-    0,
-    Math.min(100, proyectado / meta.cashUsd * 100),
-  );
+  const probabilidad = Math.max(0, Math.min(100, meta.cashUsd ? (proyectado / meta.cashUsd) * 100 : 0));
 
   let estado = 'en_camino';
   if (pctMeta < pctRitmo - 15) estado = 'critico';
@@ -917,37 +976,27 @@ export async function getVentasOps() {
   let insight = '';
   if (estado === 'en_camino' && adelantoPct >= 0) {
     insight = `Vamos ${Math.round(adelantoPct)}% adelantados al ritmo del mes; el ritmo actual nos lleva a ${formatValue(proyectado, 'usd')}.`;
+  } else if (actual.conversaciones === 0) {
+    insight = `Nadie cargó reportes de setting este mes, así que el techo del funnel no se puede medir. Con ${actual.agendas} llamadas agendadas y ${formatValue(actual.cashUsd, 'usd')} cobrados, el ritmo proyecta ${formatValue(proyectado, 'usd')}.`;
   } else {
     const convFaltan = Math.max(0, meta.conversaciones - actual.conversaciones);
     const semanasRest = Math.max(1, (ctx.diasMes - ctx.diaHoy) / 7);
-    const convPorSemana = Math.ceil(convFaltan / semanasRest);
-    insight = `Necesitamos ${convPorSemana} conversaciones más por semana para sostener el funnel hacia la meta de ${formatValue(meta.cashUsd, 'usd')}.`;
+    insight = `Necesitamos ${Math.ceil(convFaltan / semanasRest)} conversaciones más por semana para sostener el funnel hacia la meta de ${formatValue(meta.cashUsd, 'usd')}.`;
   }
 
   const etapa = (id, label, metaV, actualV, format = 'count') => {
     const gapE = metaV - actualV;
     const pct = metaV ? (actualV / metaV) * 100 : 0;
     const diasRest = Math.max(1, ctx.diasMes - ctx.diaHoy);
-    const ritmoSemana = Math.max(0, (gapE / diasRest) * 7);
     let est = 'ok';
     if (pct < pctRitmo - 15) est = 'alert';
     else if (pct < pctRitmo - 5) est = 'warn';
-    return {
-      id,
-      label,
-      meta: metaV,
-      actual: actualV,
-      gap: gapE,
-      pctCompletado: pct,
-      ritmoSemana,
-      estado: est,
-      format,
-    };
+    return { id, label, meta: metaV, actual: actualV, gap: gapE, pctCompletado: pct, ritmoSemana: Math.round(Math.max(0, (gapE / diasRest) * 7)), estado: est, format };
   };
 
   const funnel = [
     etapa('conversaciones', 'Conversaciones', meta.conversaciones, actual.conversaciones),
-    etapa('aplicaciones', 'Aplicaciones calificadas', meta.aplicaciones, actual.aplicaciones),
+    etapa('aplicaciones', 'Links enviados', meta.aplicaciones, actual.aplicaciones),
     etapa('agendas', 'Llamadas agendadas', meta.agendas, actual.agendas),
     etapa('shows', 'Llamadas mostradas', meta.shows, actual.shows),
     etapa('cierres', 'Ventas cerradas', meta.cierres, actual.cierres),
@@ -956,19 +1005,17 @@ export async function getVentasOps() {
 
   const peor = [...funnel].sort((a, b) => a.pctCompletado - b.pctCompletado)[0];
   let diagnostico = '';
-  if (peor?.id === 'conversaciones') {
-    diagnostico = `El cuello de botella está en conversaciones: ${formatValue(actual.conversaciones, 'count')} de ${formatValue(meta.conversaciones, 'count')}. Hay ${formatValue(actual.chats, 'count')} chats entrando; el problema no es generar más chats, es convertirlos a conversación.`;
+  if (real.actual.sinReportar > 0) {
+    diagnostico = `Hay ${real.actual.sinReportar} llamadas del mes sin resultado cargado: hasta que se reporten, el show rate y el close rate quedan cortos. `;
+  }
+  if (peor?.id === 'conversaciones' && actual.conversaciones === 0) {
+    diagnostico += 'No hay reportes de setting cargados este mes, así que el techo del funnel está a ciegas.';
   } else if (peor) {
-    diagnostico = `El cuello de botella está en ${peor.label.toLowerCase()}: ${formatValue(peor.actual, peor.format)} de ${formatValue(peor.meta, peor.format)} (${formatValue(peor.pctCompletado, 'pct')} del mes).`;
+    diagnostico += `El cuello de botella está en ${peor.label.toLowerCase()}: ${formatValue(peor.actual, peor.format)} de ${formatValue(peor.meta, peor.format)} (${formatValue(peor.pctCompletado, 'pct')} del mes).`;
   }
 
-  const showRate = semanas[semanas.length - 1].showRate;
-  const closeRate = semanas[semanas.length - 1].closeRate;
-  const averageSale = semanas[semanas.length - 1].averageSaleUsd;
-  const showPrev = semanas[semanas.length - 2]?.showRate ?? showRate;
-  const closePrev = semanas[semanas.length - 2]?.closeRate ?? closeRate;
-  const avgPrev = semanas[semanas.length - 2]?.averageSaleUsd ?? averageSale;
-
+  const ult = semanas[semanas.length - 1] ?? { showRate: 0, closeRate: 0, averageSaleUsd: 0 };
+  const prev = semanas[semanas.length - 2] ?? ult;
   const kpiEstado = (valor, objetivo, good = 'up') => {
     const ok = good === 'down' ? valor <= objetivo : valor >= objetivo;
     const cerca = good === 'down' ? valor <= objetivo * 1.1 : valor >= objetivo * 0.9;
@@ -978,82 +1025,35 @@ export async function getVentasOps() {
   };
 
   const kpis = [
-    {
-      id: 'show_rate',
-      label: 'Show rate',
-      value: showRate,
-      format: 'pct',
-      previous: showPrev,
-      objetivo: meta.showRate,
-      serie: semanas.map((s) => s.showRate),
-      estado: kpiEstado(showRate, meta.showRate),
-      sourceId: 'calendly',
-      updatedAt: ctx.syncAt,
-    },
-    {
-      id: 'close_rate',
-      label: 'Close rate',
-      value: closeRate,
-      format: 'pct',
-      previous: closePrev,
-      objetivo: meta.closeRate,
-      serie: semanas.map((s) => s.closeRate),
-      estado: kpiEstado(closeRate, meta.closeRate),
-      sourceId: 'manual',
-      updatedAt: ctx.syncAt,
-    },
-    {
-      id: 'average_sale',
-      label: 'Average sale',
-      value: averageSale,
-      format: 'usd',
-      previous: avgPrev,
-      objetivo: meta.averageSaleUsd,
-      serie: semanas.map((s) => s.averageSaleUsd),
-      estado: kpiEstado(averageSale, meta.averageSaleUsd),
-      sourceId: 'manual',
-      updatedAt: ctx.syncAt,
-    },
+    { id: 'show_rate', label: 'Show rate', value: ult.showRate, format: 'pct', previous: prev.showRate, objetivo: meta.showRate, serie: semanas.map((s) => s.showRate), estado: kpiEstado(ult.showRate, meta.showRate), sourceId: 'calendly', updatedAt: ctx.syncAt },
+    { id: 'close_rate', label: 'Close rate', value: ult.closeRate, format: 'pct', previous: prev.closeRate, objetivo: meta.closeRate, serie: semanas.map((s) => s.closeRate), estado: kpiEstado(ult.closeRate, meta.closeRate), sourceId: 'manual', updatedAt: ctx.syncAt },
+    { id: 'average_sale', label: 'Average sale', value: ult.averageSaleUsd, format: 'usd', previous: prev.averageSaleUsd, objetivo: meta.averageSaleUsd, serie: semanas.map((s) => s.averageSaleUsd), estado: kpiEstado(ult.averageSaleUsd, meta.averageSaleUsd), sourceId: 'manual', updatedAt: ctx.syncAt },
   ];
 
-  const closeCaida = closePrev - closeRate;
+  const closeCaida = prev.closeRate - ult.closeRate;
   let alertaKpis = null;
   if (closeCaida >= 10) {
     const showsRestantes = Math.max(0, meta.shows - actual.shows);
-    const impacto = showsRestantes * (closeCaida / 100) * (averageSale || meta.averageSaleUsd);
-    alertaKpis = `Close rate bajó de ${formatValue(closePrev, 'pct')} a ${formatValue(closeRate, 'pct')}, impacto estimado en meta: -${formatValue(impacto, 'usd')}.`;
-  } else if (showRate < meta.showRate - 10) {
-    alertaKpis = `Show rate en ${formatValue(showRate, 'pct')} vs meta ${formatValue(meta.showRate, 'pct')}. Revisar confirmación de agendas.`;
+    const impacto = showsRestantes * (closeCaida / 100) * (ult.averageSaleUsd || meta.averageSaleUsd);
+    alertaKpis = `Close rate bajó de ${formatValue(prev.closeRate, 'pct')} a ${formatValue(ult.closeRate, 'pct')}, impacto estimado en meta: -${formatValue(impacto, 'usd')}.`;
+  } else if (ult.showRate < meta.showRate - 10) {
+    alertaKpis = `Show rate en ${formatValue(ult.showRate, 'pct')} vs meta ${formatValue(meta.showRate, 'pct')}. Revisar confirmación de agendas.`;
   }
 
-  return responder({
+  return {
     contexto: ctx,
-    proyeccion: {
-      metaUsd: meta.cashUsd,
-      actualUsd: actual.cashUsd,
-      gapUsd: gap,
-      proyectadoUsd: proyectado,
-      probabilidad,
-      pctMeta,
-      pctRitmo,
-      ritmoActualSemana,
-      ritmoNecesarioSemana,
-      estado,
-      insight,
-    },
+    proyeccion: { metaUsd: meta.cashUsd, actualUsd: actual.cashUsd, gapUsd: gap, proyectadoUsd: proyectado, probabilidad, pctMeta, pctRitmo, ritmoActualSemana, ritmoNecesarioSemana, estado, insight },
     funnel,
     diagnostico,
     kpis,
     alertaKpis,
     chats: actual.chats,
+    fuenteMeta: meta.fuente,
+    real,
     syncAt: ctx.syncAt,
-  });
+  };
 }
 
-/**
- * Vista OPS de Fulfillment: cartera, expansión (Caja 2), salud y calidad.
- * Para admin / operaciones / founder — no el día a día de CSM.
- */
 export async function getFulfillmentOps() {
   const ctx = OPS_FF_CONTEXTO;
   const r = OPS_FF_RESUMEN;
@@ -1110,6 +1110,294 @@ export async function getFulfillmentOps() {
     },
     syncAt: ctx.syncAt,
   });
+}
+
+/**
+ * Dashboard personal del Closer: su día, sus números, follow-ups y dispositions.
+ * Agenda vive en closerStore (mock en vivo) para dispositions + polling.
+ */
+export async function getCloserDashboard() {
+  const ctx = CLOSER_CONTEXTO;
+  const meta = CLOSER_METAS;
+  const actual = CLOSER_ACTUAL;
+  const equipo = CLOSER_EQUIPO;
+  const semanas = CLOSER_SEMANAS;
+  const agenda = getCloserAgenda();
+  const hoyLlamadas = agenda
+    .filter((l) => l.fechaAt.startsWith(ctx.hoyIso))
+    .sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
+  const resumenHoy = resumenCalendarioHoy(hoyLlamadas);
+
+  const pctDe = (v, m) => (m ? (v / m) * 100 : 0);
+  const estadoDe = (pct, ritmoEsperado) => {
+    if (pct >= ritmoEsperado - 2) return 'ok';
+    if (pct >= ritmoEsperado - 15) return 'warn';
+    return 'alert';
+  };
+  const ritmoEsperado = (ctx.diaHoy / ctx.diasMes) * 100;
+
+  // Show rate ATV: (calificados + descalificados + cerrados) / agendadas (incl. canceladas; excl. reagendadas)
+  const showRate = calcularShowRate(agenda);
+  const closeRate = calcularCloseRate(agenda);
+  const showsMes = agenda.filter(esShow).length || actual.shows;
+  const cierresMes = agenda.filter((l) => l.estado === 'cerrado').length || actual.cierres;
+  const cashMes =
+    agenda.reduce((s, l) => s + (l.estado === 'cerrado' && l.montoUsd ? Number(l.montoUsd) : 0), 0) ||
+    actual.cashUsd;
+
+  const kpis = [
+    {
+      id: 'llamadas',
+      label: 'Llamadas hechas',
+      value: actual.llamadas,
+      meta: meta.llamadas,
+      varianza: actual.llamadas - meta.llamadas,
+      format: 'count',
+      pct: pctDe(actual.llamadas, meta.llamadas),
+      estado: estadoDe(pctDe(actual.llamadas, meta.llamadas), ritmoEsperado),
+      serie: semanas.map((s) => s.llamadas),
+      previous: semanas[semanas.length - 2]?.llamadas ?? null,
+    },
+    {
+      id: 'shows',
+      label: 'Shows',
+      value: Math.max(actual.shows, showsMes),
+      meta: meta.shows,
+      varianza: Math.max(actual.shows, showsMes) - meta.shows,
+      format: 'count',
+      pct: pctDe(Math.max(actual.shows, showsMes), meta.shows),
+      estado: estadoDe(pctDe(Math.max(actual.shows, showsMes), meta.shows), ritmoEsperado),
+      serie: semanas.map((s) => s.shows),
+      previous: semanas[semanas.length - 2]?.shows ?? null,
+      extra: `Show rate ${formatValue(showRate, 'pct')}`,
+    },
+    {
+      id: 'cierres',
+      label: 'Cierres',
+      value: Math.max(actual.cierres, cierresMes),
+      meta: meta.cierres,
+      varianza: Math.max(actual.cierres, cierresMes) - meta.cierres,
+      format: 'count',
+      pct: pctDe(Math.max(actual.cierres, cierresMes), meta.cierres),
+      estado: estadoDe(pctDe(Math.max(actual.cierres, cierresMes), meta.cierres), ritmoEsperado),
+      serie: semanas.map((s) => s.cierres),
+      previous: semanas[semanas.length - 2]?.cierres ?? null,
+      extra: `Close rate ${formatValue(closeRate, 'pct')}`,
+    },
+    {
+      id: 'cash',
+      label: 'Cash generado',
+      value: Math.max(actual.cashUsd, cashMes),
+      meta: meta.cashUsd,
+      varianza: Math.max(actual.cashUsd, cashMes) - meta.cashUsd,
+      format: 'usd',
+      pct: pctDe(Math.max(actual.cashUsd, cashMes), meta.cashUsd),
+      estado: estadoDe(pctDe(Math.max(actual.cashUsd, cashMes), meta.cashUsd), ritmoEsperado),
+      serie: semanas.map((s) => s.cashUsd),
+      previous: semanas[semanas.length - 2]?.cashUsd ?? null,
+    },
+  ];
+
+  const gapEquipo = equipo.metaUsd - equipo.actualUsd;
+  const pctEquipo = pctDe(equipo.actualUsd, equipo.metaUsd);
+  let estadoEquipo = 'en_camino';
+  if (pctEquipo < ritmoEsperado - 15) estadoEquipo = 'critico';
+  else if (pctEquipo < ritmoEsperado - 5) estadoEquipo = 'atencion';
+
+  const ticketProm = actual.cierres ? actual.cashUsd / actual.cierres : meta.cashUsd / meta.cierres;
+  const ventasFaltan = Math.max(0, Math.ceil(gapEquipo / (ticketProm || 11000)));
+  const adelanto = pctEquipo - ritmoEsperado;
+  const insightEquipo =
+    adelanto >= 0
+      ? `El equipo va ${Math.round(adelanto)}% adelantado; faltan ~${ventasFaltan} ventas para llegar a meta.`
+      : `El equipo va ${Math.round(Math.abs(adelanto))}% atrasado; faltan ~${ventasFaltan} ventas para llegar a meta.`;
+
+  return responder({
+    perfil: CLOSER_PERFIL,
+    contexto: ctx,
+    agenda,
+    hoy: {
+      iso: ctx.hoyIso,
+      llamadas: hoyLlamadas,
+      total: resumenHoy.total,
+      showsConfirmados: resumenHoy.showsConfirmados,
+      pendientesConfirmar: resumenHoy.pendientes,
+      pendientes: resumenHoy.pendientes,
+    },
+    kpis,
+    equipo: {
+      ...equipo,
+      gapUsd: gapEquipo,
+      pctMeta: pctEquipo,
+      estado: estadoEquipo,
+      insight: insightEquipo,
+    },
+    followUps: [...CLOSER_FOLLOW_UPS].sort((a, b) => b.diasSinContacto - a.diasSinContacto),
+    dispositions: getCloserDisposicionesRecientes(),
+    syncAt: new Date().toISOString(),
+  });
+}
+
+/** Guarda disposition (mock store). Futuro: POST /api/ventas/dispositions. */
+export async function guardarDispositionCloser(payload) {
+  guardarDispositionEnStore(payload);
+  return getCloserDashboard();
+}
+
+/** Demo: aplica disposition a Tomás Riganti (o primera agendada). */
+export async function simularDispositionCloser() {
+  const ok = simularDispositionDemo();
+  if (!ok) return null;
+  return getCloserDashboard();
+}
+
+/** Suscripción a cambios de agenda (mock WebSocket). */
+export function onCloserAgendaChange(fn) {
+  return subscribeCloserAgenda(fn);
+}
+
+/**
+ * Dashboard personal del Setter: día, mes, equipo y aplicaciones.
+ * Futuro: apps form + Calendly + reporte diario.
+ */
+export async function getSetterDashboard() {
+  const ctx = SETTER_CONTEXTO;
+  const metaDia = SETTER_METAS_DIA;
+  const actualDia = SETTER_ACTUAL_DIA;
+  const metaMes = SETTER_METAS_MES;
+  const actualMes = SETTER_ACTUAL_MES;
+  const equipo = SETTER_EQUIPO;
+  const semanas = SETTER_SEMANAS;
+  const reporte = getSetterReporte();
+
+  const pctDe = (v, m) => (m ? (v / m) * 100 : 0);
+  const estadoDe = (pct, ritmoEsperado) => {
+    if (pct >= ritmoEsperado - 2) return 'ok';
+    if (pct >= ritmoEsperado - 15) return 'warn';
+    return 'alert';
+  };
+  const ritmoEsperado = (ctx.diaHoy / ctx.diasMes) * 100;
+  /** Para metas diarias: 100% = cumplió el día. */
+  const estadoDia = (pct) => {
+    if (pct >= 100) return 'ok';
+    if (pct >= 60) return 'warn';
+    return 'alert';
+  };
+
+  const tasaAgendado = actualMes.aplicaciones
+    ? (actualMes.agendadas / actualMes.aplicaciones) * 100
+    : 0;
+
+  /** Mock: diasReporte = días previos; si completó hoy, +1. */
+  const diasReporte = actualMes.diasReporte + (reporte.completado ? 1 : 0);
+
+  const diaKpis = [
+    {
+      id: 'apps_hoy',
+      label: 'Aplicaciones recibidas hoy',
+      value: actualDia.aplicaciones,
+      meta: metaDia.aplicaciones,
+      format: 'count',
+      pct: pctDe(actualDia.aplicaciones, metaDia.aplicaciones),
+      estado: estadoDia(pctDe(actualDia.aplicaciones, metaDia.aplicaciones)),
+    },
+    {
+      id: 'agendadas_hoy',
+      label: 'Llamadas agendadas hoy',
+      value: actualDia.agendadas,
+      meta: metaDia.agendadas,
+      format: 'count',
+      pct: pctDe(actualDia.agendadas, metaDia.agendadas),
+      estado: estadoDia(pctDe(actualDia.agendadas, metaDia.agendadas)),
+    },
+  ];
+
+  const kpisMes = [
+    {
+      id: 'apps_mes',
+      label: 'Aplicaciones del mes',
+      value: actualMes.aplicaciones,
+      meta: metaMes.aplicaciones,
+      varianza: actualMes.aplicaciones - metaMes.aplicaciones,
+      format: 'count',
+      pct: pctDe(actualMes.aplicaciones, metaMes.aplicaciones),
+      estado: estadoDe(pctDe(actualMes.aplicaciones, metaMes.aplicaciones), ritmoEsperado),
+      serie: semanas.map((s) => s.aplicaciones),
+    },
+    {
+      id: 'agendadas_mes',
+      label: 'Llamadas agendadas del mes',
+      value: actualMes.agendadas,
+      meta: metaMes.agendadas,
+      varianza: actualMes.agendadas - metaMes.agendadas,
+      format: 'count',
+      pct: pctDe(actualMes.agendadas, metaMes.agendadas),
+      estado: estadoDe(pctDe(actualMes.agendadas, metaMes.agendadas), ritmoEsperado),
+      serie: semanas.map((s) => s.agendadas),
+    },
+    {
+      id: 'tasa',
+      label: 'Tasa de agendado',
+      value: tasaAgendado,
+      meta: metaMes.tasaAgendado,
+      varianza: tasaAgendado - metaMes.tasaAgendado,
+      format: 'pct',
+      pct: pctDe(tasaAgendado, metaMes.tasaAgendado),
+      estado: estadoDe(pctDe(tasaAgendado, metaMes.tasaAgendado), 100),
+      serie: semanas.map((s) => s.tasa),
+      extra: `${actualMes.agendadas} de ${actualMes.aplicaciones} apps`,
+    },
+    {
+      id: 'reportes',
+      label: 'Días con reporte completado',
+      value: diasReporte,
+      meta: ctx.diaHoy,
+      varianza: diasReporte - ctx.diaHoy,
+      format: 'count',
+      pct: pctDe(diasReporte, ctx.diaHoy),
+      estado: estadoDia(pctDe(diasReporte, ctx.diaHoy)),
+      serie: [4, 5, 5, diasReporte],
+      extra: `${diasReporte} de ${ctx.diaHoy} días`,
+    },
+  ];
+
+  const gapEquipo = equipo.metaAplicaciones - equipo.actualAplicaciones;
+  const pctEquipo = pctDe(equipo.actualAplicaciones, equipo.metaAplicaciones);
+  let estadoEquipo = 'en_camino';
+  if (pctEquipo < ritmoEsperado - 15) estadoEquipo = 'critico';
+  else if (pctEquipo < ritmoEsperado - 5) estadoEquipo = 'atencion';
+
+  const adelanto = pctEquipo - ritmoEsperado;
+  const faltan = Math.max(0, gapEquipo);
+  const insightEquipo =
+    adelanto >= 0
+      ? `El equipo va ${Math.round(adelanto)}% adelantado; faltan ${faltan} aplicaciones para llegar a meta.`
+      : `El equipo va ${Math.round(Math.abs(adelanto))}% atrasado; faltan ${faltan} aplicaciones para llegar a meta.`;
+
+  return responder({
+    perfil: SETTER_PERFIL,
+    contexto: ctx,
+    dia: { kpis: diaKpis },
+    reporte,
+    kpisMes,
+    equipo: {
+      ...equipo,
+      gap: gapEquipo,
+      pctMeta: pctEquipo,
+      estado: estadoEquipo,
+      insight: insightEquipo,
+    },
+    aplicaciones: [...SETTER_APLICACIONES].sort((a, b) =>
+      b.fechaAplicacionAt.localeCompare(a.fechaAplicacionAt),
+    ),
+    syncAt: ctx.syncAt,
+  });
+}
+
+/** Marca el reporte del día como completado. Futuro: POST. */
+export async function completarReporteSetter(payload = {}) {
+  completarSetterReporte(payload);
+  return getSetterDashboard();
 }
 
 /* --------------------------------------------------------------- marketing */

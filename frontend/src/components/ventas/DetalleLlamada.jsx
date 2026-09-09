@@ -1,6 +1,13 @@
 import Pill from '../ui/Pill.jsx';
 import { formatFechaHora, formatValue } from '../../lib/format.js';
 import { ESTADO } from './CalendarioEquipo.jsx';
+import { ESTADO_LLAMADA } from '../../lib/dispositions.js';
+
+/** Estados de confirmación (calendario) + dispositions de llamada (closer). */
+const ESTADO_DETALLE = {
+  ...ESTADO,
+  ...ESTADO_LLAMADA,
+};
 
 /**
  * Modal de detalle de una llamada.
@@ -8,7 +15,7 @@ import { ESTADO } from './CalendarioEquipo.jsx';
  */
 export default function DetalleLlamada({ llamada, onCerrar }) {
   if (!llamada) return null;
-  const est = ESTADO[llamada.estado] ?? ESTADO.pendiente;
+  const est = ESTADO_DETALLE[llamada.estado] ?? ESTADO_DETALLE.pendiente;
   const externos = (llamada.invitados ?? []).filter((i) => !i.equipo);
 
   return (
@@ -40,8 +47,20 @@ export default function DetalleLlamada({ llamada, onCerrar }) {
           </div>
           <div>
             <div className="k">Oferta</div>
-            <div className="v">{llamada.oferta}</div>
+            <div className="v">{llamada.oferta}{llamada.offerTier ? ` · ${llamada.offerTier}` : ''}</div>
           </div>
+          {llamada.ultimaInteraccion && (
+            <div>
+              <div className="k">Última interacción</div>
+              <div className="v">{llamada.ultimaInteraccion}</div>
+            </div>
+          )}
+          {llamada.setter && (
+            <div>
+              <div className="k">Setter</div>
+              <div className="v">{llamada.setter}</div>
+            </div>
+          )}
           {llamada.facturacion && (
             <div>
               <div className="k">Factura hoy</div>

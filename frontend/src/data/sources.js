@@ -24,6 +24,18 @@ export const SOURCES = {
     proximoPaso:
       'La cartera (un canal = un cliente) ya sale de los transcripts. Falta el clasificador de activación/mix y payments para MRR/NRR.',
   },
+  mkt_crm: {
+    id: 'mkt_crm',
+    nombre: 'CRM de ATV Marketing',
+    descripcion:
+      'La base de leads de ATV Marketing: quién agendó, con qué closer, qué resultado tuvo la llamada, cuánto pagó y cuánto debe. Incluye los reportes diarios de closers y setters.',
+    status: 'conectada',
+    lastSyncAt: null,
+    responsable: 'Franco',
+    metodo: 'Lectura directa de la base de atv-mkt (solo lectura)',
+    proximoPaso:
+      'Las llamadas sin resultado cargado rompen show rate y close rate: el pendiente es que los closers reporten el mismo día.',
+  },
   discord_crm: {
     id: 'discord_crm',
     nombre: 'Discord / CRM',

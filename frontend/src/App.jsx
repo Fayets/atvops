@@ -13,9 +13,11 @@ import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
 import Metas from './pages/Metas.jsx';
+import VentasCloser from './pages/VentasCloser.jsx';
 import VentasOperativaPage from './pages/VentasOperativa.jsx';
 import VentasOps from './pages/VentasOps.jsx';
 import VentasPerformancePage from './pages/VentasPerformance.jsx';
+import VentasSetter from './pages/VentasSetter.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
 import Pendientes from './pages/fulfillment/Pendientes.jsx';
@@ -27,15 +29,51 @@ import FulfillmentOps from './pages/fulfillment/FulfillmentOps.jsx';
 import Resumen from './pages/fulfillment/Resumen.jsx';
 import Retencion from './pages/fulfillment/Retencion.jsx';
 import { useRol } from './lib/RolContext.jsx';
-import { puedeVerVentasDirector, puedeVerVentasOps } from './lib/roles.js';
+import {
+  homeParaRol,
+  puedeVerVentasCloser,
+  puedeVerVentasDirector,
+  puedeVerVentasOps,
+  puedeVerVentasSetter,
+} from './lib/roles.js';
 
-/** /ventas: Director → Operativa · OPS puro → Salud vs meta. */
+/** /ventas: Closer → Mi día · Setter → Mi progreso · OPS → Salud vs meta · resto → Operativa. */
 function VentasIndex() {
   const { rol } = useRol();
+  if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
+    return <Navigate to="/ventas/mi-dia" replace />;
+  }
+  if (puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
+    return <Navigate to="/ventas/mi-progreso" replace />;
+  }
   if (!puedeVerVentasDirector(rol) && puedeVerVentasOps(rol)) {
     return <Navigate to="/ventas/ops" replace />;
   }
   return <VentasOperativaPage />;
+}
+
+function VentasMiDiaRoute() {
+  const { rol } = useRol();
+  if (!puedeVerVentasCloser(rol)) {
+    return <Navigate to={homeParaRol(rol)} replace />;
+  }
+  return <VentasCloser />;
+}
+
+function VentasMiProgresoRoute() {
+  const { rol } = useRol();
+  if (!puedeVerVentasSetter(rol)) {
+    return <Navigate to={homeParaRol(rol)} replace />;
+  }
+  return <VentasSetter />;
+}
+
+function VentasPerformanceRoute() {
+  const { rol } = useRol();
+  if (!puedeVerVentasDirector(rol)) {
+    return <Navigate to={homeParaRol(rol)} replace />;
+  }
+  return <VentasPerformancePage />;
 }
 
 /**
@@ -71,7 +109,9 @@ export default function App() {
             <Route path="ads" element={<Ads />} />
             <Route path="ventas">
               <Route index element={<VentasIndex />} />
-              <Route path="performance" element={<VentasPerformancePage />} />
+              <Route path="mi-dia" element={<VentasMiDiaRoute />} />
+              <Route path="mi-progreso" element={<VentasMiProgresoRoute />} />
+              <Route path="performance" element={<VentasPerformanceRoute />} />
               <Route path="ops" element={<VentasOps />} />
             </Route>
             <Route path="metas" element={<Metas />} />

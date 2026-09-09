@@ -24,12 +24,16 @@
   --brand-line: rgba(225, 43, 38, 0.32);
 
   /* Semánticos */
-  --ok: #34d399;
-  --ok-dim: rgba(52, 211, 153, 0.13);
-  --warn: #f0b429;
-  --warn-dim: rgba(240, 180, 41, 0.13);
-  --off: #64646e;
-  --off-dim: rgba(120, 120, 132, 0.14);
+  --ok: #22c55e;
+  --ok-dim: rgba(34, 197, 94, 0.13);
+  --warn: #eab308;
+  --warn-dim: rgba(234, 179, 8, 0.13);
+  --alert: #ef4444;
+  --alert-dim: rgba(239, 68, 68, 0.13);
+  --info: #3b82f6;
+  --info-dim: rgba(59, 130, 246, 0.14);
+  --off: #6b7280;
+  --off-dim: rgba(107, 114, 128, 0.14);
 
   /* Series de gráficos */
   --s1: #e12b26;

@@ -4,10 +4,12 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
 import { getVentas } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
+import { useMes } from '../lib/MesContext.jsx';
 
 /** Salud del funnel y rendimiento del equipo. */
 export default function VentasPerformancePage() {
-  const { data, loading, error } = useResource(getVentas);
+  const { mes } = useMes();
+  const { data, loading, error } = useResource(() => getVentas(mes), [mes]);
 
   if (error) {
     return (
@@ -23,7 +25,7 @@ export default function VentasPerformancePage() {
         eyebrow="Director de Ventas · Lucas"
         title="Performance"
         desc="KPIs, tablas por closer/setter, embudo y proyección vs meta."
-        actions={<SourceTag sourceId="manual" updatedAt={data?.syncAt} />}
+        actions={<SourceTag sourceId="mkt_crm" updatedAt={data?.syncAt} />}
       />
 
       {loading || !data ? (
