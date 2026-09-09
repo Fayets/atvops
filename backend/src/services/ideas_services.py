@@ -33,9 +33,14 @@ class IdeasServices:
         return idea
 
     def listar(self, usuario_id: int) -> list[dict]:
+        # Pony + Python 3.13: no iterar Query a mano; materializar con [:]/list().
         with db_session:
-            filas = [i for i in Idea.select().order_by(desc(Idea.id)) if i.usuario is not None and i.usuario.id == usuario_id]
-            return [idea_a_dict(i) for i in filas]
+            filas = list(Idea.select().order_by(desc(Idea.id))[:])
+            return [
+                idea_a_dict(i)
+                for i in filas
+                if i.usuario is not None and i.usuario.id == usuario_id
+            ]
 
     def crear(self, usuario_id: int, texto: str, quien: str | None = None) -> dict:
         limpio = (texto or "").strip()

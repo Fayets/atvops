@@ -35,7 +35,19 @@ import { contextoDeMes } from '../lib/mes.js';
 import { GRIETAS, PEDIDOS, PEDIDOS_SEMANA } from './mock/home.js';
 import { CAMPANIAS, FRECUENCIA, GASTO_CANAL, GASTO_DIARIO } from './mock/marketing.js';
 import { DURACION_HISTORICA, PROCESOS } from './mock/onboarding.js';
-import { LLAMADOS, SEMANAS } from './mock/ventas.js';
+import {
+  ACTIVIDAD,
+  CLOSERS,
+  FOLLOW_UPS,
+  LLAMADOS,
+  META_MES,
+  PERF_CLOSERS,
+  PERF_SETTERS,
+  REPORTES_CLOSERS,
+  REPORTES_SETTERS,
+  SEMANAS,
+  SETTERS,
+} from './mock/ventas.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
 import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
 import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
@@ -758,19 +770,27 @@ export async function getVentas() {
   const closeRatePrevio = (previa.cierres / (previa.shows || 1)) * 100;
   const showRate = (actual.shows / (actual.agendados || 1)) * 100;
   const showRatePrevio = (previa.shows / (previa.agendados || 1)) * 100;
+  const avgSale = actual.cierres ? actual.cashUsd / actual.cierres : 0;
+  const avgSalePrev = previa.cierres ? previa.cashUsd / previa.cierres : 0;
+
+  const serieShow = SEMANAS.map((s) => (s.shows / (s.agendados || 1)) * 100);
+  const serieClose = SEMANAS.map((s) => (s.cierres / (s.shows || 1)) * 100);
+  const serieCash = SEMANAS.map((s) => s.cashUsd);
+  const serieAvg = SEMANAS.map((s) => (s.cierres ? s.cashUsd / s.cierres : 0));
 
   /** @type {Metric[]} */
   const kpis = [
     {
-      id: 'llamados_agendados',
-      label: 'Llamados agendados',
-      value: actual.agendados,
-      format: 'count',
-      previous: previa.agendados,
+      id: 'show_rate',
+      label: 'Show rate',
+      value: showRate,
+      format: 'pct',
+      previous: showRatePrevio,
       sourceId: 'calendly',
       updatedAt: SYNC.cal,
-      serie: SEMANAS.map((s) => s.agendados),
-      nota: 'Semana S37 (7–13 sep), la última cerrada.',
+      objetivo: 70,
+      serie: serieShow,
+      nota: 'Shows sobre agendados · semana S37.',
     },
     {
       id: 'close_rate',
@@ -780,8 +800,8 @@ export async function getVentas() {
       previous: closeRatePrevio,
       sourceId: 'manual',
       updatedAt: SYNC.man,
-      objetivo: 25,
-      serie: SEMANAS.map((s) => (s.cierres / (s.shows || 1)) * 100),
+      objetivo: 30,
+      serie: serieClose,
       nota: 'Cierres sobre llamados con show.',
     },
     {
@@ -792,23 +812,65 @@ export async function getVentas() {
       previous: previa.cashUsd,
       sourceId: 'manual',
       updatedAt: SYNC.man,
-      serie: SEMANAS.map((s) => s.cashUsd),
-      nota: 'Cargado a mano los lunes. Es la grieta más cara del tablero.',
+      objetivo: 55000,
+      serie: serieCash,
+      nota: 'Cash de la última semana cerrada.',
     },
     {
-      id: 'show_rate',
-      label: 'Show up',
-      value: showRate,
-      format: 'pct',
-      previous: showRatePrevio,
-      sourceId: 'calendly',
-      updatedAt: SYNC.cal,
-      objetivo: 65,
-      serie: SEMANAS.map((s) => (s.shows / (s.agendados || 1)) * 100),
+      id: 'average_sale',
+      label: 'Average sale',
+      value: avgSale,
+      format: 'usd',
+      previous: avgSalePrev,
+      sourceId: 'manual',
+      updatedAt: SYNC.man,
+      objetivo: 11000,
+      serie: serieAvg,
+      nota: 'Ticket promedio de cierres de la semana.',
     },
   ];
 
-  return responder({ semanas: SEMANAS, llamados: LLAMADOS, kpis });
+  const ritmo = META_MES.diaHoy / META_MES.diasMes;
+  const proyectado = ritmo > 0 ? META_MES.revenueActualUsd / ritmo : META_MES.revenueActualUsd;
+  const gap = META_MES.revenueMetaUsd - META_MES.revenueActualUsd;
+  const pctMeta = (META_MES.revenueActualUsd / META_MES.revenueMetaUsd) * 100;
+  const pctRitmoEsperado = ritmo * 100;
+  let proyeccionEstado = 'en_camino';
+  if (pctMeta < pctRitmoEsperado - 15) proyeccionEstado = 'critico';
+  else if (pctMeta < pctRitmoEsperado - 5) proyeccionEstado = 'atencion';
+
+  const perfClosers = PERF_CLOSERS.map((c) => ({
+    ...c,
+    closeRate: c.shows ? (c.cierres / c.shows) * 100 : 0,
+  }));
+  const perfSetters = PERF_SETTERS.map((s) => ({
+    ...s,
+    tasaApp: s.conversaciones ? (s.aplicaciones / s.conversaciones) * 100 : 0,
+    tasaAgendado: s.aplicaciones ? (s.agendadas / s.aplicaciones) * 100 : 0,
+  }));
+
+  return responder({
+    semanas: SEMANAS,
+    llamados: LLAMADOS,
+    closers: CLOSERS,
+    setters: SETTERS,
+    reportesClosers: REPORTES_CLOSERS,
+    reportesSetters: REPORTES_SETTERS,
+    actividad: ACTIVIDAD,
+    followUps: FOLLOW_UPS,
+    perfClosers,
+    perfSetters,
+    metaMes: {
+      ...META_MES,
+      gap,
+      proyectado,
+      pctMeta,
+      pctRitmoEsperado,
+      estado: proyeccionEstado,
+    },
+    kpis,
+    syncAt: SYNC.cal,
+  });
 }
 
 /* --------------------------------------------------------------- marketing */
@@ -1577,6 +1639,11 @@ export async function guardarDatosCliente(clienteId, payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+}
+
+/** Agenda real del Google Calendar de ATV (vista de Ventas). */
+export async function getAgendaVentas({ dias = 14, refrescar = false } = {}) {
+  return pedir(`/api/calendario-ventas?dias=${dias}${refrescar ? '&refrescar=true' : ''}`);
 }
 
 /** Log de eventos: por cliente, tipo, tag, estado, responsable o antigüedad. */

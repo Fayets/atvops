@@ -184,6 +184,7 @@ export function filtrarNav(nav, rol) {
       if (!item.sub) return item;
       const sub = item.sub.filter((s) => puedeVerRuta(s.to, rol));
       if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
+      if (item.to.startsWith('/ventas') && sub.length === 0) return null;
       return { ...item, sub };
     })
     .filter(Boolean);
@@ -191,4 +192,10 @@ export function filtrarNav(nav, rol) {
 
 export function homeParaRol(rol) {
   return HOME_POR_ROL[normalizarRol(rol)] ?? '/';
+}
+
+/** Solo admin y operaciones (ops) pueden editar el decreto de metas. */
+export function puedeEditarMetas(rol) {
+  const r = normalizarRol(rol);
+  return r === 'admin' || r === 'operaciones';
 }

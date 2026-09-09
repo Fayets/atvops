@@ -7,3 +7,5 @@ PyJWT
 python-multipart
 psycopg2-binary
 anthropic>=0.40
+google-auth
+google-api-python-client

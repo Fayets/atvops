@@ -1,0 +1,263 @@
+"""
+Google Calendar de ATV (la cuenta real de Aumenta Tu Valor).
+
+Credenciales: cuenta de servicio, igual que en atv-mkt. Se buscan en este orden:
+1. `GOOGLE_SERVICE_ACCOUNT_JSON` (el JSON completo) o `GOOGLE_SERVICE_ACCOUNT_FILE` (ruta),
+   más `GOOGLE_CALENDAR_ID`.
+2. La conexión que ya cargó atv-mkt en la base compartida (tabla `apiconnection`,
+   plataforma `google_calendar`): así el calendario se configura en un solo lugar.
+
+Solo lectura. Se cachea 5 minutos para no pegarle a Google en cada carga de la vista.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+from datetime import datetime, time, timedelta, timezone
+from pathlib import Path
+
+from decouple import config
+from fastapi import HTTPException
+
+from src.services.transcripts_services import AR_TZ
+
+logger = logging.getLogger("atv_ops.gcal")
+
+SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
+CACHE_SEGUNDOS = int(config("GCAL_CACHE_SEGUNDOS", default=300))
+CONEXION_SCHEMA = config("GCAL_CONEXION_SCHEMA", default="public")
+_cache: dict = {}
+_lock = threading.Lock()
+
+
+# ------------------------------------------------------------ credenciales
+
+def _desde_env() -> dict | None:
+    calendar_id = (config("GOOGLE_CALENDAR_ID", default="") or "").strip()
+    crudo = (config("GOOGLE_SERVICE_ACCOUNT_JSON", default="") or "").strip()
+    if not crudo:
+        ruta = (config("GOOGLE_SERVICE_ACCOUNT_FILE", default="") or "").strip()
+        if ruta and Path(ruta).is_file():
+            crudo = Path(ruta).read_text(encoding="utf-8")
+    if not (calendar_id and crudo):
+        return None
+    return {"calendar_id": calendar_id, "service_account_json": crudo, "origen": "env"}
+
+
+def _desde_conexion_mkt() -> dict | None:
+    """Lee la conexión que ya configuró atv-mkt en la base compartida (solo lectura)."""
+    from src.db import ES_POSTGRES, db
+
+    if not ES_POSTGRES:
+        return None
+    try:
+        filas = db.select(f"SELECT credentials FROM {CONEXION_SCHEMA}.apiconnection WHERE platform = 'google_calendar'")
+    except Exception as e:  # noqa: BLE001 — sin tabla o sin permisos: se avisa arriba
+        logger.info("No se pudo leer la conexión de atv-mkt: %s", str(e)[:160])
+        return None
+    for fila in filas:
+        cred = fila[0] if isinstance(fila, (tuple, list)) else fila
+        if isinstance(cred, str):
+            try:
+                cred = json.loads(cred)
+            except ValueError:
+                continue
+        if not isinstance(cred, dict):
+            continue
+        calendar_id = str(cred.get("calendar_id") or "").strip()
+        sa = cred.get("service_account_json")
+        sa = json.dumps(sa) if isinstance(sa, dict) else str(sa or "").strip()
+        if calendar_id and sa:
+            return {"calendar_id": calendar_id, "service_account_json": sa, "origen": "atv-mkt"}
+    return None
+
+
+def credenciales() -> dict:
+    cred = _desde_env() or _desde_conexion_mkt()
+    if cred is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay calendario configurado. Cargá GOOGLE_CALENDAR_ID y GOOGLE_SERVICE_ACCOUNT_JSON, "
+                   "o configurá la conexión google_calendar en ATV Marketing.",
+        )
+    return cred
+
+
+def configurado() -> bool:
+    try:
+        credenciales()
+        return True
+    except HTTPException:
+        return False
+
+
+# ----------------------------------------------------------------- lectura
+
+def _servicio(sa_json: str):
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail="Faltan las librerías de Google (google-auth, google-api-python-client).") from e
+    try:
+        info = json.loads(sa_json)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="El JSON de la cuenta de servicio no es válido.") from e
+    if not isinstance(info, dict) or not info.get("client_email") or not info.get("private_key"):
+        raise HTTPException(status_code=400, detail="El JSON de la cuenta de servicio no tiene client_email o private_key.")
+    creds = service_account.Credentials.from_service_account_info(info, scopes=[SCOPE])
+    return build("calendar", "v3", credentials=creds, cache_discovery=False), str(info.get("client_email") or "")
+
+
+def _fecha(bloque: dict | None) -> tuple[datetime | None, bool]:
+    """(momento en hora Argentina, es_todo_el_dia)."""
+    if not isinstance(bloque, dict):
+        return None, False
+    crudo = str(bloque.get("dateTime") or bloque.get("date") or "").strip()
+    if not crudo:
+        return None, False
+    try:
+        if len(crudo) == 10:
+            return datetime.fromisoformat(f"{crudo}T00:00:00").replace(tzinfo=AR_TZ), True
+        dt = datetime.fromisoformat(crudo.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(AR_TZ), False
+    except ValueError:
+        return None, False
+
+
+def _invitados(evento: dict, ignorar: set[str]) -> list[dict]:
+    salida, vistos = [], set()
+    for a in evento.get("attendees") or []:
+        if not isinstance(a, dict) or a.get("resource"):
+            continue
+        email = str(a.get("email") or "").strip()
+        nombre = str(a.get("displayName") or "").strip()
+        clave = email.casefold() or nombre.casefold()
+        if not clave or clave in vistos or clave in ignorar:
+            continue
+        vistos.add(clave)
+        salida.append({
+            "nombre": nombre or (email.split("@")[0] if email else "—"),
+            "email": email,
+            "estado": str(a.get("responseStatus") or "needsAction"),
+            "organizador": bool(a.get("organizer")),
+            "equipo": bool(a.get("self")),
+        })
+    return salida
+
+
+def _normalizar(evento: dict, ignorar: set[str]) -> dict | None:
+    inicio, todo_el_dia = _fecha(evento.get("start"))
+    if inicio is None:
+        return None
+    fin, _ = _fecha(evento.get("end"))
+    invitados = _invitados(evento, ignorar)
+    organizador = evento.get("organizer") if isinstance(evento.get("organizer"), dict) else {}
+    conferencia = ""
+    if isinstance(evento.get("conferenceData"), dict):
+        for punto in evento["conferenceData"].get("entryPoints") or []:
+            if isinstance(punto, dict) and punto.get("entryPointType") == "video":
+                conferencia = str(punto.get("uri") or "")
+                break
+    return {
+        "id": str(evento.get("id") or ""),
+        "titulo": str(evento.get("summary") or "(sin título)").strip(),
+        "inicioAt": inicio.isoformat(),
+        "finAt": fin.isoformat() if fin else None,
+        "todoElDia": todo_el_dia,
+        "duracionMin": int((fin - inicio).total_seconds() / 60) if fin and not todo_el_dia else None,
+        "descripcion": (str(evento.get("description") or "").strip() or None),
+        "ubicacion": (str(evento.get("location") or "").strip() or None),
+        "organizador": str(organizador.get("displayName") or organizador.get("email") or "").strip() or None,
+        "invitados": invitados,
+        "confirmados": sum(1 for i in invitados if i["estado"] == "accepted"),
+        "rechazados": sum(1 for i in invitados if i["estado"] == "declined"),
+        "meetUrl": conferencia or (str(evento.get("hangoutLink") or "").strip() or None),
+        "url": str(evento.get("htmlLink") or "").strip() or None,
+        "estado": str(evento.get("status") or "confirmed"),
+    }
+
+
+def _traer(cal_id: str, sa_json: str, desde: datetime, hasta: datetime) -> list[dict]:
+    from googleapiclient.errors import HttpError
+
+    servicio, sa_email = _servicio(sa_json)
+    ignorar = {sa_email.casefold(), cal_id.casefold()} - {""}
+    eventos, token = [], None
+    try:
+        while True:
+            data = servicio.events().list(
+                calendarId=cal_id, timeMin=desde.isoformat(), timeMax=hasta.isoformat(),
+                singleEvents=True, orderBy="startTime", maxResults=250, pageToken=token,
+            ).execute()
+            for item in data.get("items") or []:
+                if not isinstance(item, dict) or str(item.get("status") or "").casefold() == "cancelled":
+                    continue
+                normalizado = _normalizar(item, ignorar)
+                if normalizado:
+                    eventos.append(normalizado)
+            token = str(data.get("nextPageToken") or "").strip() or None
+            if not token:
+                break
+    except HttpError as e:
+        estado = int(getattr(e.resp, "status", 0) or 0)
+        if estado in (401, 403):
+            raise HTTPException(status_code=502, detail="Google rechazó la cuenta de servicio. Revisá que el calendario esté compartido con su email.") from e
+        if estado == 404:
+            raise HTTPException(status_code=502, detail="No se encontró el calendario. Revisá el Calendar ID.") from e
+        raise HTTPException(status_code=502, detail=f"Error de Google Calendar ({estado}).") from e
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo contactar a Google Calendar: {str(e)[:160]}") from e
+    return eventos
+
+
+def agenda(dias: int = 14, dias_atras: int = 1, refrescar: bool = False) -> dict:
+    """Eventos del calendario de ATV, agrupados por día, en hora Argentina."""
+    dias = max(1, min(dias, 60))
+    clave = f"{dias}|{dias_atras}"
+    ahora = datetime.now(AR_TZ)
+    with _lock:
+        guardado = _cache.get(clave)
+        if guardado and not refrescar and (ahora - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
+
+    cred = credenciales()
+    desde = datetime.combine((ahora - timedelta(days=max(0, dias_atras))).date(), time.min, tzinfo=AR_TZ)
+    hasta = datetime.combine((ahora + timedelta(days=dias)).date(), time.max, tzinfo=AR_TZ)
+    eventos = _traer(cred["calendar_id"], cred["service_account_json"], desde, hasta)
+
+    hoy = ahora.date()
+    proximos = [e for e in eventos if datetime.fromisoformat(e["inicioAt"]) >= ahora]
+    por_dia: dict[str, list[dict]] = {}
+    for e in eventos:
+        por_dia.setdefault(e["inicioAt"][:10], []).append(e)
+    data = {
+        "generadoAt": ahora.isoformat(),
+        "calendarId": cred["calendar_id"],
+        "origenCredenciales": cred["origen"],
+        "desde": desde.date().isoformat(),
+        "hasta": hasta.date().isoformat(),
+        "total": len(eventos),
+        "hoy": [e for e in eventos if e["inicioAt"][:10] == hoy.isoformat()],
+        "proximo": proximos[0] if proximos else None,
+        "proximos7": len([e for e in proximos if datetime.fromisoformat(e["inicioAt"]).date() <= hoy + timedelta(days=7)]),
+        "dias": [{"fecha": f, "eventos": ev} for f, ev in sorted(por_dia.items())],
+        "eventos": eventos,
+    }
+    with _lock:
+        _cache[clave] = {"at": ahora, "data": data}
+    return data
+
+
+def estado() -> dict:
+    try:
+        cred = credenciales()
+        return {"configurado": True, "calendarId": cred["calendar_id"], "origenCredenciales": cred["origen"]}
+    except HTTPException as e:
+        return {"configurado": False, "detalle": str(e.detail)}

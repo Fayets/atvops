@@ -14,6 +14,8 @@ import { getMarketing, getMetasMes } from '../data/api.js';
 import { ahora, formatValue, hace, mesId, nombreMesAnio } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
+import { useRol } from '../lib/RolContext.jsx';
+import { puedeEditarMetas } from '../lib/roles.js';
 
 const CANAL = { meta: 'Meta', youtube: 'YouTube', google: 'Google', tiktok: 'TikTok' };
 
@@ -25,6 +27,8 @@ function tonoFrecuencia(f, umbrales) {
 
 export default function Ads() {
   const { mes } = useMes();
+  const { rol } = useRol();
+  const puedeEditar = puedeEditarMetas(rol);
   const { data, loading, error } = useResource(() => getMarketing(mes), [mes]);
   const [tickMeta, setTickMeta] = useState(0);
   const [modalMeta, setModalMeta] = useState(false);
@@ -96,9 +100,11 @@ export default function Ads() {
         title="Ads"
         actions={
           <>
-            <button type="button" className="btn" onClick={() => setModalMeta(true)}>
-              Definir meta del mes
-            </button>
+            {puedeEditar && (
+              <button type="button" className="btn" onClick={() => setModalMeta(true)}>
+                Definir meta del mes
+              </button>
+            )}
             <SourceTag sourceId="ads_manager" updatedAt={data?.syncAt} />
           </>
         }
@@ -225,7 +231,7 @@ export default function Ads() {
         </>
       )}
 
-      {metasData && (
+      {puedeEditar && metasData && (
         <MetaMesModal
           abierto={modalMeta}
           onCerrar={() => setModalMeta(false)}

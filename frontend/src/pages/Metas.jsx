@@ -6,15 +6,19 @@ import Pill from '../components/ui/Pill.jsx';
 import { getMetasMes } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
+import { useRol } from '../lib/RolContext.jsx';
 import { decretoPlantilla, leerDecretos, mesEsInmutable } from '../lib/metasMes.js';
 import { nombreMesDesdeId } from '../lib/mes.js';
+import { puedeEditarMetas } from '../lib/roles.js';
 
 /**
- * Vista para fijar el decreto de metas de cada mes.
- * El mes activo del topbar es el que se edita.
+ * Metas del mes: todos ven los números del decreto.
+ * Solo admin y operaciones pueden editarlos.
  */
 export default function Metas() {
-  const { mes, nombreMes, setMes, opciones } = useMes();
+  const { mes, nombreMes, setMes } = useMes();
+  const { rol } = useRol();
+  const puedeEditar = puedeEditarMetas(rol);
   const [tick, setTick] = useState(0);
   const { data, loading, error } = useResource(() => getMetasMes(mes), [mes, tick]);
   const guardados = Object.keys(leerDecretos()).sort().reverse();
@@ -30,6 +34,7 @@ export default function Metas() {
   }
 
   const inmutable = mesEsInmutable(mes);
+  const editable = puedeEditar && !inmutable;
   const decreto = data.decreto?.creadoAt
     ? data.decreto
     : decretoPlantilla(mes, data.decreto);
@@ -39,13 +44,21 @@ export default function Metas() {
       <PageHeader
         eyebrow="Compromiso mensual"
         title={`Metas · ${nombreMes}`}
-        desc="Acá fijás el decreto del mes: chats, conversaciones, agendas, rates y cash. El resto del tablero compara el real contra estos números."
+        desc={
+          editable
+            ? 'Acá fijás el decreto del mes: chats, conversaciones, agendas, rates y cash. El resto del tablero compara el real contra estos números.'
+            : 'Números del decreto del mes. Solo Admin y Operaciones pueden modificarlos.'
+        }
       />
 
       <div className="metas-page-toolbar">
         <div className="metas-page-status">
-          <Pill tone={inmutable ? 'off' : 'ok'} dot>
-            {inmutable ? 'Mes cerrado · solo lectura' : 'Mes editable'}
+          <Pill tone={editable ? 'ok' : 'off'} dot>
+            {inmutable
+              ? 'Mes cerrado · solo lectura'
+              : editable
+                ? 'Mes editable'
+                : 'Solo lectura'}
           </Pill>
           {data.decreto?.creadoAt ? (
             <span className="dim" style={{ fontSize: 12.5 }}>
@@ -53,7 +66,7 @@ export default function Metas() {
             </span>
           ) : (
             <span className="dim" style={{ fontSize: 12.5 }}>
-              Sin decreto guardado · plantilla sugerida
+              {editable ? 'Sin decreto guardado · plantilla sugerida' : 'Sin decreto guardado · plantilla de referencia'}
             </span>
           )}
         </div>
@@ -81,14 +94,9 @@ export default function Metas() {
         decretoInicial={decreto}
         mes={mes}
         nombreMes={nombreMes}
-        editable={!inmutable}
+        editable={editable}
         onGuardado={() => setTick((n) => n + 1)}
       />
-
-      <p className="dim" style={{ fontSize: 12.5, marginTop: 12, maxWidth: 560 }}>
-        Tip: cambiá el mes en el topbar para cargar o editar otro período.
-        Opciones disponibles: {opciones.map((o) => o.label).join(', ')}.
-      </p>
     </div>
   );
 }

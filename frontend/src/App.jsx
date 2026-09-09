@@ -12,7 +12,8 @@ import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
-import Ventas from './pages/Ventas.jsx';
+import VentasOperativaPage from './pages/VentasOperativa.jsx';
+import VentasPerformancePage from './pages/VentasPerformance.jsx';
 import Metas from './pages/Metas.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
@@ -54,7 +55,10 @@ export default function App() {
 
             <Route path="marketing" element={<Marketing />} />
             <Route path="ads" element={<Ads />} />
-            <Route path="ventas" element={<Ventas />} />
+            <Route path="ventas">
+              <Route index element={<VentasOperativaPage />} />
+              <Route path="performance" element={<VentasPerformancePage />} />
+            </Route>
             <Route path="metas" element={<Metas />} />
             <Route path="sistemas" element={<Sistemas />} />
             <Route path="cobranza" element={<Cobranza />} />

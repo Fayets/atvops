@@ -25,7 +25,15 @@ const NAV = [
   { to: '/asistente', icon: 'ideas', label: 'ATV AI' },
   { to: '/marketing', icon: 'marketing', label: 'Marketing' },
   { to: '/ads', icon: 'ads', label: 'Ads' },
-  { to: '/ventas', icon: 'ventas', label: 'Ventas' },
+  {
+    to: '/ventas',
+    icon: 'ventas',
+    label: 'Ventas',
+    sub: [
+      { to: '/ventas', label: 'Operativa', end: true },
+      { to: '/ventas/performance', label: 'Performance' },
+    ],
+  },
   { to: '/metas', icon: 'check', label: 'Metas' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas' },
   { to: '/cobranza', icon: 'cobranza', label: 'Cobranza' },

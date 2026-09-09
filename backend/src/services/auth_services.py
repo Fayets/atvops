@@ -32,6 +32,7 @@ _LOCAL_ROL = "admin"
 _USUARIOS_SEMILLA = (
     (_LOCAL_USERNAME, "SEED_FRANCO_PASSWORD", _LOCAL_PASSWORD, _LOCAL_NOMBRE, _LOCAL_ROL),
     ("mauri", "SEED_MAURI_PASSWORD", "mauri", "Mauri", "csm"),  # CSM: clientes y fulfillment
+    ("lucas", "SEED_LUCAS_PASSWORD", "lucas", "Lucas", "ventas"),  # Director de Ventas
 )
 
 

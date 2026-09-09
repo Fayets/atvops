@@ -127,7 +127,7 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
           </p>
         </div>
         <Pill tone={inmutable ? 'off' : 'ok'} dot>
-          {inmutable ? 'histórico' : 'editable'}
+          {inmutable ? (editable ? 'histórico' : 'solo lectura') : 'editable'}
         </Pill>
       </div>
 
