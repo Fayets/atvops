@@ -9,7 +9,7 @@ tags: [fases, clientes, roadmap]
 Claude asigna una fase a cada cliente en cada ronda, leyendo esta lista. Para cambiar los criterios
 o agregar fases, editar esta nota: el sistema toma los ids de las líneas que empiezan con `- id:`.
 
-- id: onboarding · Onboarding · Entró hace poco: accesos, primera llamada, diagnóstico, todavía no construye nada.
+- id: onboarding · Onboarding · Entró hace poco: accesos, primera llamada, diagnóstico, todavía no construye nada. La fase dura 31 días desde la entrada al canal; al día 31 sale de onboarding (pasa a implementación u otra según dónde esté hoy).
 - id: implementacion · Implementación · Está construyendo: oferta, avatar, VSL, embudo, contenido, roadmap. Todavía no vende con el sistema nuevo.
 - id: lanzamiento · Lanzamiento · Ya salió al mercado: publica, agenda llamadas, primeras ventas o cobros con lo nuevo.
 - id: escalando · Escalando · Resultados consistentes; optimiza y escala (ads, equipo, upsell, siguiente nivel).
@@ -17,6 +17,7 @@ o agregar fases, editar esta nota: el sistema toma los ids de las líneas que em
 - id: en_riesgo · En riesgo · Quejas, intención de baja o reembolso, silencio largo, expectativa desalineada.
 
 ## Reglas
-- La fase describe dónde está HOY, no dónde debería estar por fecha de entrada.
+- Onboarding es temporal: 31 días desde la entrada al canal. Pasado ese plazo, no asignar onboarding.
+- La fase describe dónde está HOY, no dónde debería estar por fecha de entrada (salvo el tope de onboarding).
 - Un cliente puede pasar de lanzamiento a estancado si dejó de mover. No es lineal.
 - "En riesgo" pisa a cualquier otra fase cuando hay intención de baja.

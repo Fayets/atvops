@@ -30,7 +30,6 @@ export default function Retencion() {
         .sort((a, b) => a.salud.score - b.salud.score)
     : [];
   const silenciosos = data?.silencio ?? [];
-  const churnIntent = data?.churnIntent ?? [];
   const riesgoAlto = data?.riesgoAlto ?? [];
   const sinActivarFuera = data?.sinActivarFuera ?? [];
   const caida = data?.caidaFuerte ?? [];
@@ -107,29 +106,6 @@ export default function Retencion() {
                   <span className="who">{c.nombre}</span>
                   <span className="q">{c.ficha.riesgoMotivo || c.ficha.resumen}</span>
                   <span className="right"><Icon name="arrow" size={13} /></span>
-                </Link>
-              ))}
-            </Card>
-          )}
-
-          {churnIntent.length > 0 && (
-            <Card
-              title="Intención de baja / reembolso"
-              sub={`${churnIntent.length} canales con frase detectada`}
-              flush
-              foot={data.conFicha?.length ? 'Frase textual detectada por Claude en la ficha viva.' : 'Heurística léxica sobre mensajes recientes del cliente.'}
-            >
-              {churnIntent.map((c) => (
-                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
-                  <Pill tone="alert" dot>urgente</Pill>
-                  <span className="who">{c.nombre}</span>
-                  <span className="q">{c.churnIntent?.extracto}</span>
-                  <span className="right">
-                    <span className="dim" style={{ fontSize: 12 }}>
-                      {formatFecha(c.churnIntent?.fechaAt)}
-                    </span>
-                    <Icon name="arrow" size={13} />
-                  </span>
                 </Link>
               ))}
             </Card>

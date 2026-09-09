@@ -31,6 +31,24 @@ export default function Asistente() {
   const [pensando, setPensando] = useState(false);
   const [error, setError] = useState(null);
   const finRef = useRef(null);
+  const inputRef = useRef(null);
+  const MAX_LINEAS = 6;
+
+  const ajustarAltura = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const estilos = getComputedStyle(el);
+    const lineHeight = parseFloat(estilos.lineHeight) || 21;
+    const padY = parseFloat(estilos.paddingTop) + parseFloat(estilos.paddingBottom);
+    const maxH = lineHeight * MAX_LINEAS + padY;
+    el.style.height = `${Math.min(el.scrollHeight, maxH)}px`;
+    el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden';
+  };
+
+  useEffect(() => {
+    ajustarAltura();
+  }, [texto]);
 
   const chats = estado.chats ?? [];
   const chat = useMemo(() => chats.find((c) => c.id === estado.activo) ?? chats[0], [chats, estado.activo]);
@@ -174,10 +192,17 @@ export default function Asistente() {
               enviar();
             }}
           >
-            <input
-              type="text"
+            <textarea
+              ref={inputRef}
+              rows={1}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  enviar();
+                }
+              }}
               placeholder="Preguntale a ATV AI…"
               aria-label="Pregunta"
               disabled={pensando}

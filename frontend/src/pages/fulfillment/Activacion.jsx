@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import Bars from '../../components/charts/Bars.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/ui/Icon.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
@@ -7,9 +6,9 @@ import { ErrorState, SkeletonBlock, SkeletonKpis } from '../../components/ui/Loa
 import Pill from '../../components/ui/Pill.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import { getFulfillment } from '../../data/api.js';
-import { ahora, diasEntre, formatFecha, formatMes, formatValue, hace } from '../../lib/format.js';
+import { formatFecha, formatMes, formatValue, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
-import { VENTANA_ACTIVACION } from '../../lib/scoring.js';
+import { VENTANA_ONBOARDING } from '../../lib/scoring.js';
 
 const CAT_LABEL = {
   boost: 'Boost',
@@ -19,36 +18,26 @@ const CAT_LABEL = {
   mentoria: 'Mentoría',
 };
 
-const BLOCKER_LABEL = {
-  cliente_ausente: 'ausente',
-  no_implementa: 'no implementa',
-  bloqueo_tecnico: 'bloqueo técnico',
-  expectativa: 'expectativa',
-  esperando_equipo: 'esperando al equipo',
-};
-
+/**
+ * Fase onboarding: desde la entrada al canal, 31 días.
+ * Al día 31 salen de la fase (pasan al resto del programa).
+ */
 export default function Activacion() {
   const { data, loading, error } = useResource(getFulfillment);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
-  const activados = data
-    ? data.activos
-        .filter((c) => c.activacion.activado)
-        .sort((a, b) => (a.activacion.diasHastaResultado ?? 0) - (b.activacion.diasHastaResultado ?? 0))
+  const enFase = data
+    ? [...(data.enOnboarding ?? [])].sort((a, b) => b.onboarding.dias - a.onboarding.dias)
     : [];
-
-  const sinActivar = data
-    ? [...data.sinActivar].sort(
-        (a, b) => diasEntre(b.entradaAt, ahora().toISOString()) - diasEntre(a.entradaAt, ahora().toISOString()),
-      )
+  const salieron = data
+    ? [...(data.salieronOnboarding ?? [])]
+        .filter((c) => c.onboarding.dias - VENTANA_ONBOARDING <= 45)
+        .sort((a, b) => a.onboarding.dias - b.onboarding.dias)
     : [];
-  const nIa = (data?.activos ?? []).filter((c) => c.activacion?.fuente === 'claude_code').length;
-  const conIa = nIa > 0;
-  const modeloIa = 'haiku';
 
   return (
-    <div className="page">
+    <div className="page activacion-page">
       {loading || !data ? (
         <>
           <SkeletonKpis n={3} />
@@ -58,7 +47,8 @@ export default function Activacion() {
         <>
           <div className="filtros" style={{ alignItems: 'center', marginBottom: 4 }}>
             <div style={{ fontSize: 13, color: 'var(--text-2)' }}>
-              Activación = win en el transcript (venta / cierre / cobro) · ventana {VENTANA_ACTIVACION} días
+              Activación = fase onboarding desde la entrada al canal · {VENTANA_ONBOARDING} días · al día{' '}
+              {VENTANA_ONBOARDING} salen
               {data.syncAt ? ` · sync ${hace(data.syncAt)}` : ''}
             </div>
             <div style={{ marginLeft: 'auto' }}>
@@ -66,123 +56,69 @@ export default function Activacion() {
             </div>
           </div>
 
-          <div className="kpi-grid">
-            {data.kpis.activacion.map((m) => (
+          <div className="kpi-grid activacion-kpis">
+            {(data.kpis.onboarding ?? []).map((m) => (
               <KpiCard key={m.id} metric={m} spark={false} />
             ))}
           </div>
 
-          <div className="split">
-            <Card
-              title="Días hasta el primer resultado"
-              sub={`${activados.length} activados · línea = día ${VENTANA_ACTIVACION}`}
-              foot={conIa ? `Analizado por Claude Code (${modeloIa}) a las 08:00 y 18:00 · ${nIa} clientes con análisis` : "Detectado con heurística sobre el texto del cliente (Claude Code todavía no corrió)."}
-            >
-              {activados.length === 0 ? (
-                <div className="empty">Nadie con win detectado en los canales todavía.</div>
-              ) : (
-                <Bars
-                  data={activados.slice(0, 24)}
-                  x={(c) => c.nombre.split(' ')[0]}
-                  y={(c) => c.activacion.diasHastaResultado ?? 0}
-                  format="days"
-                  label="Días"
-                  height={252}
-                  color={(c) =>
-                    (c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'var(--ok)' : 'var(--brand)'
-                  }
-                  referencia={{ valor: VENTANA_ACTIVACION, label: `día ${VENTANA_ACTIVACION}` }}
-                />
-              )}
-            </Card>
-
-            <Card
-              title="Cohortes"
-              sub="% activados a 30 días por mes de entrada"
-              foot="Entrada = primer mensaje del canal."
-            >
-              {data.cohortes.length === 0 ? (
-                <div className="empty">Sin fechas de entrada en los transcripts.</div>
-              ) : (
-                <div className="cohorte-grid">
-                  {data.cohortes.map((c) => {
-                    const pct = c.entraron ? Math.round((c.activados30 / c.entraron) * 100) : 0;
-                    return (
-                      <div key={c.mes} className="cohorte">
-                        <div className="mes">{formatMes(c.mes)}</div>
-                        <div
-                          className="pct num"
-                          style={{
-                            color: pct >= 80 ? 'var(--ok)' : pct >= 50 ? 'var(--warn)' : 'var(--brand-hi)',
-                          }}
-                        >
-                          {pct}%
-                        </div>
-                        <div className="det">
-                          {c.activados30}/{c.entraron}
-                          {c.medianaDias ? ` · med ${formatValue(c.medianaDias, 'days')}` : ''}
-                        </div>
+          <Card
+            title="Por mes de entrada"
+            sub={`% que ya cumplió los ${VENTANA_ONBOARDING} días y salió de onboarding`}
+            foot="Mes = cuando llegó el primer mensaje al canal."
+          >
+            {data.cohortes.length === 0 ? (
+              <div className="empty">Sin fechas de entrada en los transcripts.</div>
+            ) : (
+              <div className="cohorte-grid activacion-meses">
+                {data.cohortes.map((c) => {
+                  const salieronN = c.salieron ?? c.activados30 ?? 0;
+                  const pct = c.entraron ? Math.round((salieronN / c.entraron) * 100) : 0;
+                  return (
+                    <div key={c.mes} className="cohorte">
+                      <div className="mes">{formatMes(c.mes)}</div>
+                      <div
+                        className="pct num"
+                        style={{
+                          color: pct >= 80 ? 'var(--ok)' : pct >= 40 ? 'var(--warn)' : 'var(--brand-hi)',
+                        }}
+                      >
+                        {pct}%
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-          </div>
-
-          {activados.length > 0 && (
-            <Card
-              title="Primeros resultados detectados"
-              sub="La frase del canal donde aparece el win"
-              flush
-              foot="Extracción automática · puede haber falsos positivos."
-            >
-              {activados.slice(0, 10).map((c) => (
-                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
-                  <Pill
-                    tone={(c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'ok' : 'warn'}
-                    dot
-                  >
-                    día {c.activacion.diasHastaResultado}
-                  </Pill>
-                  <span className="who">{c.nombre}</span>
-                  <span className="q">{c.activacion.descripcion}</span>
-                  <span className="right">
-                    <span className="dim" style={{ fontSize: 12 }}>
-                      {formatFecha(c.activacion.primerResultadoAt)}
-                    </span>
-                    <Icon name="arrow" size={13} />
-                  </span>
-                </Link>
-              ))}
-            </Card>
-          )}
+                      <div className="det">
+                        {salieronN}/{c.entraron} salieron
+                        {c.medianaDias != null ? ` · med ${formatValue(c.medianaDias, 'days')}` : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
 
           <Card
-            title="Sin activar"
-            sub={`${sinActivar.length} canales · reloj desde el primer mensaje`}
+            title="En fase ahora"
+            sub={`${enFase.length} clientes · día 0 a ${VENTANA_ONBOARDING - 1}`}
             flush
-            foot={conIa ? "Blocker según Claude Code, en palabras del cliente cuando hay detalle." : "Blocker grueso: ausente (casi no escribe) o no implementa (pasó la ventana sin win)."}
+            foot="Ordenados por día (más cerca de salir primero)."
           >
-            {sinActivar.length === 0 ? (
-              <div className="empty">Toda la cartera activa tiene win detectado.</div>
+            {enFase.length === 0 ? (
+              <div className="empty">No hay clientes dentro de la ventana de 31 días.</div>
             ) : (
-              sinActivar.map((c) => {
-                const dias = diasEntre(c.entradaAt, ahora().toISOString());
-                const fuera = dias > VENTANA_ACTIVACION;
+              enFase.map((c) => {
+                const urgente = c.onboarding.diasRestantes <= 7;
                 return (
                   <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
-                    <Pill tone={fuera ? 'alert' : 'warn'} dot>
-                      día {dias}
+                    <Pill tone={urgente ? 'warn' : 'ok'} dot>
+                      día {c.onboarding.dias}/{VENTANA_ONBOARDING}
                     </Pill>
                     <span className="who">{c.nombre}</span>
                     <span className="q">
                       {CAT_LABEL[c.categoria] ?? c.categoria} · entrada {formatFecha(c.entradaAt)}
-                      {c.activacion.blocker
-                        ? ` · ${BLOCKER_LABEL[c.activacion.blocker] ?? c.activacion.blocker}${c.activacion.blockerDetalle ? ` — ${c.activacion.blockerDetalle}` : ''}`
-                        : fuera
-                          ? ' · fuera de ventana'
-                          : ' · ventana abierta'}
+                      {urgente
+                        ? ` · salen en ${c.onboarding.diasRestantes} d`
+                        : ` · quedan ${c.onboarding.diasRestantes} d`}
+                      {c.fase?.label ? ` · ficha: ${c.fase.label}` : ''}
                     </span>
                     <span className="right">
                       <Icon name="arrow" size={13} />
@@ -192,6 +128,31 @@ export default function Activacion() {
               })
             )}
           </Card>
+
+          {salieron.length > 0 && (
+            <Card
+              title="Ya salieron de onboarding"
+              sub={`Pasaron el día ${VENTANA_ONBOARDING} · últimos en salir`}
+              flush
+              foot="Siguen en la cartera; la fase onboarding ya no aplica por tiempo."
+            >
+              {salieron.slice(0, 16).map((c) => (
+                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
+                  <Pill tone="ok" dot>
+                    día {c.onboarding.dias}
+                  </Pill>
+                  <span className="who">{c.nombre}</span>
+                  <span className="q">
+                    {CAT_LABEL[c.categoria] ?? c.categoria} · entrada {formatFecha(c.entradaAt)}
+                    {c.fase?.label ? ` · ahora: ${c.fase.label}` : ''}
+                  </span>
+                  <span className="right">
+                    <Icon name="arrow" size={13} />
+                  </span>
+                </Link>
+              ))}
+            </Card>
+          )}
         </>
       )}
     </div>

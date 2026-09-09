@@ -19,8 +19,11 @@ export const PESOS = {
   momentum: 15,
 };
 
-/** Ventana de activación, en días. */
+/** Ventana de activación (primer win), en días. */
 export const VENTANA_ACTIVACION = 30;
+
+/** Días en fase onboarding desde la entrada al canal. Al día 31 salen. */
+export const VENTANA_ONBOARDING = 31;
 
 /** Cortes del semáforo. */
 export const CORTES = { verde: 75, amarillo: 50 };

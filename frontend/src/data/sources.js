@@ -112,6 +112,7 @@ export const DATA_FIELDS = [
   { id: 'dias_sin_mensaje', nombre: 'Días de silencio', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
 
   // Fulfillment · heurísticas sobre transcripts
+  { id: 'en_onboarding', nombre: 'En onboarding (31 d)', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
   { id: 'activacion_30d', nombre: 'Activación a 30 días', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
   { id: 'tiempo_primer_resultado', nombre: 'Tiempo hasta primer resultado', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },
   { id: 'blockers_activacion', nombre: 'Blockers de activación', seccion: 'fulfillment', sourceId: 'discord_transcripts', objetivo: 'discord_transcripts' },

@@ -50,7 +50,7 @@ import {
   ordenarAcciones,
 } from '../lib/acciones.js';
 import { getToken } from '../lib/auth.js';
-import { calcularSalud, BLOCKERS, SEMAFORO } from '../lib/scoring.js';
+import { calcularSalud, BLOCKERS, SEMAFORO, VENTANA_ONBOARDING } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
 const LATENCIA_MS = 180;
@@ -174,20 +174,21 @@ function clientesConSalud(clientes) {
   return clientes.map((c) => ({ ...c, salud: calcularSalud(c) }));
 }
 
-/** Cohortes por mes de entrada, solo con lo que ya sabemos del canal. */
-function cohortesDesdeClientes(clientes) {
-  /** @type {Record<string, { mes: string, entraron: number, activados30: number, dias: number[] }>} */
+/** Cohortes por mes de entrada: cuántos ya salieron de onboarding (≥31 d). */
+function cohortesOnboarding(clientes, hoy) {
+  /** @type {Record<string, { mes: string, entraron: number, salieron: number, dias: number[] }>} */
   const porMes = {};
   for (const c of clientes) {
     const mes = (c.entradaAt ?? '').slice(0, 7);
     if (!mes) continue;
-    if (!porMes[mes]) porMes[mes] = { mes, entraron: 0, activados30: 0, dias: [] };
+    if (!porMes[mes]) porMes[mes] = { mes, entraron: 0, salieron: 0, dias: [] };
     porMes[mes].entraron += 1;
-    if (c.activacion.activado && (c.activacion.diasHastaResultado ?? 99) <= 30) {
-      porMes[mes].activados30 += 1;
-    }
-    if (c.activacion.activado && c.activacion.diasHastaResultado != null) {
-      porMes[mes].dias.push(c.activacion.diasHastaResultado);
+    const dias = c.onboarding?.dias ?? diasEntre(c.entradaAt, hoy);
+    if (dias >= VENTANA_ONBOARDING) {
+      porMes[mes].salieron += 1;
+      porMes[mes].dias.push(VENTANA_ONBOARDING);
+    } else {
+      porMes[mes].dias.push(dias);
     }
   }
   return Object.values(porMes)
@@ -195,9 +196,31 @@ function cohortesDesdeClientes(clientes) {
     .map((c) => ({
       mes: c.mes,
       entraron: c.entraron,
-      activados30: c.activados30,
+      salieron: c.salieron,
+      activados30: c.salieron, // compat con pantallas viejas
       medianaDias: c.dias.length ? mediana(c.dias) : 0,
     }));
+}
+
+/**
+ * Reloj de onboarding: arranca en la entrada al canal y dura 31 días.
+ * @param {object} c
+ * @param {string} hoy
+ */
+function conOnboarding(c, hoy) {
+  const dias = c.entradaAt ? diasEntre(c.entradaAt, hoy) : 0;
+  const enFase = dias < VENTANA_ONBOARDING;
+  return {
+    ...c,
+    onboardingDias: enFase ? dias : VENTANA_ONBOARDING,
+    onboarding: {
+      inicioAt: c.entradaAt,
+      dias,
+      enFase,
+      salio: !enFase,
+      diasRestantes: Math.max(0, VENTANA_ONBOARDING - dias),
+    },
+  };
 }
 
 /** Señales derivadas del canal (sin clasificador NLP todavía). */
@@ -265,10 +288,16 @@ const tonoSemaforo = (c) => (c.salud?.semaforo === 'verde' ? 'ok' : c.salud?.sem
 
 export async function getFulfillment() {
   const cartera = await cargarCarteraDiscord();
-  const clientes = clientesConSalud(cartera.clientes);
-  const activos = clientes.filter((c) => c.estado === 'activo');
   const hoy = ahora().toISOString();
   const computedAt = hoy;
+  const clientes = clientesConSalud(cartera.clientes).map((c) => conOnboarding(c, hoy));
+  const activos = clientes.filter((c) => c.estado === 'activo');
+
+  const enOnboarding = activos.filter((c) => c.onboarding.enFase);
+  const salieronOnboarding = activos.filter((c) => c.onboarding.salio);
+  const porCompletar = enOnboarding.filter((c) => c.onboarding.diasRestantes <= 7);
+  const medianaDiaOnb = mediana(enOnboarding.map((c) => c.onboarding.dias));
+  const pctEnOnboarding = activos.length ? (enOnboarding.length / activos.length) * 100 : 0;
 
   const elegibles = activos.filter(
     (c) => c.activacion.activado || diasEntre(c.entradaAt, hoy) > 30,
@@ -277,7 +306,6 @@ export async function getFulfillment() {
     (c) => c.activacion.activado && (c.activacion.diasHastaResultado ?? 99) <= 30,
   );
   const sinActivar = activos.filter((c) => !c.activacion.activado);
-  const pctActivacion = elegibles.length ? (activadosEnVentana.length / elegibles.length) * 100 : 0;
   const medianaActivacion = mediana(
     activos.filter((c) => c.activacion.activado).map((c) => c.activacion.diasHastaResultado ?? 0),
   );
@@ -331,12 +359,67 @@ export async function getFulfillment() {
 
   /** @type {Record<string, import('./types.js').Metric[]>} */
   const kpis = {
+    onboarding: [
+      {
+        id: 'en_onboarding',
+        detalle: detalleDe(
+          [...enOnboarding].sort((a, b) => b.onboarding.dias - a.onboarding.dias),
+          (c) => `día ${c.onboarding.dias}/${VENTANA_ONBOARDING}`,
+          (c) => (c.onboarding.diasRestantes <= 7 ? 'warn' : 'ok'),
+          `Clientes en fase onboarding (día 0–${VENTANA_ONBOARDING - 1}).`,
+        ),
+        label: 'En onboarding',
+        value: enOnboarding.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        objetivo: null,
+        nota: `${enOnboarding.length} de ${activos.length} activos · ${formatValue(pctEnOnboarding, 'pct')} de la cartera`,
+      },
+      {
+        id: 'dia_mediano_onboarding',
+        detalle: detalleDe(
+          [...enOnboarding].sort((a, b) => a.onboarding.dias - b.onboarding.dias),
+          (c) => `día ${c.onboarding.dias}`,
+          (c) => (c.onboarding.dias >= 21 ? 'warn' : 'ok'),
+          'Día actual dentro de la ventana de 31 días.',
+        ),
+        label: 'Día mediano en la fase',
+        value: medianaDiaOnb,
+        format: 'days',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        objetivo: Math.floor(VENTANA_ONBOARDING / 2),
+        nota: `Reloj desde la entrada al canal · salen al día ${VENTANA_ONBOARDING}.`,
+      },
+      {
+        id: 'por_salir_onboarding',
+        detalle: detalleDe(
+          [...porCompletar].sort((a, b) => a.onboarding.diasRestantes - b.onboarding.diasRestantes),
+          (c) => `${c.onboarding.diasRestantes} d restantes`,
+          () => 'warn',
+          `Quedan ≤7 días para salir de onboarding.`,
+        ),
+        label: 'Por salir (≤7 d)',
+        value: porCompletar.length,
+        format: 'count',
+        previous: null,
+        sourceId: 'discord_transcripts',
+        updatedAt: computedAt,
+        good: 'down',
+        objetivo: 0,
+        nota: `Dentro de la última semana de la ventana de ${VENTANA_ONBOARDING} días.`,
+      },
+    ],
     activacion: [
       {
         id: 'activacion_30d',
         detalle: detalleDe(activadosEnVentana, (c) => `${c.activacion.diasHastaResultado ?? '?'} d`, () => 'ok', 'Clientes con win detectado dentro de los 30 días de entrada.'),
         label: 'Activados en 30 días',
-        value: pctActivacion,
+        value: elegibles.length ? (activadosEnVentana.length / elegibles.length) * 100 : 0,
         format: 'pct',
         previous: null,
         sourceId: 'discord_transcripts',
@@ -551,6 +634,26 @@ export async function getFulfillment() {
       fechaAt: c.churnIntent.fechaAt ?? c.ultimaActividadAt ?? computedAt,
     });
   }
+  for (const c of winsRecientes) {
+    senales.push({
+      id: `win_${c.id}`,
+      clienteId: c.id,
+      tipo: 'primer_resultado',
+      peso: 'positiva',
+      extracto: c.activacion?.descripcion || `${c.nombre}: primer resultado.`,
+      fechaAt: c.activacion?.primerResultadoAt ?? c.ultimaActividadAt ?? computedAt,
+    });
+  }
+  for (const c of candidatos.slice(0, 8)) {
+    senales.push({
+      id: `upsell_${c.id}`,
+      clienteId: c.id,
+      tipo: 'senal_upsell',
+      peso: 'positiva',
+      extracto: c.expansion?.motivo || `${c.nombre}: señal de upsell.`,
+      fechaAt: c.ultimaActividadAt ?? computedAt,
+    });
+  }
 
   const ultimoMensajeAt =
     activos
@@ -567,10 +670,13 @@ export async function getFulfillment() {
     semanas: cartera.semanas,
     senales,
     nrr: [],
-    cohortes: cohortesDesdeClientes(clientes),
+    cohortes: cohortesOnboarding(clientes, hoy),
     blockers: {},
     candidatos,
     sinActivar,
+    enOnboarding,
+    salieronOnboarding,
+    porCompletarOnboarding: porCompletar,
     silencio,
     caidaFuerte,
     sinActivarFuera,
@@ -610,7 +716,7 @@ export async function getFulfillment() {
  */
 export async function getFulfillmentCliente(clienteId) {
   const data = await pedir(`/api/clientes/${encodeURIComponent(clienteId)}`);
-  const cliente = { ...data.cliente, salud: calcularSalud(data.cliente) };
+  const cliente = conOnboarding({ ...data.cliente, salud: calcularSalud(data.cliente) }, ahora().toISOString());
   const senales =
     data.senales?.length
       ? data.senales

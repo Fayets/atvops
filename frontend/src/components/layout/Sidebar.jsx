@@ -91,6 +91,34 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      <div className="sidebar-foot">
+        <div className="sidebar-account">
+          <div className="sidebar-account-row">
+            <span className="sidebar-account-name" title={user?.username}>
+              {user?.username ?? '—'}
+            </span>
+            <span className={`sidebar-rol${preview ? ' preview' : ''}`}>
+              {ROLES[rol]?.label ?? rol}
+            </span>
+          </div>
+          {puedePreview && (
+            <label className="sidebar-preview">
+              Ver como
+              <select value={rol} onChange={onPreview} aria-label="Ver como rol">
+                {ROL_LIST.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button type="button" className="sidebar-salir" onClick={salir}>
+            Salir
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }

@@ -1,48 +1,77 @@
-import { formatFechaHora } from '../../lib/format.js';
+import { Link } from 'react-router-dom';
+import { formatFecha } from '../../lib/format.js';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 
 const TIPO = {
-  primer_resultado: { label: 'primer resultado', tone: 'ok' },
-  implementacion: { label: 'implementación', tone: 'ok' },
+  primer_resultado: { label: 'win', tone: 'ok' },
+  implementacion: { label: 'impl.', tone: 'ok' },
   hito: { label: 'hito', tone: 'ok' },
-  senal_upsell: { label: 'señal de upsell', tone: 'ok' },
+  senal_upsell: { label: 'upsell', tone: 'ok' },
   soporte: { label: 'soporte', tone: 'plain' },
   queja: { label: 'queja', tone: 'alert' },
-  riesgo_churn: { label: 'riesgo de churn', tone: 'alert' },
+  riesgo_churn: { label: 'churn', tone: 'alert' },
   silencio: { label: 'silencio', tone: 'alert' },
 };
 
 /**
- * Señales extraídas de los transcripts. Es la evidencia cruda detrás del score:
- * el fragmento real del canal, con fecha.
- * @param {{ senales: import('../../data/types.js').SenalTranscript[], titulo?: string,
- *           nombrePorCliente?: (id: string) => string }} props
+ * Vista rápida de señales del canal.
+ * @param {{
+ *   senales: import('../../data/types.js').SenalTranscript[],
+ *   titulo?: string,
+ *   nombrePorCliente?: (id: string) => string,
+ *   compacto?: boolean,
+ *   max?: number,
+ * }} props
  */
-export default function Senales({ senales, titulo = 'Señales del canal', nombrePorCliente }) {
+export default function Senales({
+  senales,
+  titulo = 'Señales',
+  nombrePorCliente,
+  compacto = false,
+  max = compacto ? 5 : 20,
+}) {
+  const items = [...senales]
+    .sort((a, b) => new Date(b.fechaAt) - new Date(a.fechaAt))
+    .slice(0, max);
+
   return (
     <Card
       title={titulo}
-      sub="Fragmentos detectados en los transcripts de Discord"
+      sub={`${senales.length} señales · vista rápida`}
       flush
-      foot="Cada señal es texto real del canal. El clasificador las etiqueta; la decisión sigue siendo humana."
+      className={compacto ? 'senales-card compacto' : undefined}
+      foot={compacto ? null : 'Texto real del canal. El clasificador etiqueta; la decisión es humana.'}
     >
-      {senales.length === 0 ? (
-        <div className="empty">Sin señales registradas en el período.</div>
+      {items.length === 0 ? (
+        <div className="empty">Sin señales recientes.</div>
       ) : (
-        senales.map((s) => (
-          <div key={s.id} className={`senal ${s.peso}`}>
-            <i className="marca" />
-            <div>
-              <blockquote>{s.extracto}</blockquote>
-              <div className="meta">
-                {nombrePorCliente && <strong style={{ color: 'var(--text-2)' }}>{nombrePorCliente(s.clienteId)}</strong>}
-                <span>{formatFechaHora(s.fechaAt)}</span>
-              </div>
+        items.map((s) => {
+          const nombre = nombrePorCliente?.(s.clienteId);
+          const cuerpo = (
+            <>
+              <Pill tone={TIPO[s.tipo]?.tone ?? 'plain'} dot>
+                {TIPO[s.tipo]?.label ?? s.tipo}
+              </Pill>
+              {nombre && <span className="who">{nombre}</span>}
+              <span className="q">{s.extracto}</span>
+              <span className="right">
+                <span className="dim" style={{ fontSize: 11 }}>
+                  {formatFecha(s.fechaAt)}
+                </span>
+              </span>
+            </>
+          );
+          return s.clienteId ? (
+            <Link key={s.id} to={`/fulfillment/clientes/${s.clienteId}`} className="lista-item senal-rapida">
+              {cuerpo}
+            </Link>
+          ) : (
+            <div key={s.id} className="lista-item senal-rapida">
+              {cuerpo}
             </div>
-            <Pill tone={TIPO[s.tipo]?.tone ?? 'plain'}>{TIPO[s.tipo]?.label ?? s.tipo}</Pill>
-          </div>
-        ))
+          );
+        })
       )}
     </Card>
   );

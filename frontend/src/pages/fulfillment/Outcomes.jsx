@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import Bars from '../../components/charts/Bars.jsx';
+import Senales from '../../components/fulfillment/Senales.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/ui/Icon.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
@@ -29,11 +30,11 @@ export default function Outcomes() {
         .filter((c) => c.activacion.activado)
         .sort((a, b) => (a.activacion.diasHastaResultado ?? 0) - (b.activacion.diasHastaResultado ?? 0))
     : [];
-  const winsRecientes = data?.winsRecientes ?? [];
   const winsIA = data?.winsIA ?? [];
   const momentum = data?.momentumPos ?? [];
   const candidatos = data?.candidatos ?? [];
   const caida = data?.caidaFuerte ?? [];
+  const nombrePorId = (id) => data?.activos?.find((c) => c.id === id)?.nombre ?? id;
 
   return (
     <div className="page">
@@ -127,37 +128,12 @@ export default function Outcomes() {
             </Card>
           )}
 
-          <Card
-            title="Wins recientes"
-            sub={`${winsRecientes.length} primer resultado en los últimos 30 días`}
-            flush
-            foot="La frase del canal donde aparece el win."
-          >
-            {winsRecientes.length === 0 ? (
-              <div className="empty">Ningún win nuevo en 30 días.</div>
-            ) : (
-              [...winsRecientes]
-                .sort((a, b) => (b.activacion.primerResultadoAt || '').localeCompare(a.activacion.primerResultadoAt || ''))
-                .map((c) => (
-                  <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
-                    <Pill
-                      tone={(c.activacion.diasHastaResultado ?? 0) <= VENTANA_ACTIVACION ? 'ok' : 'warn'}
-                      dot
-                    >
-                      día {c.activacion.diasHastaResultado}
-                    </Pill>
-                    <span className="who">{c.nombre}</span>
-                    <span className="q">{c.activacion.descripcion}</span>
-                    <span className="right">
-                      <span className="dim" style={{ fontSize: 12 }}>
-                        {formatFecha(c.activacion.primerResultadoAt)}
-                      </span>
-                      <Icon name="arrow" size={13} />
-                    </span>
-                  </Link>
-                ))
-            )}
-          </Card>
+          <Senales
+            compacto
+            max={6}
+            senales={data?.senales ?? []}
+            nombrePorCliente={nombrePorId}
+          />
 
           <div className="split">
             <Card

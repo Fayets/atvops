@@ -1,11 +1,12 @@
 /**
  * Contenedor estándar. `flush` saca el padding del cuerpo (tablas, listas).
  * @param {{ title?: React.ReactNode, sub?: React.ReactNode, actions?: React.ReactNode,
- *           foot?: React.ReactNode, flush?: boolean, children: React.ReactNode, style?: object }} props
+ *           foot?: React.ReactNode, flush?: boolean, children: React.ReactNode,
+ *           style?: object, className?: string }} props
  */
-export default function Card({ title, sub, actions, foot, flush, children, style }) {
+export default function Card({ title, sub, actions, foot, flush, children, style, className }) {
   return (
-    <section className="card" style={style}>
+    <section className={`card${className ? ` ${className}` : ''}`} style={style}>
       {(title || actions) && (
         <header className="card-head">
           <div>

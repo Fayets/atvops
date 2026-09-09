@@ -43,6 +43,7 @@ export default function App() {
               <Route path="clientes" element={<Clientes />} />
               <Route path="clientes/:clienteId" element={<ClienteDetalle />} />
               <Route path="activacion" element={<Activacion />} />
+              <Route path="onboarding" element={<Navigate to="/fulfillment/activacion" replace />} />
               <Route path="engagement" element={<Engagement />} />
               <Route path="retencion" element={<Retencion />} />
               <Route path="outcomes" element={<Outcomes />} />
