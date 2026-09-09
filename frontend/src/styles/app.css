@@ -5105,3 +5105,22 @@ button.lista-item:hover { background: var(--surface-2); }
   flex-direction: column;
   gap: 14px;
 }
+.mi-dia { display: grid; gap: var(--space-5); }
+.llamadas { display: grid; }
+.llamada { border-bottom: 1px solid var(--border-soft); }
+.llamada:last-child { border-bottom: none; }
+.llamada.abierta { background: var(--surface-2); }
+.llamada-cab { display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding: 11px var(--space-5); }
+.llamada-cuando { font-size: 13px; line-height: 1.35; }
+.llamada-cuando .dim { font-size: 11px; }
+.llamada-quien { min-width: 0; font-size: 13px; }
+.llamada-quien .dim { font-size: 12px; }
+.llamada-venta-resumen { font-size: 12px; color: var(--ok); margin-top: 3px; }
+.llamada-derecha { display: flex; align-items: center; gap: 8px; }
+.llamada-form { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-4); }
+.llamada-estados { display: flex; flex-wrap: wrap; gap: 6px; }
+.llamada-venta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); align-items: end; }
+.llamada-precio { grid-column: 1 / -1; font-size: 12px; }
+.llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }
+.programas-tabla { display: grid; gap: 8px; }
+.programa-fila { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: var(--space-3); align-items: center; }

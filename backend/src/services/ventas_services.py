@@ -313,3 +313,175 @@ def estado() -> dict:
         return {"conectado": True, "leads": fila["n"], "ultimoLeadAt": fila["ultimo"].isoformat() if fila["ultimo"] else None}
     except Exception as e:  # noqa: BLE001
         return {"conectado": False, "detalle": str(e)[:200]}
+
+
+# ------------------------------------------------- programas y cierres
+
+ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No show", "Descalificado", "Cancelada", "Re-agenda", "Agendado")
+ESTADOS_VENTA = ("Cerrado", "Seña")
+ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
+
+
+def programas() -> list[dict]:
+    """Catálogo de programas con su precio: el precio es la facturación de cada venta."""
+    filas = crm_db.consultar("SELECT id, name, price_usd, sort_order FROM offered_program ORDER BY sort_order, name")
+    return [{"id": f["id"], "nombre": f["name"], "precioUsd": _num(f["price_usd"]), "orden": f["sort_order"]} for f in filas]
+
+
+def guardar_programa(datos: dict, usuario: dict) -> list[dict]:
+    """Alta o edición de un programa y su precio. Solo ops, admin o founder."""
+    if usuario.get("rol") not in ROLES_PRECIOS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cambiar los precios de los programas.")
+    nombre = str(datos.get("nombre") or "").strip()[:120]
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El programa necesita un nombre.")
+    try:
+        precio = round(float(datos.get("precioUsd") or 0), 2)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="El precio tiene que ser un número.")
+    if precio < 0:
+        raise HTTPException(status_code=400, detail="El precio no puede ser negativo.")
+    orden = int(datos.get("orden") or 0)
+    pid = datos.get("id")
+    if pid:
+        crm_db.ejecutar(
+            "UPDATE offered_program SET name = %s, price_usd = %s, sort_order = %s WHERE id = %s",
+            (nombre, precio, orden, int(pid)),
+        )
+    else:
+        crm_db.ejecutar(
+            "INSERT INTO offered_program (user_id, name, price_usd, sort_order, created_at) "
+            "VALUES ((SELECT coalesce(min(user_id), 1) FROM offered_program), %s, %s, %s, now())",
+            (nombre, precio, orden),
+        )
+    logger.info("Programa '%s' guardado por %s a %s USD", nombre, usuario.get("username"), precio)
+    _cache.clear()
+    return programas()
+
+
+def borrar_programa(pid: int, usuario: dict) -> list[dict]:
+    if usuario.get("rol") not in ROLES_PRECIOS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede borrar programas.")
+    crm_db.ejecutar("DELETE FROM offered_program WHERE id = %s", (int(pid),))
+    _cache.clear()
+    return programas()
+
+
+def _nombres_crm(usuario: dict) -> list[str]:
+    """Cómo figura este usuario en el CRM: 'Nick' encuentra 'Nick Xanderz' y su variante mal escrita."""
+    base = _norm(usuario.get("nombre") or usuario.get("username") or "")
+    if not base:
+        return []
+    primero = base.split()[0]
+    nombres = [f["closer"] for f in crm_db.consultar("SELECT DISTINCT closer FROM lead WHERE closer <> ''")
+               if _norm(f["closer"]).split()[:1] == [primero]]
+    nombres += [m["nombre"] for m in crm_db.consultar("SELECT nombre FROM teammember WHERE activo")
+                if _norm(m["nombre"]).split()[:1] == [primero]]
+    return sorted(set(nombres)) or [usuario.get("nombre") or usuario.get("username") or ""]
+
+
+def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, closer: str | None = None) -> dict:
+    """Las llamadas del closer: las que vienen, las de hoy y las que le falta reportar."""
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    hoy = ahora.date()
+    nombres = [closer] if (closer and usuario.get("rol") in ROLES_PRECIOS | {"ventas"}) else _nombres_crm(usuario)
+    if not nombres or not nombres[0]:
+        return {"generadoAt": datetime.now(AR_TZ).isoformat(), "closer": None, "llamadas": [],
+                "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA)}
+
+    filas = crm_db.consultar(
+        f"""
+        SELECT l.id, l.nombre, l.email, l.telefono, l.ig, l.call, l.closer, l.setter, l.origen,
+               l.pago, l.debe, l.programa_ofrecido, l.ingresos_rango, l.notas, l.closer_report,
+               l.link_llamada, l.vino_de_ads,
+               {RESULTADO_SQL} AS resultado,
+               lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
+        FROM lead l
+        WHERE l.call IS NOT NULL AND l.call >= %s AND l.call < %s AND l.closer = ANY(%s)
+        ORDER BY l.call DESC
+        """,
+        (hoy - timedelta(days=dias_atras), hoy + timedelta(days=dias_adelante + 1), nombres),
+    )
+    precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
+
+    def _fila(l: dict) -> dict:
+        programa = (l["programa_ofrecido"] or "").strip()
+        return {
+            "id": l["id"],
+            "prospecto": (l["nombre"] or "").strip() or "Sin nombre",
+            "email": l["email"] or "", "telefono": l["telefono"] or "", "instagram": (l["ig"] or "").lstrip("@"),
+            "fechaAt": l["call"].isoformat(), "closer": l["closer"], "setter": l["setter"] or "",
+            "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else ""),
+            "facturaHoy": (l["ingresos_rango"] or "").strip(),
+            "resultado": (l["resultado"] or "").strip(),
+            "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora),
+            "programa": programa,
+            "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
+            "cashUsd": _num(l["pago"]), "saldoUsd": _num(l["debe"]),
+            "notas": (l["notas"] or "").strip(), "reporte": (l["closer_report"] or "").strip(),
+            "grabacion": (l["link_llamada"] or "").strip(),
+            "pasada": l["call"] <= ahora,
+            "diasDesde": (hoy - l["call"].date()).days,
+        }
+
+    llamadas = [_fila(l) for l in filas]
+    inicio_mes = hoy.replace(day=1)
+    del_mes = [x for x in llamadas if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes]
+    ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
+    return {
+        "generadoAt": datetime.now(AR_TZ).isoformat(),
+        "closer": closer or (usuario.get("nombre") or nombres[0]),
+        "nombresCrm": nombres,
+        "programas": programas(),
+        "estados": list(ESTADOS_LLAMADA),
+        "llamadas": llamadas,
+        "mes": {
+            "agendadas": len(del_mes),
+            "sinReportar": sum(1 for x in del_mes if x["estado"] == "sin_reportar"),
+            "shows": sum(1 for x in del_mes if x["estado"] in ("show", "cierre")),
+            "cierres": len(ventas),
+            "cashUsd": round(sum(x["cashUsd"] for x in ventas), 2),
+            "facturacionUsd": round(sum(x["facturacionUsd"] for x in ventas), 2),
+            "saldoUsd": round(sum(x["saldoUsd"] for x in ventas), 2),
+        },
+    }
+
+
+def registrar_resultado(lead_id: int, datos: dict, usuario: dict) -> dict:
+    """Guarda lo que cargó el closer en el CRM, que es la fuente única: así ATV Marketing
+    y ATV Ops muestran lo mismo y no hay dos verdades."""
+    filas = crm_db.consultar("SELECT id, closer FROM lead WHERE id = %s", (int(lead_id),))
+    if not filas:
+        raise HTTPException(status_code=404, detail="Esa llamada no existe en el CRM.")
+    mio = _norm(filas[0]["closer"]) in [_norm(n) for n in _nombres_crm(usuario)]
+    if not mio and usuario.get("rol") not in ROLES_PRECIOS | {"ventas"}:
+        raise HTTPException(status_code=403, detail="Esa llamada no es tuya.")
+
+    resultado = str(datos.get("resultado") or "").strip()
+    if resultado not in ESTADOS_LLAMADA:
+        raise HTTPException(status_code=400, detail=f"Resultado inválido. Usá uno de: {', '.join(ESTADOS_LLAMADA)}.")
+    es_venta = resultado in ESTADOS_VENTA
+    programa = str(datos.get("programa") or "").strip()[:120]
+    if es_venta and not programa:
+        raise HTTPException(status_code=400, detail="Para marcar una venta hay que elegir el programa.")
+    try:
+        cash = round(float(datos.get("cashUsd") or 0), 2)
+        saldo = round(float(datos.get("saldoUsd") or 0), 2)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="El cash y el saldo tienen que ser números.")
+    if cash < 0 or saldo < 0:
+        raise HTTPException(status_code=400, detail="El cash y el saldo no pueden ser negativos.")
+    if not es_venta:
+        cash, saldo, programa = 0.0, 0.0, ""
+    nota = str(datos.get("nota") or "").strip()[:2000]
+    quien = (usuario.get("nombre") or usuario.get("username") or "")
+
+    crm_db.ejecutar(
+        "UPDATE lead SET status = %s, estado = %s, programa_ofrecido = %s, pago = %s, debe = %s, "
+        "closer_report = COALESCE(NULLIF(%s, ''), closer_report), closer = COALESCE(NULLIF(closer, ''), %s) "
+        "WHERE id = %s",
+        (resultado, resultado, programa, cash, saldo, nota, quien, int(lead_id)),
+    )
+    logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
+    _cache.clear()
+    return mis_llamadas(usuario)

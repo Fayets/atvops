@@ -1,88 +1,45 @@
-import { useCallback, useEffect, useState } from 'react';
-import CloserVista from '../components/ventas/CloserVista.jsx';
+import { useState } from 'react';
+import MiDiaCloser from '../components/ventas/MiDiaCloser.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import {
-  getCloserDashboard,
-  guardarDispositionCloser,
-  simularDispositionCloser,
-} from '../data/api.js';
+import PageHeader from '../components/ui/PageHeader.jsx';
+import SourceTag from '../components/ui/SourceTag.jsx';
+import { getMisLlamadas } from '../data/api.js';
+import { useResource } from '../lib/hooks.js';
 
-const POLL_MS = 30_000;
-
-/** Vista personal del Closer: cerrar, no operar el funnel de la empresa. */
+/** Mi día: las llamadas del closer, para cargar el resultado de cada una. */
 export default function VentasCloser() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [flashId, setFlashId] = useState(null);
+  const [tick, setTick] = useState(0);
+  const [local, setLocal] = useState(null);
+  const { data, loading, error } = useResource(getMisLlamadas, [tick]);
+  const vista = local ?? data;
 
-  const refresh = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-    try {
-      const next = await getCloserDashboard();
-      setData(next);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  // Polling cada 30s (mock de sync en vivo / otro closer o setter).
-  useEffect(() => {
-    const id = setInterval(() => refresh({ silent: true }), POLL_MS);
-    return () => clearInterval(id);
-  }, [refresh]);
-
-  const flash = (llamadaId) => {
-    setFlashId(llamadaId);
-    window.setTimeout(() => setFlashId(null), 1200);
-  };
-
-  const onGuardarDisposition = async (payload) => {
-    const next = await guardarDispositionCloser(payload);
-    setData(next);
-    flash(payload.llamadaId);
-  };
-
-  const onSimularDisposition = async () => {
-    const next = await simularDispositionCloser();
-    if (!next) return;
-    setData(next);
-    const id = next.agenda?.find((l) => l.estado === 'show_calificado' && l.prospecto === 'Tomás Riganti')?.id
-      || next.agenda?.find((l) => l.estado === 'show_calificado')?.id
-      || 'ch_01';
-    flash(id);
-  };
-
-  if (error) {
-    return (
-      <div className="page">
-        <ErrorState error={error} />
-      </div>
-    );
-  }
+  if (error) return <div className="page"><ErrorState error={error} /></div>;
 
   return (
-    <div className="page closer-page">
-      {loading || !data ? (
+    <div className="page ventas-page">
+      <PageHeader
+        eyebrow={vista?.closer ? `Closer · ${vista.closer}` : 'Closer'}
+        title="Mi día"
+        desc="Tus llamadas. Cargá qué pasó en cada una, qué programa compró y cuánto cash dejó."
+        actions={
+          <>
+            <SourceTag sourceId="mkt_crm" updatedAt={vista?.generadoAt} />
+            <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }}>Actualizar</button>
+          </>
+        }
+      />
+
+      {loading && !vista ? (
         <>
-          <SkeletonBlock height={200} />
           <SkeletonKpis n={4} />
-          <SkeletonBlock height={280} />
+          <SkeletonBlock height={320} />
         </>
+      ) : !vista?.closer ? (
+        <div className="empty">
+          No encontramos llamadas a tu nombre en el CRM. Pedile a Franco que revise cómo figurás como closer.
+        </div>
       ) : (
-        <CloserVista
-          data={data}
-          flashId={flashId}
-          onGuardarDisposition={onGuardarDisposition}
-          onSimularDisposition={onSimularDisposition}
-        />
+        <MiDiaCloser data={vista} onActualizado={setLocal} />
       )}
     </div>
   );

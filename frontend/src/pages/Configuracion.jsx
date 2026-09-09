@@ -1,3 +1,4 @@
+import ProgramasPrecios from '../components/ventas/ProgramasPrecios.jsx';
 import { useEffect, useRef, useState } from 'react';
 import MetaMesForm from '../components/metas/MetaMesForm.jsx';
 import Avatar from '../components/ui/Avatar.jsx';
@@ -88,6 +89,8 @@ export default function Configuracion() {
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFoto} />
+
+      <ProgramasPrecios />
 
       <Card title="Integrantes" sub="Tocá la foto para cambiarla">
         {error ? <ErrorState error={error} /> : null}

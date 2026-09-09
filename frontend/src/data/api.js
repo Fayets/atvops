@@ -802,6 +802,37 @@ export async function getVentasReal(mes, { refrescar = false } = {}) {
   return pedir(`/api/ventas${q.toString() ? `?${q}` : ''}`);
 }
 
+/** Las llamadas del closer logueado, con lo que ya reportó y lo que le falta. */
+export async function getMisLlamadas(closer) {
+  return pedir(`/api/ventas/mis-llamadas${closer ? `?closer=${encodeURIComponent(closer)}` : ''}`);
+}
+
+/** El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó. */
+export async function guardarResultadoLlamada(leadId, payload) {
+  return pedir(`/api/ventas/llamadas/${leadId}/resultado`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Catálogo de programas con su precio (la facturación de cada venta). */
+export async function getProgramas() {
+  return pedir('/api/ventas/programas');
+}
+
+export async function guardarPrograma(programa) {
+  return pedir('/api/ventas/programas', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(programa),
+  });
+}
+
+export async function borrarPrograma(id) {
+  return pedir(`/api/ventas/programas/${id}`, { method: 'DELETE' });
+}
+
 /** Meta del mes: el decreto que carga el equipo; si no hay, los objetivos por defecto. */
 function metaDelMes(mes) {
   const guardado = leerDecretoGuardado?.(mes) ?? null;

@@ -34,6 +34,24 @@ def disponible() -> bool:
         return False
 
 
+def ejecutar(sql: str, params: tuple | dict | None = None) -> int:
+    """Guarda en el CRM lo que el equipo carga desde Ops: el resultado de una llamada
+    y el catálogo de programas. El resto del acceso es de solo lectura."""
+    try:
+        import psycopg2
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
+    try:
+        with psycopg2.connect(dsn(), connect_timeout=10) as cnx, cnx.cursor() as cur:
+            cur.execute(sql, params or ())
+            return cur.rowcount
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.warning("CRM escritura: %s", str(e)[:200])
+        raise HTTPException(status_code=502, detail=f"No se pudo escribir en el CRM: {str(e)[:160]}") from e
+
+
 def consultar(sql: str, params: tuple | dict | None = None) -> list[dict]:
     """Corre un SELECT y devuelve filas como diccionarios."""
     try:
