@@ -30,11 +30,6 @@ export default function Activacion() {
   const enFase = data
     ? [...(data.enOnboarding ?? [])].sort((a, b) => b.onboarding.dias - a.onboarding.dias)
     : [];
-  const salieron = data
-    ? [...(data.salieronOnboarding ?? [])]
-        .filter((c) => c.onboarding.dias - VENTANA_ONBOARDING <= 45)
-        .sort((a, b) => a.onboarding.dias - b.onboarding.dias)
-    : [];
 
   return (
     <div className="page activacion-page">
@@ -128,31 +123,6 @@ export default function Activacion() {
               })
             )}
           </Card>
-
-          {salieron.length > 0 && (
-            <Card
-              title="Ya salieron de onboarding"
-              sub={`Pasaron el día ${VENTANA_ONBOARDING} · últimos en salir`}
-              flush
-              foot="Siguen en la cartera; la fase onboarding ya no aplica por tiempo."
-            >
-              {salieron.slice(0, 16).map((c) => (
-                <Link key={c.id} to={`/fulfillment/clientes/${c.id}`} className="lista-item">
-                  <Pill tone="ok" dot>
-                    día {c.onboarding.dias}
-                  </Pill>
-                  <span className="who">{c.nombre}</span>
-                  <span className="q">
-                    {CAT_LABEL[c.categoria] ?? c.categoria} · entrada {formatFecha(c.entradaAt)}
-                    {c.fase?.label ? ` · ahora: ${c.fase.label}` : ''}
-                  </span>
-                  <span className="right">
-                    <Icon name="arrow" size={13} />
-                  </span>
-                </Link>
-              ))}
-            </Card>
-          )}
         </>
       )}
     </div>
