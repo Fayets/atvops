@@ -13,8 +13,10 @@ Solo lectura. Se cachea 5 minutos para no pegarle a Google en cada carga de la v
 
 from __future__ import annotations
 
+import html
 import json
 import logging
+import re
 import threading
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -149,6 +151,73 @@ def _fecha(bloque: dict | None) -> tuple[datetime | None, bool]:
         return None, False
 
 
+_RUIDO_ZOOM = ("zoom web conference", "you can join", "one tap mobile", "you can also dial", "meeting id",
+               "join from a video system", "password:", "sip:", "us: +1", "location: this is")
+
+
+def _limpiar_html(texto: str) -> str:
+    texto = re.sub(r"<a [^>]*>(.*?)</a>", r"\1", texto, flags=re.S)
+    texto = re.sub(r"<[^>]+>", " ", texto)
+    return html.unescape(texto)
+
+
+def _datos_calendly(descripcion: str | None, ubicacion: str | None) -> dict:
+    """Calendly deja en la descripción el tipo de llamada, el Zoom y las respuestas
+    del formulario (teléfono, Instagram, facturación, problema). Se extraen para que
+    el equipo de ventas las vea sin abrir el evento."""
+    datos: dict = {"tipo": None, "telefono": None, "instagram": None, "zoomUrl": None,
+                   "facturacion": None, "respuestas": [], "notas": None}
+    if ubicacion and ubicacion.startswith("http"):
+        datos["zoomUrl"] = ubicacion
+    if not descripcion:
+        return datos
+    texto = _limpiar_html(descripcion)
+    m = re.search(r"Event Name\s*\n+\s*(.+)", texto)
+    if m:
+        datos["tipo"] = m.group(1).strip()[:80] or None
+    if not datos["zoomUrl"]:
+        m = re.search(r"https://[a-z0-9.]*zoom\.us/j/\S+", texto, re.I)
+        if m:
+            datos["zoomUrl"] = m.group(0)
+
+    utiles = []
+    for linea in texto.splitlines():
+        limpia = " ".join(linea.split())
+        bajo = limpia.lower()
+        if not limpia or bajo == "event name" or limpia == datos["tipo"]:
+            continue
+        if any(r in bajo for r in _RUIDO_ZOOM) or limpia.startswith("http") or limpia.startswith("+1 "):
+            continue
+        utiles.append(limpia)
+
+    for segmento in utiles:
+        pregunta, sep, respuesta = segmento.rpartition(": ")
+        pregunta, respuesta = pregunta.strip(" ?*"), respuesta.strip()
+        if not sep or not respuesta:
+            continue
+        # La pregunta suele traer un ejemplo entre paréntesis: no es la respuesta.
+        pregunta = re.sub(r"\s*\((?:ej|ejemplo)[^)]*\)", "", pregunta, flags=re.I).strip(" ?*:")
+        bajo = pregunta.lower()
+        if re.search(r"\b(tel[eé]fono|phone|celular|whatsapp|wpp)\b", bajo):
+            datos["telefono"] = respuesta[:30]
+            continue
+        if "instagram" in bajo:
+            ig = re.search(r"instagram\.com/([A-Za-z0-9_.]{2,40})", respuesta, re.I)
+            datos["instagram"] = ig.group(1) if ig else respuesta.lstrip("@")[:40]
+            continue
+        if "generando" in bajo or "facturas" in bajo or ("usd" in bajo and "cuanto" in bajo):
+            datos["facturacion"] = respuesta[:60]
+        if len(datos["respuestas"]) < 8:
+            datos["respuestas"].append({"pregunta": pregunta[:110], "respuesta": respuesta[:400]})
+
+    if datos["telefono"] is None:
+        m = re.search(r"(?:n[uú]mero de tel[eé]fono|tel[eé]fono|phone)\s*:\s*([+0-9][0-9\s().-]{5,25})", texto, re.I)
+        if m:
+            datos["telefono"] = m.group(1).strip()
+    datos["notas"] = (" · ".join(utiles)[:800].strip(" ·") or None)
+    return datos
+
+
 def _invitados(evento: dict, ignorar: set[str]) -> list[dict]:
     salida, vistos = [], set()
     for a in evento.get("attendees") or []:
@@ -183,9 +252,11 @@ def _normalizar(evento: dict, ignorar: set[str]) -> dict | None:
             if isinstance(punto, dict) and punto.get("entryPointType") == "video":
                 conferencia = str(punto.get("uri") or "")
                 break
+    calendly = _datos_calendly(str(evento.get("description") or ""), str(evento.get("location") or ""))
     return {
         "id": str(evento.get("id") or ""),
         "titulo": str(evento.get("summary") or "(sin título)").strip(),
+        **calendly,
         "inicioAt": inicio.isoformat(),
         "finAt": fin.isoformat() if fin else None,
         "todoElDia": todo_el_dia,

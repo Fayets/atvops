@@ -54,6 +54,14 @@ import {
   OPS_VENTAS_META,
   OPS_VENTAS_SEMANAS,
 } from './mock/ventasOps.js';
+import {
+  OPS_FF_CALIDAD,
+  OPS_FF_CONTEXTO,
+  OPS_FF_EXPANSION,
+  OPS_FF_PROGRAMAS,
+  OPS_FF_RESUMEN,
+  OPS_FF_SALUD,
+} from './mock/fulfillmentOps.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
 import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
 import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
@@ -1042,6 +1050,68 @@ export async function getVentasOps() {
   });
 }
 
+/**
+ * Vista OPS de Fulfillment: cartera, expansión (Caja 2), salud y calidad.
+ * Para admin / operaciones / founder — no el día a día de CSM.
+ */
+export async function getFulfillmentOps() {
+  const ctx = OPS_FF_CONTEXTO;
+  const r = OPS_FF_RESUMEN;
+  const exp = OPS_FF_EXPANSION;
+  const salud = OPS_FF_SALUD;
+  const cal = OPS_FF_CALIDAD;
+  const programas = OPS_FF_PROGRAMAS;
+
+  const gapCaja2 = exp.metaCaja2Usd - exp.caja2Usd;
+  const pctCaja2 = exp.metaCaja2Usd ? (exp.caja2Usd / exp.metaCaja2Usd) * 100 : 0;
+  let estadoCaja2 = 'ok';
+  const ritmoEsperado = (ctx.diaHoy / ctx.diasMes) * 100;
+  if (pctCaja2 < ritmoEsperado - 15) estadoCaja2 = 'alert';
+  else if (pctCaja2 < ritmoEsperado - 5) estadoCaja2 = 'warn';
+
+  const totalEstado = salud.vigentes + salud.proximosAVencer + salud.vencidos;
+  const porEstado = [
+    { id: 'vigentes', label: 'Vigentes', valor: salud.vigentes, pct: totalEstado ? (salud.vigentes / totalEstado) * 100 : 0, color: 'var(--ok)' },
+    { id: 'proximos', label: 'Próximos a vencer', valor: salud.proximosAVencer, pct: totalEstado ? (salud.proximosAVencer / totalEstado) * 100 : 0, color: 'var(--warn)' },
+    { id: 'vencidos', label: 'Vencidos', valor: salud.vencidos, pct: totalEstado ? (salud.vencidos / totalEstado) * 100 : 0, color: 'var(--brand-hi)' },
+  ];
+
+  const ratioWinsQuejas = cal.quejasMes ? cal.winsMes / cal.quejasMes : cal.winsMes;
+  let alertaSalud = null;
+  if (salud.vencenProximos7d >= 10) {
+    alertaSalud = `${salud.vencenProximos7d} clientes vencen en los próximos 7 días · revenue en riesgo: ${formatValue(salud.revenueRiesgo7dUsd, 'usd')}.`;
+  }
+
+  return responder({
+    contexto: ctx,
+    resumen: {
+      ...r,
+      programas,
+      deltaOnboarding: r.onboardingsMes - r.onboardingsMesAnterior,
+      pctOnboarding: r.metaOnboarding ? (r.onboardingsMes / r.metaOnboarding) * 100 : 0,
+    },
+    expansion: {
+      ...exp,
+      gapCaja2,
+      pctCaja2,
+      estadoCaja2,
+    },
+    salud: {
+      ...salud,
+      porEstado,
+      programas,
+      alerta: alertaSalud,
+    },
+    calidad: {
+      ...cal,
+      ratioWinsQuejas,
+      deltaQuejas: cal.quejasMes - cal.quejasMesAnterior,
+      deltaWins: cal.winsMes - cal.winsMesAnterior,
+    },
+    syncAt: ctx.syncAt,
+  });
+}
+
 /* --------------------------------------------------------------- marketing */
 
 /** Solo Ads Manager (sin Instagram) — liviano para metas / gasto. */
@@ -1811,8 +1881,67 @@ export async function guardarDatosCliente(clienteId, payload) {
 }
 
 /** Agenda real del Google Calendar de ATV (vista de Ventas). */
-export async function getAgendaVentas({ dias = 14, refrescar = false } = {}) {
-  return pedir(`/api/calendario-ventas?dias=${dias}${refrescar ? '&refrescar=true' : ''}`);
+export async function getAgendaVentas({ dias = 14, diasAtras = 1, refrescar = false } = {}) {
+  return pedir(`/api/calendario-ventas?dias=${dias}&diasAtras=${diasAtras}${refrescar ? '&refrescar=true' : ''}`);
+}
+
+/** Del título de Calendly ("2da reu DANILO and Aumenta Tu Valor") sale el nombre del prospecto. */
+function prospectoDesde(titulo, invitados) {
+  const limpio = (titulo ?? '').replace(/\s+/g, ' ').trim();
+  const m = limpio.match(/^(.*?)\s*(?:and|y|&|con)\s+aumenta tu valor\b/i)
+    ?? limpio.match(/^aumenta tu valor\s*(?:and|y|&|con)\s*(.*)$/i);
+  if (m) {
+    const nombre = m[1]
+      .replace(/^(?:\d+\s*(?:ra|da|er|ta|va|°|º)?\s*)?(?:reuni[oó]n|reu|llamada|call|meet|sesi[oó]n)\s+/i, '')
+      .trim();
+    if (nombre) return nombre;
+  }
+  // Sin el patrón de Calendly, el título dice más que el usuario del mail del invitado.
+  if (limpio) return limpio;
+  const externo = (invitados ?? []).find((i) => !i.equipo);
+  return externo?.nombre || 'Sin título';
+}
+
+const ESTADO_POR_RESPUESTA = { accepted: 'confirmado', declined: 'rechazado', tentative: 'tentativo' };
+
+/**
+ * Llamadas reales del Google Calendar de ATV, con la forma que espera el calendario
+ * del equipo. Los datos del formulario de Calendly (teléfono, Instagram, facturación)
+ * vienen ya parseados del backend.
+ */
+export async function getLlamadosAgenda({ dias = 21, diasAtras = 7, refrescar = false } = {}) {
+  const agenda = await getAgendaVentas({ dias, diasAtras, refrescar });
+  const llamados = (agenda.eventos ?? []).map((e) => {
+    const externos = (e.invitados ?? []).filter((i) => !i.equipo);
+    const principal = externos[0] ?? null;
+    const estado = externos.length === 0
+      ? 'interno'
+      : (ESTADO_POR_RESPUESTA[principal?.estado] ?? 'pendiente');
+    return {
+      id: e.id,
+      prospecto: prospectoDesde(e.titulo, e.invitados),
+      titulo: e.titulo,
+      email: principal?.email ?? '',
+      telefono: e.telefono ?? '',
+      instagram: e.instagram ?? '',
+      facturacion: e.facturacion ?? '',
+      respuestas: e.respuestas ?? [],
+      fechaAt: e.inicioAt,
+      duracionMin: e.duracionMin,
+      todoElDia: e.todoElDia,
+      estado,
+      oferta: e.tipo ?? (externos.length ? 'Llamada' : 'Interno'),
+      closer: (e.invitados ?? []).filter((i) => i.equipo).map((i) => i.nombre).join(', ') || 'Equipo ATV',
+      invitados: e.invitados ?? [],
+      zoomUrl: e.zoomUrl ?? null,
+      meetUrl: e.meetUrl ?? null,
+      url: e.url ?? null,
+      notasSetter: e.notas ?? '',
+      montoUsd: null,
+      origen: 'calendly',
+    };
+  });
+  return { ...agenda, llamados };
 }
 
 /** Log de eventos: por cliente, tipo, tag, estado, responsable o antigüedad. */

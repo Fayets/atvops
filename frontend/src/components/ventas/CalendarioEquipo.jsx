@@ -4,11 +4,11 @@ import Pill from '../ui/Pill.jsx';
 import { formatFecha, formatFechaHora } from '../../lib/format.js';
 
 const ESTADO = {
-  agendado: { tone: 'plain', label: 'agendado' },
-  show: { tone: 'ok', label: 'show' },
-  no_show: { tone: 'warn', label: 'no show' },
-  cerrado: { tone: 'alert', label: 'cerrado' },
-  perdido: { tone: 'off', label: 'perdido' },
+  confirmado: { tone: 'ok', label: 'confirmó' },
+  pendiente: { tone: 'plain', label: 'sin responder' },
+  tentativo: { tone: 'warn', label: 'tal vez' },
+  rechazado: { tone: 'alert', label: 'rechazó' },
+  interno: { tone: 'off', label: 'interno' },
 };
 
 const DIAS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
@@ -30,13 +30,13 @@ function parseAt(iso) {
 }
 
 /**
- * Calendario del equipo (mock Google Calendar): semana / mes con llamadas de closers.
- * @param {{ llamados: object[], onSelect: (l: object) => void }} props
+ * Calendario del equipo: semana o mes con las llamadas reales del Google Calendar de ATV.
+ * @param {{ llamados: object[], onSelect: (l: object) => void, sub?: string,
+ *           actualizando?: boolean, onActualizar?: () => void }} props
  */
-export default function CalendarioEquipo({ llamados, onSelect }) {
+export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar }) {
   const [modo, setModo] = useState('semana');
-  // Ancla mock alineada a los datos (sep 2026).
-  const [ancla, setAncla] = useState(() => new Date('2026-09-09T12:00:00-03:00'));
+  const [ancla, setAncla] = useState(() => new Date());
 
   const semana = useMemo(() => {
     const ini = inicioSemana(ancla);
@@ -90,13 +90,18 @@ export default function CalendarioEquipo({ llamados, onSelect }) {
     <Card
       className="ventas-cal-card"
       title="Calendario del equipo"
-      sub="Google Calendar ATV · mock (sync real después)"
+      sub={sub ?? 'Google Calendar de ATV'}
       actions={
         <div className="ventas-cal-actions">
+          {onActualizar && (
+            <button type="button" className="btn sm" onClick={onActualizar} disabled={actualizando}>
+              {actualizando ? '…' : '⟳'}
+            </button>
+          )}
           <button type="button" className="btn sm" onClick={() => navegar(-1)}>
             ‹
           </button>
-          <button type="button" className="btn sm" onClick={() => setAncla(new Date('2026-09-09T12:00:00-03:00'))}>
+          <button type="button" className="btn sm" onClick={() => setAncla(new Date())}>
             Hoy
           </button>
           <button type="button" className="btn sm" onClick={() => navegar(1)}>
@@ -135,9 +140,9 @@ export default function CalendarioEquipo({ llamados, onSelect }) {
                         className={`ventas-cal-ev estado-${l.estado}`}
                         onClick={() => onSelect(l)}
                       >
-                        <span className="hora">{formatFechaHora(l.fechaAt).split(', ')[1]}</span>
+                        <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
                         <span className="who">{l.prospecto}</span>
-                        <span className="meta">{l.closer} · {l.oferta}</span>
+                        <span className="meta">{l.oferta}{l.facturacion ? ` · ${l.facturacion}` : ''}</span>
                       </button>
                     ))
                   )}
@@ -168,7 +173,7 @@ export default function CalendarioEquipo({ llamados, onSelect }) {
                     type="button"
                     className={`ventas-cal-ev mini estado-${l.estado}`}
                     onClick={() => onSelect(l)}
-                    title={`${l.prospecto} · ${l.closer}`}
+                    title={`${l.prospecto} · ${l.oferta}`}
                   >
                     {l.prospecto.split(' ')[0]}
                   </button>

@@ -5,8 +5,6 @@ import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatFecha, formatFechaHora, formatValue, hace } from '../../lib/format.js';
 
-const ORIGEN = { ads: 'Ads', organico: 'Orgánico', referido: 'Referido', outbound: 'Outbound' };
-
 const REPORTE_TONE = {
   completado: 'ok',
   pendiente: 'warn',
@@ -41,23 +39,25 @@ function urgenciaFollow(dias) {
  * Vista operativa día a día del Director de Ventas.
  * @param {{ data: object }} props
  */
-export default function VentasOperativa({ data }) {
+export default function VentasOperativa({ data, agenda, agendaError, actualizando, onActualizar }) {
   const [detalle, setDetalle] = useState(null);
   const [filtroEvento, setFiltroEvento] = useState('todos');
-  const [filtroCloser, setFiltroCloser] = useState('todos');
+  const [filtroTipo, setFiltroTipo] = useState('todos');
+
+  const llamados = agenda?.llamados ?? [];
 
   const pipeline = useMemo(() => {
-    const hoy = new Date('2026-09-09T00:00:00-03:00');
-    const hasta = new Date(hoy);
+    const ahora = new Date();
+    const hasta = new Date(ahora);
     hasta.setDate(hasta.getDate() + 7);
-    return [...data.llamados]
+    return llamados
       .filter((l) => {
         const t = new Date(l.fechaAt);
-        return t >= hoy && t <= hasta && (l.estado === 'agendado' || l.estado === 'show');
+        return t >= ahora && t <= hasta && l.estado !== 'rechazado';
       })
-      .filter((l) => filtroCloser === 'todos' || l.closer === filtroCloser)
+      .filter((l) => filtroTipo === 'todos' || l.oferta === filtroTipo)
       .sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
-  }, [data.llamados, filtroCloser]);
+  }, [llamados, filtroTipo]);
 
   const actividad = useMemo(() => {
     const list = [...(data.actividad ?? [])].sort((a, b) => b.at.localeCompare(a.at));
@@ -70,14 +70,28 @@ export default function VentasOperativa({ data }) {
     [data.followUps],
   );
 
-  const closersUnicos = useMemo(
-    () => [...new Set(data.llamados.map((l) => l.closer))].sort(),
-    [data.llamados],
+  const tiposUnicos = useMemo(
+    () => [...new Set(llamados.map((l) => l.oferta).filter(Boolean))].sort(),
+    [llamados],
   );
 
   return (
     <div className="ventas-operativa">
-      <CalendarioEquipo llamados={data.llamados} onSelect={setDetalle} />
+      {agendaError ? (
+        <Card title="Calendario del equipo" sub="Google Calendar de ATV">
+          <div className="empty">{agendaError.message}</div>
+        </Card>
+      ) : (
+        <CalendarioEquipo
+          llamados={llamados}
+          onSelect={setDetalle}
+          sub={agenda
+            ? `${agenda.calendarId} · ${llamados.length} eventos entre ${agenda.desde} y ${agenda.hasta}`
+            : 'Cargando el Google Calendar de ATV…'}
+          actualizando={actualizando}
+          onActualizar={onActualizar}
+        />
+      )}
 
       <div className="split even">
         <Card title="Reportes de Closers" sub="Estado del reporte diario" flush>
@@ -156,16 +170,16 @@ export default function VentasOperativa({ data }) {
 
         <Card
           title="Pipeline · próximos 7 días"
-          sub="Llamadas agendadas"
+          sub="Llamadas agendadas en el calendario"
           actions={
             <select
               className="select sm"
-              value={filtroCloser}
-              onChange={(e) => setFiltroCloser(e.target.value)}
-              aria-label="Filtrar por closer"
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+              aria-label="Filtrar por tipo de llamada"
             >
-              <option value="todos">Todos los closers</option>
-              {closersUnicos.map((c) => (
+              <option value="todos">Todos los tipos</option>
+              {tiposUnicos.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -178,7 +192,7 @@ export default function VentasOperativa({ data }) {
             <div className="empty">No hay llamadas en los próximos 7 días.</div>
           ) : (
             pipeline.map((l) => {
-              const est = ESTADO[l.estado] ?? ESTADO.agendado;
+              const est = ESTADO[l.estado] ?? ESTADO.pendiente;
               return (
                 <button
                   key={l.id}
@@ -191,7 +205,8 @@ export default function VentasOperativa({ data }) {
                   </Pill>
                   <span className="who">{l.prospecto}</span>
                   <span className="q">
-                    {formatFechaHora(l.fechaAt)} · {l.closer} · {ORIGEN[l.origen] ?? l.origen} · {l.oferta}
+                    {formatFechaHora(l.fechaAt)} · {l.oferta}
+                    {l.facturacion ? ` · factura ${l.facturacion}` : ''}
                   </span>
                 </button>
               );

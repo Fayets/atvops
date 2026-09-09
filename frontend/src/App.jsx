@@ -23,6 +23,7 @@ import ClienteDetalle from './pages/fulfillment/ClienteDetalle.jsx';
 import Clientes from './pages/fulfillment/Clientes.jsx';
 import Engagement from './pages/fulfillment/Engagement.jsx';
 import Outcomes from './pages/fulfillment/Outcomes.jsx';
+import FulfillmentOps from './pages/fulfillment/FulfillmentOps.jsx';
 import Resumen from './pages/fulfillment/Resumen.jsx';
 import Retencion from './pages/fulfillment/Retencion.jsx';
 import { useRol } from './lib/RolContext.jsx';
@@ -53,6 +54,7 @@ export default function App() {
 
             <Route path="fulfillment">
               <Route index element={<Resumen />} />
+              <Route path="ops" element={<FulfillmentOps />} />
               <Route path="clientes" element={<Clientes />} />
               <Route path="clientes/:clienteId" element={<ClienteDetalle />} />
               <Route path="activacion" element={<Activacion />} />
@@ -60,9 +62,9 @@ export default function App() {
               <Route path="engagement" element={<Engagement />} />
               <Route path="retencion" element={<Retencion />} />
               <Route path="outcomes" element={<Outcomes />} />
-          <Route path="pendientes" element={<Pendientes />} />
-          <Route path="chats" element={<Chats />} />
-          <Route path="chats/:categoria/:canal" element={<Chats />} />
+              <Route path="pendientes" element={<Pendientes />} />
+              <Route path="chats" element={<Chats />} />
+              <Route path="chats/:categoria/:canal" element={<Chats />} />
             </Route>
 
             <Route path="marketing" element={<Marketing />} />
