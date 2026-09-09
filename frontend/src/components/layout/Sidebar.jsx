@@ -30,8 +30,9 @@ const NAV = [
     icon: 'ventas',
     label: 'Ventas',
     sub: [
-      { to: '/ventas', label: 'Operativa', end: true },
-      { to: '/ventas/performance', label: 'Performance' },
+      { to: '/ventas', label: 'Operativa', end: true, roles: ['ventas', 'closer', 'setter', 'admin', 'founder'] },
+      { to: '/ventas/performance', label: 'Performance', roles: ['ventas', 'closer', 'setter', 'admin', 'founder'] },
+      { to: '/ventas/ops', label: 'Salud vs meta', roles: ['admin', 'operaciones', 'founder'] },
     ],
   },
   { to: '/metas', icon: 'check', label: 'Metas' },

@@ -12,9 +12,10 @@ import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
-import VentasOperativaPage from './pages/VentasOperativa.jsx';
-import VentasPerformancePage from './pages/VentasPerformance.jsx';
 import Metas from './pages/Metas.jsx';
+import VentasOperativaPage from './pages/VentasOperativa.jsx';
+import VentasOps from './pages/VentasOps.jsx';
+import VentasPerformancePage from './pages/VentasPerformance.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
 import Pendientes from './pages/fulfillment/Pendientes.jsx';
@@ -24,6 +25,17 @@ import Engagement from './pages/fulfillment/Engagement.jsx';
 import Outcomes from './pages/fulfillment/Outcomes.jsx';
 import Resumen from './pages/fulfillment/Resumen.jsx';
 import Retencion from './pages/fulfillment/Retencion.jsx';
+import { useRol } from './lib/RolContext.jsx';
+import { puedeVerVentasDirector, puedeVerVentasOps } from './lib/roles.js';
+
+/** /ventas: Director → Operativa · OPS puro → Salud vs meta. */
+function VentasIndex() {
+  const { rol } = useRol();
+  if (!puedeVerVentasDirector(rol) && puedeVerVentasOps(rol)) {
+    return <Navigate to="/ventas/ops" replace />;
+  }
+  return <VentasOperativaPage />;
+}
 
 /**
  * Rutas del tablero. Auth + rol filtran qué entra cada usuario.
@@ -56,8 +68,9 @@ export default function App() {
             <Route path="marketing" element={<Marketing />} />
             <Route path="ads" element={<Ads />} />
             <Route path="ventas">
-              <Route index element={<VentasOperativaPage />} />
+              <Route index element={<VentasIndex />} />
               <Route path="performance" element={<VentasPerformancePage />} />
+              <Route path="ops" element={<VentasOps />} />
             </Route>
             <Route path="metas" element={<Metas />} />
             <Route path="sistemas" element={<Sistemas />} />

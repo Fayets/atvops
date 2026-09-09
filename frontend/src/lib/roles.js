@@ -73,6 +73,8 @@ export const RUTAS_POR_ROL = {
     '/asistente',
     '/calendario',
     '/fulfillment',
+    '/ventas',
+    '/metas',
     '/cobranza',
     '/ideas',
   ],
@@ -182,9 +184,16 @@ export function filtrarNav(nav, rol) {
       if (!puedeVerRuta(item.to, rol) && item.to !== '/') return null;
       if (item.to === '/' && !puedeVerRuta('/', rol)) return null;
       if (!item.sub) return item;
-      const sub = item.sub.filter((s) => puedeVerRuta(s.to, rol));
+      const sub = item.sub.filter((s) => {
+        if (s.roles && !s.roles.includes(rol)) return false;
+        return puedeVerRuta(s.to, rol);
+      });
       if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
       if (item.to.startsWith('/ventas') && sub.length === 0) return null;
+      // Operaciones: el link padre de Ventas apunta a la vista OPS.
+      if (item.to === '/ventas' && !puedeVerVentasDirector(rol) && puedeVerVentasOps(rol)) {
+        return { ...item, to: '/ventas/ops', sub };
+      }
       return { ...item, sub };
     })
     .filter(Boolean);
@@ -198,4 +207,16 @@ export function homeParaRol(rol) {
 export function puedeEditarMetas(rol) {
   const r = normalizarRol(rol);
   return r === 'admin' || r === 'operaciones';
+}
+
+/** Quién ve la vista OPS de Ventas (salud vs meta), no el día a día. */
+export function puedeVerVentasOps(rol) {
+  const r = normalizarRol(rol);
+  return r === 'admin' || r === 'operaciones' || r === 'founder';
+}
+
+/** Quién ve Operativa / Performance del Director de Ventas. */
+export function puedeVerVentasDirector(rol) {
+  const r = normalizarRol(rol);
+  return r === 'ventas' || r === 'closer' || r === 'setter' || r === 'admin' || r === 'founder';
 }

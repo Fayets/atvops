@@ -6,6 +6,7 @@ import { getAgendaVentas } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 
 const TONO_RESPUESTA = { accepted: 'ok', declined: 'alert', tentative: 'warn', needsAction: 'off' };
+const TEXTO_RESPUESTA = { accepted: 'confirmó', declined: 'rechazó', tentative: 'tal vez', needsAction: 'sin responder' };
 
 const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 
@@ -33,7 +34,9 @@ function Evento({ e, pasado }) {
         {(invitados.length > 0 || equipo.length > 0) && (
           <div className="agenda-invitados">
             {invitados.map((i) => (
-              <Pill key={i.email || i.nombre} tone={TONO_RESPUESTA[i.estado] ?? 'off'} dot>{i.nombre}</Pill>
+              <span key={i.email || i.nombre} title={`${i.email || i.nombre} · ${TEXTO_RESPUESTA[i.estado] ?? i.estado}`}>
+                <Pill tone={TONO_RESPUESTA[i.estado] ?? 'off'} dot>{i.nombre}</Pill>
+              </span>
             ))}
             {equipo.length > 0 && <span className="dim">con {equipo.map((i) => i.nombre).join(', ')}</span>}
           </div>

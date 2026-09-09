@@ -4,8 +4,9 @@ Google Calendar de ATV (la cuenta real de Aumenta Tu Valor).
 Credenciales: cuenta de servicio, igual que en atv-mkt. Se buscan en este orden:
 1. `GOOGLE_SERVICE_ACCOUNT_JSON` (el JSON completo) o `GOOGLE_SERVICE_ACCOUNT_FILE` (ruta),
    más `GOOGLE_CALENDAR_ID`.
-2. La conexión que ya cargó atv-mkt en la base compartida (tabla `apiconnection`,
-   plataforma `google_calendar`): así el calendario se configura en un solo lugar.
+2. La conexión que ya cargó atv-mkt (tabla `apiconnection`, plataforma `google_calendar`),
+   así el calendario se configura en un solo lugar. atv-mkt vive en otra base de Neon:
+   se apunta con `GCAL_CONEXION_DSN`. Si estuviera en la misma, se lee sin DSN.
 
 Solo lectura. Se cachea 5 minutos para no pegarle a Google en cada carga de la vista.
 """
@@ -28,6 +29,7 @@ logger = logging.getLogger("atv_ops.gcal")
 SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 CACHE_SEGUNDOS = int(config("GCAL_CACHE_SEGUNDOS", default=300))
 CONEXION_SCHEMA = config("GCAL_CONEXION_SCHEMA", default="public")
+CONEXION_DSN = (config("GCAL_CONEXION_DSN", default="") or "").strip()
 _cache: dict = {}
 _lock = threading.Lock()
 
@@ -46,18 +48,36 @@ def _desde_env() -> dict | None:
     return {"calendar_id": calendar_id, "service_account_json": crudo, "origen": "env"}
 
 
-def _desde_conexion_mkt() -> dict | None:
-    """Lee la conexión que ya configuró atv-mkt en la base compartida (solo lectura)."""
+def _filas_conexion() -> list:
+    """Filas de credentials de la tabla apiconnection de atv-mkt (por DSN o en la misma base)."""
+    sql = f"SELECT credentials FROM {CONEXION_SCHEMA}.apiconnection WHERE platform = 'google_calendar'"
+    if CONEXION_DSN:
+        try:
+            import psycopg2
+        except ImportError:
+            logger.info("Falta psycopg2 para leer la conexión de atv-mkt.")
+            return []
+        try:
+            with psycopg2.connect(CONEXION_DSN, connect_timeout=8) as cnx, cnx.cursor() as cur:
+                cur.execute(sql)
+                return cur.fetchall()
+        except Exception as e:  # noqa: BLE001
+            logger.info("No se pudo leer la conexión de atv-mkt por DSN: %s", str(e)[:200])
+            return []
     from src.db import ES_POSTGRES, db
 
     if not ES_POSTGRES:
-        return None
+        return []
     try:
-        filas = db.select(f"SELECT credentials FROM {CONEXION_SCHEMA}.apiconnection WHERE platform = 'google_calendar'")
+        return db.select(sql)
     except Exception as e:  # noqa: BLE001 — sin tabla o sin permisos: se avisa arriba
-        logger.info("No se pudo leer la conexión de atv-mkt: %s", str(e)[:160])
-        return None
-    for fila in filas:
+        logger.info("No se pudo leer la conexión de atv-mkt: %s", str(e)[:200])
+        return []
+
+
+def _desde_conexion_mkt() -> dict | None:
+    """Lee la conexión que ya configuró atv-mkt (solo lectura)."""
+    for fila in _filas_conexion():
         cred = fila[0] if isinstance(fila, (tuple, list)) else fila
         if isinstance(cred, str):
             try:
@@ -79,8 +99,8 @@ def credenciales() -> dict:
     if cred is None:
         raise HTTPException(
             status_code=503,
-            detail="No hay calendario configurado. Cargá GOOGLE_CALENDAR_ID y GOOGLE_SERVICE_ACCOUNT_JSON, "
-                   "o configurá la conexión google_calendar en ATV Marketing.",
+            detail="No hay calendario configurado. Cargá GOOGLE_CALENDAR_ID y GOOGLE_SERVICE_ACCOUNT_JSON en el .env, "
+                   "o GCAL_CONEXION_DSN apuntando a la base de ATV Marketing, que ya tiene la conexión google_calendar.",
         )
     return cred
 

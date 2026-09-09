@@ -48,6 +48,12 @@ import {
   SEMANAS,
   SETTERS,
 } from './mock/ventas.js';
+import {
+  OPS_VENTAS_ACTUAL,
+  OPS_VENTAS_CONTEXTO,
+  OPS_VENTAS_META,
+  OPS_VENTAS_SEMANAS,
+} from './mock/ventasOps.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
 import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
 import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
@@ -870,6 +876,169 @@ export async function getVentas() {
     },
     kpis,
     syncAt: SYNC.cal,
+  });
+}
+
+/**
+ * Vista OPS de Ventas: proyección vs meta, funnel math y salud de rates.
+ * Para admin / operaciones / founder — no es el día a día del Director.
+ */
+export async function getVentasOps() {
+  const ctx = OPS_VENTAS_CONTEXTO;
+  const meta = OPS_VENTAS_META;
+  const actual = OPS_VENTAS_ACTUAL;
+  const semanas = OPS_VENTAS_SEMANAS;
+
+  const fraccion = ctx.diaHoy / ctx.diasMes;
+  const proyectado = fraccion > 0 ? (actual.cashUsd / ctx.diaHoy) * ctx.diasMes : actual.cashUsd;
+  const gap = meta.cashUsd - actual.cashUsd;
+  const pctMeta = meta.cashUsd ? (actual.cashUsd / meta.cashUsd) * 100 : 0;
+  const pctRitmo = fraccion * 100;
+  const ritmoActualSemana = ctx.diaHoy > 0 ? (actual.cashUsd / ctx.diaHoy) * 7 : 0;
+  const ritmoNecesarioSemana = ((meta.cashUsd - actual.cashUsd) / Math.max(1, ctx.diasMes - ctx.diaHoy)) * 7;
+  const probabilidad = Math.max(
+    0,
+    Math.min(100, proyectado / meta.cashUsd * 100),
+  );
+
+  let estado = 'en_camino';
+  if (pctMeta < pctRitmo - 15) estado = 'critico';
+  else if (pctMeta < pctRitmo - 5) estado = 'atencion';
+
+  const adelantoPct = pctMeta - pctRitmo;
+  let insight = '';
+  if (estado === 'en_camino' && adelantoPct >= 0) {
+    insight = `Vamos ${Math.round(adelantoPct)}% adelantados al ritmo del mes; el ritmo actual nos lleva a ${formatValue(proyectado, 'usd')}.`;
+  } else {
+    const convFaltan = Math.max(0, meta.conversaciones - actual.conversaciones);
+    const semanasRest = Math.max(1, (ctx.diasMes - ctx.diaHoy) / 7);
+    const convPorSemana = Math.ceil(convFaltan / semanasRest);
+    insight = `Necesitamos ${convPorSemana} conversaciones más por semana para sostener el funnel hacia la meta de ${formatValue(meta.cashUsd, 'usd')}.`;
+  }
+
+  const etapa = (id, label, metaV, actualV, format = 'count') => {
+    const gapE = metaV - actualV;
+    const pct = metaV ? (actualV / metaV) * 100 : 0;
+    const diasRest = Math.max(1, ctx.diasMes - ctx.diaHoy);
+    const ritmoSemana = Math.max(0, (gapE / diasRest) * 7);
+    let est = 'ok';
+    if (pct < pctRitmo - 15) est = 'alert';
+    else if (pct < pctRitmo - 5) est = 'warn';
+    return {
+      id,
+      label,
+      meta: metaV,
+      actual: actualV,
+      gap: gapE,
+      pctCompletado: pct,
+      ritmoSemana,
+      estado: est,
+      format,
+    };
+  };
+
+  const funnel = [
+    etapa('conversaciones', 'Conversaciones', meta.conversaciones, actual.conversaciones),
+    etapa('aplicaciones', 'Aplicaciones calificadas', meta.aplicaciones, actual.aplicaciones),
+    etapa('agendas', 'Llamadas agendadas', meta.agendas, actual.agendas),
+    etapa('shows', 'Llamadas mostradas', meta.shows, actual.shows),
+    etapa('cierres', 'Ventas cerradas', meta.cierres, actual.cierres),
+    etapa('cash', 'Cash collected', meta.cashUsd, actual.cashUsd, 'usd'),
+  ];
+
+  const peor = [...funnel].sort((a, b) => a.pctCompletado - b.pctCompletado)[0];
+  let diagnostico = '';
+  if (peor?.id === 'conversaciones') {
+    diagnostico = `El cuello de botella está en conversaciones: ${formatValue(actual.conversaciones, 'count')} de ${formatValue(meta.conversaciones, 'count')}. Hay ${formatValue(actual.chats, 'count')} chats entrando; el problema no es generar más chats, es convertirlos a conversación.`;
+  } else if (peor) {
+    diagnostico = `El cuello de botella está en ${peor.label.toLowerCase()}: ${formatValue(peor.actual, peor.format)} de ${formatValue(peor.meta, peor.format)} (${formatValue(peor.pctCompletado, 'pct')} del mes).`;
+  }
+
+  const showRate = semanas[semanas.length - 1].showRate;
+  const closeRate = semanas[semanas.length - 1].closeRate;
+  const averageSale = semanas[semanas.length - 1].averageSaleUsd;
+  const showPrev = semanas[semanas.length - 2]?.showRate ?? showRate;
+  const closePrev = semanas[semanas.length - 2]?.closeRate ?? closeRate;
+  const avgPrev = semanas[semanas.length - 2]?.averageSaleUsd ?? averageSale;
+
+  const kpiEstado = (valor, objetivo, good = 'up') => {
+    const ok = good === 'down' ? valor <= objetivo : valor >= objetivo;
+    const cerca = good === 'down' ? valor <= objetivo * 1.1 : valor >= objetivo * 0.9;
+    if (ok) return 'ok';
+    if (cerca) return 'warn';
+    return 'alert';
+  };
+
+  const kpis = [
+    {
+      id: 'show_rate',
+      label: 'Show rate',
+      value: showRate,
+      format: 'pct',
+      previous: showPrev,
+      objetivo: meta.showRate,
+      serie: semanas.map((s) => s.showRate),
+      estado: kpiEstado(showRate, meta.showRate),
+      sourceId: 'calendly',
+      updatedAt: ctx.syncAt,
+    },
+    {
+      id: 'close_rate',
+      label: 'Close rate',
+      value: closeRate,
+      format: 'pct',
+      previous: closePrev,
+      objetivo: meta.closeRate,
+      serie: semanas.map((s) => s.closeRate),
+      estado: kpiEstado(closeRate, meta.closeRate),
+      sourceId: 'manual',
+      updatedAt: ctx.syncAt,
+    },
+    {
+      id: 'average_sale',
+      label: 'Average sale',
+      value: averageSale,
+      format: 'usd',
+      previous: avgPrev,
+      objetivo: meta.averageSaleUsd,
+      serie: semanas.map((s) => s.averageSaleUsd),
+      estado: kpiEstado(averageSale, meta.averageSaleUsd),
+      sourceId: 'manual',
+      updatedAt: ctx.syncAt,
+    },
+  ];
+
+  const closeCaida = closePrev - closeRate;
+  let alertaKpis = null;
+  if (closeCaida >= 10) {
+    const showsRestantes = Math.max(0, meta.shows - actual.shows);
+    const impacto = showsRestantes * (closeCaida / 100) * (averageSale || meta.averageSaleUsd);
+    alertaKpis = `Close rate bajó de ${formatValue(closePrev, 'pct')} a ${formatValue(closeRate, 'pct')}, impacto estimado en meta: -${formatValue(impacto, 'usd')}.`;
+  } else if (showRate < meta.showRate - 10) {
+    alertaKpis = `Show rate en ${formatValue(showRate, 'pct')} vs meta ${formatValue(meta.showRate, 'pct')}. Revisar confirmación de agendas.`;
+  }
+
+  return responder({
+    contexto: ctx,
+    proyeccion: {
+      metaUsd: meta.cashUsd,
+      actualUsd: actual.cashUsd,
+      gapUsd: gap,
+      proyectadoUsd: proyectado,
+      probabilidad,
+      pctMeta,
+      pctRitmo,
+      ritmoActualSemana,
+      ritmoNecesarioSemana,
+      estado,
+      insight,
+    },
+    funnel,
+    diagnostico,
+    kpis,
+    alertaKpis,
+    chats: actual.chats,
+    syncAt: ctx.syncAt,
   });
 }
 

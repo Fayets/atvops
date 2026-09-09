@@ -16,6 +16,7 @@ const TITULOS = {
   '/ads': 'Ads',
   '/ventas': 'Ventas · Operativa',
   '/ventas/performance': 'Ventas · Performance',
+  '/ventas/ops': 'Ventas · Salud vs meta',
   '/metas': 'Metas del mes',
   '/sistemas': 'Sistemas · QA de datos',
   '/cobranza': 'Cobranza',
