@@ -76,6 +76,23 @@ function VentasPerformanceRoute() {
   return <VentasPerformancePage />;
 }
 
+function HomeIndex() {
+  const { rol } = useRol();
+  // Closer / Setter no ven el cuadro de mando de la empresa.
+  if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
+    return <Navigate to="/ventas/mi-dia" replace />;
+  }
+  if (puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
+    return <Navigate to="/ventas/mi-progreso" replace />;
+  }
+  return <Home />;
+}
+
+function FallbackRuta() {
+  const { rol } = useRol();
+  return <Navigate to={homeParaRol(rol)} replace />;
+}
+
 /**
  * Rutas del tablero. Auth + rol filtran qué entra cada usuario.
  */
@@ -87,7 +104,7 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route element={<RequireRole />}>
-            <Route index element={<Home />} />
+            <Route index element={<HomeIndex />} />
             <Route path="calendario" element={<Calendario />} />
 
             <Route path="fulfillment">
@@ -122,7 +139,7 @@ export default function App() {
             <Route path="configuracion" element={<Configuracion />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<FallbackRuta />} />
         </Route>
       </Route>
     </Routes>

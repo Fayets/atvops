@@ -119,71 +119,82 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       }
       foot={titulo}
     >
-      {modo === 'semana' ? (
-        <div className="ventas-cal-semana">
-          {semana.map((d) => {
-            const items = porDia[keyDe(d)] ?? [];
-            return (
-              <div key={keyDe(d)} className="ventas-cal-dia">
-                <div className="ventas-cal-dia-head">
-                  <span>{DIAS[(d.getDay() + 6) % 7]}</span>
-                  <strong>{d.getDate()}</strong>
+      <div className={`ventas-cal-body${actualizando ? ' is-loading' : ''}`}>
+        {modo === 'semana' ? (
+          <div className="ventas-cal-semana">
+            {semana.map((d) => {
+              const items = porDia[keyDe(d)] ?? [];
+              return (
+                <div key={keyDe(d)} className="ventas-cal-dia">
+                  <div className="ventas-cal-dia-head">
+                    <span>{DIAS[(d.getDay() + 6) % 7]}</span>
+                    <strong>{d.getDate()}</strong>
+                  </div>
+                  <div className="ventas-cal-eventos">
+                    {items.length === 0 ? (
+                      <div className="dim" style={{ fontSize: 11 }}>Sin llamadas</div>
+                    ) : (
+                      items.map((l) => (
+                        <button
+                          key={l.id}
+                          type="button"
+                          className={`ventas-cal-ev estado-${l.estado}`}
+                          onClick={() => onSelect(l)}
+                        >
+                          <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
+                          <span className="who">{l.prospecto}</span>
+                          <span className="meta">{l.oferta}{l.facturacion ? ` · ${l.facturacion}` : ''}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <div className="ventas-cal-eventos">
-                  {items.length === 0 ? (
-                    <div className="dim" style={{ fontSize: 11 }}>Sin llamadas</div>
-                  ) : (
-                    items.map((l) => (
-                      <button
-                        key={l.id}
-                        type="button"
-                        className={`ventas-cal-ev estado-${l.estado}`}
-                        onClick={() => onSelect(l)}
-                      >
-                        <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
-                        <span className="who">{l.prospecto}</span>
-                        <span className="meta">{l.oferta}{l.facturacion ? ` · ${l.facturacion}` : ''}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="ventas-cal-mes">
+            {DIAS.map((d) => (
+              <div key={d} className="ventas-cal-mes-label">
+                {d}
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="ventas-cal-mes">
-          {DIAS.map((d) => (
-            <div key={d} className="ventas-cal-mes-label">
-              {d}
+            ))}
+            {mes.map((d) => {
+              const items = porDia[keyDe(d)] ?? [];
+              const fuera = d.getMonth() !== ancla.getMonth();
+              return (
+                <div
+                  key={keyDe(d)}
+                  className={`ventas-cal-mes-celda${fuera ? ' fuera' : ''}${mismaFecha(d, ancla) ? ' hoy' : ''}`}
+                >
+                  <div className="num-dia">{d.getDate()}</div>
+                  {items.slice(0, 3).map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      className={`ventas-cal-ev mini estado-${l.estado}`}
+                      onClick={() => onSelect(l)}
+                      title={`${l.prospecto} · ${l.oferta}`}
+                    >
+                      {l.prospecto.split(' ')[0]}
+                    </button>
+                  ))}
+                  {items.length > 3 && <div className="dim" style={{ fontSize: 10 }}>+{items.length - 3}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {actualizando && (
+          <div className="ventas-cal-loading" aria-live="polite" aria-busy="true">
+            <div className="ventas-cal-loading-mark">
+              <img src="/atv-logo.png" alt="" width={44} height={44} />
             </div>
-          ))}
-          {mes.map((d) => {
-            const items = porDia[keyDe(d)] ?? [];
-            const fuera = d.getMonth() !== ancla.getMonth();
-            return (
-              <div
-                key={keyDe(d)}
-                className={`ventas-cal-mes-celda${fuera ? ' fuera' : ''}${mismaFecha(d, ancla) ? ' hoy' : ''}`}
-              >
-                <div className="num-dia">{d.getDate()}</div>
-                {items.slice(0, 3).map((l) => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    className={`ventas-cal-ev mini estado-${l.estado}`}
-                    onClick={() => onSelect(l)}
-                    title={`${l.prospecto} · ${l.oferta}`}
-                  >
-                    {l.prospecto.split(' ')[0]}
-                  </button>
-                ))}
-                {items.length > 3 && <div className="dim" style={{ fontSize: 10 }}>+{items.length - 3}</div>}
-              </div>
-            );
-          })}
-        </div>
-      )}
+            <span>Cargando calendario…</span>
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

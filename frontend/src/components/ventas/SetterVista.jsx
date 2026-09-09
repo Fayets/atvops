@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import Sparkline from '../charts/Sparkline.jsx';
+import MetaMesAlineacion from './MetaMesAlineacion.jsx';
+import ReporteSetter from './ReporteSetter.jsx';
 import Bar from '../ui/Bar.jsx';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
@@ -24,21 +26,16 @@ const FILTRO_ESTADO = [
   { value: 'perdida', label: 'Perdidas' },
 ];
 
-const EQUIPO_ESTADO = {
-  en_camino: { tone: 'ok', label: 'en camino' },
-  atencion: { tone: 'warn', label: 'atención' },
-  critico: { tone: 'alert', label: 'crítico' },
-};
-
 /**
  * Dashboard personal del Setter (4 bloques).
  * @param {{
  *   data: object,
- *   onCompletarReporte?: () => void | Promise<void>,
+ *   onCompletarReporte?: (payload: object) => void | Promise<void>,
  * }} props
  */
 export default function SetterVista({ data, onCompletarReporte }) {
   const [filtro, setFiltro] = useState('todos');
+  const [modalReporte, setModalReporte] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   const apps = useMemo(() => {
@@ -48,15 +45,16 @@ export default function SetterVista({ data, onCompletarReporte }) {
   }, [data.aplicaciones, filtro]);
 
   const eq = data.equipo;
-  const eqEst = EQUIPO_ESTADO[eq.estado] ?? EQUIPO_ESTADO.atencion;
   const reporte = data.reporte;
   const dia = data.dia;
+  const payload = reporte?.payload;
 
-  const completar = async () => {
+  const guardarReporte = async (form) => {
     if (!onCompletarReporte || guardando) return;
     setGuardando(true);
     try {
-      await onCompletarReporte();
+      await onCompletarReporte(form);
+      setModalReporte(false);
     } finally {
       setGuardando(false);
     }
@@ -64,7 +62,6 @@ export default function SetterVista({ data, onCompletarReporte }) {
 
   return (
     <div className="setter-vista">
-      {/* Bloque 1 */}
       <section className="setter-dia">
         <div className="kpi-grid setter-dia-kpis">
           {dia.kpis.map((k) => (
@@ -97,16 +94,26 @@ export default function SetterVista({ data, onCompletarReporte }) {
                 ? `Última actualización · ${formatFechaHora(reporte.actualizadoAt)}`
                 : 'Todavía no cargaste el reporte de hoy'}
             </div>
-            {!reporte.completado && (
-              <button type="button" className="btn primary setter-reporte-btn" onClick={completar} disabled={guardando}>
-                {guardando ? 'Guardando…' : 'Completar reporte'}
-              </button>
+            {payload && (
+              <div className="kpi-nota setter-reporte-resumen">
+                {payload.conversaciones} conv · {payload.agendas} agendas · {payload.calendlysEnviados} Calendlys
+                {payload.diaBuenoMalo
+                  ? ` · ${payload.diaBuenoMalo.slice(0, 48)}${payload.diaBuenoMalo.length > 48 ? '…' : ''}`
+                  : ''}
+              </div>
             )}
+            <button
+              type="button"
+              className={`btn${reporte.completado ? '' : ' primary'} setter-reporte-btn`}
+              onClick={() => setModalReporte(true)}
+              disabled={guardando}
+            >
+              {reporte.completado ? 'Ver / editar reporte' : 'Completar reporte'}
+            </button>
           </article>
         </div>
       </section>
 
-      {/* Bloque 2 */}
       <div className="kpi-grid closer-kpis">
         {data.kpisMes.map((k) => (
           <article key={k.id} className="kpi closer-kpi">
@@ -140,42 +147,33 @@ export default function SetterVista({ data, onCompletarReporte }) {
         ))}
       </div>
 
-      {/* Bloque 3 */}
-      <Card
-        title="Meta del equipo del mes"
-        sub="Agregado · sin números individuales de otros setters"
-        actions={
-          <Pill tone={eqEst.tone} dot>
-            {eqEst.label}
-          </Pill>
-        }
-      >
-        <div className="closer-equipo-nums">
-          <div>
-            <div className="k">Meta aplicaciones</div>
-            <div className="n num">{formatValue(eq.metaAplicaciones, 'count')}</div>
-          </div>
-          <div>
-            <div className="k">Actual</div>
-            <div className="n num">{formatValue(eq.actualAplicaciones, 'count')}</div>
-          </div>
-          <div>
-            <div className="k">Gap</div>
-            <div className="n num" style={{ color: 'var(--warn)' }}>
-              {formatValue(eq.gap, 'count')}
-            </div>
-          </div>
-        </div>
-        <Bar
-          pct={eq.pctMeta}
-          tone={eq.estado === 'en_camino' ? 'ok' : eq.estado === 'atencion' ? 'warn' : 'alert'}
+      {data.metaMes ? (
+        <MetaMesAlineacion
+          titulo="Meta del mes · proyección"
+          proyeccion={data.metaMes.proyeccion}
+          contexto={data.contexto}
+          cuotaLabel={`Tu cuota (÷ ${data.metaMes.headcount} setters)`}
+          cuotaItems={[
+            { label: 'Calendlys / mes', value: data.metaMes.cuotaMes.aplicaciones },
+            { label: 'Agendas / mes', value: data.metaMes.cuotaMes.agendadas },
+            { label: 'Calendlys / día', value: data.metaMes.cuotaDia.aplicaciones },
+            { label: 'Agendas / día', value: data.metaMes.cuotaDia.agendadas },
+          ]}
+          equipo={{
+            label: 'Meta Calendlys equipo',
+            meta: eq.metaAplicaciones,
+            actual: eq.actualAplicaciones,
+            gap: eq.gap,
+            format: 'count',
+          }}
+          ritmoEsperado={data.metaMes.ritmoEsperado}
+          estado={eq.estado}
+          insight={eq.insight}
         />
-        <p className="closer-insight">{eq.insight}</p>
-      </Card>
+      ) : null}
 
-      {/* Bloque 4 */}
       <Card
-        title="Mis aplicaciones recientes"
+        title="Mis Calendlys enviados recientes"
         sub={`${apps.length} visibles`}
         actions={
           <select
@@ -198,7 +196,7 @@ export default function SetterVista({ data, onCompletarReporte }) {
             <thead>
               <tr>
                 <th>Prospecto</th>
-                <th>Fecha app</th>
+                <th>Fecha envío</th>
                 <th>Origen</th>
                 <th>Estado</th>
                 <th>Llamada</th>
@@ -229,6 +227,15 @@ export default function SetterVista({ data, onCompletarReporte }) {
           </table>
         </div>
       </Card>
+
+      <ReporteSetter
+        abierto={modalReporte}
+        perfil={data.perfil}
+        fechaDefault={data.contexto?.hoyIso ?? ''}
+        initial={reporte}
+        onCerrar={() => setModalReporte(false)}
+        onGuardar={guardarReporte}
+      />
     </div>
   );
 }

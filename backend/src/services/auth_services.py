@@ -36,6 +36,7 @@ _USUARIOS_SEMILLA = (
     ("fede", "SEED_FEDE_PASSWORD", "fede", "Fede", "closer"),  # Closer: Mi día
     ("nick", "SEED_NICK_PASSWORD", "nick", "Nick", "closer"),  # Closer: Mi día
     ("emiliano", "SEED_EMILIANO_PASSWORD", "emiliano", "Emiliano", "setter"),  # Setter: Mi progreso
+    ("cris", "SEED_CRIS_PASSWORD", "cris", "Cris", "setter"),  # Setter: Mi progreso
 )
 
 

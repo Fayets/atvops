@@ -49,7 +49,6 @@ import {
   CLOSER_CONTEXTO,
   CLOSER_EQUIPO,
   CLOSER_FOLLOW_UPS,
-  CLOSER_METAS,
   CLOSER_PERFIL,
   CLOSER_SEMANAS,
 } from './mock/closer.js';
@@ -66,8 +65,6 @@ import {
   SETTER_APLICACIONES,
   SETTER_CONTEXTO,
   SETTER_EQUIPO,
-  SETTER_METAS_DIA,
-  SETTER_METAS_MES,
   SETTER_PERFIL,
   SETTER_SEMANAS,
 } from './mock/setter.js';
@@ -78,6 +75,11 @@ import {
   esShow,
   resumenCalendarioHoy,
 } from '../lib/dispositions.js';
+import {
+  cuotasCloserDesdeProyeccion,
+  cuotasSetterDesdeProyeccion,
+  estadoVsRitmo,
+} from '../lib/cuotasMes.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
 import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
 import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
@@ -1114,14 +1116,15 @@ export async function getFulfillmentOps() {
 
 /**
  * Dashboard personal del Closer: su día, sus números, follow-ups y dispositions.
+ * Metas personales y de equipo salen de la proyección/decreto del mes.
  * Agenda vive en closerStore (mock en vivo) para dispositions + polling.
  */
 export async function getCloserDashboard() {
   const ctx = CLOSER_CONTEXTO;
-  const meta = CLOSER_METAS;
   const actual = CLOSER_ACTUAL;
-  const equipo = CLOSER_EQUIPO;
   const semanas = CLOSER_SEMANAS;
+  const cuotas = cuotasCloserDesdeProyeccion(ctx.mes);
+  const meta = cuotas.personal;
   const agenda = getCloserAgenda();
   const hoyLlamadas = agenda
     .filter((l) => l.fechaAt.startsWith(ctx.hoyIso))
@@ -1145,6 +1148,10 @@ export async function getCloserDashboard() {
     agenda.reduce((s, l) => s + (l.estado === 'cerrado' && l.montoUsd ? Number(l.montoUsd) : 0), 0) ||
     actual.cashUsd;
 
+  const valShows = Math.max(actual.shows, showsMes);
+  const valCierres = Math.max(actual.cierres, cierresMes);
+  const valCash = Math.max(actual.cashUsd, cashMes);
+
   const kpis = [
     {
       id: 'llamadas',
@@ -1161,50 +1168,50 @@ export async function getCloserDashboard() {
     {
       id: 'shows',
       label: 'Shows',
-      value: Math.max(actual.shows, showsMes),
+      value: valShows,
       meta: meta.shows,
-      varianza: Math.max(actual.shows, showsMes) - meta.shows,
+      varianza: valShows - meta.shows,
       format: 'count',
-      pct: pctDe(Math.max(actual.shows, showsMes), meta.shows),
-      estado: estadoDe(pctDe(Math.max(actual.shows, showsMes), meta.shows), ritmoEsperado),
+      pct: pctDe(valShows, meta.shows),
+      estado: estadoDe(pctDe(valShows, meta.shows), ritmoEsperado),
       serie: semanas.map((s) => s.shows),
       previous: semanas[semanas.length - 2]?.shows ?? null,
-      extra: `Show rate ${formatValue(showRate, 'pct')}`,
+      extra: `Show rate ${formatValue(showRate, 'pct')} · meta ${formatValue(cuotas.ratesMeta.showRate, 'pct')}`,
     },
     {
       id: 'cierres',
       label: 'Cierres',
-      value: Math.max(actual.cierres, cierresMes),
+      value: valCierres,
       meta: meta.cierres,
-      varianza: Math.max(actual.cierres, cierresMes) - meta.cierres,
+      varianza: valCierres - meta.cierres,
       format: 'count',
-      pct: pctDe(Math.max(actual.cierres, cierresMes), meta.cierres),
-      estado: estadoDe(pctDe(Math.max(actual.cierres, cierresMes), meta.cierres), ritmoEsperado),
+      pct: pctDe(valCierres, meta.cierres),
+      estado: estadoDe(pctDe(valCierres, meta.cierres), ritmoEsperado),
       serie: semanas.map((s) => s.cierres),
       previous: semanas[semanas.length - 2]?.cierres ?? null,
-      extra: `Close rate ${formatValue(closeRate, 'pct')}`,
+      extra: `Close rate ${formatValue(closeRate, 'pct')} · meta ${formatValue(cuotas.ratesMeta.closeRate, 'pct')}`,
     },
     {
       id: 'cash',
       label: 'Cash generado',
-      value: Math.max(actual.cashUsd, cashMes),
+      value: valCash,
       meta: meta.cashUsd,
-      varianza: Math.max(actual.cashUsd, cashMes) - meta.cashUsd,
+      varianza: valCash - meta.cashUsd,
       format: 'usd',
-      pct: pctDe(Math.max(actual.cashUsd, cashMes), meta.cashUsd),
-      estado: estadoDe(pctDe(Math.max(actual.cashUsd, cashMes), meta.cashUsd), ritmoEsperado),
+      pct: pctDe(valCash, meta.cashUsd),
+      estado: estadoDe(pctDe(valCash, meta.cashUsd), ritmoEsperado),
       serie: semanas.map((s) => s.cashUsd),
       previous: semanas[semanas.length - 2]?.cashUsd ?? null,
     },
   ];
 
-  const gapEquipo = equipo.metaUsd - equipo.actualUsd;
-  const pctEquipo = pctDe(equipo.actualUsd, equipo.metaUsd);
-  let estadoEquipo = 'en_camino';
-  if (pctEquipo < ritmoEsperado - 15) estadoEquipo = 'critico';
-  else if (pctEquipo < ritmoEsperado - 5) estadoEquipo = 'atencion';
+  const metaEquipoUsd = cuotas.equipo.metaUsd;
+  const actualEquipoUsd = CLOSER_EQUIPO.actualUsd;
+  const gapEquipo = metaEquipoUsd - actualEquipoUsd;
+  const pctEquipo = pctDe(actualEquipoUsd, metaEquipoUsd);
+  const estadoEquipo = estadoVsRitmo(pctEquipo, ritmoEsperado);
 
-  const ticketProm = actual.cierres ? actual.cashUsd / actual.cierres : meta.cashUsd / meta.cierres;
+  const ticketProm = valCierres ? valCash / valCierres : cuotas.proyeccion.ticketUsd;
   const ventasFaltan = Math.max(0, Math.ceil(gapEquipo / (ticketProm || 11000)));
   const adelanto = pctEquipo - ritmoEsperado;
   const insightEquipo =
@@ -1225,8 +1232,17 @@ export async function getCloserDashboard() {
       pendientes: resumenHoy.pendientes,
     },
     kpis,
+    metaMes: {
+      proyeccion: cuotas.proyeccion,
+      cuota: meta,
+      headcount: cuotas.headcount,
+      ritmoEsperado,
+      ratesMeta: cuotas.ratesMeta,
+    },
     equipo: {
-      ...equipo,
+      metaUsd: metaEquipoUsd,
+      actualUsd: actualEquipoUsd,
+      porSemana: CLOSER_EQUIPO.porSemana,
       gapUsd: gapEquipo,
       pctMeta: pctEquipo,
       estado: estadoEquipo,
@@ -1257,18 +1273,30 @@ export function onCloserAgendaChange(fn) {
 }
 
 /**
- * Dashboard personal del Setter: día, mes, equipo y aplicaciones.
- * Futuro: apps form + Calendly + reporte diario.
+ * Dashboard personal del Setter: día, mes, equipo y Calendlys enviados.
+ * Metas diarias/mensuales y de equipo salen de la proyección/decreto del mes.
  */
 export async function getSetterDashboard() {
   const ctx = SETTER_CONTEXTO;
-  const metaDia = SETTER_METAS_DIA;
-  const actualDia = SETTER_ACTUAL_DIA;
-  const metaMes = SETTER_METAS_MES;
   const actualMes = SETTER_ACTUAL_MES;
-  const equipo = SETTER_EQUIPO;
   const semanas = SETTER_SEMANAS;
   const reporte = getSetterReporte();
+  const cuotas = cuotasSetterDesdeProyeccion(ctx.mes, { diasMes: ctx.diasMes });
+  const metaDia = {
+    aplicaciones: cuotas.personalDia.calendlys,
+    agendadas: cuotas.personalDia.agendadas,
+  };
+  const metaMes = {
+    aplicaciones: cuotas.personalMes.calendlys,
+    agendadas: cuotas.personalMes.agendadas,
+    tasaAgendado: cuotas.personalMes.tasaAgendado,
+  };
+
+  // Si ya hay reporte del día, los KPIs del día reflejan lo cargado.
+  const actualDia = {
+    aplicaciones: reporte.payload?.calendlysEnviados ?? SETTER_ACTUAL_DIA.aplicaciones,
+    agendadas: reporte.payload?.agendas ?? SETTER_ACTUAL_DIA.agendadas,
+  };
 
   const pctDe = (v, m) => (m ? (v / m) * 100 : 0);
   const estadoDe = (pct, ritmoEsperado) => {
@@ -1294,7 +1322,7 @@ export async function getSetterDashboard() {
   const diaKpis = [
     {
       id: 'apps_hoy',
-      label: 'Aplicaciones recibidas hoy',
+      label: 'Calendlys enviados hoy',
       value: actualDia.aplicaciones,
       meta: metaDia.aplicaciones,
       format: 'count',
@@ -1315,7 +1343,7 @@ export async function getSetterDashboard() {
   const kpisMes = [
     {
       id: 'apps_mes',
-      label: 'Aplicaciones del mes',
+      label: 'Calendlys enviados del mes',
       value: actualMes.aplicaciones,
       meta: metaMes.aplicaciones,
       varianza: actualMes.aplicaciones - metaMes.aplicaciones,
@@ -1345,7 +1373,7 @@ export async function getSetterDashboard() {
       pct: pctDe(tasaAgendado, metaMes.tasaAgendado),
       estado: estadoDe(pctDe(tasaAgendado, metaMes.tasaAgendado), 100),
       serie: semanas.map((s) => s.tasa),
-      extra: `${actualMes.agendadas} de ${actualMes.aplicaciones} apps`,
+      extra: `${actualMes.agendadas} de ${actualMes.aplicaciones} Calendlys`,
     },
     {
       id: 'reportes',
@@ -1361,18 +1389,18 @@ export async function getSetterDashboard() {
     },
   ];
 
-  const gapEquipo = equipo.metaAplicaciones - equipo.actualAplicaciones;
-  const pctEquipo = pctDe(equipo.actualAplicaciones, equipo.metaAplicaciones);
-  let estadoEquipo = 'en_camino';
-  if (pctEquipo < ritmoEsperado - 15) estadoEquipo = 'critico';
-  else if (pctEquipo < ritmoEsperado - 5) estadoEquipo = 'atencion';
+  const metaEquipoCal = cuotas.equipo.metaCalendlys;
+  const actualEquipoCal = SETTER_EQUIPO.actualAplicaciones;
+  const gapEquipo = metaEquipoCal - actualEquipoCal;
+  const pctEquipo = pctDe(actualEquipoCal, metaEquipoCal);
+  const estadoEquipo = estadoVsRitmo(pctEquipo, ritmoEsperado);
 
   const adelanto = pctEquipo - ritmoEsperado;
   const faltan = Math.max(0, gapEquipo);
   const insightEquipo =
     adelanto >= 0
-      ? `El equipo va ${Math.round(adelanto)}% adelantado; faltan ${faltan} aplicaciones para llegar a meta.`
-      : `El equipo va ${Math.round(Math.abs(adelanto))}% atrasado; faltan ${faltan} aplicaciones para llegar a meta.`;
+      ? `El equipo va ${Math.round(adelanto)}% adelantado; faltan ${faltan} Calendlys enviados para llegar a meta.`
+      : `El equipo va ${Math.round(Math.abs(adelanto))}% atrasado; faltan ${faltan} Calendlys enviados para llegar a meta.`;
 
   return responder({
     perfil: SETTER_PERFIL,
@@ -1380,8 +1408,16 @@ export async function getSetterDashboard() {
     dia: { kpis: diaKpis },
     reporte,
     kpisMes,
+    metaMes: {
+      proyeccion: cuotas.proyeccion,
+      cuotaDia: metaDia,
+      cuotaMes: metaMes,
+      headcount: cuotas.headcount,
+      ritmoEsperado,
+    },
     equipo: {
-      ...equipo,
+      metaAplicaciones: metaEquipoCal,
+      actualAplicaciones: actualEquipoCal,
       gap: gapEquipo,
       pctMeta: pctEquipo,
       estado: estadoEquipo,

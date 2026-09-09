@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import Bars from '../charts/Bars.jsx';
 import Sparkline from '../charts/Sparkline.jsx';
 import CloserCalendario from './CloserCalendario.jsx';
+import MetaMesAlineacion from './MetaMesAlineacion.jsx';
 import Bar from '../ui/Bar.jsx';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
@@ -17,12 +18,6 @@ const DISP_FILTRO = [
   { value: 'reagendado', label: 'Reagendados' },
   { value: 'cancelado', label: 'Cancelados' },
 ];
-
-const EQUIPO_ESTADO = {
-  en_camino: { tone: 'ok', label: 'en camino' },
-  atencion: { tone: 'warn', label: 'atención' },
-  critico: { tone: 'alert', label: 'crítico' },
-};
 
 function urgencia(dias) {
   if (dias < 3) return 'ok';
@@ -57,7 +52,6 @@ export default function CloserVista({
   };
 
   const eq = data.equipo;
-  const eqEst = EQUIPO_ESTADO[eq.estado] ?? EQUIPO_ESTADO.atencion;
   const hoyIso = data.contexto?.hoyIso ?? data.hoy?.iso ?? '2026-09-09';
 
   return (
@@ -109,45 +103,43 @@ export default function CloserVista({
         ))}
       </div>
 
-      <Card
-        title="Meta del equipo del mes"
-        sub="Agregado · sin números individuales de otros closers"
-        actions={
-          <Pill tone={eqEst.tone} dot>
-            {eqEst.label}
-          </Pill>
-        }
-      >
-        <div className="closer-equipo-nums">
-          <div>
-            <div className="k">Meta equipo</div>
-            <div className="n num">{formatValue(eq.metaUsd, 'usd')}</div>
-          </div>
-          <div>
-            <div className="k">Actual</div>
-            <div className="n num">{formatValue(eq.actualUsd, 'usd')}</div>
-          </div>
-          <div>
-            <div className="k">Gap</div>
-            <div className="n num" style={{ color: 'var(--warn)' }}>
-              {formatValue(eq.gapUsd, 'usd')}
-            </div>
-          </div>
-        </div>
-        <Bar
-          pct={eq.pctMeta}
-          tone={eq.estado === 'en_camino' ? 'ok' : eq.estado === 'atencion' ? 'warn' : 'alert'}
+      {data.metaMes && (
+        <MetaMesAlineacion
+          titulo="Meta del mes · proyección"
+          proyeccion={data.metaMes.proyeccion}
+          contexto={data.contexto}
+          cuotaLabel={`Tu cuota (÷ ${data.metaMes.headcount} closers)`}
+          cuotaItems={[
+            { label: 'Llamadas', value: data.metaMes.cuota.llamadas },
+            { label: 'Shows', value: data.metaMes.cuota.shows },
+            { label: 'Cierres', value: data.metaMes.cuota.cierres },
+            { label: 'Cash', value: data.metaMes.cuota.cashUsd, format: 'usd' },
+          ]}
+          equipo={{
+            label: 'Meta cash equipo',
+            meta: eq.metaUsd,
+            actual: eq.actualUsd,
+            gap: eq.gapUsd,
+            format: 'usd',
+          }}
+          ritmoEsperado={data.metaMes.ritmoEsperado}
+          estado={eq.estado}
+          insight={eq.insight}
         />
-        <p className="closer-insight">{eq.insight}</p>
-        <Bars
-          data={eq.porSemana}
-          x={(s) => s.label}
-          y={(s) => s.usd}
-          format="usd"
-          label="Cash equipo"
-          height={160}
-        />
-      </Card>
+      )}
+
+      {eq.porSemana?.length > 0 && (
+        <Card title="Cash del equipo por semana" sub="Agregado · sin breakdown por closer">
+          <Bars
+            data={eq.porSemana}
+            x={(s) => s.label}
+            y={(s) => s.usd}
+            format="usd"
+            label="Cash equipo"
+            height={160}
+          />
+        </Card>
+      )}
 
       <Card
         title="Mis follow-ups"

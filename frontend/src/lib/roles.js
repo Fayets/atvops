@@ -65,8 +65,8 @@ export const ROL_LIST = Object.keys(ROLES);
  * @type {Record<Rol, string[]>}
  */
 export const RUTAS_POR_ROL = {
-  closer: ['/', '/calendario', '/ventas'],
-  setter: ['/', '/calendario', '/ventas'],
+  closer: ['/calendario', '/ventas', '/metas'],
+  setter: ['/calendario', '/ventas', '/metas'],
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   operaciones: [
     '/',

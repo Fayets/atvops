@@ -5,23 +5,26 @@
 
 import { SETTER_REPORTE_DIA } from './setter.js';
 
-/** @type {{ completado: boolean, actualizadoAt: string | null }} */
-let reporte = { ...SETTER_REPORTE_DIA };
+/** @type {{ completado: boolean, actualizadoAt: string | null, payload?: object | null }} */
+let reporte = { ...SETTER_REPORTE_DIA, payload: null };
 
 export function getSetterReporte() {
-  return { ...reporte };
+  return { ...reporte, payload: reporte.payload ? { ...reporte.payload } : null };
 }
 
-export function completarSetterReporte({ notas } = {}) {
+/**
+ * @param {object} payload — form completo del reporte diario
+ */
+export function completarSetterReporte(payload = {}) {
   reporte = {
     completado: true,
     actualizadoAt: new Date().toISOString(),
-    notas: notas || null,
+    payload: { ...payload },
   };
   return getSetterReporte();
 }
 
 export function resetSetterReporte() {
-  reporte = { ...SETTER_REPORTE_DIA };
+  reporte = { ...SETTER_REPORTE_DIA, payload: null };
   return getSetterReporte();
 }
