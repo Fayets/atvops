@@ -92,11 +92,18 @@ export default function Metas() {
     const d = ventas.data;
     if (!d) return [];
     const bloques = [];
-    const soloMio = (lista) => {
+    const miNombre = (personal.data?.closer || personal.data?.setter
+      || personal.data?.perfil?.nombre || user?.nombre || user?.username || '').trim();
+    const soloMio = (lista, deMiRol) => {
       // El closer o setter ve su fila; quien mira todo el área las ve todas.
       if (puedeVerVentasDirector(rol) || puedeEditar) return lista;
-      const yo = (personal.data?.closer || personal.data?.setter || user?.nombre || user?.username || '').trim().toLowerCase();
-      return yo ? lista.filter((x) => x.nombre.trim().toLowerCase().includes(yo.split(' ')[0])) : lista;
+      if (!miNombre) return lista;
+      const pila = miNombre.toLowerCase().split(' ')[0];
+      const mias = lista.filter((x) => x.nombre.trim().toLowerCase().includes(pila));
+      // Si todavía no hizo nada este mes no aparece en el corte: igual tiene que ver su
+      // fila en cero, si no la pantalla queda vacía y parece rota.
+      if (!mias.length && deMiRol) return [{ nombre: miNombre }];
+      return mias;
     };
     const armar = (id, titulo, sub, columnas, gente, filas) => {
       if (!filas.length) return;
@@ -124,7 +131,7 @@ export default function Metas() {
         { id: 'showRate', nombre: 'Show rate', format: 'pct', meta: decreto.showUpRate ?? 0, valor: (c) => c.showRate ?? 0 },
         { id: 'closeRate', nombre: 'Close rate', format: 'pct', meta: decreto.closeRateBueno ?? 0, valor: (c) => c.closeRate ?? 0 },
       ],
-      closers.length, soloMio(closers),
+      d.equipoOps?.closers ?? Math.max(closers.length, 1), soloMio(closers, esCloser),
     );
 
     // Setter: trae las conversaciones y las agendas.
@@ -137,7 +144,7 @@ export default function Metas() {
         { id: 'conversaciones', nombre: 'Conversaciones', meta: decreto.conversaciones ?? 0, valor: conversacionesDe },
         { id: 'agendas', nombre: 'Llamadas agendadas', meta: decreto.agendas ?? 0, valor: (s) => s.agendados ?? 0 },
       ],
-      setters.length, soloMio(setters),
+      d.equipoOps?.setters ?? Math.max(setters.length, 1), soloMio(setters, esSetter),
     );
 
     // Marketing: abre los chats de los que salen las conversaciones.
@@ -234,7 +241,9 @@ export default function Metas() {
           {bloquesIndividuales.map((b) => (
             <MetasIndividuales key={b.id} {...b} esperado={esperadoDelMes} />
           ))}
-          {ventas.data?.actual && (
+          {/* Es la cadena del closer: cierres, shows y agendas. Al setter no le dice nada
+              y encima le muestra metas que no son suyas. */}
+          {ventas.data?.actual && !esSetter && (esCloser || puedeVerVentasDirector(rol) || puedeEditar) && (
             <DependeDelEquipo
               decreto={decreto}
               actual={ventas.data.actual}

@@ -744,6 +744,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "mes": mes,
         "contexto": {"mes": mes, "diaHoy": dia_hoy, "diasMes": dias_mes, "syncAt": datetime.now(AR_TZ).isoformat()},
+        # Cuánta gente hay de cada rol hoy: la cuota individual se reparte con esto.
+        "equipoOps": {"closers": _cuantos_del_rol("closer"), "setters": _cuantos_del_rol("setter")},
         "topFunnel": top_funnel,
         "reporteClosersMes": reporte_closers_mes,
         "actual": actual,
