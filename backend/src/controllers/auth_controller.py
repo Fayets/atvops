@@ -17,6 +17,18 @@ def get_current_user(
     return service.usuario_desde_token(creds.credentials)
 
 
+def solo_interno(user: dict = Depends(get_current_user)) -> dict:
+    """Cierra por API lo que la navegación ya le esconde a marketing.
+
+    Esconder un menú no es proteger un dato: sin esto, cualquiera con la sesión de un
+    usuario de marketing lee cobranza y ventas con un curl. Importa desde que existe la
+    cuenta que usa el revisor de Meta, que es de afuera de la empresa.
+    """
+    if user.get("rol") == "marketing":
+        raise HTTPException(status_code=403, detail="El área de marketing no ve estos datos.")
+    return user
+
+
 @router.post("/login", response_model=schemas.LoginResponse)
 def login(body: schemas.LoginRequest):
     try:

@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from src.controllers.auth_controller import get_current_user
+from src.controllers.auth_controller import get_current_user, solo_interno
 from src.services import cartera_services as cartera
 from src.services import instagram_services as instagram
 from src.services import youtube_services as youtube
@@ -17,7 +17,7 @@ log = logging.getLogger("atv_ops.ventas")
 
 
 @router.get("")
-def resumen(_user: dict = Depends(get_current_user), mes: str | None = None, refrescar: bool = False):
+def resumen(_user: dict = Depends(solo_interno), mes: str | None = None, refrescar: bool = False):
     """Métricas reales de ventas desde el CRM de Marketing."""
     try:
         return ventas.resumen(mes=mes, refrescar=refrescar)
@@ -33,7 +33,7 @@ def estado(_user: dict = Depends(get_current_user)):
 
 
 @router.get("/programas")
-def programas(_user: dict = Depends(get_current_user)):
+def programas(_user: dict = Depends(solo_interno)):
     """Catálogo de programas con su precio: la facturación de cada venta."""
     try:
         return {"programas": ventas.programas()}
@@ -44,7 +44,7 @@ def programas(_user: dict = Depends(get_current_user)):
 
 
 @router.put("/programas")
-def guardar_programa(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+def guardar_programa(user: dict = Depends(solo_interno), payload: dict = Body(...)):
     try:
         return {"programas": ventas.guardar_programa(payload, user)}
     except HTTPException as e:
@@ -54,7 +54,7 @@ def guardar_programa(user: dict = Depends(get_current_user), payload: dict = Bod
 
 
 @router.delete("/programas/{programa_id}")
-def borrar_programa(programa_id: int, user: dict = Depends(get_current_user)):
+def borrar_programa(programa_id: int, user: dict = Depends(solo_interno)):
     try:
         return {"programas": ventas.borrar_programa(programa_id, user)}
     except HTTPException as e:
@@ -64,7 +64,7 @@ def borrar_programa(programa_id: int, user: dict = Depends(get_current_user)):
 
 
 @router.get("/mis-llamadas")
-def mis_llamadas(user: dict = Depends(get_current_user), closer: str | None = None, mes: str | None = None):
+def mis_llamadas(user: dict = Depends(solo_interno), closer: str | None = None, mes: str | None = None):
     """Las llamadas del closer logueado: lo que viene y lo que le falta reportar."""
     try:
         return ventas.mis_llamadas(user, closer=closer, mes=mes)
@@ -75,7 +75,7 @@ def mis_llamadas(user: dict = Depends(get_current_user), closer: str | None = No
 
 
 @router.get("/mis-reportes")
-def mis_reportes(user: dict = Depends(get_current_user), mes: str | None = None, rol: str = "setter"):
+def mis_reportes(user: dict = Depends(solo_interno), mes: str | None = None, rol: str = "setter"):
     """Los días del mes con y sin reporte cargado."""
     try:
         return ventas.mis_reportes(user, mes=mes, rol=rol if rol in ("setter", "closer") else "setter")
@@ -86,7 +86,7 @@ def mis_reportes(user: dict = Depends(get_current_user), mes: str | None = None,
 
 
 @router.post("/mis-reportes/{fecha}")
-def guardar_reporte(fecha: str, user: dict = Depends(get_current_user), payload: dict = Body(...), rol: str = "setter"):
+def guardar_reporte(fecha: str, user: dict = Depends(solo_interno), payload: dict = Body(...), rol: str = "setter"):
     """Carga o corrige el reporte de un día."""
     try:
         return ventas.guardar_reporte(fecha, payload, user, rol=rol if rol in ("setter", "closer") else "setter")
@@ -97,7 +97,7 @@ def guardar_reporte(fecha: str, user: dict = Depends(get_current_user), payload:
 
 
 @router.post("/llamadas/{lead_id}/resultado")
-def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), payload: dict = Body(...),
+def registrar_resultado(lead_id: str, user: dict = Depends(solo_interno), payload: dict = Body(...),
                         mes: str | None = None, lista: bool = True):
     """El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó."""
     try:
@@ -111,7 +111,7 @@ def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), pa
 
 
 @router.post("/llamadas/{lead_id}/descartar")
-def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recuperar: bool = False,
+def descartar_llamada(lead_id: str, user: dict = Depends(solo_interno), recuperar: bool = False,
                       mes: str | None = None, lista: bool = True):
     """Saca la llamada de la lista y de las métricas, o la devuelve con `recuperar=true`."""
     try:
@@ -124,7 +124,7 @@ def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recu
 
 
 @router.post("/llamadas")
-def crear_llamada(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+def crear_llamada(user: dict = Depends(solo_interno), payload: dict = Body(...)):
     """Cargar a mano una reunión que nunca pasó por el calendario (un referido, un chat)."""
     try:
         return ventas.crear_llamada_manual(payload, user)
@@ -217,7 +217,7 @@ def instagram_sincronizar(user: dict = Depends(get_current_user)):
 
 
 @router.post("/reuniones/{evento_id}/ocultar")
-def ocultar_reunion(evento_id: str, user: dict = Depends(get_current_user),
+def ocultar_reunion(evento_id: str, user: dict = Depends(solo_interno),
                     payload: dict = Body(default={}), mostrar: bool = False):
     """Saca del calendario una reunión que no es de venta, o la vuelve a mostrar."""
     try:
@@ -230,7 +230,7 @@ def ocultar_reunion(evento_id: str, user: dict = Depends(get_current_user),
 
 
 @router.get("/reuniones")
-def reuniones(_user: dict = Depends(get_current_user), desde: str | None = None, hasta: str | None = None):
+def reuniones(_user: dict = Depends(solo_interno), desde: str | None = None, hasta: str | None = None):
     """Estado de cada reunión del calendario, para pintarlo y editarlo desde el calendario."""
     from datetime import date as _date, timedelta as _td
 
@@ -248,7 +248,7 @@ def reuniones(_user: dict = Depends(get_current_user), desde: str | None = None,
 
 
 @router.get("/mi-setting")
-def mi_setting(user: dict = Depends(get_current_user), mes: str | None = None):
+def mi_setting(user: dict = Depends(solo_interno), mes: str | None = None):
     """Los números del setter: hoy, el mes y las llamadas que agendó."""
     try:
         return ventas.mi_setting(user, mes=mes)
@@ -270,7 +270,7 @@ def marketing_real(_user: dict = Depends(get_current_user), mes: str | None = No
 
 
 @router.get("/cobranza")
-def cobranza_real(_user: dict = Depends(get_current_user), mes: str | None = None, refrescar: bool = False):
+def cobranza_real(_user: dict = Depends(solo_interno), mes: str | None = None, refrescar: bool = False):
     """Cuotas y deuda de la cartera, del esquema clients."""
     try:
         return cartera.resumen(mes=mes, refrescar=refrescar)
@@ -281,7 +281,7 @@ def cobranza_real(_user: dict = Depends(get_current_user), mes: str | None = Non
 
 
 @router.get("/cartera-ops")
-def cartera_ops(_user: dict = Depends(get_current_user), mes: str | None = None):
+def cartera_ops(_user: dict = Depends(solo_interno), mes: str | None = None):
     """Altas, bajas, vencimientos y plata de la cartera para la vista OPS."""
     try:
         return cartera.ops(mes=mes)
@@ -292,7 +292,7 @@ def cartera_ops(_user: dict = Depends(get_current_user), mes: str | None = None)
 
 
 @router.get("/reporte-semanal")
-def reporte_semanal(_user: dict = Depends(get_current_user), semana: str | None = None, refrescar: bool = False):
+def reporte_semanal(_user: dict = Depends(solo_interno), semana: str | None = None, refrescar: bool = False):
     """Todo lo que pasó en una semana: marketing, ventas, cartera y ads."""
     try:
         return reporte.reporte(semana=semana, refrescar=refrescar)
@@ -303,7 +303,7 @@ def reporte_semanal(_user: dict = Depends(get_current_user), semana: str | None 
 
 
 @router.get("/onboarding")
-def onboarding_real(_user: dict = Depends(get_current_user), mes: str | None = None, refrescar: bool = False):
+def onboarding_real(_user: dict = Depends(solo_interno), mes: str | None = None, refrescar: bool = False):
     """Los onboardings que llegaron por ATV Onboarding."""
     try:
         return onboarding.resumen(mes=mes, refrescar=refrescar)

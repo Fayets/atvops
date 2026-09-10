@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from src.controllers.auth_controller import get_current_user
+from src.controllers.auth_controller import get_current_user, solo_interno
 from src.services import datos_cliente_services as datos
 from src.services.clientes_services import ClientesServices
 
-router = APIRouter()
+# Cobranza y la cartera de clientes no son datos de marketing: se cierra el router
+# entero, no cada endpoint, para que lo que se agregue mañana nazca cerrado.
+router = APIRouter(dependencies=[Depends(solo_interno)])
 service = ClientesServices()
 ROLES_EDITAR = {"admin", "founder", "csm", "operaciones"}
 

@@ -52,7 +52,7 @@ import {
   grietasOperativas,
   ordenarAcciones,
 } from '../lib/acciones.js';
-import { getToken } from '../lib/auth.js';
+import { getStoredUser, getToken } from '../lib/auth.js';
 import { calcularSalud, BLOCKERS, SEMAFORO, VENTANA_ONBOARDING } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
@@ -1621,8 +1621,12 @@ export async function getMetasMes(mesSel, opts = {}) {
     fuente: null,
   };
 
+  // El resumen de ventas está cerrado para marketing, y el decreto no lo necesita: pedirlo
+  // solo devuelve un 403 en cada carga y tapa los errores que sí importan.
+  const esMarketing = getStoredUser()?.rol === 'marketing';
+
   try {
-    const mkt = await getMktResumen(ctx.mes);
+    const mkt = esMarketing ? {} : await getMktResumen(ctx.mes);
     real = {
       ...real,
       chats: mkt.chats ?? 0,
