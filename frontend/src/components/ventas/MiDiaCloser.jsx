@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import CalendarioEquipo from './CalendarioEquipo.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
+import LlamadasPendientes from './LlamadasPendientes.jsx';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
@@ -236,8 +237,16 @@ export default function MiDiaCloser({ data, onActualizado }) {
       <CalendarioReal />
 
       {grupos.pendientes.length > 0 && (
-        <Card title="Falta cargar el resultado" sub={`${grupos.pendientes.length} llamadas de los últimos 30 días sin resultado`} flush>
-          <div className="llamadas">{grupos.pendientes.map((l) => <Llamada {...props(l)} />)}</div>
+        <Card
+          title="Falta cargar el resultado"
+          sub={`${grupos.pendientes.length} llamadas de los últimos 30 días · cada una se va al completarla`}
+        >
+          <LlamadasPendientes
+            pendientes={grupos.pendientes}
+            programas={programas}
+            estados={estados}
+            onGuardado={(nuevo) => onActualizado(nuevo)}
+          />
         </Card>
       )}
 

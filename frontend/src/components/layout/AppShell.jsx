@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { MesProvider } from '../../lib/MesContext.jsx';
 import { RolProvider } from '../../lib/RolContext.jsx';
 import { IdeasProvider } from '../../lib/useIdeas.jsx';
+import GateLlamadas from '../ventas/GateLlamadas.jsx';
 import Sidebar from './Sidebar.jsx';
 import Topbar from './Topbar.jsx';
 
@@ -10,6 +11,7 @@ export default function AppShell() {
     <RolProvider>
       <MesProvider>
         <IdeasProvider>
+          <GateLlamadas />
           <div className="shell">
             <Sidebar />
             <div className="main">
