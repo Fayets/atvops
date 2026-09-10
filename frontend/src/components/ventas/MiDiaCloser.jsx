@@ -156,13 +156,16 @@ export default function MiDiaCloser({ data, onCambio }) {
   const { mes = {}, llamadas = [] } = data ?? {};
   const [detalle, setDetalle] = useState(null);
 
+  // Las descartadas quedan afuera de todo: es lo mismo que hace el backend con los números.
   const delMes = useMemo(() => {
     const inicio = new Date();
     inicio.setDate(1);
     inicio.setHours(0, 0, 0, 0);
-    return llamadas.filter((l) => new Date(l.fechaAt) >= inicio);
+    return llamadas.filter((l) => new Date(l.fechaAt) >= inicio && l.estado !== 'descartada');
   }, [llamadas]);
 
+  // Una agenda es la primera reunión del prospecto: la segunda vuelta es seguimiento.
+  const agendas = delMes.filter((l) => !l.seguimiento);
   const ventas = delMes.filter((l) => l.estado === 'cierre');
   const shows = delMes.filter((l) => l.estado === 'show' || l.estado === 'cierre');
   const dinero = (l) => formatValue(l.cashUsd ?? 0, 'usd');
@@ -173,8 +176,8 @@ export default function MiDiaCloser({ data, onCambio }) {
     <div className="mi-dia">
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? 0}
-          nota={`${mes.porVenir ?? 0} todavía por venir`}
-          onVer={ver('Agendas del mes', 'Todas las llamadas con fecha en este mes.', delMes, (l) => l.origen || l.setter || '', 'Origen')} />
+          nota={`${mes.porVenir ?? 0} por venir${mes.seguimientos ? ` · ${mes.seguimientos} de seguimiento aparte` : ''}`}
+          onVer={ver('Agendas del mes', 'La primera reunión de cada prospecto. Los seguimientos y las descartadas no suman acá.', agendas, (l) => l.origen || l.setter || '', 'Origen')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"

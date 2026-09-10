@@ -1100,6 +1100,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
                                   l.get("soloCalendario", False), l.get("duplicada", False)),
             "soloCalendario": bool(l.get("soloCalendario")),
             "segunda": bool(l.get("segunda")),
+            "seguimiento": bool(l.get("seguimiento")),
             "eventoId": l.get("eventoId") or "",
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
@@ -1131,17 +1132,23 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     """Los números del mes del closer: agenda, show rate, close rate y ticket promedio.
 
     La seña no es un cierre: es plata que entró con la venta a medio hacer. Va contada
-    aparte y no sube el close rate.
+    aparte y no sube el close rate. El seguimiento tampoco es una agenda: es la segunda
+    vuelta del mismo prospecto, y sí suma al show y al cierre.
     """
     shows = sum(1 for x in del_mes if x["estado"] in ("show", "cierre"))
     no_shows = sum(1 for x in del_mes if x["estado"] == "no_show")
+    seguimientos = sum(1 for x in del_mes if x.get("seguimiento"))
     evaluables = shows + no_shows
     cerradas = [x for x in ventas if _norm(x["resultado"]) == _norm("Cerrado")]
     senas = [x for x in ventas if x not in cerradas]
     cash = round(sum(x["cashUsd"] for x in ventas), 2)
     facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
     return {
-        "agendadas": len(del_mes),
+        # La agenda es la primera reunión del prospecto: las que vienen después son
+        # seguimiento del mismo lead, no una agenda nueva que haya conseguido el setter.
+        "agendadas": len(del_mes) - seguimientos,
+        "seguimientos": seguimientos,
+        "reuniones": len(del_mes),
         "porVenir": sum(1 for x in del_mes if x["estado"] == "agendado" and not x["pasada"]),
         "sinReportar": sum(1 for x in del_mes if x["estado"] == "sin_reportar"),
         "shows": shows,

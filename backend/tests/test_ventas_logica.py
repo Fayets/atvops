@@ -156,3 +156,24 @@ def test_las_altas_usan_el_flush_del_modulo_no_el_de_la_sesion():
         assert "db_session.flush()" not in codigo, f"{fn.__name__} usa el flush de la sesión"
         if "flush()" in codigo:
             assert "import db_session, flush" in codigo, f"{fn.__name__} no importa flush de pony.orm"
+
+
+# ------------------------------------------------------------------ _metricas_closer
+
+def test_metricas_closer_no_cuenta_el_seguimiento_como_agenda():
+    """La agenda la consigue el setter: la segunda reunión con el mismo prospecto no es una."""
+    del_mes = [
+        {"estado": "cierre", "resultado": "Cerrado", "pasada": True, "seguimiento": False,
+         "cashUsd": 3000.0, "facturacionUsd": 3000.0, "saldoUsd": 0.0},
+        {"estado": "show", "resultado": "Seguimiento", "pasada": True, "seguimiento": True,
+         "cashUsd": 0.0, "facturacionUsd": 0.0, "saldoUsd": 0.0},
+        {"estado": "agendado", "resultado": "", "pasada": False, "seguimiento": False,
+         "cashUsd": 0.0, "facturacionUsd": 0.0, "saldoUsd": 0.0},
+    ]
+    m = v._metricas_closer(del_mes, [del_mes[0]])
+    assert m["reuniones"] == 3
+    assert m["seguimientos"] == 1
+    assert m["agendadas"] == 2          # el seguimiento no abre una agenda nueva
+    assert m["porVenir"] == 1
+    assert m["shows"] == 2              # pero sí se presentó: cuenta como show
+    assert m["closeRate"] == 50.0
