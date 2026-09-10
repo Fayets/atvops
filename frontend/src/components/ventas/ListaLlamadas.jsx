@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
-import { guardarResultadoLlamada } from '../../data/api.js';
+import { descartarLlamada, guardarResultadoLlamada } from '../../data/api.js';
 
 const VENTA = ['Cerrado', 'Seña'];
 const TONO = {
@@ -29,7 +29,7 @@ const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit
 const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
-function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
+function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes }) {
   const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
@@ -47,7 +47,7 @@ function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
     try {
       onGuardado(await guardarResultadoLlamada(llamada.id, {
         resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), saldoUsd: saldo === '' ? 0 : Number(saldo), nota,
-      }));
+      }, mes));
     } catch (e) {
       setError(e.message);
       setGuardando(false);
@@ -116,7 +116,51 @@ function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
   );
 }
 
-function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGuardado }) {
+/** Sacar una llamada de la lista, y devolverla si fue sin querer. */
+function Borrar({ llamada, onGuardado, mes }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [trabajando, setTrabajando] = useState(false);
+  const [error, setError] = useState(null);
+  const descartada = llamada.estado === 'descartada';
+
+  const mandar = async (recuperar) => {
+    setTrabajando(true);
+    setError(null);
+    try {
+      onGuardado(await descartarLlamada(llamada.id, { recuperar, mes }));
+    } catch (e) {
+      setError(e.message);
+      setTrabajando(false);
+      setConfirmando(false);
+    }
+  };
+
+  if (descartada) {
+    return (
+      <button className="btn sm" onClick={() => mandar(true)} disabled={trabajando} title="Volver a la lista">
+        {trabajando ? '…' : 'Recuperar'}
+      </button>
+    );
+  }
+  if (!confirmando) {
+    return (
+      <button className="btn sm ghost" onClick={() => setConfirmando(true)} title="Sacarla de la lista y de las métricas">
+        Borrar
+      </button>
+    );
+  }
+  return (
+    <span className="llamada-confirmar">
+      <span className="dim">{error || '¿La borro?'}</span>
+      <button className="btn sm alerta" onClick={() => mandar(false)} disabled={trabajando}>
+        {trabajando ? 'Borrando…' : 'Sí'}
+      </button>
+      <button className="btn sm" onClick={() => setConfirmando(false)} disabled={trabajando}>No</button>
+    </span>
+  );
+}
+
+function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGuardado, mes }) {
   // Si el closer ya cargó un estado, se muestra ese; si no, en qué situación está la llamada.
   // Reunión que está en el calendario y el CRM no tiene: se muestra para que cuente en el
   // mes, pero no se le puede cargar resultado porque no hay dónde guardarlo.
@@ -152,9 +196,12 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
         </div>
         <div className="llamada-derecha">
           <Pill tone={tono} dot>{etiqueta}</Pill>
-          <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
-            {abierta ? 'Cerrar' : (!llamada.resultado || soloCalendario || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
-          </button>
+          {llamada.estado !== 'descartada' && (
+            <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
+              {abierta ? 'Cerrar' : (!llamada.resultado || soloCalendario || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
+            </button>
+          )}
+          <Borrar llamada={llamada} onGuardado={onGuardado} mes={mes} />
         </div>
       </div>
       {abierta && (
@@ -164,6 +211,7 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
           estados={estados}
           onGuardado={onGuardado}
           onCerrar={onCerrar}
+          mes={mes}
         />
       )}
     </div>
@@ -172,7 +220,7 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
 
 
 /** Lista de llamadas con su resultado, editable fila por fila. */
-export default function ListaLlamadas({ llamadas, programas, estados, onActualizado }) {
+export default function ListaLlamadas({ llamadas, programas, estados, onActualizado, mes }) {
   const [abierta, setAbierta] = useState(null);
   if (!llamadas.length) return <div className="empty">No hay llamadas para mostrar.</div>;
   return (
@@ -187,6 +235,7 @@ export default function ListaLlamadas({ llamadas, programas, estados, onActualiz
           onAbrir={() => setAbierta(l.id)}
           onCerrar={() => setAbierta(null)}
           onGuardado={(nuevo) => { setAbierta(null); onActualizado(nuevo); }}
+          mes={mes}
         />
       ))}
     </div>

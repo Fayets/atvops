@@ -696,7 +696,35 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     return nuevo_id
 
 
-def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict) -> dict:
+def _es_mia(lead_id: int, usuario: dict) -> None:
+    filas = crm_db.consultar("SELECT closer FROM lead WHERE id = %s", (int(lead_id),))
+    if not filas:
+        raise HTTPException(status_code=404, detail="Esa llamada no existe en el CRM.")
+    mio = _norm(filas[0]["closer"]) in [_norm(n) for n in _nombres_crm(usuario)]
+    if not mio and usuario.get("rol") not in ROLES_PRECIOS | {"ventas"}:
+        raise HTTPException(status_code=403, detail="Esa llamada no es tuya.")
+
+
+def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None) -> dict:
+    """Saca una llamada de la lista y de todas las métricas, o la devuelve.
+
+    No borra la fila ni pisa el programa, el cash o la nota: solo cambia el estado, así
+    una llamada descartada por error se recupera con todo lo que tenía. Las internas y
+    las cargadas de más quedan en el filtro "Descartadas".
+    """
+    if isinstance(lead_id, str) and lead_id.startswith("cal:"):
+        if recuperar:
+            raise HTTPException(status_code=400, detail="Esa reunión todavía no está en el CRM.")
+        lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
+    _es_mia(lead_id, usuario)
+    nuevo = "Agendado" if recuperar else "Descartada"
+    crm_db.ejecutar("UPDATE lead SET status = %s, estado = %s WHERE id = %s", (nuevo, nuevo, int(lead_id)))
+    logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
+    _cache.clear()
+    return mis_llamadas(usuario, mes=mes)
+
+
+def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None) -> dict:
     """Guarda lo que cargó el closer en el CRM, que es la fuente única: así ATV Marketing
     y ATV Ops muestran lo mismo y no hay dos verdades."""
     # La reunión que venía solo del calendario se crea en el CRM antes de guardarle nada.
@@ -736,7 +764,7 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict) -> dict:
     )
     logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
     _cache.clear()
-    return mis_llamadas(usuario)
+    return mis_llamadas(usuario, mes=mes)
 
 
 # ------------------------------------------------- reportes diarios del setter

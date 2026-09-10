@@ -91,14 +91,27 @@ def guardar_reporte(fecha: str, user: dict = Depends(get_current_user), payload:
 
 
 @router.post("/llamadas/{lead_id}/resultado")
-def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), payload: dict = Body(...)):
+def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), payload: dict = Body(...),
+                        mes: str | None = None):
     """El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó."""
     try:
-        return ventas.registrar_resultado(lead_id, payload, user)
+        return ventas.registrar_resultado(lead_id, payload, user, mes=mes)
     except HTTPException as e:
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al guardar el resultado.")
+
+
+@router.post("/llamadas/{lead_id}/descartar")
+def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recuperar: bool = False,
+                      mes: str | None = None):
+    """Saca la llamada de la lista y de las métricas, o la devuelve con `recuperar=true`."""
+    try:
+        return ventas.descartar_llamada(lead_id, user, recuperar=recuperar, mes=mes)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al borrar la llamada.")
 
 
 @router.get("/mi-setting")

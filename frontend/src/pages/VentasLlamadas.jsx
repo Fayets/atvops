@@ -85,6 +85,7 @@ export default function VentasLlamadas() {
               programas={vista?.programas ?? []}
               estados={vista?.estados ?? []}
               onActualizado={setLocal}
+              mes={mes}
             />
           </Card>
         </>
