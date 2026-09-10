@@ -3,6 +3,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from src.controllers.auth_controller import get_current_user
 from src.services import cartera_services as cartera
 from src.services import marketing_services as marketing
+from src.services import onboarding_services as onboarding
 from src.services import reporte_semanal_services as reporte
 from src.services import ventas_services as ventas
 
@@ -155,7 +156,19 @@ def reporte_semanal(_user: dict = Depends(get_current_user), semana: str | None 
         raise HTTPException(status_code=500, detail="Error inesperado al armar el reporte semanal.")
 
 
+@router.get("/onboarding")
+def onboarding_real(_user: dict = Depends(get_current_user), mes: str | None = None, refrescar: bool = False):
+    """Los onboardings que llegaron por ATV Onboarding."""
+    try:
+        return onboarding.resumen(mes=mes, refrescar=refrescar)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer los onboardings.")
+
+
 @router.get("/fuentes")
 def fuentes(_user: dict = Depends(get_current_user)):
     """Qué fuentes están conectadas: lo que no lo esté, se muestra en cero."""
-    return {"crm": ventas.estado(), "marketing": marketing.estado(), "cobranza": cartera.estado()}
+    return {"crm": ventas.estado(), "marketing": marketing.estado(), "cobranza": cartera.estado(),
+            "onboarding": onboarding.estado()}

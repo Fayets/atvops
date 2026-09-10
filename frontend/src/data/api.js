@@ -1432,15 +1432,50 @@ export async function getMarketing(mes) {
   };
 }
 
-export async function getOnboarding() {
-  // Sin fuente conectada todavía: cero en vez de números inventados.
+/** Los onboardings reales de ATV Onboarding: quién entró y en qué etapa está. */
+export async function getOnboarding(mes) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  const raw = await pedir(`/api/ventas/onboarding${q.toString() ? `?${q}` : ''}`);
+  const m = raw.delMes;
+  const h = raw.historico;
+
+  const procesos = (m.sesiones ?? []).map((s) => ({
+    id: s.id,
+    tipo: 'cliente',
+    nombre: s.cliente,
+    plan: s.plan,
+    etapa: s.etapa,
+    iniciadoAt: s.creadoAt,
+    cerradoAt: s.llamadaHechaAt,
+    diasTranscurridos: s.diasHastaLlamada ?? s.diasHastaFormulario ?? 0,
+    formulario: s.formulario,
+    discord: s.discord,
+    skool: s.skool,
+  }));
+
+  const kpi = (id, label, value, objetivo, nota) => ({
+    id, label, value: value ?? 0, format: 'days', previous: null, objetivo,
+    sourceId: 'atv_clients', updatedAt: raw.generadoAt, good: 'down', serie: [], nota,
+  });
+
   return {
-    procesos: [],
+    procesos,
     duracion: [],
+    delMes: m,
+    historico: h,
+    conectado: raw.conectado,
+    detalle: raw.detalle,
     kpis: [
-      { id: 'onboarding_cliente', label: 'Pago → primer entregable', value: 0, format: 'days', previous: null, sourceId: 'manual', updatedAt: null, good: 'down', objetivo: 7, serie: [] },
-      { id: 'onboarding_staff', label: 'Contrato → primer día productivo', value: 0, format: 'days', previous: null, sourceId: 'manual', updatedAt: null, good: 'down', objetivo: 10, serie: [] },
+      kpi('onboarding_cliente', 'Acceso → formulario', h.medianaFormularioDias, 1,
+        `Mediana histórica sobre ${h.conFormulario} onboardings.`),
+      kpi('onboarding_llamada', 'Acceso → llamada hecha', h.medianaLlamadaDias, 7,
+        `${h.conLlamadaHecha} de ${h.total} llegaron a la llamada.`),
+      // El onboarding de staff no tiene fuente todavía.
+      kpi('onboarding_staff', 'Contrato → primer día productivo', 0, 10, 'Sin fuente conectada.'),
     ],
+    syncAt: raw.generadoAt,
+    mes: raw.mes,
   };
 }
 

@@ -11,6 +11,11 @@ import { leerDecretoGuardado } from '../lib/metasMes.js';
 
 const fecha = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 const TIPO = { reel: 'Reel', historia: 'Historia', youtube: 'YouTube' };
+const ETAPA = {
+  sin_abrir: 'no abrió el acceso', entro: 'entró', formulario: 'formulario listo',
+  llamada_agendada: 'llamada agendada', completo: 'llamada hecha',
+};
+const ETAPA_TONO = { sin_abrir: 'alert', entro: 'warn', formulario: 'plain', llamada_agendada: 'plain', completo: 'ok' };
 
 /** Diferencia contra la semana anterior, en palabras cortas. */
 function Delta({ actual, previo, format = 'count', bueno = 'arriba' }) {
@@ -95,6 +100,8 @@ export default function ReporteSemanal() {
   const mp = data?.marketingPrevia ?? {};
   const mm = data?.marketingMes ?? {};
   const c = data?.cartera ?? {};
+  const ob = data?.onboarding ?? {};
+  const obp = data?.onboardingPrevia ?? {};
 
   return (
     <div className="page">
@@ -153,7 +160,7 @@ export default function ReporteSemanal() {
             <Metrica label="Conversaciones" valor={m.conversaciones} nota={<Delta actual={m.conversaciones} previo={mp.conversaciones} />} />
             <Metrica label="Contenido publicado" valor={(m.reels ?? 0) + (m.historias ?? 0) + (m.videos ?? 0)}
               nota={`${m.reels ?? 0} reels · ${m.historias ?? 0} historias · ${m.videos ?? 0} videos`} />
-            <Metrica label="Clientes nuevos" valor={c.altas} nota={c.bajas ? `${c.bajas} bajas en la semana` : 'sin bajas'} />
+            <Metrica label="Onboardings" valor={ob.total} nota={<Delta actual={ob.total} previo={obp.total} />} />
             <Metrica label="Cobrado" valor={c.cobradoUsd} format="usd" nota={`${c.cuotasPagadas ?? 0} cuotas pagadas`} />
           </div>
 
@@ -189,6 +196,37 @@ export default function ReporteSemanal() {
               )}
             </Card>
           </div>
+
+          <Card
+            title="Onboardings de la semana"
+            sub={
+              ob.total
+                ? `${ob.conFormulario} completaron el formulario · ${ob.conLlamadaHecha} ya hicieron la llamada · ${ob.conDiscord} con canal de Discord`
+                : 'Nadie arrancó el onboarding esta semana'
+            }
+            flush
+            foot={
+              ob.medianaFormularioDias != null
+                ? `Del acceso al formulario tardan ${ob.medianaFormularioDias} días; hasta la llamada, ${ob.medianaLlamadaDias ?? '—'}.`
+                : undefined
+            }
+          >
+            {ob.sesiones?.length ? (
+              ob.sesiones.map((s) => (
+                <div key={s.id} className="lista-item">
+                  <Pill tone={ETAPA_TONO[s.etapa] ?? 'plain'} dot>{ETAPA[s.etapa] ?? s.etapa}</Pill>
+                  <span className="who">{s.cliente}</span>
+                  <span className="q">
+                    {s.plan}
+                    {s.diasHastaFormulario != null ? ` · formulario en ${s.diasHastaFormulario} d` : ''}
+                    {s.discord ? ' · con Discord' : ' · sin canal'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="empty">Ningún onboarding nuevo esta semana.</div>
+            )}
+          </Card>
 
           <div className="split">
             <Card

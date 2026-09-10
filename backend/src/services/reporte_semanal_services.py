@@ -20,6 +20,7 @@ from datetime import date, datetime, timedelta
 from decouple import config
 
 from src.services import clients_db, crm_db
+from src.services import onboarding_services as onboarding
 from src.services import ventas_services as ventas
 from src.services.transcripts_services import AR_TZ
 
@@ -267,11 +268,14 @@ def reporte(semana: str | None = None, refrescar: bool = False) -> dict:
         "marketingPrevia": _bloque_marketing(previa_inicio, inicio),
         "marketingMes": _bloque_marketing(mes_inicio, corte_mes),
         "cartera": _bloque_cartera(inicio, fin),
+        "onboarding": onboarding.semana(inicio, fin),
+        "onboardingPrevia": onboarding.semana(previa_inicio, inicio),
         "carteraMes": _bloque_cartera(mes_inicio, corte_mes),
         "ads": _bloque_ads(mes_inicio, mes_fin),
         "fuentes": {
             "crm": crm_db.disponible(),
             "clients": clients_db.disponible(),
+            "onboarding": clients_db.disponible(),
         },
     }
     with _lock:
