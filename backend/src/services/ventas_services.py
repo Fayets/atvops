@@ -47,12 +47,21 @@ def _norm(t: str | None) -> str:
 
 
 def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime,
-                solo_calendario: bool = False) -> str:
+                solo_calendario: bool = False, duplicada: bool = False) -> str:
     # La reunión que está en el calendario pero no en el CRM cuenta como agendada del mes,
     # pero no como show ni como deuda del closer: nadie puede cargarle un resultado.
     if solo_calendario:
         return "sin_crm"
+    # Duplicado del CRM: la misma reunión cargada dos veces. No cuenta para nada.
+    if duplicada:
+        return "duplicada"
     r = _norm(resultado)
+    if r in [_norm(x) for x in DESCARTE]:
+        return "descartada"
+    # Una reunión que todavía no pasó no tiene resultado, aunque el lead traiga uno de
+    # una reunión anterior: el sync de atv-mkt le mueve la fecha a la llamada vieja.
+    if call is not None and call > ahora:
+        return "agendado"
     if r in [_norm(x) for x in DESCARTE]:
         return "descartada"
     if r in [_norm(x) for x in NO_SHOW]:
@@ -304,7 +313,7 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         })
     if extras:
         logger.info("Calendario: %s reuniones que el CRM no registró", len(extras))
-    return sorted(filas + extras, key=lambda f: f["call"])
+    return sorted(_marcar_duplicados(filas + extras), key=lambda f: f["call"])
 
 
 def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
@@ -319,7 +328,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
     por_evento = {}
     for f in filas:
         evento = f.get("eventoId")
-        if not evento:
+        if not evento or f.get("duplicada"):
             continue
         programa = (f.get("programa_ofrecido") or "").strip()
         por_evento[evento] = {
@@ -327,9 +336,9 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "eventoId": evento,
             "prospecto": (f.get("nombre") or "").strip(),
             "fechaAt": f["call"].isoformat(),
-            "resultado": (f.get("resultado") or "").strip(),
+            "resultado": "" if f["call"] > ahora else (f.get("resultado") or "").strip(),
             "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
-                                  f.get("soloCalendario", False)),
+                                  f.get("soloCalendario", False), f.get("duplicada", False)),
             "closer": f.get("closer") or "", "setter": f.get("setter") or "",
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
@@ -369,12 +378,38 @@ def _num(v) -> float:
         return 0.0
 
 
+def _marcar_duplicados(filas: list[dict]) -> list[dict]:
+    """El CRM tiene la misma reunión dos veces: "Fulano" y "Fulano and Aumenta Tu Valor",
+    a la misma hora. Una tiene el resultado y la otra queda vacía pidiendo que la carguen.
+    Se deja una sola: la que está atada a la reunión del calendario, o la que tiene
+    resultado. Las demás quedan marcadas y no cuentan para ninguna métrica."""
+    grupos: dict[str, list[dict]] = {}
+    for f in filas:
+        clave = _clave_persona(f.get("nombre"))
+        if not clave or not f.get("call"):
+            continue
+        grupos.setdefault(f"{clave}|{f['call'].strftime('%Y-%m-%d %H')}", []).append(f)
+    for iguales in grupos.values():
+        if len(iguales) < 2:
+            continue
+        mejor = sorted(iguales, key=lambda f: (
+            0 if f.get("eventoId") else 1,
+            0 if _norm(f.get("resultado")) not in ("", "agendado", "pendiente") else 1,
+            str(f.get("id")),
+        ))[0]
+        for f in iguales:
+            if f is not mejor:
+                f["duplicada"] = True
+    return filas
+
+
 def _bloque(leads: list[dict], ahora: datetime) -> dict:
     # Las descartadas quedan afuera de toda métrica.
     def _clase(l: dict) -> str:
-        return _clasificar(l["resultado"], l["calificacion"], l["call"], ahora, l.get("soloCalendario", False))
+        return _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
+                           l.get("soloCalendario", False), l.get("duplicada", False))
 
-    leads = [l for l in leads if _clase(l) != "descartada"]
+    leads = [l for l in leads if _clase(l) not in ("descartada", "duplicada")]
     clases = [_clase(l) for l in leads]
     cierres = [l for l, c in zip(leads, clases) if c == "cierre"]
     shows = sum(1 for c in clases if c in ("show", "cierre"))
@@ -701,8 +736,9 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "fechaAt": l["call"].isoformat(), "closer": l["closer"], "setter": l["setter"] or "",
             "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
             "facturaHoy": (l["ingresos_rango"] or "").strip(),
-            "resultado": (l["resultado"] or "").strip(),
-            "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora, l.get("soloCalendario", False)),
+            "resultado": "" if l["call"] > ahora else (l["resultado"] or "").strip(),
+            "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
+                                  l.get("soloCalendario", False), l.get("duplicada", False)),
             "soloCalendario": bool(l.get("soloCalendario")),
             "segunda": bool(l.get("segunda")),
             "eventoId": l.get("eventoId") or "",
@@ -715,7 +751,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "diasDesde": (hoy - l["call"].date()).days,
         }
 
-    llamadas = [_fila(l) for l in filas]
+    # Las duplicadas del CRM no se muestran: sería pedirle al closer que cargue dos veces.
+    llamadas = [f for f in (_fila(l) for l in filas) if f["estado"] != "duplicada"]
     inicio_mes = hoy.replace(day=1)
     del_mes = [x for x in llamadas
                if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes and x["estado"] != "descartada"]
