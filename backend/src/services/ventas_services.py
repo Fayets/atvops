@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 import unicodedata
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 from decouple import config
 
@@ -69,20 +69,41 @@ def _semana(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
+def _a_argentina(dt: datetime | None) -> datetime | None:
+    """El CRM guarda las fechas en UTC sin marcar la zona. Acá todo se muestra en hora
+    de Argentina, así que se convierte al leer y nunca después."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(AR_TZ).replace(tzinfo=None)
+
+
+def _horas_locales(filas: list[dict]) -> list[dict]:
+    for f in filas:
+        for campo in ("call", "agendo", "created_at"):
+            if campo in f:
+                f[campo] = _a_argentina(f[campo])
+    return filas
+
+
 def _leads(desde: date, hasta: date) -> list[dict]:
-    return crm_db.consultar(
+    # Se pide un día de más de cada lado porque la base está en UTC y el corte es local.
+    filas = crm_db.consultar(
         f"""
         SELECT l.id, l.nombre, l.email, l.telefono, l.ig, l.origen, l.closer, l.setter,
                l.call, l.agendo, l.agendo_en, l.pago, l.debe, l.ingresos_rango,
                l.programa_ofrecido, l.vino_de_ads, l.notas, l.created_at,
+               l.closer_report, l.link_llamada,
                {RESULTADO_SQL} AS resultado,
                lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
         FROM lead l
         WHERE l.call IS NOT NULL AND l.call >= %s AND l.call < %s
         ORDER BY l.call
         """,
-        (desde, hasta),
+        (desde - timedelta(days=1), hasta + timedelta(days=1)),
     )
+    return [f for f in _horas_locales(filas) if desde <= f["call"].date() < hasta]
 
 
 def _clave_persona(nombre: str | None) -> str:
@@ -96,60 +117,78 @@ def _clave_persona(nombre: str | None) -> str:
 
 
 def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
-    """Agrega las reuniones que están en el calendario y el CRM no tiene.
+    """Deja en la lista TODAS las reuniones que hubo, no solo las que el CRM guardó.
 
-    El CRM guarda una sola fecha por lead: cuando alguien tiene una segunda reunión, o le
-    pisa la primera o directamente no entra. El calendario sí las tiene todas.
+    El CRM tiene una sola fecha por lead, así que cuando un prospecto tiene varias
+    reuniones hasta cerrar, la última le pisa a las anteriores. El calendario sí las
+    tiene todas.
 
-    El cruce es uno a uno y dentro del mismo mes: una llamada del CRM cubre una sola
-    reunión del calendario, y una reunión de septiembre no se da por cubierta porque el
-    lead tenga su llamada en agosto. Primero se cruza por email y si no, por nombre.
-    Si el calendario no responde, quedan solo las del CRM.
+    Se aparea cada llamada del CRM con la reunión del calendario más cercana en el tiempo
+    de esa misma persona (por email y si no, por nombre), empezando por las que coinciden
+    mejor. Esa llamada se queda con la fecha del calendario, que es la que vale, y con su
+    resultado. Toda reunión que quede sin aparear se agrega: es una reunión que existió y
+    el CRM no registró. Si el calendario no responde, quedan solo las del CRM.
     """
     from src.services import gcal_services
 
     if not gcal_services.configurado():
         return filas
     inicio = datetime.combine(desde, time.min).replace(tzinfo=AR_TZ)
-    fin = datetime.combine(hasta, time.min).replace(tzinfo=AR_TZ)
-    reuniones = gcal_services.reuniones_venta(inicio, fin)
+    fin_rango = datetime.combine(hasta, time.min).replace(tzinfo=AR_TZ)
+    reuniones = gcal_services.reuniones_venta(inicio, fin_rango)
     if not reuniones:
         return filas
 
-    # Las llamadas del CRM que todavía no cubrieron ninguna reunión, mes por mes.
-    libres: dict[tuple[int, int], list[dict]] = {}
+    for r in reuniones:
+        r["_cuando"] = datetime.fromisoformat(r["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
+        r["_emails"] = {_norm(e) for e in (r.get("invitados") or []) if _norm(e)}
+        r["_nombre"] = _clave_persona(r["prospecto"])
+
+    # Todos los cruces posibles, del que mejor coincide en el tiempo al que peor.
+    posibles = []
+    for i, f in enumerate(filas):
+        email = _norm(f.get("email"))
+        nombre = _clave_persona(f.get("nombre"))
+        for j, r in enumerate(reuniones):
+            if not ((email and email in r["_emails"]) or (nombre and nombre == r["_nombre"])):
+                continue
+            posibles.append((abs((f["call"] - r["_cuando"]).total_seconds()), i, j))
+    posibles.sort()
+
+    fila_usada: set[int] = set()
+    reunion_usada: set[int] = set()
+    for _, i, j in posibles:
+        if i in fila_usada or j in reunion_usada:
+            continue
+        fila_usada.add(i)
+        reunion_usada.add(j)
+        # La fecha buena es la del calendario: ahí se ven las reprogramaciones.
+        filas[i]["call"] = reuniones[j]["_cuando"]
+        filas[i]["segunda"] = reuniones[j]["segunda"]
+
     conocidos: dict[str, dict] = {}
     for f in filas:
-        libres.setdefault((f["call"].year, f["call"].month), []).append(f)
         conocidos.setdefault(_clave_persona(f.get("nombre")), f)
 
     extras = []
-    for r in sorted(reuniones, key=lambda x: x["inicioAt"]):
-        cuando = datetime.fromisoformat(r["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
-        candidatos = libres.get((cuando.year, cuando.month), [])
-        emails = {_norm(e) for e in (r.get("invitados") or []) if _norm(e)}
-        nombre = _norm(r["prospecto"])
-        elegido = next((i for i, c in enumerate(candidatos) if _norm(c.get("email")) in emails and emails), None)
-        if elegido is None:
-            elegido = next((i for i, c in enumerate(candidatos) if _clave_persona(c.get("nombre")) == nombre), None)
-        if elegido is not None:
-            candidatos.pop(elegido)
+    for j, r in enumerate(reuniones):
+        if j in reunion_usada:
             continue
-        base = conocidos.get(nombre, {})
+        base = conocidos.get(r["_nombre"], {})
         extras.append({
             "id": f"cal:{r['eventoId']}",
-            "nombre": r["prospecto"], "email": next(iter(emails), ""),
+            "nombre": r["prospecto"], "email": next(iter(r["_emails"]), ""),
             "telefono": "", "ig": "",
             "origen": (base.get("origen") or "").strip() or "Orgánico",
             "closer": base.get("closer") or "", "setter": base.get("setter") or "",
-            "call": cuando, "agendo": None, "agendo_en": "Google Calendar",
+            "call": r["_cuando"], "agendo": None, "agendo_en": "Google Calendar",
             "pago": 0, "debe": 0, "ingresos_rango": "", "programa_ofrecido": "",
             "vino_de_ads": False, "notas": r["titulo"], "created_at": None,
             "resultado": "", "calificacion": "", "closer_report": "", "link_llamada": "",
             "soloCalendario": True, "segunda": r["segunda"], "url": r.get("url"),
         })
     if extras:
-        logger.info("Calendario: %s reuniones que el CRM no tiene", len(extras))
+        logger.info("Calendario: %s reuniones que el CRM no registró", len(extras))
     return sorted(filas + extras, key=lambda f: f["call"])
 
 
@@ -277,7 +316,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
                 "estado": _estado_reporte(r["fecha"] if r else None),
                 "fecha": r["fecha"].isoformat() if r else None,
                 "diasSinReportar": (hoy - r["fecha"]).days if r else None,
-                "actualizadoAt": (r["created_at"].isoformat() if r and r["created_at"] else None),
+                "actualizadoAt": (_a_argentina(r["created_at"]).isoformat() if r and r["created_at"] else None),
                 "metricas": {k: _num(v) for k, v in (r or {}).items()
                              if k not in ("id", "fecha", "created_at", "nombre", "rol", "notas")},
                 "notas": (r or {}).get("notas") or "",
@@ -394,6 +433,7 @@ def estado() -> dict:
         return {"conectado": False, "detalle": "Falta MKT_DSN (o GCAL_CONEXION_DSN) en el .env."}
     try:
         fila = crm_db.consultar("SELECT count(*) AS n, max(created_at) AS ultimo FROM lead")[0]
+        fila["ultimo"] = _a_argentina(fila["ultimo"])
         return {"conectado": True, "leads": fila["n"], "ultimoLeadAt": fila["ultimo"].isoformat() if fila["ultimo"] else None}
     except Exception as e:  # noqa: BLE001
         return {"conectado": False, "detalle": str(e)[:200]}
@@ -473,28 +513,16 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         return {"generadoAt": datetime.now(AR_TZ).isoformat(), "closer": None, "llamadas": [],
                 "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA)}
 
-    filas = crm_db.consultar(
-        f"""
-        SELECT l.id, l.nombre, l.email, l.telefono, l.ig, l.call, l.closer, l.setter, l.origen,
-               l.pago, l.debe, l.programa_ofrecido, l.ingresos_rango, l.notas, l.closer_report,
-               l.link_llamada, l.vino_de_ads,
-               {RESULTADO_SQL} AS resultado,
-               lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
-        FROM lead l
-        WHERE l.call IS NOT NULL AND l.call >= %s AND l.call < %s AND l.closer = ANY(%s)
-        ORDER BY l.call DESC
-        """,
-        (hoy - timedelta(days=dias_atras), hoy + timedelta(days=dias_adelante + 1), nombres),
+    # Se lee todo el período y recién después se filtra por closer: el cruce con el
+    # calendario tiene que ver todas las llamadas para no duplicar las de otro.
+    desde = hoy - timedelta(days=dias_atras)
+    hasta = hoy + timedelta(days=dias_adelante + 1)
+    mios = [_norm(n) for n in nombres]
+    filas = sorted(
+        [f for f in _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+         if _norm(f.get("closer")) in mios],
+        key=lambda f: f["call"], reverse=True,
     )
-    # El calendario completa las reuniones que el CRM no tiene. Se cruza contra TODAS las
-    # llamadas del período, no solo las de este closer, para no inventar duplicados de otro.
-    desde_cal = hoy - timedelta(days=dias_atras)
-    hasta_cal = hoy + timedelta(days=dias_adelante + 1)
-    del_calendario = [
-        f for f in _sumar_reuniones_del_calendario(_leads(desde_cal, hasta_cal), desde_cal, hasta_cal)
-        if f.get("soloCalendario") and _norm(f.get("closer")) in [_norm(n) for n in nombres]
-    ]
-    filas = sorted(list(filas) + del_calendario, key=lambda f: f["call"], reverse=True)
     precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
 
     def _fila(l: dict) -> dict:

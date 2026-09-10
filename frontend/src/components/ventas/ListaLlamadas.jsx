@@ -138,8 +138,9 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
           <div className="dim">
             {soloCalendario
               ? `${llamada.segunda ? 'Segunda reunión' : 'Reunión'} del calendario · todavía no está en el CRM`
-              : ([llamada.facturaHoy && `factura ${llamada.facturaHoy}`, llamada.origen,
-                  llamada.setter && `set por ${llamada.setter}`].filter(Boolean).join(' · ') || 'Sin datos')}
+              : ([llamada.segunda && 'segunda reunión', llamada.facturaHoy && `factura ${llamada.facturaHoy}`,
+                  llamada.origen, llamada.setter && `set por ${llamada.setter}`]
+                  .filter(Boolean).join(' · ') || 'Sin datos')}
           </div>
           {llamada.estado === 'cierre' && (
             <div className="llamada-venta-resumen">

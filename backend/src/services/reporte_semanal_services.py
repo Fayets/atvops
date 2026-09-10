@@ -59,18 +59,9 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
                 "cashUsd": 0, "facturacionUsd": 0, "showRate": None, "closeRate": None, "aovUsd": 0,
                 "porCloser": [], "ventas": []}
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
-    filas = crm_db.consultar(
-        f"""
-        SELECT l.id, l.nombre, l.closer, l.setter, l.pago, l.debe, l.programa_ofrecido, l.call,
-               {ventas.RESULTADO_SQL} AS resultado,
-               lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
-        FROM lead l WHERE l.call >= %s AND l.call < %s ORDER BY l.call
-        """,
-        (desde, hasta),
-    )
-    # El calendario completa las reuniones que el CRM no guarda (una segunda reunión le pisa
-    # la fecha a la primera, o directamente no entra).
-    filas = ventas._sumar_reuniones_del_calendario(filas, desde, hasta)
+    # _leads ya convierte las fechas a hora de Argentina; el calendario completa las
+    # reuniones que el CRM no guarda (una segunda le pisa la fecha a la primera, o no entra).
+    filas = ventas._sumar_reuniones_del_calendario(ventas._leads(desde, hasta), desde, hasta)
     precios = {ventas._norm(p["nombre"]): p["precioUsd"] for p in ventas.programas()}
     clases = [ventas._clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
                                  f.get("soloCalendario", False)) for f in filas]
