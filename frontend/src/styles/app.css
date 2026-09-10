@@ -5119,6 +5119,14 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-derecha { display: flex; align-items: center; gap: 8px; }
 .llamada-form { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-4); }
 .llamada-estados { display: flex; flex-wrap: wrap; gap: 6px; }
+/* El estado elegido queda pintado con el color de lo que significa, no con el del botón
+   de guardar: así se lee de un vistazo sin confundirse con la acción. */
+.estado-chip.elegido { font-weight: 600; }
+.estado-chip.elegido.ok { background: var(--ok-dim); border-color: var(--ok); color: var(--ok); }
+.estado-chip.elegido.warn { background: var(--warn-dim); border-color: var(--warn); color: var(--warn); }
+.estado-chip.elegido.alert { background: var(--alert-dim); border-color: var(--alert); color: var(--alert); }
+.estado-chip.elegido.plain { background: var(--surface-3); border-color: var(--text-2); color: var(--text); }
+.estado-chip.elegido:hover { filter: brightness(1.12); }
 .llamada-venta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); align-items: end; }
 .llamada-precio { grid-column: 1 / -1; font-size: 12px; }
 .llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }

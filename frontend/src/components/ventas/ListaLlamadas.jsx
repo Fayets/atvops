@@ -7,6 +7,12 @@ const VENTA = ['Cerrado', 'Seña'];
 const TONO = {
   cierre: 'ok', show: 'plain', no_show: 'alert', sin_reportar: 'warn', agendado: 'off', descartada: 'off',
 };
+// El color del estado elegido: verde si vendió, rojo si se cayó, ámbar si sigue vivo.
+const TONO_ESTADO = {
+  Cerrado: 'ok', 'Seña': 'ok',
+  Seguimiento: 'warn', 'Re-agenda': 'warn', Agendado: 'warn',
+  'No show': 'alert', Descalificado: 'alert', Cancelada: 'alert', Descartada: 'alert',
+};
 const LABEL = {
   cierre: 'venta', show: 'reportada', no_show: 'no show', sin_reportar: 'falta cargar',
   agendado: 'agendada', descartada: 'descartada',
@@ -48,7 +54,7 @@ function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
           <button
             key={e}
             type="button"
-            className={`btn sm${resultado === e ? ' primary' : ''}`}
+            className={`btn sm estado-chip${resultado === e ? ` elegido ${TONO_ESTADO[e] ?? 'plain'}` : ''}`}
             onClick={() => setResultado(e)}
           >
             {e}
@@ -115,7 +121,7 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
           <div className="strong">{llamada.prospecto}</div>
           <div className="dim">
             {[llamada.facturaHoy && `factura ${llamada.facturaHoy}`, llamada.origen, llamada.setter && `set por ${llamada.setter}`]
-              .filter(Boolean).join(' · ') || 'Sin datos del formulario'}
+              .filter(Boolean).join(' · ') || 'Sin datos'}
           </div>
           {llamada.estado === 'cierre' && (
             <div className="llamada-venta-resumen">

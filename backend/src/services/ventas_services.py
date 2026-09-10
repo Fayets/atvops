@@ -226,7 +226,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "email": l["email"] or "", "telefono": l["telefono"] or "", "instagram": (l["ig"] or "").lstrip("@"),
             "fechaAt": l["call"].isoformat() if l["call"] else None,
             "closer": _persona(l["closer"]), "setter": _persona(l["setter"]),
-            "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Sin origen"),
+            "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
             "agendoEn": l["agendo_en"] or "", "oferta": (l["programa_ofrecido"] or "").strip(),
             "facturacion": (l["ingresos_rango"] or "").strip(),
             "montoUsd": _num(l["pago"]) or None, "debeUsd": _num(l["debe"]) or None,
@@ -298,7 +298,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
 def _por_origen(leads: list[dict]) -> dict[str, list[dict]]:
     grupos: dict[str, list[dict]] = {}
     for l in leads:
-        clave = (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Sin origen")
+        clave = (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico")
         grupos.setdefault(clave, []).append(l)
     return grupos
 
@@ -417,7 +417,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "prospecto": (l["nombre"] or "").strip() or "Sin nombre",
             "email": l["email"] or "", "telefono": l["telefono"] or "", "instagram": (l["ig"] or "").lstrip("@"),
             "fechaAt": l["call"].isoformat(), "closer": l["closer"], "setter": l["setter"] or "",
-            "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else ""),
+            "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
             "facturaHoy": (l["ingresos_rango"] or "").strip(),
             "resultado": (l["resultado"] or "").strip(),
             "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora),
