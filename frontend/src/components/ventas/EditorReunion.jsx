@@ -47,6 +47,7 @@ export default function EditorReunion({ reunion, estado, programas, estados, onG
           onGuardado={() => { onGuardado(); onCerrar(); }}
           onCerrar={onCerrar}
           mes={mes}
+          sinLista
         />
       </div>
     </div>

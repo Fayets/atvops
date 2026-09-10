@@ -392,6 +392,20 @@ def _prospecto(titulo: str) -> tuple[str, bool]:
     return re.sub(r"\s+", " ", limpio).strip(" -:&"), segunda
 
 
+# Índice de reuniones por id de evento, para encontrar una sin volver a pedirle a Google
+# un rango enorme. Se llena con cada lectura del calendario y dura lo mismo que el caché.
+_por_evento: dict[str, dict] = {}
+
+
+def reunion_por_id(evento_id: str) -> dict | None:
+    """La reunión que ya se leyó en alguna consulta reciente del calendario."""
+    with _lock:
+        guardada = _por_evento.get(evento_id)
+    if guardada and (datetime.utcnow() - guardada["at"]).total_seconds() < CACHE_SEGUNDOS:
+        return guardada["data"]
+    return None
+
+
 def reuniones_venta(desde: datetime, hasta: datetime, refrescar: bool = False) -> list[dict]:
     """Las reuniones de venta que hay en el calendario entre esas dos fechas.
 
@@ -424,6 +438,9 @@ def reuniones_venta(desde: datetime, hasta: datetime, refrescar: bool = False) -
             "inicioAt": e["inicioAt"], "tipo": e.get("tipo") or "", "url": e.get("url"),
             "invitados": [i.get("email", "") for i in (e.get("invitados") or [])],
         })
+    ahora = datetime.utcnow()
     with _lock:
-        _cache[clave] = {"at": datetime.utcnow(), "data": salida}
+        _cache[clave] = {"at": ahora, "data": salida}
+        for r in salida:
+            _por_evento[r["eventoId"]] = {"at": ahora, "data": r}
     return salida

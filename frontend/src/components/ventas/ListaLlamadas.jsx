@@ -29,7 +29,7 @@ const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit
 const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
-export function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes }) {
+export function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes, sinLista }) {
   const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
@@ -49,7 +49,7 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
       onGuardado(await guardarResultadoLlamada(llamada.id, {
         resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), nota,
         evento: llamada.eventoId || '', prospecto: llamada.prospecto || '',
-      }, mes));
+      }, mes, { lista: !sinLista }));
     } catch (e) {
       setError(e.message);
       setGuardando(false);

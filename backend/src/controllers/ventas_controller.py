@@ -95,10 +95,10 @@ def guardar_reporte(fecha: str, user: dict = Depends(get_current_user), payload:
 
 @router.post("/llamadas/{lead_id}/resultado")
 def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), payload: dict = Body(...),
-                        mes: str | None = None):
+                        mes: str | None = None, lista: bool = True):
     """El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó."""
     try:
-        return ventas.registrar_resultado(lead_id, payload, user, mes=mes)
+        return ventas.registrar_resultado(lead_id, payload, user, mes=mes, con_lista=lista)
     except HTTPException as e:
         raise e
     except Exception as e:  # noqa: BLE001
@@ -109,10 +109,10 @@ def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), pa
 
 @router.post("/llamadas/{lead_id}/descartar")
 def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recuperar: bool = False,
-                      mes: str | None = None):
+                      mes: str | None = None, lista: bool = True):
     """Saca la llamada de la lista y de las métricas, o la devuelve con `recuperar=true`."""
     try:
-        return ventas.descartar_llamada(lead_id, user, recuperar=recuperar, mes=mes)
+        return ventas.descartar_llamada(lead_id, user, recuperar=recuperar, mes=mes, con_lista=lista)
     except HTTPException as e:
         raise e
     except Exception as e:  # noqa: BLE001

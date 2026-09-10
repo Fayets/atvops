@@ -772,10 +772,14 @@ export async function getMisLlamadas(closer, mes) {
 }
 
 /** El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó. */
-export async function guardarResultadoLlamada(leadId, payload, mes) {
+export async function guardarResultadoLlamada(leadId, payload, mes, { lista = true } = {}) {
   // El id puede ser "cal:<evento>": una reunión del calendario que el backend crea en el CRM al guardar.
   // El mes viaja para que la lista que vuelve sea la del período que se está mirando.
-  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/resultado${mes ? `?mes=${mes}` : ''}`, {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  if (!lista) q.set('lista', 'false');  // el calendario recarga solo: no hace falta rearmarla
+  const cola = q.toString();
+  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/resultado${cola ? `?${cola}` : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

@@ -776,10 +776,14 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     """
     from src.services import gcal_services
 
-    hoy = datetime.now(AR_TZ).date()
-    desde = datetime.combine(hoy - timedelta(days=180), time.min).replace(tzinfo=AR_TZ)
-    hasta = datetime.combine(hoy + timedelta(days=180), time.min).replace(tzinfo=AR_TZ)
-    reunion = next((r for r in gcal_services.reuniones_venta(desde, hasta) if r["eventoId"] == evento_id), None)
+    # Casi siempre la reunión ya se leyó al mostrar el calendario: se toma de ahí en vez
+    # de pedirle a Google un año entero, que es lo que hacía tardar el guardado.
+    reunion = gcal_services.reunion_por_id(evento_id)
+    if reunion is None:
+        hoy = datetime.now(AR_TZ).date()
+        desde = datetime.combine(hoy - timedelta(days=120), time.min).replace(tzinfo=AR_TZ)
+        hasta = datetime.combine(hoy + timedelta(days=120), time.min).replace(tzinfo=AR_TZ)
+        reunion = next((r for r in gcal_services.reuniones_venta(desde, hasta) if r["eventoId"] == evento_id), None)
     if reunion is None:
         raise HTTPException(status_code=404, detail="Esa reunión ya no está en el calendario.")
 
@@ -816,7 +820,10 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
         f"VALUES ((SELECT coalesce(min(user_id), 1) FROM lead), %s, %s, %s, %s, %s, %s, now(), "
         f"'Google Calendar', 'Agendado', '', '', %s, '', now(), {valores}) RETURNING id",
         (nombre, email, (base.get("origen") or "").strip() or "Orgánico",
-         base.get("closer") or quien, base.get("setter") or "", cuando_utc, reunion["titulo"][:500]),
+         # Solo se pone de closer a quien realmente toma llamadas: si un admin carga la
+         # reunión de otro, la llamada queda sin asignar en vez de contarle a él.
+         base.get("closer") or (quien if usuario.get("rol") in {"closer", "ventas"} else ""),
+         base.get("setter") or "", cuando_utc, reunion["titulo"][:500]),
     )
     if not filas:
         raise HTTPException(status_code=502, detail="No se pudo crear la llamada en el CRM.")
@@ -824,8 +831,17 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     _atar_reunion(evento_id, nuevo_id, nombre, cuando, usuario.get("username") or "")
     logger.info("Reunión del calendario %s creada en el CRM como lead %s por %s",
                 evento_id, nuevo_id, usuario.get("username"))
-    _cache.clear()
+    _olvidar_meses()
     return nuevo_id
+
+
+def _olvidar_meses() -> None:
+    """Tira los resúmenes por mes, que son los que cambian al guardar. Se conservan el
+    índice de dueños y el caché del calendario: rehacerlos en cada guardado es lo que
+    hacía que la respuesta tardara y el proxy cortara con un 502."""
+    with _lock:
+        for k in [k for k in _cache if k != "duenios"]:
+            _cache.pop(k, None)
 
 
 def _lista_despues_de_guardar(usuario: dict, mes: str | None) -> dict:
@@ -853,7 +869,8 @@ def _puede_cargar(lead_id: int, usuario: dict) -> None:
         raise HTTPException(status_code=403, detail="Tu rol no puede cargar resultados de llamadas.")
 
 
-def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None) -> dict:
+def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None,
+                      con_lista: bool = True) -> dict:
     """Saca una llamada de la lista y de todas las métricas, o la devuelve.
 
     No borra la fila ni pisa el programa, el cash o la nota: solo cambia el estado, así
@@ -868,11 +885,12 @@ def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False
     nuevo = "Agendado" if recuperar else "Descartada"
     crm_db.ejecutar("UPDATE lead SET status = %s, estado = %s WHERE id = %s", (nuevo, nuevo, int(lead_id)))
     logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
-    _cache.clear()
-    return _lista_despues_de_guardar(usuario, mes)
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
 
 
-def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None) -> dict:
+def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,
+                        con_lista: bool = True) -> dict:
     """Guarda lo que cargó el closer en el CRM, que es la fuente única: así ATV Marketing
     y ATV Ops muestran lo mismo y no hay dos verdades."""
     # La reunión que venía solo del calendario se crea en el CRM antes de guardarle nada.
@@ -916,8 +934,8 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
         (resultado, resultado, programa, cash, *( (saldo,) if toca_saldo else () ), nota, quien, int(lead_id)),
     )
     logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
-    _cache.clear()
-    return _lista_despues_de_guardar(usuario, mes)
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
 
 
 # ------------------------------------------------- reportes diarios del setter
