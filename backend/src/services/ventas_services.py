@@ -461,6 +461,25 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
     }
 
 
+def _cuantos_del_rol(rol: str) -> int:
+    """Cuánta gente de ese rol hay hoy, según los usuarios de ATV Ops.
+
+    El `teammember` del CRM viejo tiene marcados como activos a personas que ya no
+    trabajan acá, así que repartir la cuota por ahí da números inflados.
+    """
+    try:
+        from pony.orm import count, db_session, select
+
+        from src.models import Usuario
+
+        with db_session:
+            n = count(u for u in Usuario if u.rol == rol)
+        return max(1, int(n))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo contar el equipo de %s: %s", rol, str(e)[:160])
+        return 1
+
+
 def _equipo() -> list[dict]:
     return crm_db.consultar("SELECT id, nombre, rol, activo FROM teammember WHERE activo ORDER BY rol, nombre")
 
@@ -1386,8 +1405,9 @@ def mi_setting(usuario: dict, mes: str | None = None) -> dict:
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "mes": mes,
         "miembro": miembro,
-        # Cuántos setters hay de verdad: la cuota se reparte entre ellos, no entre un número fijo.
-        "setters": max(1, sum(1 for m in _equipo() if m["rol"] == "setter")),
+        # Cuántos setters hay: se cuentan los usuarios de ATV Ops, no los del CRM viejo,
+        # que arrastra gente que ya no trabaja acá.
+        "setters": _cuantos_del_rol("setter"),
         "detalle": reportes.get("detalle"),
         "dia": {
             "fecha": hoy.isoformat(),

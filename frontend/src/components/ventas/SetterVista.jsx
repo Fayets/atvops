@@ -81,36 +81,6 @@ export default function SetterVista({ data, onCompletarReporte }) {
             </article>
           ))}
 
-          <article className={`kpi closer-kpi setter-reporte-card${reporte.completado ? ' ok' : ' pendiente'}`}>
-            <div className="kpi-label">Reporte del día</div>
-            <div className="kpi-value-row">
-              <span className="kpi-value">{reporte.completado ? 'Completado' : 'Pendiente'}</span>
-              <Pill tone={reporte.completado ? 'ok' : 'alert'} dot>
-                {reporte.completado ? 'ok' : 'falta'}
-              </Pill>
-            </div>
-            <div className="kpi-nota">
-              {reporte.actualizadoAt
-                ? `Última actualización · ${formatFechaHora(reporte.actualizadoAt)}`
-                : 'Todavía no cargaste el reporte de hoy'}
-            </div>
-            {payload && (
-              <div className="kpi-nota setter-reporte-resumen">
-                {payload.conversaciones} conv · {payload.agendas} agendas · {payload.calendlysEnviados} Calendlys
-                {payload.diaBuenoMalo
-                  ? ` · ${payload.diaBuenoMalo.slice(0, 48)}${payload.diaBuenoMalo.length > 48 ? '…' : ''}`
-                  : ''}
-              </div>
-            )}
-            <button
-              type="button"
-              className={`btn${reporte.completado ? '' : ' primary'} setter-reporte-btn`}
-              onClick={() => setModalReporte(true)}
-              disabled={guardando}
-            >
-              {reporte.completado ? 'Ver / editar reporte' : 'Completar reporte'}
-            </button>
-          </article>
         </div>
       </section>
 
