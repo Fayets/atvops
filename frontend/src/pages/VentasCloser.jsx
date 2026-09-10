@@ -20,7 +20,7 @@ export default function VentasCloser() {
       <PageHeader
         eyebrow={vista?.closer ? `Closer · ${vista.closer}` : 'Closer'}
         title="Mi día"
-        desc="Tus números del mes, el calendario del equipo y las llamadas para cargar el resultado."
+        desc="Tus números del mes y el calendario del equipo."
         actions={
           <>
             <SourceTag sourceId="mkt_crm" updatedAt={vista?.generadoAt} />
@@ -39,7 +39,7 @@ export default function VentasCloser() {
           No encontramos llamadas a tu nombre en el CRM. Pedile a Franco que revise cómo figurás como closer.
         </div>
       ) : (
-        <MiDiaCloser data={vista} onActualizado={setLocal} />
+        <MiDiaCloser data={vista} />
       )}
     </div>
   );

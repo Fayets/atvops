@@ -14,6 +14,7 @@ import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
 import Metas from './pages/Metas.jsx';
 import VentasCloser from './pages/VentasCloser.jsx';
+import VentasLlamadas from './pages/VentasLlamadas.jsx';
 import VentasOperativaPage from './pages/VentasOperativa.jsx';
 import VentasOps from './pages/VentasOps.jsx';
 import VentasPerformancePage from './pages/VentasPerformance.jsx';
@@ -127,6 +128,7 @@ export default function App() {
             <Route path="ventas">
               <Route index element={<VentasIndex />} />
               <Route path="mi-dia" element={<VentasMiDiaRoute />} />
+              <Route path="llamadas" element={<VentasLlamadas />} />
               <Route path="mi-progreso" element={<VentasMiProgresoRoute />} />
               <Route path="performance" element={<VentasPerformanceRoute />} />
               <Route path="ops" element={<VentasOps />} />

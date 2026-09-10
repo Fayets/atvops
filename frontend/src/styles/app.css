@@ -5124,16 +5124,24 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }
 .programas-tabla { display: grid; gap: 8px; }
 .programa-fila { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: var(--space-3); align-items: center; }
-.pendientes-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: var(--space-3); }
-.pendiente-card { display: grid; gap: 8px; align-content: start; padding: 12px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13px; }
-.pendiente-card.guardando { opacity: 0.55; }
-.pendiente-card-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.pendiente-card-cab .dim { font-size: 11.5px; }
-.pendiente-card-estados { display: flex; flex-wrap: wrap; gap: 4px; }
-.pendiente-card-estados .btn { padding: 3px 8px; font-size: 11.5px; }
-.pendiente-card-venta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.pendiente-card-venta select { grid-column: 1 / -1; }
-.pendiente-card select, .pendiente-card input, .pendiente-card textarea { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text); font: 12.5px var(--font); padding: 6px 8px; width: 100%; }
+.pendientes-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-4); }
+.pendiente-card { display: grid; gap: var(--space-4); align-content: start; padding: var(--space-4); border: 1px solid var(--border-soft); border-radius: var(--radius-md, 10px); background: var(--surface-2); }
+.pendiente-card.guardando { opacity: 0.5; }
+.pendiente-card-cab h3 { margin: 0 0 2px; font-size: 15px; }
+.pendiente-card-cab .dim { font-size: 12px; text-transform: none; }
+.pendiente-paso { display: grid; gap: 8px; }
+.pendiente-pregunta { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+.pendiente-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.opcion { display: grid; gap: 1px; text-align: left; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); cursor: pointer; }
+.opcion:hover { border-color: var(--text-3); }
+.opcion.elegida { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--surface)); }
+.opcion-label { font-size: 13px; font-weight: 600; }
+.opcion-ayuda { font-size: 11px; color: var(--text-3); }
+.pendiente-plata { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pendiente-cuenta { font-size: 11.5px; color: var(--text-3); }
+.pendiente-error { font-size: 12px; color: var(--brand-hi); }
+.pendiente-guardar { width: 100%; justify-content: center; }
+.pendiente-card .campo select, .pendiente-card .campo input, .pendiente-card .campo textarea { background: var(--surface); }
 .gate-llamadas { position: fixed; inset: 0; z-index: 300; background: var(--bg, #0b0b0d); overflow-y: auto; padding: var(--space-6) var(--space-5); }
 .gate-caja { max-width: 1100px; margin: 0 auto; display: grid; gap: var(--space-5); }
 .gate-caja header h1 { margin: 0 0 6px; font-size: 26px; }
@@ -5145,3 +5153,15 @@ button.lista-item:hover { background: var(--surface-2); }
 .gate-salida { position: absolute; top: 12px; right: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 420px; }
 .gate-salida input { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text); font: 12.5px var(--font); padding: 6px 8px; width: 120px; }
 .gate-salida-error { width: 100%; text-align: right; font-size: 11.5px; color: var(--brand-hi); }
+.kpi.clickable { cursor: pointer; }
+.kpi.clickable:hover { border-color: var(--text-3); }
+.kpi-ver { margin-top: 6px; font-size: 11px; color: var(--text-3); opacity: 0; transition: opacity 0.15s ease; }
+.kpi.clickable:hover .kpi-ver { opacity: 1; }
+.detalle-metrica { max-width: 620px; width: 100%; display: grid; gap: var(--space-4); }
+.detalle-metrica header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.detalle-metrica header h3 { margin: 0 0 4px; font-size: 17px; }
+.detalle-metrica header p { margin: 0; font-size: 12.5px; max-width: 400px; }
+.detalle-lista { display: grid; max-height: 52vh; overflow-y: auto; }
+.detalle-fila { display: grid; grid-template-columns: 54px minmax(0, 1fr) 84px auto; gap: var(--space-3); align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.detalle-fila:last-child { border-bottom: none; }
+.detalle-metrica footer { font-size: 11.5px; }

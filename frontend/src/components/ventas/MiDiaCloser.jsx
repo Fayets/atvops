@@ -1,163 +1,59 @@
 import { useMemo, useState } from 'react';
 import CalendarioEquipo from './CalendarioEquipo.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
-import LlamadasPendientes from './LlamadasPendientes.jsx';
 import Card from '../ui/Card.jsx';
-import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
-import { getLlamadosAgenda, guardarResultadoLlamada } from '../../data/api.js';
+import { getLlamadosAgenda } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 
-const VENTA = ['Cerrado', 'Seña'];
-const TONO = {
-  cierre: 'ok', show: 'plain', no_show: 'alert', sin_reportar: 'warn', agendado: 'off',
-};
-const LABEL = {
-  cierre: 'venta', show: 'reportada', no_show: 'no show', sin_reportar: 'falta cargar', agendado: 'agendada',
-};
-
-const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
-
-/** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
-function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
-  const [resultado, setResultado] = useState(llamada.resultado || '');
-  const [programa, setPrograma] = useState(llamada.programa || '');
-  const [cash, setCash] = useState(llamada.cashUsd || '');
-  const [saldo, setSaldo] = useState(llamada.saldoUsd || '');
-  const [nota, setNota] = useState(llamada.reporte || '');
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState(null);
-
-  const esVenta = VENTA.includes(resultado);
-  const precio = programas.find((p) => p.nombre === programa)?.precioUsd ?? 0;
-
-  const guardar = async () => {
-    setGuardando(true);
-    setError(null);
-    try {
-      onGuardado(await guardarResultadoLlamada(llamada.id, {
-        resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), saldoUsd: saldo === '' ? 0 : Number(saldo), nota,
-      }));
-    } catch (e) {
-      setError(e.message);
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <div className="llamada-form">
-      <div className="llamada-estados">
-        {estados.map((e) => (
-          <button
-            key={e}
-            type="button"
-            className={`btn sm${resultado === e ? ' primary' : ''}`}
-            onClick={() => setResultado(e)}
-          >
-            {e}
-          </button>
-        ))}
-      </div>
-
-      {esVenta && (
-        <div className="llamada-venta">
-          <label className="campo">
-            <span>Programa</span>
-            <select value={programa} onChange={(e) => setPrograma(e.target.value)}>
-              <option value="">Elegí uno</option>
-              {programas.map((p) => (
-                <option key={p.id} value={p.nombre}>{p.nombre} · {formatValue(p.precioUsd, 'usd')}</option>
-              ))}
-            </select>
-          </label>
-          <label className="campo">
-            <span>Cash cobrado (USD)</span>
-            <input type="number" inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} placeholder="0" />
-          </label>
-          <label className="campo">
-            <span>Queda debiendo (USD)</span>
-            <input type="number" inputMode="decimal" value={saldo} onChange={(e) => setSaldo(e.target.value)} placeholder="0" />
-          </label>
-          {precio > 0 && (
-            <div className="llamada-precio dim">
-              Facturación {formatValue(precio, 'usd')}
-              {cash !== '' && saldo !== '' && Number(cash) + Number(saldo) !== precio
-                ? ` · cargaste ${formatValue(Number(cash) + Number(saldo), 'usd')}`
-                : ''}
-            </div>
-          )}
-        </div>
-      )}
-
-      <label className="campo">
-        <span>Nota de la llamada</span>
-        <textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Qué pasó, objeción, próximo paso" />
-      </label>
-
-      {error && <div className="ronda-evento error">{error}</div>}
-
-      <div className="llamada-acciones">
-        <button className="btn" onClick={onCerrar}>Cancelar</button>
-        <button className="btn primary" onClick={guardar} disabled={guardando || !resultado}>
-          {guardando ? 'Guardando…' : 'Guardar'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGuardado }) {
-  return (
-    <div className={`llamada${abierta ? ' abierta' : ''}`}>
-      <div className="llamada-cab">
-        <div className="llamada-cuando num">
-          <div>{hora(llamada.fechaAt)}</div>
-          <div className="dim">{dia(llamada.fechaAt)}</div>
-        </div>
-        <div className="llamada-quien">
-          <div className="strong">{llamada.prospecto}</div>
-          <div className="dim">
-            {[llamada.facturaHoy && `factura ${llamada.facturaHoy}`, llamada.origen, llamada.setter && `set por ${llamada.setter}`]
-              .filter(Boolean).join(' · ') || 'Sin datos del formulario'}
-          </div>
-          {llamada.estado === 'cierre' && (
-            <div className="llamada-venta-resumen">
-              {llamada.programa || 'Sin programa'} · cash {formatValue(llamada.cashUsd, 'usd')}
-              {llamada.saldoUsd > 0 ? ` · debe ${formatValue(llamada.saldoUsd, 'usd')}` : ''}
-              {llamada.facturacionUsd > 0 ? ` · factura ${formatValue(llamada.facturacionUsd, 'usd')}` : ''}
-            </div>
-          )}
-        </div>
-        <div className="llamada-derecha">
-          <Pill tone={TONO[llamada.estado] ?? 'plain'} dot>{LABEL[llamada.estado] ?? llamada.estado}</Pill>
-          <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
-            {abierta ? 'Cerrar' : (!llamada.resultado || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
-          </button>
-        </div>
-      </div>
-      {abierta && (
-        <FormResultado
-          llamada={llamada}
-          programas={programas}
-          estados={estados}
-          onGuardado={onGuardado}
-          onCerrar={onCerrar}
-        />
-      )}
-    </div>
-  );
-}
-
 const pct = (v) => (v == null ? '—' : `${v}%`);
+const fecha = (iso) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 
-function Kpi({ label, valor, nota, tono }) {
+const ESTADO_TEXTO = {
+  cierre: 'venta', show: 'con show', no_show: 'no show', sin_reportar: 'sin cargar', agendado: 'por venir',
+};
+
+function Kpi({ label, valor, nota, tono, onVer }) {
   return (
-    <article className="kpi sm">
+    <article className={`kpi sm${onVer ? ' clickable' : ''}`} onClick={onVer} role={onVer ? 'button' : undefined} tabIndex={onVer ? 0 : undefined}
+      onKeyDown={onVer ? (e) => (e.key === 'Enter' || e.key === ' ') && onVer() : undefined}>
       <div className="kpi-label">{label}</div>
       <div className="kpi-value-row"><span className="kpi-value num" style={tono ? { color: tono } : undefined}>{valor}</span></div>
       <div className="kpi-nota">{nota}</div>
+      {onVer && <div className="kpi-ver">ver llamadas</div>}
     </article>
+  );
+}
+
+/** De dónde sale cada número: las llamadas que lo componen. */
+function DetalleMetrica({ titulo, explicacion, llamadas, columna, onCerrar }) {
+  return (
+    <div className="modal-backdrop" onClick={onCerrar} role="presentation">
+      <div className="modal-card detalle-metrica" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
+        <header>
+          <div>
+            <h3>{titulo}</h3>
+            <p className="dim">{explicacion}</p>
+          </div>
+          <button type="button" className="btn ghost" onClick={onCerrar}>Cerrar</button>
+        </header>
+        {llamadas.length === 0 ? (
+          <div className="empty">No hay llamadas en este número.</div>
+        ) : (
+          <div className="detalle-lista">
+            {llamadas.map((l) => (
+              <div key={l.id} className="detalle-fila">
+                <span className="num dim">{fecha(l.fechaAt)}</span>
+                <span className="strong">{l.prospecto}</span>
+                <span className="dim">{ESTADO_TEXTO[l.estado] ?? l.estado}</span>
+                <span className="num">{columna(l)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <footer className="dim">{llamadas.length} llamadas · sale del CRM de ATV Marketing</footer>
+      </div>
+    </div>
   );
 }
 
@@ -183,91 +79,58 @@ function CalendarioReal() {
   );
 }
 
-/** Mi día: resumen del closer, el calendario real y la carga de resultados. */
-export default function MiDiaCloser({ data, onActualizado }) {
-  const [abierta, setAbierta] = useState(null);
-  const { llamadas = [], programas = [], estados = [], mes = {} } = data ?? {};
+/** Mi día: los números del mes del closer y el calendario del equipo. */
+export default function MiDiaCloser({ data }) {
+  const { mes = {}, llamadas = [] } = data ?? {};
+  const [detalle, setDetalle] = useState(null);
 
-  const grupos = useMemo(() => {
-    const ahora = new Date();
-    const hoyIso = ahora.toISOString().slice(0, 10);
-    const pendientes = llamadas.filter((l) => l.estado === 'sin_reportar');
-    const hoy = llamadas.filter((l) => l.fechaAt.slice(0, 10) === hoyIso && l.estado !== 'sin_reportar');
-    const proximas = llamadas.filter((l) => new Date(l.fechaAt) > ahora && l.fechaAt.slice(0, 10) !== hoyIso);
-    const hechas = llamadas.filter(
-      (l) => !pendientes.includes(l) && !hoy.includes(l) && !proximas.includes(l),
-    );
-    return { pendientes, hoy, proximas: proximas.sort((a, b) => a.fechaAt.localeCompare(b.fechaAt)), hechas };
+  const delMes = useMemo(() => {
+    const inicio = new Date();
+    inicio.setDate(1);
+    inicio.setHours(0, 0, 0, 0);
+    return llamadas.filter((l) => new Date(l.fechaAt) >= inicio);
   }, [llamadas]);
 
-  const props = (l) => ({
-    key: l.id,
-    llamada: l,
-    programas,
-    estados,
-    abierta: abierta === l.id,
-    onAbrir: () => setAbierta(l.id),
-    onCerrar: () => setAbierta(null),
-    onGuardado: (nuevo) => { setAbierta(null); onActualizado(nuevo); },
-  });
+  const ventas = delMes.filter((l) => l.estado === 'cierre');
+  const shows = delMes.filter((l) => l.estado === 'show' || l.estado === 'cierre');
+  const dinero = (l) => formatValue(l.cashUsd ?? 0, 'usd');
+  const ver = (titulo, explicacion, lista, columna) => () => setDetalle({ titulo, explicacion, llamadas: lista, columna });
 
   return (
     <div className="mi-dia">
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? 0}
-          nota={`${mes.porVenir ?? 0} todavía por venir`} />
+          nota={`${mes.porVenir ?? 0} todavía por venir`}
+          onVer={ver('Agendas del mes', 'Todas las llamadas con fecha en este mes.', delMes, (l) => ESTADO_TEXTO[l.estado] ?? '')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
-          nota="llamadas que ya pasaron sin resultado" />
+          nota="llamadas que ya pasaron sin resultado"
+          onVer={ver('Sin cargar', 'Llamadas que ya pasaron y todavía no tienen resultado.', delMes.filter((l) => l.estado === 'sin_reportar'), (l) => `hace ${l.diasDesde} d`)} />
         <Kpi label="Cash cobrado" valor={formatValue(mes.cashUsd ?? 0, 'usd')}
-          nota={mes.saldoUsd ? `${formatValue(mes.saldoUsd, 'usd')} por cobrar` : 'este mes'} />
+          nota={mes.saldoUsd ? `${formatValue(mes.saldoUsd, 'usd')} por cobrar` : 'este mes'}
+          onVer={ver('Cash cobrado', 'Lo que efectivamente pagó cada cliente que cerró.', ventas, dinero)} />
         <Kpi label="Facturación" valor={formatValue(mes.facturacionUsd ?? 0, 'usd')}
-          nota={`${mes.cierres ?? 0} ventas · AOV ${formatValue(mes.aovUsd ?? 0, 'usd')}`} />
+          nota={`${mes.cierres ?? 0} ventas · AOV ${formatValue(mes.aovUsd ?? 0, 'usd')}`}
+          onVer={ver('Facturación', 'El precio del programa que compró cada uno.', ventas, (l) => `${l.programa || 'sin programa'} · ${formatValue(l.facturacionUsd ?? 0, 'usd')}`)} />
       </div>
 
       <div className="kpi-grid">
-        <Kpi label="Show rate" valor={pct(mes.showRate)} nota={`${mes.shows ?? 0} shows`} />
+        <Kpi label="Show rate" valor={pct(mes.showRate)} nota={`${mes.shows ?? 0} shows`}
+          onVer={ver('Show rate', 'Las que se presentaron, sobre las que se presentaron más las que no.', shows, (l) => ESTADO_TEXTO[l.estado] ?? '')} />
         <Kpi label="No show" valor={pct(mes.noShowRate)} tono={mes.noShows ? 'var(--warn)' : undefined}
-          nota={`${mes.noShows ?? 0} llamadas caídas`} />
-        <Kpi label="Close rate" valor={pct(mes.closeRate)} nota={`${mes.cierres ?? 0} sobre ${mes.shows ?? 0} shows`} />
+          nota={`${mes.noShows ?? 0} llamadas caídas`}
+          onVer={ver('No show', 'Las que no se presentaron o se cancelaron.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '')} />
+        <Kpi label="Close rate" valor={pct(mes.closeRate)} nota={`${mes.cierres ?? 0} sobre ${mes.shows ?? 0} shows`}
+          onVer={ver('Close rate', 'Las ventas sobre las llamadas que sí se presentaron.', shows, (l) => (l.estado === 'cierre' ? dinero(l) : '—'))} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
-          nota={`cash promedio ${formatValue(mes.cashPromedioUsd ?? 0, 'usd')}`} />
+          nota={`cash promedio ${formatValue(mes.cashPromedioUsd ?? 0, 'usd')}`}
+          onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'))} />
       </div>
 
       <CalendarioReal />
 
-      {grupos.pendientes.length > 0 && (
-        <Card
-          title="Falta cargar el resultado"
-          sub={`${grupos.pendientes.length} llamadas de los últimos 30 días · cada una se va al completarla`}
-        >
-          <LlamadasPendientes
-            pendientes={grupos.pendientes}
-            programas={programas}
-            estados={estados}
-            onGuardado={(nuevo) => onActualizado(nuevo)}
-          />
-        </Card>
-      )}
+      {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 
-      <Card title="Hoy" sub={grupos.hoy.length ? `${grupos.hoy.length} llamadas` : 'Sin llamadas hoy'} flush>
-        <div className="llamadas">
-          {grupos.hoy.map((l) => <Llamada {...props(l)} />)}
-          {grupos.hoy.length === 0 && <div className="empty">Nada agendado para hoy.</div>}
-        </div>
-      </Card>
-
-      {grupos.proximas.length > 0 && (
-        <Card title="Lo que viene" sub={`${grupos.proximas.length} llamadas agendadas`} flush>
-          <div className="llamadas">{grupos.proximas.map((l) => <Llamada {...props(l)} />)}</div>
-        </Card>
-      )}
-
-      {grupos.hechas.length > 0 && (
-        <Card title="Ya cargadas" sub="Últimos 30 días" flush>
-          <div className="llamadas">{grupos.hechas.slice(0, 30).map((l) => <Llamada {...props(l)} />)}</div>
-        </Card>
-      )}
     </div>
   );
 }
