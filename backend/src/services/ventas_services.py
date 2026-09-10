@@ -509,3 +509,123 @@ def registrar_resultado(lead_id: int, datos: dict, usuario: dict) -> dict:
     logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
     _cache.clear()
     return mis_llamadas(usuario)
+
+
+# ------------------------------------------------- reportes diarios del setter
+
+CAMPOS_REPORTE = {
+    "setter": ("conversaciones", "links_enviados", "agendas", "seguimientos", "outbounds", "leads_nuevos"),
+    "closer": ("llamadas_agendadas", "shows", "cierres", "calificados", "descalificados", "ingreso"),
+}
+ETIQUETAS_REPORTE = {
+    "conversaciones": "Conversaciones", "links_enviados": "Links enviados", "agendas": "Agendas",
+    "seguimientos": "Seguimientos", "outbounds": "Outbounds", "leads_nuevos": "Leads nuevos",
+    "llamadas_agendadas": "Llamadas agendadas", "shows": "Shows", "cierres": "Cierres",
+    "calificados": "Calificados", "descalificados": "Descalificados", "ingreso": "Ingreso USD",
+}
+
+
+def _miembro(usuario: dict, rol: str) -> dict | None:
+    """El teammember del CRM que corresponde a este usuario, por su nombre de pila."""
+    base = _norm(usuario.get("nombre") or usuario.get("username") or "")
+    if not base:
+        return None
+    primero = base.split()[0]
+    for m in crm_db.consultar("SELECT id, user_id, nombre, rol FROM teammember WHERE activo ORDER BY id"):
+        if m["rol"] == rol and _norm(m["nombre"]).split()[:1] == [primero]:
+            return m
+    return None
+
+
+def mis_reportes(usuario: dict, mes: str | None = None, rol: str = "setter") -> dict:
+    """Un día por casillero: rojo si falta el reporte, verde si ya está cargado."""
+    hoy = datetime.now(AR_TZ).date()
+    mes = mes or hoy.strftime("%Y-%m")
+    anio, m = int(mes[:4]), int(mes[5:7])
+    inicio = date(anio, m, 1)
+    fin = date(anio + (m == 12), (m % 12) + 1, 1)
+    campos = CAMPOS_REPORTE[rol]
+    miembro = _miembro(usuario, rol)
+    if miembro is None:
+        return {"mes": mes, "miembro": None, "campos": [], "dias": [],
+                "detalle": "No encontramos tu nombre en el equipo del CRM. Pedile a Franco que lo cargue."}
+
+    tabla = f"{rol}_report"
+    filas = crm_db.consultar(
+        f"SELECT id, fecha, notas, {', '.join(campos)} FROM {tabla} "
+        f"WHERE member_id = %s AND fecha >= %s AND fecha < %s ORDER BY fecha",
+        (miembro["id"], inicio, fin),
+    )
+    por_fecha = {f["fecha"]: f for f in filas}
+
+    dias = []
+    d = inicio
+    while d < fin:
+        r = por_fecha.get(d)
+        dias.append({
+            "fecha": d.isoformat(),
+            "diaSemana": d.weekday(),
+            "futuro": d > hoy,
+            "hoy": d == hoy,
+            "cargado": r is not None,
+            "valores": {c: _num(r[c]) for c in campos} if r else {c: 0 for c in campos},
+            "nota": (r["notas"] or "") if r else "",
+            "total": round(sum(_num(r[c]) for c in campos), 2) if r else 0,
+        })
+        d += timedelta(days=1)
+
+    pasados = [x for x in dias if not x["futuro"]]
+    return {
+        "mes": mes,
+        "miembro": {"id": miembro["id"], "nombre": miembro["nombre"], "rol": miembro["rol"]},
+        "campos": [{"id": c, "label": ETIQUETAS_REPORTE.get(c, c)} for c in campos],
+        "dias": dias,
+        "resumen": {
+            "cargados": sum(1 for x in pasados if x["cargado"]),
+            "faltan": sum(1 for x in pasados if not x["cargado"]),
+            "totales": {c: round(sum(x["valores"][c] for x in dias), 2) for c in campos},
+        },
+    }
+
+
+def guardar_reporte(fecha: str, datos: dict, usuario: dict, rol: str = "setter") -> dict:
+    """Crea o corrige el reporte de un día. Se guarda en el CRM, igual que si lo cargara
+    desde ATV Marketing."""
+    try:
+        dia = datetime.strptime(str(fecha)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Fecha inválida.")
+    if dia > datetime.now(AR_TZ).date():
+        raise HTTPException(status_code=400, detail="No se puede cargar un día que todavía no pasó.")
+    miembro = _miembro(usuario, rol)
+    if miembro is None:
+        raise HTTPException(status_code=400, detail="No encontramos tu nombre en el equipo del CRM.")
+
+    campos = CAMPOS_REPORTE[rol]
+    valores = {}
+    for c in campos:
+        try:
+            valores[c] = max(0, float(datos.get(c) or 0))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{ETIQUETAS_REPORTE.get(c, c)} tiene que ser un número.")
+    nota = str(datos.get("nota") or datos.get("notas") or "").strip()[:2000]
+
+    tabla = f"{rol}_report"
+    existe = crm_db.consultar(f"SELECT id FROM {tabla} WHERE member_id = %s AND fecha = %s", (miembro["id"], dia))
+    asignaciones = ", ".join(f"{c} = %s" for c in campos)
+    if existe:
+        crm_db.ejecutar(
+            f"UPDATE {tabla} SET {asignaciones}, notas = %s WHERE id = %s",
+            (*[valores[c] for c in campos], nota, existe[0]["id"]),
+        )
+    else:
+        columnas = ", ".join(campos)
+        marcas = ", ".join(["%s"] * len(campos))
+        crm_db.ejecutar(
+            f"INSERT INTO {tabla} (user_id, member_id, fecha, {columnas}, notas, created_at) "
+            f"VALUES (%s, %s, %s, {marcas}, %s, now())",
+            (miembro["user_id"], miembro["id"], dia, *[valores[c] for c in campos], nota),
+        )
+    logger.info("Reporte %s de %s (%s) guardado por %s", dia, miembro["nombre"], rol, usuario.get("username"))
+    _cache.clear()
+    return mis_reportes(usuario, dia.strftime("%Y-%m"), rol)

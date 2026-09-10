@@ -94,8 +94,14 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       actions={
         <div className="ventas-cal-actions">
           {onActualizar && (
-            <button type="button" className="btn sm" onClick={onActualizar} disabled={actualizando}>
-              {actualizando ? '…' : '⟳'}
+            <button
+              type="button"
+              className={`btn sm recargar${actualizando ? ' girando' : ''}`}
+              onClick={onActualizar}
+              disabled={actualizando}
+              aria-label="Actualizar"
+            >
+              ⟳
             </button>
           )}
           <button type="button" className="btn sm" onClick={() => navegar(-1)}>

@@ -24,7 +24,9 @@ export default function VentasCloser() {
         actions={
           <>
             <SourceTag sourceId="mkt_crm" updatedAt={vista?.generadoAt} />
-            <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }}>Actualizar</button>
+            <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }} disabled={loading}>
+              <span className={`recargar-icono${loading ? ' girando' : ''}`}>⟳</span> Actualizar
+            </button>
           </>
         }
       />

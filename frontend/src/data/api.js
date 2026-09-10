@@ -816,6 +816,22 @@ export async function guardarResultadoLlamada(leadId, payload) {
   });
 }
 
+/** Los días del mes con y sin reporte cargado (rojo / verde en el calendario). */
+export async function getMisReportes({ mes, rol = 'setter' } = {}) {
+  const q = new URLSearchParams({ rol });
+  if (mes) q.set('mes', mes);
+  return pedir(`/api/ventas/mis-reportes?${q}`);
+}
+
+/** Carga o corrige el reporte de un día. */
+export async function guardarReporteDia(fecha, payload, rol = 'setter') {
+  return pedir(`/api/ventas/mis-reportes/${fecha}?rol=${rol}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 /** Catálogo de programas con su precio (la facturación de cada venta). */
 export async function getProgramas() {
   return pedir('/api/ventas/programas');

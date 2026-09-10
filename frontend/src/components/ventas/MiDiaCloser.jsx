@@ -61,12 +61,17 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, onCerrar }) {
 /** El mismo calendario de Google que ve el director de ventas. */
 function CalendarioReal() {
   const [detalle, setDetalle] = useState(null);
-  const { data, loading, error } = useResource(() => getLlamadosAgenda({ dias: 21, diasAtras: 7 }), []);
+  const [tick, setTick] = useState(0);
+  const { data, loading, error } = useResource(
+    () => getLlamadosAgenda({ dias: 21, diasAtras: 7, refrescar: tick > 0 }),
+    [tick],
+  );
 
   if (error) {
     return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">{error.message}</div></Card>;
   }
-  if (loading || !data) return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">Cargando…</div></Card>;
+  // Al refrescar no se desmonta el calendario: queda visible y gira el botón.
+  if (!data) return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">Cargando…</div></Card>;
 
   return (
     <>
@@ -74,6 +79,8 @@ function CalendarioReal() {
         llamados={data.llamados ?? []}
         onSelect={setDetalle}
         sub={`${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
+        actualizando={loading}
+        onActualizar={() => setTick((t) => t + 1)}
       />
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
     </>

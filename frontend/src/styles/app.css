@@ -5171,3 +5171,23 @@ button.lista-item:hover { background: var(--surface-2); }
 .pendiente-descartar:hover { color: var(--brand-hi); }
 body.gate-abierto { overflow: hidden; }
 body.gate-abierto .shell { display: none; }
+.reportes-grilla { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.reportes-label { text-align: center; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; padding-bottom: 2px; }
+.reportes-dia { display: grid; align-content: center; justify-items: center; gap: 2px; min-height: 58px; border-radius: var(--radius-sm); border: 1px solid var(--border-soft); background: var(--surface-2); color: var(--text); cursor: pointer; padding: 6px 2px; }
+.reportes-dia.vacio { border: none; background: none; cursor: default; }
+.reportes-dia.futuro { opacity: 0.32; cursor: default; }
+.reportes-dia.falta { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 16%, var(--surface-2)); }
+.reportes-dia.cargado { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 14%, var(--surface-2)); }
+.reportes-dia.hoy { outline: 1px solid var(--text-3); outline-offset: 1px; }
+.reportes-dia:not(.futuro):not(.vacio):hover { border-color: var(--text-2); }
+.reportes-num { font-size: 14px; font-weight: 600; }
+.reportes-dato { font-size: 10.5px; color: var(--text-3); }
+.reporte-dia { max-width: 560px; width: 100%; display: grid; gap: var(--space-4); }
+.reporte-dia header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.reporte-dia header h3 { margin: 0 0 3px; font-size: 17px; text-transform: capitalize; }
+.reporte-dia header p { margin: 0; font-size: 12.5px; }
+.reporte-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
+.btn.recargar.girando { animation: girar 0.9s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.recargar-icono { display: inline-block; margin-right: 5px; }
+.recargar-icono.girando { animation: girar 0.9s linear infinite; }

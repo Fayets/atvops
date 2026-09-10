@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import CalendarioReportes from '../components/ventas/CalendarioReportes.jsx';
 import SetterVista from '../components/ventas/SetterVista.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import { completarReporteSetter, getSetterDashboard } from '../data/api.js';
@@ -58,7 +59,10 @@ export default function VentasSetter() {
           <SkeletonBlock height={220} />
         </>
       ) : (
-        <SetterVista data={data} onCompletarReporte={onCompletarReporte} />
+        <>
+          <CalendarioReportes rol="setter" />
+          <SetterVista data={data} onCompletarReporte={onCompletarReporte} />
+        </>
       )}
     </div>
   );

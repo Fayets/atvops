@@ -64,6 +64,28 @@ def mis_llamadas(user: dict = Depends(get_current_user), closer: str | None = No
         raise HTTPException(status_code=500, detail="Error inesperado al leer tus llamadas.")
 
 
+@router.get("/mis-reportes")
+def mis_reportes(user: dict = Depends(get_current_user), mes: str | None = None, rol: str = "setter"):
+    """Los días del mes con y sin reporte cargado."""
+    try:
+        return ventas.mis_reportes(user, mes=mes, rol=rol if rol in ("setter", "closer") else "setter")
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer tus reportes.")
+
+
+@router.post("/mis-reportes/{fecha}")
+def guardar_reporte(fecha: str, user: dict = Depends(get_current_user), payload: dict = Body(...), rol: str = "setter"):
+    """Carga o corrige el reporte de un día."""
+    try:
+        return ventas.guardar_reporte(fecha, payload, user, rol=rol if rol in ("setter", "closer") else "setter")
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al guardar el reporte.")
+
+
 @router.post("/llamadas/{lead_id}/resultado")
 def registrar_resultado(lead_id: int, user: dict = Depends(get_current_user), payload: dict = Body(...)):
     """El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó."""
