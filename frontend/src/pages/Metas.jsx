@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import MetaMesForm from '../components/metas/MetaMesForm.jsx';
+import DependeDelEquipo from '../components/metas/DependeDelEquipo.jsx';
 import MetasIndividuales from '../components/metas/MetasIndividuales.jsx';
 import MetasPersonales from '../components/metas/MetasPersonales.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
@@ -253,6 +254,14 @@ export default function Metas() {
           {bloquesIndividuales.map((b) => (
             <MetasIndividuales key={b.id} {...b} esperado={esperadoDelMes} />
           ))}
+          {ventas.data?.actual && (
+            <DependeDelEquipo
+              decreto={decreto}
+              actual={ventas.data.actual}
+              semanasRestantes={Math.max(Math.ceil(((ctx.diasMes || 30) - ctx.diaHoy) / 7), 0)}
+              setters={(ventas.data.porSetter ?? []).filter((x) => x.nombre !== 'Sin asignar')}
+            />
+          )}
         </>
       )}
     </div>

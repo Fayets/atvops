@@ -5122,6 +5122,13 @@ button.lista-item:hover { background: var(--surface-2); }
 /* Metas individuales: una fila por persona, la misma grilla en todas, y una barra que
    dice de un vistazo si va en ritmo con lo que lleva transcurrido el mes. */
 .meta-ind-tabla { display: grid; }
+/* La cadena que explica de qué depende el cierre: cierres → shows → agendas. */
+.depende-cadena { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
+.depende-paso { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13.5px;
+  padding-left: var(--space-3); border-left: 2px solid var(--border); }
+.depende-paso strong { font-size: 15px; }
+.depende-cierre p { margin: 0 0 6px; font-size: 13px; line-height: 1.5; }
+.depende-cierre p:last-child { margin-bottom: 0; font-size: 12.5px; }
 .meta-ind-fila { display: grid; grid-template-columns: minmax(120px, 1.4fr) repeat(auto-fit, minmax(120px, 1fr));
   gap: var(--space-4); align-items: start; padding: 12px var(--space-4); border-bottom: 1px solid var(--border-soft); }
 .meta-ind-fila:last-child { border-bottom: none; }
