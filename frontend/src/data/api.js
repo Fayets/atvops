@@ -783,6 +783,18 @@ export async function guardarResultadoLlamada(leadId, payload, mes) {
 }
 
 /**
+ * Para cada reunión del calendario, si ya tiene el resultado cargado y con qué id.
+ * El calendario del equipo lo usa para pintar lo cargado y para editarlo ahí mismo.
+ */
+export async function getEstadoReuniones({ desde, hasta } = {}) {
+  const q = new URLSearchParams();
+  if (desde) q.set('desde', desde);
+  if (hasta) q.set('hasta', hasta);
+  const cola = q.toString();
+  return pedir(`/api/ventas/reuniones${cola ? `?${cola}` : ''}`);
+}
+
+/**
  * Saca una llamada de la lista y de las métricas, o la devuelve con recuperar=true.
  * No borra la fila del CRM: la llamada queda en el filtro "Descartadas" con todo lo que tenía.
  */

@@ -114,6 +114,24 @@ def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recu
         raise HTTPException(status_code=500, detail="Error inesperado al borrar la llamada.")
 
 
+@router.get("/reuniones")
+def reuniones(_user: dict = Depends(get_current_user), desde: str | None = None, hasta: str | None = None):
+    """Estado de cada reunión del calendario, para pintarlo y editarlo desde el calendario."""
+    from datetime import date as _date, timedelta as _td
+
+    try:
+        hoy = _date.today()
+        d0 = _date.fromisoformat(desde) if desde else hoy - _td(days=7)
+        d1 = _date.fromisoformat(hasta) if hasta else hoy + _td(days=21)
+        if d1 < d0:
+            d0, d1 = d1, d0
+        return ventas.estado_de_las_reuniones(d0, min(d1 + _td(days=1), d0 + _td(days=120)))
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer las reuniones.")
+
+
 @router.get("/mi-setting")
 def mi_setting(user: dict = Depends(get_current_user), mes: str | None = None):
     """Los números del setter: hoy, el mes y las llamadas que agendó."""

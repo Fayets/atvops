@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import VentasOperativa from '../components/ventas/VentasOperativa.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import { getLlamadosAgenda, getVentas } from '../data/api.js';
+import { getEstadoReuniones, getLlamadosAgenda, getVentas } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
 import { useMes } from '../lib/MesContext.jsx';
 
@@ -15,6 +15,11 @@ export default function VentasOperativaPage() {
   const onRango = useCallback((desde, hasta) => setRango({ desde, hasta }), []);
   const { data: agenda, loading: cargandoAgenda, error: agendaError } = useResource(
     () => getLlamadosAgenda({ refrescar: tick > 0, ...(rango ?? {}) }),
+    [tick, rango?.desde, rango?.hasta],
+  );
+  // Qué reunión ya tiene resultado cargado, para pintarla y poder editarla ahí mismo.
+  const { data: reuniones } = useResource(
+    () => (rango ? getEstadoReuniones(rango) : Promise.resolve(null)),
     [tick, rango?.desde, rango?.hasta],
   );
 
@@ -41,6 +46,8 @@ export default function VentasOperativaPage() {
           actualizando={cargandoAgenda}
           onActualizar={() => setTick((t) => t + 1)}
           onRango={onRango}
+          reuniones={reuniones}
+          onCargado={() => setTick((t) => t + 1)}
         />
       )}
     </div>

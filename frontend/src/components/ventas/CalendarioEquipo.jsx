@@ -33,11 +33,15 @@ function parseAt(iso) {
  * Calendario del equipo: semana o mes con las llamadas reales del Google Calendar de ATV.
  * Avisa por `onRango` qué días está mostrando, para que la página traiga del calendario
  * ese rango y no queden días vacíos al navegar hacia atrás o hacia adelante.
+ * `estados` trae, por id de evento, el resultado que el closer ya cargó: esas reuniones
+ * quedan pintadas y con doble click se les edita el estado sin salir del calendario.
  * @param {{ llamados: object[], onSelect: (l: object) => void, sub?: string,
  *           actualizando?: boolean, onActualizar?: () => void,
- *           onRango?: (desde: string, hasta: string) => void }} props
+ *           onRango?: (desde: string, hasta: string) => void,
+ *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void }} props
  */
-export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango }) {
+export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
+                                           estados, onEditar }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -76,6 +80,18 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   }, [llamados]);
 
   const keyDe = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+  // Una reunión "cargada" es la que ya tiene resultado en el CRM: se pinta distinto.
+  const estadoDe = (l) => estados?.[l.id];
+  const clasesDe = (l) => {
+    const e = estadoDe(l);
+    if (!e) return '';
+    return e.resultado ? ' cargada' : (e.estado === 'sin_crm' ? ' sin-crm' : '');
+  };
+  const abrirEditor = (l) => {
+    const e = estadoDe(l);
+    if (e && onEditar) onEditar(l, e);
+  };
 
   // El rango visible, en fecha local, para pedirle al backend exactamente esos días.
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -156,12 +172,18 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                         <button
                           key={l.id}
                           type="button"
-                          className={`ventas-cal-ev estado-${l.estado}`}
+                          className={`ventas-cal-ev estado-${l.estado}${clasesDe(l)}`}
                           onClick={() => onSelect(l)}
+                          onDoubleClick={() => abrirEditor(l)}
+                          title={estadoDe(l)?.resultado
+                            ? `${estadoDe(l).resultado} · doble click para cambiarlo`
+                            : (estadoDe(l) ? 'Doble click para cargar el resultado' : undefined)}
                         >
                           <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
                           <span className="who">{l.prospecto}</span>
-                          <span className="meta">{l.oferta}{l.facturacion ? ` · ${l.facturacion}` : ''}</span>
+                          <span className="meta">
+                            {estadoDe(l)?.resultado || `${l.oferta}${l.facturacion ? ` · ${l.facturacion}` : ''}`}
+                          </span>
                         </button>
                       ))
                     )}
@@ -190,9 +212,10 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                     <button
                       key={l.id}
                       type="button"
-                      className={`ventas-cal-ev mini estado-${l.estado}`}
+                      className={`ventas-cal-ev mini estado-${l.estado}${clasesDe(l)}`}
                       onClick={() => onSelect(l)}
-                      title={`${l.prospecto} · ${l.oferta}`}
+                      onDoubleClick={() => abrirEditor(l)}
+                      title={`${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
                     >
                       {l.prospecto.split(' ')[0]}
                     </button>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import EditorReunion from './EditorReunion.jsx';
 import CalendarioEquipo, { ESTADO } from './CalendarioEquipo.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
@@ -42,7 +43,9 @@ function urgenciaFollow(dias) {
  * Vista operativa día a día del Director de Ventas.
  * @param {{ data: object }} props
  */
-export default function VentasOperativa({ data, agenda, agendaError, actualizando, onActualizar, onRango }) {
+export default function VentasOperativa({ data, agenda, agendaError, actualizando, onActualizar, onRango,
+                                          reuniones, onCargado }) {
+  const [editando, setEditando] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const [filtroEvento, setFiltroEvento] = useState('todos');
   const [filtroTipo, setFiltroTipo] = useState('todos');
@@ -94,6 +97,8 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
           actualizando={actualizando}
           onActualizar={onActualizar}
           onRango={onRango}
+          estados={reuniones?.porEvento}
+          onEditar={(reunion, estado) => setEditando({ reunion, estado })}
         />
       )}
 
@@ -239,6 +244,16 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
       </Card>
 
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
+      {editando && (
+        <EditorReunion
+          reunion={editando.reunion}
+          estado={editando.estado}
+          programas={reuniones?.programas ?? []}
+          estados={reuniones?.estados ?? []}
+          onGuardado={onCargado}
+          onCerrar={() => setEditando(null)}
+        />
+      )}
     </div>
   );
 }

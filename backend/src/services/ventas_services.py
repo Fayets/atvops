@@ -194,6 +194,7 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         # La fecha buena es la del calendario: ahí se ven las reprogramaciones.
         filas[i]["call"] = reuniones[j]["_cuando"]
         filas[i]["segunda"] = reuniones[j]["segunda"]
+        filas[i]["eventoId"] = reuniones[j]["eventoId"]
 
     conocidos: dict[str, dict] = {}
     for f in filas:
@@ -220,10 +221,48 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
             "vino_de_ads": False, "notas": r["titulo"], "created_at": None,
             "resultado": "", "calificacion": "", "closer_report": "", "link_llamada": "",
             "soloCalendario": True, "segunda": r["segunda"], "url": r.get("url"),
+            "eventoId": r["eventoId"],
         })
     if extras:
         logger.info("Calendario: %s reuniones que el CRM no registró", len(extras))
     return sorted(filas + extras, key=lambda f: f["call"])
+
+
+def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
+    """Para cada reunión del calendario, si ya tiene el resultado cargado y con qué id.
+
+    Lo usa el calendario del equipo para pintar lo que ya está cargado y para poder
+    actualizarlo ahí mismo, sin pasar por la lista de un closer en particular.
+    """
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
+    filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    por_evento = {}
+    for f in filas:
+        evento = f.get("eventoId")
+        if not evento:
+            continue
+        programa = (f.get("programa_ofrecido") or "").strip()
+        por_evento[evento] = {
+            "id": f["id"],
+            "prospecto": (f.get("nombre") or "").strip(),
+            "fechaAt": f["call"].isoformat(),
+            "resultado": (f.get("resultado") or "").strip(),
+            "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
+                                  f.get("soloCalendario", False)),
+            "closer": f.get("closer") or "", "setter": f.get("setter") or "",
+            "programa": programa,
+            "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
+            "cashUsd": _num(f.get("pago")), "saldoUsd": _num(f.get("debe")),
+            "reporte": (f.get("closer_report") or "").strip(),
+            "segunda": bool(f.get("segunda")),
+        }
+    return {
+        "generadoAt": datetime.now(AR_TZ).isoformat(),
+        "desde": desde.isoformat(), "hasta": hasta.isoformat(),
+        "programas": programas(), "estados": list(ESTADOS_LLAMADA),
+        "porEvento": por_evento,
+    }
 
 
 def _equipo() -> list[dict]:

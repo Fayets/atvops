@@ -5119,6 +5119,17 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-derecha { display: flex; align-items: center; gap: 8px; }
 .llamada-form { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-4); }
 .llamada-estados { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Cargar el resultado desde el calendario: el mismo formulario, en una ficha más ancha. */
+.editor-reunion { width: min(560px, 100%); display: grid; gap: var(--space-3); }
+.editor-reunion .modal-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.editor-reunion .modal-cab .dim { font-size: 12px; text-transform: none; }
+.editor-reunion-aviso { font-size: 12px; }
+.editor-reunion .llamada-form { padding: 0; border: 0; }
+/* La reunión que ya tiene resultado cargado se distingue de un vistazo. */
+.ventas-cal-ev.cargada { background: var(--cal-cargada-bg, #dbeafe); border-color: var(--cal-cargada-borde, #93c5fd); }
+.ventas-cal-ev.cargada .who { font-weight: 600; }
+.ventas-cal-ev.cargada .meta { color: var(--cal-cargada-texto, #1d4ed8); text-transform: none; }
+.ventas-cal-ev.sin-crm { border-style: dashed; }
 /* Borrar una llamada pide confirmación en la misma fila, sin sacar al closer de la lista. */
 .llamada-confirmar { display: inline-flex; align-items: center; gap: 6px; }
 .llamada-confirmar .dim { font-size: 12px; white-space: nowrap; }

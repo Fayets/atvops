@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import CalendarioEquipo from './CalendarioEquipo.jsx';
+import EditorReunion from './EditorReunion.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
 import { formatValue } from '../../lib/format.js';
-import { getLlamadosAgenda } from '../../data/api.js';
+import { getEstadoReuniones, getLlamadosAgenda } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 
 const pct = (v) => (v == null ? '—' : `${v}%`);
@@ -69,6 +70,11 @@ function CalendarioReal() {
     [tick, rango?.desde, rango?.hasta],
   );
   const onRango = useCallback((desde, hasta) => setRango({ desde, hasta }), []);
+  const [editando, setEditando] = useState(null);
+  const { data: reuniones } = useResource(
+    () => (rango ? getEstadoReuniones(rango) : Promise.resolve(null)),
+    [tick, rango?.desde, rango?.hasta],
+  );
 
   if (error) {
     return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">{error.message}</div></Card>;
@@ -85,8 +91,20 @@ function CalendarioReal() {
         actualizando={loading}
         onActualizar={() => setTick((t) => t + 1)}
         onRango={onRango}
+        estados={reuniones?.porEvento}
+        onEditar={(reunion, estado) => setEditando({ reunion, estado })}
       />
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
+      {editando && (
+        <EditorReunion
+          reunion={editando.reunion}
+          estado={editando.estado}
+          programas={reuniones?.programas ?? []}
+          estados={reuniones?.estados ?? []}
+          onGuardado={() => setTick((t) => t + 1)}
+          onCerrar={() => setEditando(null)}
+        />
+      )}
     </>
   );
 }

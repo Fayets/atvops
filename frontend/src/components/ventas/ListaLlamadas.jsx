@@ -29,7 +29,7 @@ const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit
 const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
-function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes }) {
+export function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes }) {
   const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
