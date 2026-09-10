@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from decouple import config
 from fastapi import HTTPException

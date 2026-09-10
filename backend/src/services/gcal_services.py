@@ -13,7 +13,6 @@ Solo lectura. Se cachea 5 minutos para no pegarle a Google en cada carga de la v
 
 from __future__ import annotations
 
-from contextlib import closing
 import html
 import json
 import logging
@@ -56,14 +55,9 @@ def _filas_conexion() -> list:
     sql = f"SELECT credentials FROM {CONEXION_SCHEMA}.apiconnection WHERE platform = 'google_calendar'"
     if CONEXION_DSN:
         try:
-            import psycopg2
-        except ImportError:
-            logger.info("Falta psycopg2 para leer la conexión de atv-mkt.")
-            return []
-        try:
-            with closing(psycopg2.connect(CONEXION_DSN, connect_timeout=8)) as cnx, cnx, cnx.cursor() as cur:
-                cur.execute(sql)
-                return cur.fetchall()
+            from src.services import pg_pool
+
+            return [(f["credentials"],) for f in pg_pool.consultar(CONEXION_DSN, sql)]
         except Exception as e:  # noqa: BLE001
             logger.info("No se pudo leer la conexión de atv-mkt por DSN: %s", str(e)[:200])
             return []

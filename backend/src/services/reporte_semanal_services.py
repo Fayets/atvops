@@ -52,16 +52,21 @@ def _semana_de(texto: str | None) -> date:
         return _lunes(hoy)
 
 
-def _bloque_ventas(desde: date, hasta: date) -> dict:
-    """Las llamadas con fecha en el rango, con la misma definición que usa Ventas."""
+def _bloque_ventas(desde: date, hasta: date, todas: list[dict] | None = None) -> dict:
+    """Las llamadas con fecha en el rango, con la misma definición que usa Ventas.
+
+    `todas` son las llamadas ya cruzadas con el calendario para un rango más amplio: así
+    el reporte lee el CRM y Google una sola vez y corta por fecha tres veces, en vez de
+    pedir tres rangos distintos (cada uno costaba una llamada a Google).
+    """
     if not crm_db.disponible():
         return {"agendadas": 0, "shows": 0, "noShows": 0, "sinReportar": 0, "sinCrm": 0, "cierres": 0,
                 "cashUsd": 0, "facturacionUsd": 0, "showRate": None, "closeRate": None, "aovUsd": 0,
                 "porCloser": [], "ventas": []}
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
-    # _leads ya convierte las fechas a hora de Argentina; el calendario completa las
-    # reuniones que el CRM no guarda (una segunda le pisa la fecha a la primera, o no entra).
-    filas = ventas._sumar_reuniones_del_calendario(ventas._leads(desde, hasta), desde, hasta)
+    if todas is None:
+        todas = ventas._sumar_reuniones_del_calendario(ventas._leads(desde, hasta), desde, hasta)
+    filas = [f for f in todas if desde <= f["call"].date() < hasta]
     precios = {ventas._norm(p["nombre"]): p["precioUsd"] for p in ventas.programas()}
     clases = [ventas._clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
                                  f.get("soloCalendario", False)) for f in filas]
@@ -247,6 +252,13 @@ def reporte(semana: str | None = None, refrescar: bool = False) -> dict:
         cursor += timedelta(days=7)
     restantes = [s for s in semanas_mes if s > inicio and s <= _lunes(mes_fin - timedelta(days=1))]
 
+    # Una sola lectura del CRM y del calendario que cubre la semana previa, la actual y el
+    # mes; cada bloque corta por fecha. Antes eran tres lecturas y tres llamadas a Google.
+    rango_desde = min(previa_inicio, mes_inicio)
+    rango_hasta = max(fin, corte_mes)
+    llamadas = (ventas._sumar_reuniones_del_calendario(ventas._leads(rango_desde, rango_hasta), rango_desde, rango_hasta)
+                if crm_db.disponible() else [])
+
     data = {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "semana": {
@@ -263,9 +275,9 @@ def reporte(semana: str | None = None, refrescar: bool = False) -> dict:
             "diaHoy": (hoy - mes_inicio).days + 1 if mes_inicio <= hoy < mes_fin else (mes_fin - mes_inicio).days,
             "diasMes": (mes_fin - mes_inicio).days,
         },
-        "ventas": _bloque_ventas(inicio, fin),
-        "ventasPrevia": _bloque_ventas(previa_inicio, inicio),
-        "ventasMes": _bloque_ventas(mes_inicio, corte_mes),
+        "ventas": _bloque_ventas(inicio, fin, llamadas),
+        "ventasPrevia": _bloque_ventas(previa_inicio, inicio, llamadas),
+        "ventasMes": _bloque_ventas(mes_inicio, corte_mes, llamadas),
         "marketing": _bloque_marketing(inicio, fin),
         "marketingPrevia": _bloque_marketing(previa_inicio, inicio),
         "marketingMes": _bloque_marketing(mes_inicio, corte_mes),

@@ -46,6 +46,13 @@ def _norm(t: str | None) -> str:
     return " ".join(t.split())
 
 
+# Normalizados una sola vez: _clasificar corre para cada fila de cada vista.
+_DESCARTE_N = frozenset(_norm(x) for x in DESCARTE)
+_NO_SHOW_N = frozenset(_norm(x) for x in NO_SHOW)
+_CIERRE_N = frozenset(_norm(x) for x in CIERRE)
+_CON_RESULTADO_N = frozenset(_norm(x) for x in CON_RESULTADO)
+
+
 def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime,
                 solo_calendario: bool = False, duplicada: bool = False) -> str:
     # La reunión que está en el calendario pero no en el CRM cuenta como agendada del mes,
@@ -56,7 +63,7 @@ def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora:
     if duplicada:
         return "duplicada"
     r = _norm(resultado)
-    if r in [_norm(x) for x in DESCARTE]:
+    if r in _DESCARTE_N:
         return "descartada"
     # Una reunión que todavía no pasó no tiene resultado, aunque el lead traiga uno de
     # una reunión anterior: el sync de atv-mkt le mueve la fecha a la llamada vieja.
@@ -64,11 +71,11 @@ def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora:
         return "agendado"
     if r in [_norm(x) for x in DESCARTE]:
         return "descartada"
-    if r in [_norm(x) for x in NO_SHOW]:
+    if r in _NO_SHOW_N:
         return "no_show"
-    if r in [_norm(x) for x in CIERRE]:
+    if r in _CIERRE_N:
         return "cierre"
-    if r in [_norm(x) for x in CON_RESULTADO] or _norm(calificacion):
+    if r in _CON_RESULTADO_N or _norm(calificacion):
         return "show"
     if call is not None and call <= ahora:
         return "sin_reportar"
@@ -159,7 +166,7 @@ def _referencias(evento_ids: list[str]) -> dict[str, int]:
     """Qué llamada del CRM quedó atada a cada reunión del calendario."""
     if not evento_ids:
         return {}
-    from pony.orm import db_session, desc, select
+    from pony.orm import db_session, select
 
     from src.models import ReunionCrm
 
@@ -219,7 +226,7 @@ def _atar_reunion(evento_id: str, lead_id: int, prospecto: str, inicio: datetime
 
 def _propias(evento_ids: list[str], lead_ids: list[int]) -> dict:
     """Lo que ATV Ops tiene cargado de esas reuniones. Manda sobre el CRM."""
-    from pony.orm import db_session, desc, select
+    from pony.orm import db_session, select
 
     from src.models import ReunionCrm
 
@@ -286,7 +293,7 @@ def _aplicar_lo_propio(filas: list[dict]) -> list[dict]:
 def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
     """Las llamadas que viven solo en ATV Ops: las que se cargaron a mano y las que se
     crearon desde el calendario. No existen en el CRM viejo y no tienen por qué existir."""
-    from pony.orm import db_session, desc, select
+    from pony.orm import db_session, select
 
     from src.models import ReunionCrm
 
@@ -507,7 +514,7 @@ def _gente_del_rol(rol: str) -> list[str]:
     trabajan acá, así que mirar ahí muestra gente que no existe.
     """
     try:
-        from pony.orm import db_session, desc, select
+        from pony.orm import db_session, select
 
         from src.models import Usuario
 
@@ -757,13 +764,16 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     inicio_mes = date(anio, m, 1)
     fin_mes = date(anio + (m == 12), (m % 12) + 1, 1)
     inicio_serie = _semana(hoy) - timedelta(weeks=SEMANAS_SERIE - 1)
-    desde = min(inicio_mes, inicio_serie)
+    mes_previo_inicio = date(anio - (m == 1), 12 if m == 1 else m - 1, 1)
+    # Una sola lectura del CRM y del calendario para todo el rango (serie, mes previo y
+    # mes actual) y después se corta por fecha: pedir dos rangos distintos costaba una
+    # llamada a Google por cada uno.
+    desde = min(inicio_mes, inicio_serie, mes_previo_inicio)
     hasta = max(fin_mes, hoy + timedelta(days=30))
 
     leads = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
     del_mes = [l for l in leads if inicio_mes <= l["call"].date() < fin_mes]
-    mes_previo_inicio = date(anio - (m == 1), 12 if m == 1 else m - 1, 1)
-    previos = _sumar_reuniones_del_calendario(_leads(mes_previo_inicio, inicio_mes), mes_previo_inicio, inicio_mes)
+    previos = [l for l in leads if mes_previo_inicio <= l["call"].date() < inicio_mes]
 
     # Serie semanal
     semanas = []
@@ -945,7 +955,7 @@ ROLES_CARGAN_LLAMADAS = ROLES_PRECIOS | {"ventas", "closer", "setter"}
 
 def _sembrar_programas() -> None:
     """La primera vez copia el catálogo del CRM viejo. Después vive solo acá."""
-    from pony.orm import db_session, desc, select
+    from pony.orm import db_session, select
 
     from src.models import Programa
 
@@ -968,7 +978,7 @@ def _sembrar_programas() -> None:
 def programas() -> list[dict]:
     """Catálogo de programas con su precio: el precio es la facturación de cada venta.
     Vive en la base de ATV Ops; el CRM viejo solo sirvió para sembrarlo."""
-    from pony.orm import db_session, desc, select
+    from pony.orm import db_session, select
 
     from src.models import Programa
 

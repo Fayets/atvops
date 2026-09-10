@@ -1,0 +1,141 @@
+"""
+Tests de la lógica de ventas que no toca ninguna base.
+
+Cubren las reglas que sostienen los números del tablero: cómo se clasifica una llamada,
+qué es una agenda y qué es un seguimiento, cómo se limpian los duplicados del CRM y
+cómo se lee el nombre del prospecto en un título del calendario.
+"""
+
+from datetime import datetime
+
+import pytest
+
+from src.services import gcal_services as g
+from src.services import ventas_services as v
+
+AHORA = datetime(2026, 9, 10, 12, 0)
+AYER = datetime(2026, 9, 9, 10, 0)
+MANANA = datetime(2026, 9, 11, 10, 0)
+
+
+def fila(nombre, call, resultado="", **extra):
+    base = {"id": extra.pop("id", 1), "nombre": nombre, "email": "", "call": call,
+            "resultado": resultado, "calificacion": "", "pago": 0, "debe": 0}
+    base.update(extra)
+    return base
+
+
+# ------------------------------------------------------------------ _clasificar
+
+@pytest.mark.parametrize("resultado, esperado", [
+    ("cerrado", "cierre"),
+    ("seña", "cierre"),
+    ("sena", "cierre"),
+    ("no show", "no_show"),
+    ("cancelada", "no_show"),
+    ("seguimiento", "show"),
+    ("descalificado", "show"),
+    ("re-agenda", "show"),
+    ("descartada", "descartada"),
+    ("no corresponde", "descartada"),
+])
+def test_clasificar_por_resultado(resultado, esperado):
+    assert v._clasificar(resultado, "", AYER, AHORA) == esperado
+
+
+def test_llamada_pasada_sin_resultado_es_deuda_del_closer():
+    assert v._clasificar("", "", AYER, AHORA) == "sin_reportar"
+
+
+def test_llamada_futura_es_agendada_aunque_traiga_resultado_viejo():
+    # El sync de atv-mkt le mueve la fecha a la llamada vieja: el resultado no es de esta.
+    assert v._clasificar("descalificado", "", MANANA, AHORA) == "agendado"
+
+
+def test_solo_calendario_y_duplicada_tienen_su_clase():
+    assert v._clasificar("", "", AYER, AHORA, solo_calendario=True) == "sin_crm"
+    assert v._clasificar("cerrado", "", AYER, AHORA, duplicada=True) == "duplicada"
+
+
+# ------------------------------------------------------------------ _bloque
+
+def test_bloque_separa_cierres_de_senas_y_no_cuenta_seguimientos_como_agenda():
+    leads = [
+        fila("A", AYER, "cerrado", pago=5000),
+        fila("B", AYER, "seña", pago=200),
+        fila("C", AYER, "seguimiento"),
+        fila("D", AYER, "no show"),
+        fila("E", AYER, "seguimiento", seguimiento=True),   # segunda reunión de E
+        fila("F", AYER, "descartada"),
+    ]
+    b = v._bloque(leads, AHORA)
+    assert b["reuniones"] == 5                 # la descartada no cuenta para nada
+    assert b["seguimientos"] == 1
+    assert b["agendados"] == 4                 # el seguimiento no es agenda nueva
+    assert b["shows"] == 4                     # cerrado, seña, seguimiento, seguimiento
+    assert b["noShows"] == 1
+    assert b["cierres"] == 1 and b["senas"] == 1 and b["ventas"] == 2
+    assert b["cashUsd"] == 5200               # la seña suma cash aunque no sea cierre
+    assert b["closeRate"] == 25.0              # 1 cerrado sobre 4 shows
+    assert b["showRate"] == 80.0               # 4 de 5 evaluables
+
+
+def test_bloque_vacio_no_divide_por_cero():
+    b = v._bloque([], AHORA)
+    assert b["showRate"] is None and b["closeRate"] is None and b["averageSaleUsd"] == 0
+
+
+# ------------------------------------------------------------------ nombres
+
+@pytest.mark.parametrize("titulo, nombre, segunda", [
+    ("Fulano and Aumenta Tu Valor", "Fulano", False),
+    ("2da reu Pablo Ingratta and Aumenta Tu Valor", "Pablo Ingratta", True),
+    ("2da reunion Alejandro Cross and Aumenta Tu Valor", "Alejandro Cross", True),
+    ("Alejandro & Aumenta Tu Valor", "Alejandro", False),
+    ("Aumenta Tu Valor & Michael", "Michael", False),
+    ("Rodrigo Soler y Aumenta Tu Valor", "Rodrigo Soler", False),
+])
+def test_prospecto_desde_el_titulo(titulo, nombre, segunda):
+    assert g._prospecto(titulo) == (nombre, segunda)
+
+
+def test_clave_persona_iguala_variantes_del_crm_y_del_calendario():
+    assert v._clave_persona("Martin  and Aumenta Tu Valor") == v._clave_persona("Martin")
+    assert v._clave_persona("2da reu DANILO  and Aumenta Tu Valor") == v._clave_persona("Danilo")
+
+
+# ------------------------------------------------------------------ duplicados
+
+def test_duplicados_dejan_la_fila_con_resultado():
+    a = fila("Martin", AYER, "seguimiento", id=1)
+    b = fila("Martin  and Aumenta Tu Valor", AYER, "agendado", id=2, eventoId="ev1", segunda=False)
+    v._marcar_duplicados([a, b])
+    assert not a.get("duplicada") and b.get("duplicada")
+    assert a["eventoId"] == "ev1"              # la que queda hereda la reunión del calendario
+
+
+def test_dos_reuniones_del_mismo_prospecto_a_distinta_hora_no_son_duplicado():
+    a = fila("Juan", datetime(2026, 9, 8, 9, 0), "seña", id=1)
+    b = fila("Juan", datetime(2026, 9, 8, 20, 0), "no show", id=2)
+    v._marcar_duplicados([a, b])
+    assert not a.get("duplicada") and not b.get("duplicada")
+
+
+# ------------------------------------------------------------------ seguimientos
+
+def test_seguimiento_es_toda_reunion_posterior_a_la_primera(monkeypatch):
+    monkeypatch.setattr(v, "_primera_reunion_de_cada_uno", lambda: {v._clave_persona("Danilo"): datetime(2026, 8, 20, 10, 0)})
+    sep3 = fila("DANILO", datetime(2026, 9, 3, 14, 0), "descalificado", id=1)
+    sep11 = fila("DANILO", datetime(2026, 9, 11, 13, 0), "", id=2)
+    nuevo = fila("Alguien Nuevo", datetime(2026, 9, 5, 9, 0), "", id=3)
+    v._marcar_seguimientos([sep3, sep11, nuevo])
+    assert sep3["seguimiento"] and sep11["seguimiento"]   # Danilo ya tuvo una en agosto
+    assert nuevo["seguimiento"] is False                  # su primera reunión
+
+
+# ------------------------------------------------------------------ zona horaria
+
+def test_el_crm_guarda_utc_y_se_muestra_en_argentina():
+    assert v._a_argentina(datetime(2026, 9, 3, 0, 0)) == datetime(2026, 9, 2, 21, 0)
+    assert v._a_utc(datetime(2026, 9, 2, 21, 0)) == datetime(2026, 9, 3, 0, 0)
+    assert v._a_argentina(None) is None

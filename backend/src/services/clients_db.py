@@ -8,7 +8,6 @@ dos, las vistas muestran cero en vez de inventar números.
 
 from __future__ import annotations
 
-from contextlib import closing
 import logging
 
 from decouple import config
@@ -34,12 +33,9 @@ def consultar(sql: str, params: tuple | None = None) -> list[dict]:
     dsn = _dsn()
     if dsn:
         try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
+            from src.services import pg_pool
 
-            with closing(psycopg2.connect(dsn, connect_timeout=10)) as cnx, cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(sql, params or ())
-                return [dict(f) for f in cur.fetchall()]
+            return pg_pool.consultar(dsn, sql, params)
         except Exception as e:  # noqa: BLE001
             logger.info("Clients por DSN: %s", str(e)[:200])
             return []

@@ -8,11 +8,12 @@ Nunca escribe: ATV Ops solo lee para mostrar métricas.
 
 from __future__ import annotations
 
-from contextlib import closing
 import logging
 
 from decouple import config
 from fastapi import HTTPException
+
+from src.services import pg_pool
 
 logger = logging.getLogger("atv_ops.crm")
 
@@ -35,57 +36,39 @@ def disponible() -> bool:
         return False
 
 
+def _traducir(e: Exception, que: str) -> HTTPException:
+    return HTTPException(status_code=502, detail=f"{que}: {str(e)[:160]}")
+
+
 def ejecutar(sql: str, params: tuple | dict | None = None) -> int:
-    """Guarda en el CRM lo que el equipo carga desde Ops: el resultado de una llamada
-    y el catálogo de programas. El resto del acceso es de solo lectura."""
+    """UPDATE o DELETE en el CRM. Lo usan solo los scripts de limpieza: el sistema ya no
+    le escribe nada al CRM viejo."""
     try:
-        import psycopg2
-    except ImportError as e:
-        raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
-    try:
-        with closing(psycopg2.connect(dsn(), connect_timeout=10)) as cnx, cnx, cnx.cursor() as cur:
-            cur.execute(sql, params or ())
-            return cur.rowcount
+        return pg_pool.ejecutar(dsn(), sql, params)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
         logger.warning("CRM escritura: %s", str(e)[:200])
-        raise HTTPException(status_code=502, detail=f"No se pudo escribir en el CRM: {str(e)[:160]}") from e
+        raise _traducir(e, "No se pudo escribir en el CRM") from e
 
 
 def insertar(sql: str, params: tuple | dict | None = None) -> list[dict]:
-    """Corre un INSERT con RETURNING y devuelve lo que la base contesta.
-    Se usa para crear en el CRM la reunión que solo existía en el calendario."""
+    """INSERT con RETURNING. Queda por si un script lo necesita."""
     try:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-    except ImportError as e:
-        raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
-    try:
-        with closing(psycopg2.connect(dsn(), connect_timeout=10)) as cnx, cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params or ())
-            filas = [dict(f) for f in cur.fetchall()]
-        return filas
+        return pg_pool.consultar(dsn(), sql, params)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
         logger.warning("CRM escritura: %s", str(e)[:200])
-        raise HTTPException(status_code=502, detail=f"No se pudo escribir en el CRM: {str(e)[:160]}") from e
+        raise _traducir(e, "No se pudo escribir en el CRM") from e
 
 
 def consultar(sql: str, params: tuple | dict | None = None) -> list[dict]:
     """Corre un SELECT y devuelve filas como diccionarios."""
     try:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-    except ImportError as e:
-        raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
-    try:
-        with closing(psycopg2.connect(dsn(), connect_timeout=10)) as cnx, cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params or ())
-            return [dict(f) for f in cur.fetchall()]
+        return pg_pool.consultar(dsn(), sql, params)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
         logger.warning("CRM: %s", str(e)[:200])
-        raise HTTPException(status_code=502, detail=f"No se pudo leer el CRM de Marketing: {str(e)[:160]}") from e
+        raise _traducir(e, "No se pudo leer el CRM de Marketing") from e

@@ -134,9 +134,9 @@ export default function Sidebar() {
             <label className="sidebar-preview">
               Ver como
               <select value={rol} onChange={onPreview} aria-label="Ver como rol">
-                {ROL_LIST.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label}
+                {ROL_LIST.map((id) => (
+                  <option key={id} value={id}>
+                    {ROLES[id]?.label ?? id}
                   </option>
                 ))}
               </select>
