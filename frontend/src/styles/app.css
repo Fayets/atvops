@@ -5125,6 +5125,19 @@ button.lista-item:hover { background: var(--surface-2); }
 .meta-ind-tabla { display: grid; }
 /* Qué contenido abrió conversaciones: una fila por reel, ordenada por lo que trajo. */
 .conv-tabla { display: grid; }
+/* De dónde salen las conversaciones: una columna por formato. */
+.mkt-fuentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.mkt-fuente { padding: var(--space-4); border-right: 1px solid var(--border-soft); display: grid; gap: 4px; align-content: start; }
+.mkt-fuente:last-child { border-right: none; }
+.mkt-fuente-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; }
+.mkt-fuente-cab .dim { font-size: 11.5px; white-space: nowrap; }
+.mkt-fuente-valor { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+.mkt-fuente-valor .dim { font-size: 14px; font-weight: 400; }
+.mkt-fuente-nota { font-size: 11.5px; }
+@media (max-width: 700px) {
+  .mkt-fuente { border-right: none; border-bottom: 1px solid var(--border-soft); }
+  .mkt-fuente:last-child { border-bottom: none; }
+}
 .conv-fila { display: grid; grid-template-columns: 66px minmax(120px, 1fr) 150px 120px 170px;
   gap: var(--space-3); align-items: center; padding: 9px var(--space-4);
   border-bottom: 1px solid var(--border-soft); font-size: 13px; }

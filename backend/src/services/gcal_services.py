@@ -91,13 +91,29 @@ def _desde_conexion_mkt() -> dict | None:
     return None
 
 
+def _desde_atv_ops() -> dict | None:
+    """La copia propia de las credenciales. Es la vía normal: ya no depende de atv-mkt."""
+    from src.services import conexiones_services
+
+    cred = conexiones_services.obtener("google_calendar")
+    cal_id = str(cred.get("calendar_id") or "").strip()
+    sa = cred.get("service_account_json")
+    if isinstance(sa, dict):
+        sa = json.dumps(sa)
+    if cal_id and sa:
+        return {"calendar_id": cal_id, "service_account_json": str(sa), "origen": "ATV Ops"}
+    return None
+
+
 def credenciales() -> dict:
-    cred = _desde_env() or _desde_conexion_mkt()
+    # Primero el .env (para probar contra otro calendario), después la copia propia y
+    # recién al final atv-mkt, que es de donde se copiaron la primera vez.
+    cred = _desde_env() or _desde_atv_ops() or _desde_conexion_mkt()
     if cred is None:
         raise HTTPException(
             status_code=503,
             detail="No hay calendario configurado. Cargá GOOGLE_CALENDAR_ID y GOOGLE_SERVICE_ACCOUNT_JSON en el .env, "
-                   "o GCAL_CONEXION_DSN apuntando a la base de ATV Marketing, que ya tiene la conexión google_calendar.",
+                   "o GCAL_CONEXION_DSN apuntando a la base de ATV Marketing la primera vez, para copiar la conexión.",
         )
     return cred
 

@@ -313,3 +313,21 @@ class ReporteDia(db.Entity):
     nota = Optional(str)
     actualizado_por = Optional(str)
     actualizado_at = Required(datetime, default=datetime.utcnow)
+
+
+class ConexionApi(db.Entity):
+    """Las credenciales de las plataformas que ATV Ops consulta.
+
+    Se copiaron una vez desde atv-mkt y desde acá se usan: Instagram, ManyChat, YouTube,
+    Meta Ads, Google Calendar. Tenerlas propias es lo que permite construir cosas nuevas
+    sin depender de que ese sistema siga vivo.
+    """
+
+    _table_ = _tabla("conexiones_api", "ConexionApi")
+
+    id = PrimaryKey(int, auto=True)
+    plataforma = Required(str, unique=True)
+    credenciales = Required(str, default="{}")   # JSON
+    origen = Optional(str)                       # de dónde salieron
+    actualizado_por = Optional(str)
+    actualizado_at = Required(datetime, default=datetime.utcnow)

@@ -8,6 +8,7 @@ import Cobranza from './pages/Cobranza.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
 import Home from './pages/Home.jsx';
+import HomeMarketingPage from './pages/HomeMarketingPage.jsx';
 import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
@@ -94,6 +95,8 @@ function HomeIndex() {
   if (puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
     return <Navigate to="/ventas/mi-progreso" replace />;
   }
+  // El director de marketing ve cómo viene su mes, no el cuadro de mando de operaciones.
+  if (rol === 'marketing') return <HomeMarketingPage />;
   return <Home />;
 }
 

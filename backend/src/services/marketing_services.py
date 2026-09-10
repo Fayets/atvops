@@ -46,7 +46,7 @@ def _vacio(mes: str, detalle: str) -> dict:
         "ads": {"gastoUsd": 0, "impresiones": 0, "clicks": 0, "conversiones": 0, "costoPorConversionUsd": 0,
                 "alcance": 0, "ctr": 0, "campanias": []},
         "contenido": {"reels": 0, "reproducciones": 0, "alcance": 0, "interacciones": 0, "publicaciones": [],
-                      "youtube": {"videos": 0, "vistas": 0}},
+                      "youtube": {"videos": 0, "vistas": 0, "chats": 0}},
         "historias": {"secuencias": 0, "chats": 0, "cashUsd": 0, "conCta": 0},
         "conversaciones": {"total": 0, "respondieron": 0, "porPalabra": {}, "historicoPorPalabra": {},
                            "sinPalabra": 0, "fuente": "Instagram · ManyChat"},
@@ -111,7 +111,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             (inicio, fin),
         )
         videos = crm_db.consultar(
-            "SELECT title, url, published_at, views, likes, comments_count, impressions, ctr "
+            "SELECT title, url, published_at, views, likes, comments_count, impressions, ctr, chats "
             "FROM youtubecontent WHERE published_at >= %s AND published_at < %s ORDER BY views DESC",
             (inicio, fin),
         )
@@ -187,12 +187,13 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "youtube": {
                 "videos": len(videos),
                 "vistas": int(sum(_num(v["views"]) for v in videos)),
+                "chats": int(sum(_num(v.get("chats")) for v in videos)),
                 "publicaciones": [
                     {
                         "titulo": v["title"], "url": v["url"],
                         "fecha": v["published_at"].isoformat() if v["published_at"] else None,
                         "vistas": int(_num(v["views"])), "likes": int(_num(v["likes"])),
-                        "ctr": round(_num(v["ctr"]), 2),
+                        "ctr": round(_num(v["ctr"]), 2), "chats": int(_num(v.get("chats"))),
                     }
                     for v in videos[:10]
                 ],
