@@ -1246,7 +1246,7 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     resultado. No se toca el CRM viejo: lo que se carga acá no le cambia los números
     a atv-mkt.
     """
-    from pony.orm import db_session
+    from pony.orm import db_session, flush
 
     from src.models import ReunionCrm
 
@@ -1276,7 +1276,7 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
         r = ReunionCrm(evento_id=evento_id, lead_id=0, prospecto=nombre, inicio_at=cuando,
                        closer=(base.get("closer") or "")[:120],
                        creado_por=(usuario.get("username") or "")[:80])
-        db_session.flush()
+        flush()
         nuevo_id = r.id
     logger.info("Reunión del calendario %s abierta en ATV Ops (ficha %s) por %s",
                 evento_id, nuevo_id, usuario.get("username"))
@@ -1292,7 +1292,7 @@ def crear_llamada_manual(datos: dict, usuario: dict) -> dict:
     """
     import uuid
 
-    from pony.orm import db_session
+    from pony.orm import db_session, flush
 
     from src.models import ReunionCrm
 
@@ -1317,7 +1317,7 @@ def crear_llamada_manual(datos: dict, usuario: dict) -> dict:
         r = ReunionCrm(evento_id=evento, lead_id=0, prospecto=prospecto, inicio_at=cuando,
                        closer=closer[:120], nota=str(datos.get("nota") or "").strip()[:2000],
                        creado_por=(usuario.get("username") or "")[:80])
-        db_session.flush()
+        flush()
         ficha = r.id
     logger.info("Llamada cargada a mano por %s: %s el %s", usuario.get("username"), prospecto, cuando)
     _olvidar_meses()

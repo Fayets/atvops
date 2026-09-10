@@ -139,3 +139,20 @@ def test_el_crm_guarda_utc_y_se_muestra_en_argentina():
     assert v._a_argentina(datetime(2026, 9, 3, 0, 0)) == datetime(2026, 9, 2, 21, 0)
     assert v._a_utc(datetime(2026, 9, 2, 21, 0)) == datetime(2026, 9, 3, 0, 0)
     assert v._a_argentina(None) is None
+
+
+# ------------------------------------------------------------------ Pony
+
+def test_las_altas_usan_el_flush_del_modulo_no_el_de_la_sesion():
+    """`db_session` no tiene `flush`: llamarlo así rompía el alta de una reunión.
+
+    Se necesita el flush para leer el id recién asignado antes de cerrar la sesión, así
+    que el import tiene que traerlo del módulo de Pony.
+    """
+    import inspect
+
+    for fn in (v.crear_lead_desde_calendario, v.crear_llamada_manual):
+        codigo = inspect.getsource(fn)
+        assert "db_session.flush()" not in codigo, f"{fn.__name__} usa el flush de la sesión"
+        if "flush()" in codigo:
+            assert "import db_session, flush" in codigo, f"{fn.__name__} no importa flush de pony.orm"
