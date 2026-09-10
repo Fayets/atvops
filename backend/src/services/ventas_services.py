@@ -518,6 +518,10 @@ def estado() -> dict:
 ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No show", "Descalificado", "Cancelada", "Re-agenda", "Agendado", "Descartada")
 ESTADOS_VENTA = ("Cerrado", "Seña")
 ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
+# Quién puede cargar el resultado de una reunión. El calendario es del equipo: si la
+# reunión se ve ahí, se tiene que poder cargar, aunque el lead figure a nombre de otro
+# closer. Queda registrado quién la cargó en el reporte de la llamada.
+ROLES_CARGAN_LLAMADAS = ROLES_PRECIOS | {"ventas", "closer", "setter"}
 
 
 def programas() -> list[dict]:
@@ -752,13 +756,13 @@ def _lista_despues_de_guardar(usuario: dict, mes: str | None) -> dict:
                 "llamadas": [], "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA)}
 
 
-def _es_mia(lead_id: int, usuario: dict) -> None:
-    filas = crm_db.consultar("SELECT closer FROM lead WHERE id = %s", (int(lead_id),))
-    if not filas:
+def _puede_cargar(lead_id: int, usuario: dict) -> None:
+    """Que la llamada exista y que el rol trabaje en ventas. No se pide que sea suya:
+    el calendario es del equipo y a veces el lead figura a nombre de otro closer."""
+    if not crm_db.consultar("SELECT id FROM lead WHERE id = %s", (int(lead_id),)):
         raise HTTPException(status_code=404, detail="Esa llamada no existe en el CRM.")
-    mio = _norm(filas[0]["closer"]) in [_norm(n) for n in _nombres_crm(usuario)]
-    if not mio and usuario.get("rol") not in ROLES_PRECIOS | {"ventas"}:
-        raise HTTPException(status_code=403, detail="Esa llamada no es tuya.")
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cargar resultados de llamadas.")
 
 
 def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None) -> dict:
@@ -772,7 +776,7 @@ def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False
         if recuperar:
             raise HTTPException(status_code=400, detail="Esa reunión todavía no está en el CRM.")
         lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
-    _es_mia(lead_id, usuario)
+    _puede_cargar(lead_id, usuario)
     nuevo = "Agendado" if recuperar else "Descartada"
     crm_db.ejecutar("UPDATE lead SET status = %s, estado = %s WHERE id = %s", (nuevo, nuevo, int(lead_id)))
     logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
@@ -786,12 +790,7 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
     # La reunión que venía solo del calendario se crea en el CRM antes de guardarle nada.
     if isinstance(lead_id, str) and lead_id.startswith("cal:"):
         lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
-    filas = crm_db.consultar("SELECT id, closer FROM lead WHERE id = %s", (int(lead_id),))
-    if not filas:
-        raise HTTPException(status_code=404, detail="Esa llamada no existe en el CRM.")
-    mio = _norm(filas[0]["closer"]) in [_norm(n) for n in _nombres_crm(usuario)]
-    if not mio and usuario.get("rol") not in ROLES_PRECIOS | {"ventas"}:
-        raise HTTPException(status_code=403, detail="Esa llamada no es tuya.")
+    _puede_cargar(lead_id, usuario)
 
     resultado = str(datos.get("resultado") or "").strip()
     if resultado not in ESTADOS_LLAMADA:
