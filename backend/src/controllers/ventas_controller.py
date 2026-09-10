@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from src.controllers.auth_controller import get_current_user
 from src.services import cartera_services as cartera
 from src.services import instagram_services as instagram
+from src.services import youtube_services as youtube
 from src.services import marketing_services as marketing
 from src.services import onboarding_services as onboarding
 from src.services import reporte_semanal_services as reporte
@@ -150,6 +151,37 @@ def instagram_contenido(_user: dict = Depends(get_current_user), mes: str | None
     except Exception as e:  # noqa: BLE001
         log.exception("Falló leer el contenido de Instagram")
         raise HTTPException(status_code=500, detail=f"No se pudo leer Instagram: {str(e)[:180]}")
+
+
+@router.get("/youtube")
+def youtube_contenido(_user: dict = Depends(get_current_user), mes: str | None = None):
+    """Los videos del canal publicados en el mes, con lo que mide YouTube."""
+    from datetime import date as _date
+
+    try:
+        hoy = _date.today()
+        mes = mes or hoy.strftime("%Y-%m")
+        anio, m = int(mes[:4]), int(mes[5:7])
+        inicio = _date(anio, m, 1)
+        fin = _date(anio + (m == 12), (m % 12) + 1, 1)
+        return {"mes": mes, **youtube.contenido(inicio, fin), "estado": youtube.estado()}
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló leer el contenido de YouTube")
+        raise HTTPException(status_code=500, detail=f"No se pudo leer YouTube: {str(e)[:180]}")
+
+
+@router.post("/youtube/sincronizar")
+def youtube_sincronizar(user: dict = Depends(get_current_user)):
+    """Trae ahora lo último del canal, sin esperar la pasada de cada tres horas."""
+    if user.get("rol") not in {"admin", "operaciones", "founder", "marketing"}:
+        raise HTTPException(status_code=403, detail="Tu rol no puede sincronizar YouTube.")
+    try:
+        return youtube.sincronizar()
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló sincronizar YouTube")
+        raise HTTPException(status_code=500, detail=f"No se pudo sincronizar: {str(e)[:180]}")
 
 
 @router.post("/instagram/sincronizar")

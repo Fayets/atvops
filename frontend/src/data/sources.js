@@ -49,6 +49,18 @@ export const SOURCES = {
     proximoPaso:
       'El token de la cuenta vence el 02-11-2026: hay que renovarlo antes o las historias dejan de guardarse.',
   },
+  youtube_ops: {
+    id: 'youtube_ops',
+    nombre: 'YouTube de ATV',
+    descripcion:
+      'Los videos del canal traídos con la clave propia: fecha, duración, vistas, likes y comentarios. El CTR, las impresiones y la retención no están acá: la API pública no los da, solo YouTube Studio.',
+    status: 'conectada',
+    lastSyncAt: null,
+    responsable: 'Emi',
+    metodo: 'YouTube Data API v3 desde ATV Ops, cada tres horas; las miniaturas se guardan en disco',
+    proximoPaso:
+      'Si hacen falta CTR y retención, hay que conectar la API de Analytics con la cuenta del canal (OAuth, no alcanza la clave).',
+  },
   mkt_crm: {
     id: 'mkt_crm',
     nombre: 'CRM de ATV Marketing',

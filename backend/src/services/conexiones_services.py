@@ -137,7 +137,7 @@ def guardar(plataforma: str, credenciales: dict, quien: str = "") -> None:
 
 def estado() -> list[dict]:
     """Qué credenciales tiene ATV Ops, sin mostrar ningún secreto."""
-    from pony.orm import db_session, select
+    from pony.orm import db_session
 
     from src.models import ConexionApi
 
@@ -153,7 +153,9 @@ def estado() -> list[dict]:
                 "actualizadoAt": c.actualizado_at.isoformat() if c.actualizado_at else None,
                 "campos": {k: _seguro(v) for k, v in json.loads(c.credenciales or "{}").items()
                            if not isinstance(v, (list, dict))},
-            } for c in select(c for c in ConexionApi).order_by(ConexionApi.plataforma)]
+                # En Python 3.13 el decompilador de Pony se rompe con `select(c for c in …)`:
+                # la lista sale de la entidad y se ordena acá.
+            } for c in sorted(ConexionApi.select(), key=lambda x: x.plataforma)]
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el estado de las conexiones: %s", str(e)[:160])
         return []

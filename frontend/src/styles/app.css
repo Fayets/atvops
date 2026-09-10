@@ -5184,6 +5184,7 @@ button.lista-item:hover { background: var(--surface-2); }
 .reel-pieza { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .reel-pieza img { width: 40px; height: 54px; object-fit: cover; border-radius: 6px;
   border: 1px solid var(--border-soft); flex: 0 0 auto; }
+.reel-pieza img.ancho { width: 78px; height: 44px; }
 .reel-sinfoto { display: grid; place-items: center; width: 40px; height: 54px; border-radius: 6px;
   border: 1px dashed var(--border); flex: 0 0 auto; font-size: 11px; }
 .reel-titulo { min-width: 0; display: grid; gap: 3px; font-size: 13px; }

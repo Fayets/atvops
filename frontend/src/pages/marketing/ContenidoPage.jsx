@@ -6,7 +6,10 @@ import VideosYouTube from '../../components/marketing/VideosYouTube.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
-import { getInstagramPropio, getMarketing, sincronizarInstagram } from '../../data/api.js';
+import {
+  getInstagramPropio, getMarketing, getYouTubePropio,
+  sincronizarInstagram, sincronizarYouTube,
+} from '../../data/api.js';
 import { useMes } from '../../lib/MesContext.jsx';
 import { useResource } from '../../lib/hooks.js';
 
@@ -14,23 +17,30 @@ const VISTAS = {
   calendario: {
     titulo: 'Calendario',
     desc: 'El mes entero de un vistazo: una miniatura por pieza publicada.',
+    fuente: 'instagram_ops',
   },
   reels: {
     titulo: 'Reels',
     desc: 'Lo que se publicó este mes, con lo que midió Instagram.',
+    fuente: 'instagram_ops',
   },
   historias: {
     titulo: 'Historias',
     desc: 'Cada secuencia, pieza por pieza. Instagram las borra a las 24 horas: acá quedan.',
+    fuente: 'instagram_ops',
   },
   youtube: {
     titulo: 'YouTube',
-    desc: 'Los videos del mes, con vistas, CTR y los chats que abrieron.',
+    desc: 'Los videos del canal, con vistas, likes y comentarios.',
+    fuente: 'youtube_ops',
   },
 };
 
-/** El calendario y YouTube salen del CRM; los reels lo usan para saber qué palabra tienen. */
-const NECESITA_CRM = new Set(['calendario', 'reels', 'youtube']);
+/** Instagram hace falta en todas menos YouTube; el canal, en YouTube y en el calendario. */
+const NECESITA_IG = new Set(['calendario', 'reels', 'historias']);
+const NECESITA_YT = new Set(['calendario', 'youtube']);
+/** Los reels le piden al CRM solo la palabra clave y las conversaciones que abrió cada uno. */
+const NECESITA_CRM = new Set(['reels']);
 
 /** Le pega a cada reel la palabra clave y las conversaciones que abrió, atando por enlace. */
 function conNegocio(reels, publicaciones) {
@@ -50,7 +60,14 @@ export default function ContenidoPage({ vista }) {
   const { mes, nombreMes } = useMes();
   const [tick, setTick] = useState(0);
   const [sincronizando, setSincronizando] = useState(false);
-  const ig = useResource(() => getInstagramPropio(mes), [mes, tick]);
+  const ig = useResource(
+    () => (NECESITA_IG.has(vista) ? getInstagramPropio(mes) : Promise.resolve(null)),
+    [mes, vista, tick],
+  );
+  const yt = useResource(
+    () => (NECESITA_YT.has(vista) ? getYouTubePropio(mes) : Promise.resolve(null)),
+    [mes, vista, tick],
+  );
   const mkt = useResource(
     () => (NECESITA_CRM.has(vista) ? getMarketing(mes) : Promise.resolve(null)),
     [mes, vista],
@@ -59,7 +76,7 @@ export default function ContenidoPage({ vista }) {
   const traerAhora = async () => {
     setSincronizando(true);
     try {
-      await sincronizarInstagram();
+      await (vista === 'youtube' ? sincronizarYouTube() : sincronizarInstagram());
       setTick((n) => n + 1);
     } finally {
       setSincronizando(false);
@@ -67,10 +84,12 @@ export default function ContenidoPage({ vista }) {
   };
 
   const meta = VISTAS[vista] ?? VISTAS.reels;
-  const estado = ig.data?.estado ?? {};
-  const cargando = (ig.loading && !ig.data) || (mkt.loading && NECESITA_CRM.has(vista) && !mkt.data);
+  const estado = (vista === 'youtube' ? yt.data?.estado : ig.data?.estado) ?? {};
+  const error = ig.error || yt.error;
+  const cargando = (NECESITA_IG.has(vista) && ig.loading && !ig.data)
+    || (NECESITA_YT.has(vista) && yt.loading && !yt.data);
 
-  if (ig.error) return <div className="page"><ErrorState error={ig.error} /></div>;
+  if (error) return <div className="page"><ErrorState error={error} /></div>;
 
   return (
     <div className="page">
@@ -80,13 +99,11 @@ export default function ContenidoPage({ vista }) {
         desc={meta.desc}
         actions={
           <>
-            <SourceTag sourceId={vista === 'youtube' ? 'mkt_crm' : 'instagram_ops'} updatedAt={estado.ultimaAt} />
-            {vista !== 'youtube' && (
-              <button className="btn" onClick={traerAhora} disabled={sincronizando}>
-                <span className={`recargar-icono${sincronizando ? ' girando' : ''}`}>⟳</span>
-                {sincronizando ? ' Trayendo…' : ' Traer ahora'}
-              </button>
-            )}
+            <SourceTag sourceId={meta.fuente} updatedAt={estado.ultimaAt} />
+            <button className="btn" onClick={traerAhora} disabled={sincronizando}>
+              <span className={`recargar-icono${sincronizando ? ' girando' : ''}`}>⟳</span>
+              {sincronizando ? ' Trayendo…' : ' Traer ahora'}
+            </button>
           </>
         }
       />
@@ -94,18 +111,13 @@ export default function ContenidoPage({ vista }) {
       {cargando ? (
         <SkeletonBlock height={360} />
       ) : vista === 'calendario' ? (
-        <CalendarioContenido
-          mes={mes}
-          nombreMes={nombreMes}
-          instagram={ig.data}
-          youtube={mkt.data?.contenido?.youtube}
-        />
+        <CalendarioContenido mes={mes} nombreMes={nombreMes} instagram={ig.data} youtube={yt.data} />
       ) : vista === 'reels' ? (
         <Reels items={conNegocio(ig.data?.reels ?? [], mkt.data?.contenido?.publicaciones)} />
       ) : vista === 'historias' ? (
         <Secuencias items={ig.data?.secuencias ?? []} />
       ) : (
-        <VideosYouTube yt={mkt.data?.contenido?.youtube} cargando={mkt.loading} />
+        <VideosYouTube yt={yt.data} cargando={yt.loading && !yt.data} />
       )}
     </div>
   );

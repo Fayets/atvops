@@ -799,6 +799,16 @@ export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });
 }
 
+/** Los videos del canal, de la base de ATV Ops. */
+export async function getYouTubePropio(mes) {
+  return pedir(`/api/ventas/youtube${mes ? `?mes=${mes}` : ''}`);
+}
+
+/** Trae ahora lo último del canal, sin esperar la pasada de cada tres horas. */
+export async function sincronizarYouTube() {
+  return pedir('/api/ventas/youtube/sincronizar', { method: 'POST' });
+}
+
 /** Cargar a mano una reunión que nunca pasó por el calendario (un referido, un chat). */
 export async function crearLlamada(payload) {
   return pedir('/api/ventas/llamadas', {

@@ -27,8 +27,7 @@ function grillaDelMes(mesId) {
 }
 
 /**
- * @param {{ mes: string, nombreMes: string, instagram: object, youtube: object,
- *           onVer?: (dia: string) => void }} props
+ * @param {{ mes: string, nombreMes: string, instagram: object, youtube: object }} props
  */
 export default function CalendarioContenido({ mes, nombreMes, instagram, youtube }) {
   const porDia = {};
@@ -51,7 +50,7 @@ export default function CalendarioContenido({ mes, nombreMes, instagram, youtube
       datoLabel: 'vistas',
     });
   }
-  for (const v of youtube?.publicaciones ?? []) {
+  for (const v of youtube?.videos ?? []) {
     sumar(v.fecha, { tipo: 'youtube', thumbnail: v.thumbnail, titulo: v.titulo, url: v.url, dato: v.vistas, datoLabel: 'vistas' });
   }
 

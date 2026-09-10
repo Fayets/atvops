@@ -14,7 +14,7 @@
 /**
  * Identificador de fuente de datos. Agregar una fuente = agregar un id acá
  * y una entrada en `src/data/sources.js`.
- * @typedef {'discord_transcripts' | 'atv_clients' | 'discord_crm' | 'ads_manager' | 'calendly' | 'payments' | 'manual' | 'ventas_ops' | 'mkt_crm' | 'instagram_ops'} SourceId
+ * @typedef {'discord_transcripts' | 'atv_clients' | 'discord_crm' | 'ads_manager' | 'calendly' | 'payments' | 'manual' | 'ventas_ops' | 'mkt_crm' | 'instagram_ops' | 'youtube_ops'} SourceId
  */
 
 /**

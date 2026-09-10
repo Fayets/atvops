@@ -357,3 +357,26 @@ class PublicacionIg(db.Entity):
     metricas = Required(str, default="{}")    # JSON: views, reach, replies, saved…
     visto_at = Required(datetime, default=datetime.utcnow)   # cuándo se trajo
     actualizado_at = Required(datetime, default=datetime.utcnow)
+
+
+class PublicacionYt(db.Entity):
+    """Los videos del canal, traídos con la clave del canal.
+
+    Misma idea que las publicaciones de Instagram y por el mismo motivo: que el mes de
+    contenido se pueda mirar sin pedirle nada a atv-mkt. Un video sigue sumando vistas
+    durante meses, así que cada pasada refresca las métricas de los que ya están.
+    """
+
+    _table_ = _tabla("publicaciones_yt", "PublicacionYt")
+
+    id = PrimaryKey(int, auto=True)
+    yt_id = Required(str, unique=True)
+    publicado_at = Required(datetime, index=True)
+    titulo = Optional(str)
+    descripcion = Optional(str)
+    url = Optional(str)
+    thumbnail = Optional(str)
+    duracion_seg = Required(int, default=0)
+    metricas = Required(str, default="{}")    # JSON: vistas, likes, comentarios
+    visto_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)

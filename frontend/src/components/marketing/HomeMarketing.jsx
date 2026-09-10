@@ -44,13 +44,26 @@ function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota, sinFuente
 
 /**
  * @param {{ marketing: object, decreto: object, contexto: {diaHoy: number, diasMes: number},
- *           nombreMes: string }} props
+ *           instagram: object, youtube: object, nombreMes: string }} props
  */
-export default function HomeMarketing({ marketing, decreto, contexto, nombreMes }) {
+export default function HomeMarketing({ marketing, decreto, contexto, instagram, youtube, nombreMes }) {
   const conv = marketing?.conversaciones ?? {};
   const c = marketing?.contenido ?? {};
-  const historias = marketing?.historias ?? {};
-  const yt = c.youtube ?? {};
+  const yt = youtube?.totales ?? {};
+
+  // El volumen y las métricas de Instagram salen de la base propia: es la misma cuenta
+  // que muestran las subvistas, así que el home no puede decir otro número.
+  const reels = instagram?.reels ?? [];
+  const secuencias = instagram?.secuencias ?? [];
+  const suma = (lista, campo) => lista.reduce((t, x) => t + (x[campo] ?? 0), 0);
+  const propio = {
+    reels: reels.length,
+    reproducciones: suma(reels, 'views'),
+    alcance: suma(reels, 'reach') + secuencias.reduce((t, s) => t + (s.alcance ?? 0), 0),
+    interacciones: suma(reels, 'total_interactions') + suma(secuencias, 'interacciones'),
+    secuencias: secuencias.length,
+    respuestas: suma(secuencias, 'respuestas'),
+  };
 
   const diaHoy = contexto?.diaHoy ?? 1;
   const diasMes = contexto?.diasMes ?? 30;
@@ -77,7 +90,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, nombreMes 
         sub={`Día ${diaHoy} de ${diasMes} · ${transcurrido}% del mes transcurrido`}
         actions={<SourceTag sourceId="mkt_crm" updatedAt={marketing?.syncAt} />}
       >
-        <div className="kpis sm">
+        <div className="kpi-grid">
           <Numero
             label="Conversaciones abiertas"
             valor={abiertas}
@@ -91,8 +104,8 @@ export default function HomeMarketing({ marketing, decreto, contexto, nombreMes 
             valor={0}
             nota={metaChats ? `meta ${formatValue(metaChats, 'count')} · todavía sin fuente que los cuente` : 'sin fuente conectada'}
           />
-          <Numero label="Reels publicados" valor={c.reels} nota={`${formatValue(c.reproducciones ?? 0, 'count')} reproducciones`} />
-          <Numero label="Alcance" valor={c.alcance} nota={`${formatValue(c.interacciones ?? 0, 'count')} interacciones`} />
+          <Numero label="Reels publicados" valor={propio.reels} nota={`${formatValue(propio.reproducciones, 'count')} reproducciones`} />
+          <Numero label="Alcance" valor={propio.alcance} nota={`${formatValue(propio.interacciones, 'count')} interacciones`} />
         </div>
       </Card>
 
@@ -105,25 +118,25 @@ export default function HomeMarketing({ marketing, decreto, contexto, nombreMes 
         <div className="mkt-fuentes">
           <Fuente
             titulo="Reels"
-            volumen={c.reels ?? 0}
-            volumenLabel={c.reels === 1 ? 'publicado' : 'publicados'}
+            volumen={propio.reels}
+            volumenLabel={propio.reels === 1 ? 'publicado' : 'publicados'}
             conversaciones={abiertas}
-            nota={`${formatValue(c.reproducciones ?? 0, 'count')} reproducciones este mes`}
+            nota={`${formatValue(propio.reproducciones, 'count')} reproducciones este mes`}
           />
           <Fuente
             titulo="Historias"
-            volumen={historias.secuencias ?? 0}
-            volumenLabel={historias.secuencias === 1 ? 'secuencia' : 'secuencias'}
-            conversaciones={historias.chats}
-            nota={`${historias.conCta ?? 0} con llamada a la acción`}
+            volumen={propio.secuencias}
+            volumenLabel={propio.secuencias === 1 ? 'secuencia' : 'secuencias'}
+            conversaciones={propio.respuestas}
+            nota="respuestas directas a una historia"
           />
           <Fuente
             titulo="YouTube"
             volumen={yt.videos ?? 0}
             volumenLabel={yt.videos === 1 ? 'video' : 'videos'}
-            conversaciones={yt.chats}
-            nota={`${formatValue(yt.vistas ?? 0, 'count')} vistas`}
-            sinFuente={!yt.videos}
+            conversaciones={null}
+            nota={`${formatValue(yt.vistas ?? 0, 'count')} vistas · ${formatValue(yt.vistasPromedio ?? 0, 'count')} de promedio`}
+            sinFuente
           />
         </div>
       </Card>
