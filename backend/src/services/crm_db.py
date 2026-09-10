@@ -52,6 +52,26 @@ def ejecutar(sql: str, params: tuple | dict | None = None) -> int:
         raise HTTPException(status_code=502, detail=f"No se pudo escribir en el CRM: {str(e)[:160]}") from e
 
 
+def insertar(sql: str, params: tuple | dict | None = None) -> list[dict]:
+    """Corre un INSERT con RETURNING y devuelve lo que la base contesta.
+    Se usa para crear en el CRM la reunión que solo existía en el calendario."""
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
+    try:
+        with psycopg2.connect(dsn(), connect_timeout=10) as cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params or ())
+            filas = [dict(f) for f in cur.fetchall()]
+        return filas
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.warning("CRM escritura: %s", str(e)[:200])
+        raise HTTPException(status_code=502, detail=f"No se pudo escribir en el CRM: {str(e)[:160]}") from e
+
+
 def consultar(sql: str, params: tuple | dict | None = None) -> list[dict]:
     """Corre un SELECT y devuelve filas como diccionarios."""
     try:

@@ -773,7 +773,8 @@ export async function getMisLlamadas(closer, mes) {
 
 /** El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó. */
 export async function guardarResultadoLlamada(leadId, payload) {
-  return pedir(`/api/ventas/llamadas/${leadId}/resultado`, {
+  // El id puede ser "cal:<evento>": una reunión del calendario que el backend crea en el CRM al guardar.
+  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/resultado`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

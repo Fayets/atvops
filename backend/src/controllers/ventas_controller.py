@@ -91,7 +91,7 @@ def guardar_reporte(fecha: str, user: dict = Depends(get_current_user), payload:
 
 
 @router.post("/llamadas/{lead_id}/resultado")
-def registrar_resultado(lead_id: int, user: dict = Depends(get_current_user), payload: dict = Body(...)):
+def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), payload: dict = Body(...)):
     """El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó."""
     try:
         return ventas.registrar_resultado(lead_id, payload, user)

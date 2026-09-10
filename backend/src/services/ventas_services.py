@@ -632,9 +632,76 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     }
 
 
-def registrar_resultado(lead_id: int, datos: dict, usuario: dict) -> dict:
+def _a_utc(dt: datetime) -> datetime:
+    """El CRM guarda en UTC sin marcar la zona: al escribir se hace el camino inverso."""
+    return dt.replace(tzinfo=AR_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+# Columnas del CRM que no aceptan nulo y no tienen valor por defecto.
+_VACIOS_LEAD = ("ig", "telefono", "avatar", "keyword", "content_url", "manychat_contact_id",
+                "via", "punto_agenda", "link_llamada", "dolores_setting", "dolores_llamada",
+                "razon_compra", "programada_ofrecido_llamada")
+
+
+def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
+    """Crea en el CRM la reunión que hasta ahora solo existía en el calendario.
+
+    Se hace cuando el closer va a cargarle el resultado: el CRM sigue siendo la fuente
+    única, así que la reunión tiene que existir ahí para poder guardar cash y programa.
+    Si ya la creó otro, devuelve la que está y no duplica.
+    """
+    from src.services import gcal_services
+
+    hoy = datetime.now(AR_TZ).date()
+    desde = datetime.combine(hoy - timedelta(days=180), time.min).replace(tzinfo=AR_TZ)
+    hasta = datetime.combine(hoy + timedelta(days=180), time.min).replace(tzinfo=AR_TZ)
+    reunion = next((r for r in gcal_services.reuniones_venta(desde, hasta) if r["eventoId"] == evento_id), None)
+    if reunion is None:
+        raise HTTPException(status_code=404, detail="Esa reunión ya no está en el calendario.")
+
+    cuando = datetime.fromisoformat(reunion["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
+    cuando_utc = _a_utc(cuando)
+    nombre = reunion["prospecto"][:200]
+    email = next(iter({_norm(e) for e in (reunion.get("invitados") or []) if _norm(e)}), "")
+
+    # Si ya existe esa misma reunión (la creó otro, o la sincronizó atv-mkt), se usa esa.
+    ya = crm_db.consultar(
+        "SELECT id FROM lead WHERE call >= %s AND call <= %s AND "
+        "(lower(trim(coalesce(email, ''))) = %s AND %s <> '' OR lower(trim(nombre)) LIKE %s) LIMIT 1",
+        (cuando_utc - timedelta(minutes=90), cuando_utc + timedelta(minutes=90),
+         email, email, f"%{nombre.lower()}%"),
+    )
+    if ya:
+        return int(ya[0]["id"])
+
+    duenio = _duenio_de_cada_lead()
+    base = (duenio.get(f"email:{email}") if email else None) or duenio.get(f"nombre:{_clave_persona(nombre)}") or {}
+    quien = (usuario.get("nombre") or usuario.get("username") or "")
+    columnas = ", ".join(_VACIOS_LEAD)
+    valores = ", ".join(["''"] * len(_VACIOS_LEAD))
+    filas = crm_db.insertar(
+        f"INSERT INTO lead (user_id, nombre, email, origen, closer, setter, call, agendo, agendo_en, "
+        f"status, estado, programa_ofrecido, notas, closer_report, created_at, {columnas}) "
+        f"VALUES ((SELECT coalesce(min(user_id), 1) FROM lead), %s, %s, %s, %s, %s, %s, now(), "
+        f"'Google Calendar', 'Agendado', '', '', %s, '', now(), {valores}) RETURNING id",
+        (nombre, email, (base.get("origen") or "").strip() or "Orgánico",
+         base.get("closer") or quien, base.get("setter") or "", cuando_utc, reunion["titulo"][:500]),
+    )
+    if not filas:
+        raise HTTPException(status_code=502, detail="No se pudo crear la llamada en el CRM.")
+    nuevo_id = int(filas[0]["id"])
+    logger.info("Reunión del calendario %s creada en el CRM como lead %s por %s",
+                evento_id, nuevo_id, usuario.get("username"))
+    _cache.clear()
+    return nuevo_id
+
+
+def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict) -> dict:
     """Guarda lo que cargó el closer en el CRM, que es la fuente única: así ATV Marketing
     y ATV Ops muestran lo mismo y no hay dos verdades."""
+    # La reunión que venía solo del calendario se crea en el CRM antes de guardarle nada.
+    if isinstance(lead_id, str) and lead_id.startswith("cal:"):
+        lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
     filas = crm_db.consultar("SELECT id, closer FROM lead WHERE id = %s", (int(lead_id),))
     if not filas:
         raise HTTPException(status_code=404, detail="Esa llamada no existe en el CRM.")

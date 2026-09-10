@@ -137,7 +137,7 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
           <div className="strong">{llamada.prospecto}</div>
           <div className="dim">
             {soloCalendario
-              ? `${llamada.segunda ? 'Segunda reunión' : 'Reunión'} del calendario · todavía no está en el CRM`
+              ? `${llamada.segunda ? 'Segunda reunión' : 'Reunión'} del calendario · se crea en el CRM al cargarle el resultado`
               : ([llamada.segunda && 'segunda reunión', llamada.facturaHoy && `factura ${llamada.facturaHoy}`,
                   llamada.origen, llamada.setter && `set por ${llamada.setter}`]
                   .filter(Boolean).join(' · ') || 'Sin datos')}
@@ -152,14 +152,12 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
         </div>
         <div className="llamada-derecha">
           <Pill tone={tono} dot>{etiqueta}</Pill>
-          {!soloCalendario && (
-            <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
-              {abierta ? 'Cerrar' : (!llamada.resultado || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
-            </button>
-          )}
+          <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
+            {abierta ? 'Cerrar' : (!llamada.resultado || soloCalendario || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
+          </button>
         </div>
       </div>
-      {abierta && !soloCalendario && (
+      {abierta && (
         <FormResultado
           llamada={llamada}
           programas={programas}
