@@ -35,6 +35,7 @@ _USUARIOS_SEMILLA = (
     ("lucas", "SEED_LUCAS_PASSWORD", "lucas", "Lucas", "ventas"),  # Director de Ventas
     ("nick", "SEED_NICK_PASSWORD", "nick", "Nick", "closer"),  # Closer: Mi día
     ("cris", "SEED_CRIS_PASSWORD", "cris", "Cris", "setter"),  # Setter: Mi progreso
+    ("emi", "SEED_EMI_PASSWORD", "emi", "Emi", "marketing"),  # Director de Marketing
 )
 
 

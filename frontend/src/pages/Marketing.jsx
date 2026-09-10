@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ConversacionesPorContenido from '../components/marketing/ConversacionesPorContenido.jsx';
 import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
 import DiagnosticoMes from '../components/metas/DiagnosticoMes.jsx';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
-import { getInstagram, getMetasMes } from '../data/api.js';
+import { getInstagram, getMarketing, getMetasMes } from '../data/api.js';
 import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
@@ -176,6 +177,8 @@ export default function Marketing() {
   const [filtro, setFiltro] = useState('todos');
   const ig = useResource(() => getInstagram(mes), [mes]);
   const metas = useResource(() => getMetasMes(mes), [mes]);
+  // Conversaciones abiertas y qué contenido las trajo: sale del CRM, no de reportes.
+  const mkt = useResource(() => getMarketing(mes), [mes]);
 
   const data = ig.data;
   const metasData = metas.data;
@@ -214,6 +217,8 @@ export default function Marketing() {
 
   return (
     <div className="page">
+      {mkt.data && <ConversacionesPorContenido marketing={mkt.data} />}
+
       {metas.loading && !metasData ? (
         <SkeletonBlock height={200} />
       ) : metasData ? (

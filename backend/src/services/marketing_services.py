@@ -48,8 +48,40 @@ def _vacio(mes: str, detalle: str) -> dict:
         "contenido": {"reels": 0, "reproducciones": 0, "alcance": 0, "interacciones": 0, "publicaciones": [],
                       "youtube": {"videos": 0, "vistas": 0}},
         "historias": {"secuencias": 0, "chats": 0, "cashUsd": 0, "conCta": 0},
+        "conversaciones": {"total": 0, "respondieron": 0, "porPalabra": {}, "historicoPorPalabra": {},
+                           "sinPalabra": 0, "fuente": "Instagram · ManyChat"},
         "setting": {"conversaciones": 0, "linksEnviados": 0, "agendas": 0, "porPersona": []},
         "desde": inicio.isoformat(), "hasta": fin.isoformat(),
+    }
+
+
+def _conversaciones_del_bot(inicio: date, fin: date) -> dict:
+    """Las conversaciones que se abrieron solas en Instagram, por contenido.
+
+    Cuando alguien comenta la palabra de un reel, ManyChat le abre el DM y atv-mkt guarda
+    el lead con esa palabra y la fecha en que arrancó el bot. Contar esos leads es contar
+    las conversaciones: no hace falta que nadie las reporte a mano.
+    """
+    total = crm_db.consultar(
+        "SELECT count(*) n FROM lead WHERE fecha_bot >= %s AND fecha_bot < %s", (inicio, fin))
+    respondieron = crm_db.consultar(
+        "SELECT count(*) n FROM lead WHERE fecha_bot >= %s AND fecha_bot < %s AND respondio_auto", (inicio, fin))
+    por_palabra = crm_db.consultar(
+        "SELECT lower(trim(keyword)) palabra, count(*) n FROM lead "
+        "WHERE fecha_bot >= %s AND fecha_bot < %s AND coalesce(keyword, '') <> '' "
+        "GROUP BY 1 ORDER BY 2 DESC", (inicio, fin))
+    # Del total del mes y de siempre: un reel viejo sigue abriendo conversaciones.
+    historico = crm_db.consultar(
+        "SELECT lower(trim(keyword)) palabra, count(*) n, max(fecha_bot) ultima FROM lead "
+        "WHERE fecha_bot IS NOT NULL AND coalesce(keyword, '') <> '' GROUP BY 1")
+    return {
+        "total": int(_num(total[0]["n"])) if total else 0,
+        "respondieron": int(_num(respondieron[0]["n"])) if respondieron else 0,
+        "porPalabra": {f["palabra"]: int(_num(f["n"])) for f in por_palabra},
+        "historicoPorPalabra": {f["palabra"]: {"total": int(_num(f["n"])),
+                                               "ultima": f["ultima"].isoformat() if f["ultima"] else None}
+                                for f in historico},
+        "sinPalabra": max(0, (int(_num(total[0]["n"])) if total else 0) - sum(int(_num(f["n"])) for f in por_palabra)),
     }
 
 
@@ -74,7 +106,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             (fin, inicio),
         )
         reels = crm_db.consultar(
-            "SELECT title, permalink, fecha_publicacion, plays, reach, likes, comentarios, shares, guardados, keyword "
+            "SELECT title, permalink, fecha_publicacion, plays, reach, likes, comentarios, shares, guardados, keyword, chats_manuales "
             "FROM reelcontent WHERE fecha_publicacion >= %s AND fecha_publicacion < %s ORDER BY plays DESC",
             (inicio, fin),
         )
@@ -95,6 +127,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "WHERE r.fecha >= %s AND r.fecha < %s GROUP BY m.nombre ORDER BY 2 DESC",
             (inicio, fin),
         )
+        bot = _conversaciones_del_bot(inicio, fin)
     except Exception as e:  # noqa: BLE001
         logger.warning("Marketing: %s", str(e)[:200])
         return _vacio(mes, "No se pudo leer el CRM de Marketing.")
@@ -131,6 +164,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
                 for c in campanias
             ],
         },
+        "conversaciones": {**bot, "fuente": "Instagram · ManyChat"},
         "contenido": {
             "reels": len(reels),
             "reproducciones": int(sum(_num(r["plays"]) for r in reels)),
@@ -143,6 +177,10 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
                     "reproducciones": int(_num(r["plays"])), "alcance": int(_num(r["reach"])),
                     "likes": int(_num(r["likes"])), "comentarios": int(_num(r["comentarios"])),
                     "guardados": int(_num(r["guardados"])), "keyword": (r["keyword"] or "").strip(),
+                    # Cuántas conversaciones abrió: las del mes y las de toda su vida.
+                    "conversaciones": bot["porPalabra"].get((r["keyword"] or "").strip().lower(), 0),
+                    "conversacionesTotales": (bot["historicoPorPalabra"].get((r["keyword"] or "").strip().lower()) or {}).get("total", 0),
+                    "chatsManuales": int(_num(r["chats_manuales"])),
                 }
                 for r in reels[:20]
             ],
@@ -175,6 +213,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             ],
         },
         "setting": {
+            # Lo que el equipo reporta a mano; las que abre el bot van en `conversaciones`.
             "conversaciones": int(sum(_num(s["conversaciones"]) for s in setting)),
             "linksEnviados": int(sum(_num(s["links_enviados"]) for s in setting)),
             "agendas": int(sum(_num(s["agendas"]) for s in setting)),

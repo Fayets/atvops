@@ -1453,6 +1453,8 @@ export async function getMarketing(mes) {
       totales: { reels: c.reels, reproducciones: c.reproducciones, alcance: c.alcance, interacciones: c.interacciones },
     },
     contenido: c,
+    // Las conversaciones que Instagram abrió solo, con el contenido que las trajo.
+    conversaciones: raw.conversaciones ?? { total: 0, porPalabra: {}, sinPalabra: 0 },
     historias: raw.historias,
     setting: raw.setting,
     storiesActivas: raw.historias.secuencias,
@@ -1461,7 +1463,12 @@ export async function getMarketing(mes) {
       kpi('reproducciones', 'Reproducciones', c.reproducciones, 'count', `${c.reels} reels publicados este mes`, 'mkt_crm'),
       kpi('alcance_ig', 'Alcance', c.alcance, 'count', `${formatValue(c.interacciones, 'count')} interacciones`, 'mkt_crm'),
       kpi('chats_historias', 'Chats de historias', raw.historias.chats, 'count', `${raw.historias.secuencias} secuencias cargadas`),
-      kpi('conversaciones_setting', 'Conversaciones de setting', raw.setting.conversaciones, 'count', `${raw.setting.agendas} agendas`),
+      kpi(
+        'conversaciones_ig', 'Conversaciones abiertas',
+        raw.conversaciones?.total ?? 0, 'count',
+        'Instagram · el bot las abrió solo, sin reportarlas a mano',
+      ),
+      kpi('conversaciones_setting', 'Reportadas por setting', raw.setting.conversaciones, 'count', `${raw.setting.agendas} agendas`),
       kpi('inversion_ads', 'Inversión en Ads', raw.ads.gastoUsd, 'usd', `${raw.ads.conversiones} conversiones`, 'ads_manager'),
     ],
     conectado: raw.conectado,
