@@ -5,7 +5,7 @@ import NuevaReunion from './NuevaReunion.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
 import { formatValue } from '../../lib/format.js';
-import { getEstadoReuniones, getLlamadosAgenda } from '../../data/api.js';
+import { getEstadoReuniones, getLlamadosAgenda, ocultarReunion } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 
 const pct = (v) => (v == null ? '—' : `${v}%`);
@@ -114,8 +114,19 @@ function CalendarioReal({ onCambio }) {
         onActualizar={() => setTick((t) => t + 1)}
         onRango={onRango}
         estados={reuniones?.porEvento}
+        ocultos={reuniones?.ocultos}
         onEditar={(reunion, estado) => setEditando({ reunion, estado })}
         onAgregar={() => setAgregando(true)}
+        onOcultar={async (l) => {
+          await ocultarReunion(l.id, { titulo: l.prospecto, fechaAt: l.fechaAt });
+          setTick((t) => t + 1);
+          onCambio?.();
+        }}
+        onMostrar={async (l) => {
+          await ocultarReunion(l.id, { mostrar: true });
+          setTick((t) => t + 1);
+          onCambio?.();
+        }}
       />
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
       {agregando && (

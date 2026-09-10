@@ -38,10 +38,11 @@ function parseAt(iso) {
  * @param {{ llamados: object[], onSelect: (l: object) => void, sub?: string,
  *           actualizando?: boolean, onActualizar?: () => void,
  *           onRango?: (desde: string, hasta: string) => void,
- *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void }} props
+ *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void,
+ *           onOcultar?: (l: object) => void, ocultos?: Record<string, boolean> }} props
  */
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
-                                           estados, onEditar, onAgregar }) {
+                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -68,6 +69,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     /** @type {Record<string, object[]>} */
     const map = {};
     for (const l of llamados) {
+      if (ocultos?.[l.id]) continue;   // el equipo la sacó del calendario
       const d = parseAt(l.fechaAt);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!map[key]) map[key] = [];
@@ -77,7 +79,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       map[k].sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
     }
     return map;
-  }, [llamados]);
+  }, [llamados, ocultos]);
 
   const keyDe = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
@@ -113,7 +115,10 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   const abrirEditor = (l) => {
     cancelarClick();
     const e = estadoDe(l);
-    if (e && onEditar) onEditar(l, e);
+    // Una reunión que no es de venta (un 1a1, una weekly) no tiene resultado que cargar:
+    // lo único que se puede hacer con ella es dejar de verla en el calendario.
+    if (e) onEditar?.(l, e);
+    else onOcultar?.(l);
   };
 
   // El rango visible, en fecha local, para pedirle al backend exactamente esos días.
@@ -124,6 +129,15 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   useEffect(() => {
     onRango?.(desde, hasta);
   }, [desde, hasta, onRango]);
+
+  // Las que el equipo sacó del calendario dentro de lo que se está mirando: si no se
+  // pudieran devolver, un doble click de más las escondería para siempre.
+  const escondidas = (llamados ?? []).filter((l) => {
+    if (!ocultos?.[l.id]) return false;
+    const d = parseAt(l.fechaAt);
+    return d >= visibles[0] && d <= new Date(visibles[visibles.length - 1].getTime() + 86400000);
+  });
+
 
   const navegar = (dir) => {
     const n = new Date(ancla);
@@ -179,7 +193,21 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
           </div>
         </div>
       }
-      foot={titulo}
+      foot={
+        <span className="cal-pie">
+          <span>{titulo}</span>
+          {escondidas.length > 0 && (
+            <span className="cal-ocultas">
+              {escondidas.length} {escondidas.length === 1 ? 'reunión oculta' : 'reuniones ocultas'}:
+              {escondidas.slice(0, 4).map((l) => (
+                <button key={l.id} type="button" className="btn sm ghost" onClick={() => onMostrar?.(l)}>
+                  {l.prospecto} ↩
+                </button>
+              ))}
+            </span>
+          )}
+        </span>
+      }
     >
       <div className={`ventas-cal-body${actualizando ? ' is-loading' : ''}`}>
         {modo === 'semana' ? (
@@ -207,7 +235,9 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                             ? 'Descartada · no cuenta para las agendas. Doble click para recuperarla'
                             : (estadoDe(l)?.resultado
                               ? `${estadoDe(l).resultado} · doble click para cambiarlo`
-                              : (estadoDe(l) ? 'Doble click para cargar el resultado' : undefined))}
+                              : (estadoDe(l)
+                                ? 'Doble click para cargar el resultado'
+                                : 'No es una llamada de venta · doble click para sacarla del calendario'))}
                         >
                           <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
                           <span className="who">{l.prospecto}</span>

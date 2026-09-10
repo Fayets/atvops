@@ -777,6 +777,18 @@ export async function guardarResultadoLlamada(leadId, payload, mes, { lista = tr
   });
 }
 
+/**
+ * Saca del calendario una reunión que no es de venta (un 1a1, una weekly), o la devuelve.
+ * No borra nada en Google: solo deja de mostrarse en ATV Ops.
+ */
+export async function ocultarReunion(eventoId, { titulo, fechaAt, mostrar = false } = {}) {
+  return pedir(`/api/ventas/reuniones/${encodeURIComponent(eventoId)}/ocultar${mostrar ? '?mostrar=true' : ''}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ titulo, fechaAt }),
+  });
+}
+
 /** Reels y secuencias de historias del mes, traídos de Instagram con el token propio. */
 export async function getInstagramPropio(mes) {
   return pedir(`/api/ventas/instagram${mes ? `?mes=${mes}` : ''}`);

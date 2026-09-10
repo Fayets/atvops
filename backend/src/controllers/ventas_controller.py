@@ -164,6 +164,19 @@ def instagram_sincronizar(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"No se pudo sincronizar: {str(e)[:180]}")
 
 
+@router.post("/reuniones/{evento_id}/ocultar")
+def ocultar_reunion(evento_id: str, user: dict = Depends(get_current_user),
+                    payload: dict = Body(default={}), mostrar: bool = False):
+    """Saca del calendario una reunión que no es de venta, o la vuelve a mostrar."""
+    try:
+        return ventas.ocultar_evento(evento_id, payload or {}, user, mostrar=mostrar)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló ocultar la reunión %s", evento_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo ocultar la reunión: {str(e)[:180]}")
+
+
 @router.get("/reuniones")
 def reuniones(_user: dict = Depends(get_current_user), desde: str | None = None, hasta: str | None = None):
     """Estado de cada reunión del calendario, para pintarlo y editarlo desde el calendario."""

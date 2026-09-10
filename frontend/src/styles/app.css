@@ -5277,6 +5277,8 @@ button.lista-item:hover { background: var(--surface-2); }
 .ventas-cal-ev.cargada .who { font-weight: 600; }
 .ventas-cal-ev.cargada .meta { color: var(--cal-cargada-texto, #1d4ed8); text-transform: none; }
 .ventas-cal-ev.sin-crm { border-style: dashed; }
+.cal-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; }
+.cal-ocultas { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 /* La descartada se ve de un vistazo: no suma a las agendas ni a ninguna métrica. */
 .ventas-cal-ev.descartada { background: var(--cal-descartada-bg, #fee2e2); border-color: var(--cal-descartada-borde, #fca5a5); }
 .ventas-cal-ev.descartada .hora, .ventas-cal-ev.descartada .who { text-decoration: line-through; opacity: 0.75; }

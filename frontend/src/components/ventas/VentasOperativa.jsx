@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import EditorReunion from './EditorReunion.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
+import { ocultarReunion } from '../../data/api.js';
 import CalendarioEquipo, { ESTADO } from './CalendarioEquipo.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
@@ -122,8 +123,17 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
           onActualizar={onActualizar}
           onRango={onRango}
           estados={reuniones?.porEvento}
+          ocultos={reuniones?.ocultos}
           onEditar={(reunion, estado) => setEditando({ reunion, estado })}
           onAgregar={() => setAgregando(true)}
+          onOcultar={async (l) => {
+            await ocultarReunion(l.id, { titulo: l.prospecto, fechaAt: l.fechaAt });
+            onCargado?.();
+          }}
+          onMostrar={async (l) => {
+            await ocultarReunion(l.id, { mostrar: true });
+            onCargado?.();
+          }}
         />
       )}
 

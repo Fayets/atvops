@@ -275,6 +275,9 @@ class ReunionCrm(db.Entity):
     creado_at = Required(datetime, default=datetime.utcnow)
     # Lo que cargó el equipo. Vacío = todavía no se cargó y manda lo que diga el CRM.
     resultado = Optional(str)
+    # Una reunión interna (un 1a1, una weekly) no es de venta: se puede ocultar del
+    # calendario pero no entra a ninguna métrica ni a la lista de llamadas.
+    es_venta = Required(bool, default=True)
     closer = Optional(str)
     programa = Optional(str)
     cash_usd = Optional(float)

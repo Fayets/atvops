@@ -300,7 +300,7 @@ def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
     try:
         with db_session:
             filas = list(select(r for r in ReunionCrm
-                                if r.lead_id == 0 and r.inicio_at is not None
+                                if r.lead_id == 0 and r.es_venta and r.inicio_at is not None
                                 and r.inicio_at >= datetime.combine(desde, time.min)
                                 and r.inicio_at < datetime.combine(hasta, time.min)))
             return [{
@@ -504,6 +504,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
         "programas": programas(), "estados": list(ESTADOS_LLAMADA),
         "porEvento": por_evento,
         "manuales": manuales,
+        "ocultos": eventos_ocultos(),
     }
 
 
@@ -1220,6 +1221,58 @@ def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
     if not crm_db.consultar("SELECT id FROM lead WHERE id = %s", (numero,)):
         raise HTTPException(status_code=404, detail="Esa llamada no existe.")
     return numero, ""
+
+
+def ocultar_evento(evento_id: str, datos: dict, usuario: dict, mostrar: bool = False) -> dict:
+    """Saca del calendario una reunión que no es de venta, o la vuelve a mostrar.
+
+    Un 1a1, una weekly, una reunión de otro equipo: aparecen en el calendario de ATV
+    porque están en el mismo Google Calendar, pero no son llamadas. No se les carga
+    resultado y no cuentan para nada; lo único que se puede hacer es dejar de verlas.
+    """
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede ocultar reuniones.")
+    evento_id = str(evento_id or "").strip()
+    if not evento_id:
+        raise HTTPException(status_code=400, detail="Falta la reunión.")
+    cuando = None
+    try:
+        if datos.get("fechaAt"):
+            cuando = datetime.fromisoformat(str(datos["fechaAt"]).replace("Z", "")).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        cuando = None
+    with db_session:
+        fila = ReunionCrm.get(evento_id=evento_id)
+        if fila is None:
+            fila = ReunionCrm(evento_id=evento_id, lead_id=0,
+                              prospecto=str(datos.get("titulo") or "")[:200],
+                              inicio_at=cuando, creado_por=(usuario.get("username") or "")[:80])
+        fila.es_venta = False
+        fila.descartada = not mostrar
+        fila.actualizado_por = (usuario.get("username") or "")[:80]
+        fila.actualizado_at = datetime.utcnow()
+    logger.info("Reunión %s %s del calendario por %s", evento_id,
+                "mostrada" if mostrar else "ocultada", usuario.get("username"))
+    _olvidar_meses()
+    return {"ok": True, "eventoId": evento_id, "oculta": not mostrar}
+
+
+def eventos_ocultos() -> dict[str, bool]:
+    """Qué reuniones del calendario están ocultas."""
+    from pony.orm import db_session, select
+
+    from src.models import ReunionCrm
+
+    try:
+        with db_session:
+            return {r.evento_id: True for r in select(r for r in ReunionCrm if not r.es_venta and r.descartada)}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las reuniones ocultas: %s", str(e)[:160])
+        return {}
 
 
 def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None,
