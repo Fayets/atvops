@@ -294,6 +294,8 @@ export default function CalendarioReuniones() {
             </ul>
           )}
 
+          {/* El setter usa este calendario para sus reportes, no para agendar reuniones. */}
+          {!esSetter && (
           <form className="cal-form" onSubmit={onCrear}>
             <div className="eyebrow">Nueva reunión</div>
             <input
@@ -335,6 +337,7 @@ export default function CalendarioReuniones() {
               {guardando ? 'Guardando…' : 'Asignar al día'}
             </button>
           </form>
+          )}
         </div>
       </div>
     </Card>
