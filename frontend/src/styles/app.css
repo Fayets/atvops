@@ -5139,6 +5139,10 @@ button.lista-item:hover { background: var(--surface-2); }
 .meta-ind-quien { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .meta-ind-celda { display: grid; gap: 4px; min-width: 0; }
 .meta-ind-valor { font-size: 13.5px; white-space: nowrap; }
+.meta-ind-tasa { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
+.meta-ind-tasa[data-tono="ok"] { color: var(--ok); }
+.meta-ind-tasa[data-tono="warn"] { color: var(--warn); }
+.meta-ind-tasa[data-tono="alert"] { color: var(--alert); }
 .meta-ind-pct { font-size: 11px; }
 .meta-ind-barra { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .meta-ind-barra span { display: block; height: 100%; border-radius: 999px; background: var(--text-3); }

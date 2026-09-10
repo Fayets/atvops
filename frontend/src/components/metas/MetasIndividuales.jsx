@@ -25,6 +25,16 @@ function Fila({ persona, metricas, esperado }) {
       </div>
       {metricas.map((m) => {
         const pct = RITMO(m.actual, m.parte);
+        // Una tasa se lee sola: el número y la meta. La barra y el "% de la meta" ahí
+        // confunden, porque son un porcentaje de otro porcentaje.
+        if (m.format === 'pct') {
+          return (
+            <div key={m.id} className="meta-ind-celda">
+              <div className="meta-ind-tasa num" data-tono={tono(pct, 100)}>{formatValue(m.actual, 'pct')}</div>
+              <div className="meta-ind-pct dim">meta {formatValue(m.parte, 'pct')}</div>
+            </div>
+          );
+        }
         return (
           <div key={m.id} className="meta-ind-celda">
             <div className="meta-ind-valor num">
