@@ -11,7 +11,6 @@ import Home from './pages/Home.jsx';
 import HomeMarketingPage from './pages/HomeMarketingPage.jsx';
 import ContenidoPage from './pages/marketing/ContenidoPage.jsx';
 import Login from './pages/Login.jsx';
-import Privacidad from './pages/Privacidad.jsx';
 import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
@@ -114,8 +113,6 @@ export default function App() {
   return (
     <Routes>
       <Route path="login" element={<Login />} />
-      {/* Pública a propósito: Meta la verifica sin sesión para poder publicar la app. */}
-      <Route path="privacidad" element={<Privacidad />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>

@@ -5446,19 +5446,3 @@ body.gate-abierto .shell { display: none; }
 .meta-falta { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; font-size: 11.5px; }
 @media (max-width: 900px) { .meta-fila { grid-template-columns: 1fr; gap: 6px; } .meta-numeros, .meta-falta { text-align: left; justify-content: flex-start; } }
 
-/* La política de privacidad: una hoja para leer, no una pantalla del tablero. */
-.legal { min-height: 100vh; background: var(--bg); padding: var(--space-6) var(--space-4); }
-.legal-hoja { max-width: 720px; margin: 0 auto; background: var(--card);
-  border: 1px solid var(--border-soft); border-radius: var(--radius);
-  padding: clamp(24px, 5vw, 56px); line-height: 1.65; }
-.legal-marca { font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em;
-  color: var(--brand); margin-bottom: var(--space-3); }
-.legal-hoja h1 { font-size: clamp(24px, 4vw, 32px); margin: 0 0 var(--space-2); }
-.legal-hoja h2 { font-size: 16px; margin: var(--space-6) 0 var(--space-3); }
-.legal-hoja header { margin-bottom: var(--space-6); padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-soft); }
-.legal-hoja header p { margin: 0; font-size: 13px; }
-.legal-hoja p { margin: 0 0 var(--space-3); }
-.legal-hoja ul { margin: 0 0 var(--space-3); padding-left: 1.2em; }
-.legal-hoja li { margin-bottom: 6px; }
-.legal-hoja a { color: var(--brand-hi); }

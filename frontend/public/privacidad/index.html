@@ -1,26 +1,41 @@
-/**
- * La política de privacidad de ATV, pública y sin sesión.
- *
- * Vive acá porque es la dirección que ATV controla. Meta la exige para publicar la app
- * `AVT MKT` y la lee una persona cuando se pide acceso avanzado a los permisos de
- * mensajería: por eso dice lo que el sistema hace de verdad y no una plantilla.
- *
- * La ruta está fuera de RequireAuth: si pidiera login, Meta la rechaza.
- */
-
-const CORREO = 'aumentatuvalorx@gmail.com';
-const ACTUALIZADA = '10 de septiembre de 2026';
-
-const Correo = () => <a href={`mailto:${CORREO}`}>{CORREO}</a>;
-
-export default function Privacidad() {
-  return (
-    <div className="legal">
-      <article className="legal-hoja">
-        <header>
-          <div className="legal-marca">Aumenta Tu Valor</div>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Política de privacidad · Aumenta Tu Valor</title>
+<meta name="description" content="Qué datos trata Aumenta Tu Valor, para qué los usa y cómo pedir que se borren." />
+<meta name="robots" content="index, follow" />
+<link rel="icon" type="image/png" href="/atv-logo.png" />
+<style>
+  :root {
+    --bg: #0d0d0f; --hoja: #141417; --borde: #26262b;
+    --texto: #e8e8ea; --tenue: #8a8a92; --marca: #e63946; --enlace: #ff6b74;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--texto); line-height: 1.65;
+    font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 40px 16px; }
+  article { max-width: 720px; margin: 0 auto; background: var(--hoja);
+    border: 1px solid var(--borde); border-radius: 14px; padding: clamp(24px, 5vw, 56px); }
+  header { margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid var(--borde); }
+  .legal-marca { font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--marca); margin-bottom: 12px; }
+  h1 { font-size: clamp(24px, 4vw, 32px); margin: 0 0 8px; }
+  h2 { font-size: 16px; margin: 36px 0 12px; }
+  .fecha { margin: 0; font-size: 13px; color: var(--tenue); }
+  p { margin: 0 0 12px; }
+  ul { margin: 0 0 12px; padding-left: 1.2em; }
+  li { margin-bottom: 6px; }
+  a { color: var(--enlace); }
+</style>
+</head>
+<body>
+<article>
+<header>
+          <div class="legal-marca">Aumenta Tu Valor</div>
           <h1>Política de privacidad</h1>
-          <p className="dim">Última actualización: {ACTUALIZADA}</p>
+          <p class="fecha">Última actualización: 10 de septiembre de 2026</p>
         </header>
 
         <p>
@@ -32,7 +47,7 @@ export default function Privacidad() {
         </p>
 
         <h2>Quién es responsable</h2>
-        <p>Aumenta Tu Valor. Consultas sobre datos personales: <Correo />.</p>
+        <p>Aumenta Tu Valor. Consultas sobre datos personales: <a href="mailto:aumentatuvalorx@gmail.com">aumentatuvalorx@gmail.com</a>.</p>
 
         <h2>Qué datos tratamos y por qué</h2>
         <p>
@@ -93,7 +108,7 @@ export default function Privacidad() {
         <h2>Sus derechos</h2>
         <p>
           Toda persona puede pedirnos acceder a sus datos, corregirlos, actualizarlos o suprimirlos,
-          y oponerse a determinados usos. Escribiendo a <Correo /> respondemos dentro de los diez
+          y oponerse a determinados usos. Escribiendo a <a href="mailto:aumentatuvalorx@gmail.com">aumentatuvalorx@gmail.com</a> respondemos dentro de los diez
           días corridos.
         </p>
         <p>
@@ -108,7 +123,7 @@ export default function Privacidad() {
 
         <h2 id="eliminacion">Cómo pedir que borremos sus datos</h2>
         <p>
-          Para pedir la eliminación de sus datos, envíe un correo a <Correo /> desde la dirección
+          Para pedir la eliminación de sus datos, envíe un correo a <a href="mailto:aumentatuvalorx@gmail.com">aumentatuvalorx@gmail.com</a> desde la dirección
           que nos haya dejado, o un mensaje directo desde la misma cuenta de Instagram con la que
           nos escribió, indicando «Baja de datos». Confirmamos la identidad, eliminamos la
           información dentro de los treinta días y avisamos cuando está hecho.
@@ -135,7 +150,6 @@ export default function Privacidad() {
           Si esta política cambia, publicamos la versión nueva en esta misma dirección y
           actualizamos la fecha del encabezado.
         </p>
-      </article>
-    </div>
-  );
-}
+</article>
+</body>
+</html>
