@@ -36,3 +36,4 @@ backend/data/pedidos_borrador.tmp
 frontend/.env.local
 # Miniaturas de Instagram: se rebajan solas en cada sincronización.
 backend/data/ig/
+backend/data/yt/
