@@ -26,7 +26,7 @@ export default function AvanceVsMeta({ filas, titulo = 'Avance vs meta', sub, sy
       foot={
         <span className="meta-avance-foot">
           <i className="dot manual" />
-          Decreto del mes · mock
+          Decreto del mes · lo carga el equipo
           {syncAt ? ` · ${formatFecha(syncAt)}` : ''}
         </span>
       }

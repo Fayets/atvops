@@ -5,10 +5,11 @@
 
 import { decretoPlantilla, leerDecretoGuardado } from './metasMes.js';
 
-/** Headcount default hasta que haya roster real. */
+/** Si el backend no dijo cuánta gente hay, se reparte entre una sola persona: es mejor
+ *  mostrar la meta entera que inventar un equipo que no existe. */
 export const EQUIPO_VENTAS_SIZE = {
-  closers: 4,
-  setters: 3,
+  closers: 1,
+  setters: 1,
 };
 
 function ceilDiv(n, d) {

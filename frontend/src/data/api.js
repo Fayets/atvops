@@ -56,26 +56,17 @@ import { getToken } from '../lib/auth.js';
 import { calcularSalud, BLOCKERS, SEMAFORO, VENTANA_ONBOARDING } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
-const LATENCIA_MS = 180;
-
 /** @template T @param {T} data @returns {Promise<T>} */
 function responder(data) {
-  return new Promise((resolve) => setTimeout(() => resolve(data), LATENCIA_MS));
+  return Promise.resolve(data);
 }
 
-/** El mock trae una serie hasta el día 14; el ritmo usa solo hasta el día de hoy. */
+/** El acumulado puede venir hasta fin de mes; el ritmo usa solo hasta hoy. */
 function recortarAcumulado(acumulado, diaHoy) {
   if (!acumulado?.length || diaHoy <= 0) return [];
   return acumulado.slice(0, Math.min(diaHoy, acumulado.length));
 }
 
-const SYNC = {
-  tx: SOURCES.discord_transcripts.lastSyncAt ?? new Date().toISOString(),
-  crm: SOURCES.discord_crm.lastSyncAt ?? '2026-08-29T18:40:00-03:00',
-  ads: SOURCES.ads_manager.lastSyncAt ?? '2026-08-31T07:15:00-03:00',
-  cal: SOURCES.calendly.lastSyncAt ?? '2026-08-31T08:02:00-03:00',
-  man: '2026-08-31T09:30:00-03:00',
-};
 
 /* ---------------------------------------------------------------- clientes */
 
@@ -1226,12 +1217,13 @@ export async function getFulfillmentOps(mes) {
 /**
  * Dashboard personal del Closer: su día, sus números, follow-ups y dispositions.
  * Metas personales y de equipo salen de la proyección/decreto del mes.
- * Agenda vive en closerStore (mock en vivo) para dispositions + polling.
  */
 export async function getCloserDashboard(mes) {
   const real = await pedir('/api/ventas/mis-llamadas');
   const ctx = contextoDeMes(mes || mesId());
-  const cuotas = cuotasCloserDesdeProyeccion(ctx.mes);
+  // Cuántos closers hay de verdad: sale del backend, no de un número escrito acá.
+  const equipo = await getVentasReal(ctx.mes).then((v) => v.equipoOps).catch(() => null);
+  const cuotas = cuotasCloserDesdeProyeccion(ctx.mes, { closers: equipo?.closers, diasMes: ctx.diasMes });
   const m = real.mes ?? {};
   const meta = cuotas.personalMes ?? {};
   const pctDe = (v, x) => (x ? (v / x) * 100 : 0);
@@ -1257,24 +1249,6 @@ export async function getCloserDashboard(mes) {
     syncAt: real.generadoAt,
     mes: ctx.mes,
   };
-}
-
-/** Guarda disposition (mock store). Futuro: POST /api/ventas/dispositions. */
-export async function guardarDispositionCloser(payload) {
-  guardarDispositionEnStore(payload);
-  return getCloserDashboard();
-}
-
-/** Demo: aplica disposition a Tomás Riganti (o primera agendada). */
-export async function simularDispositionCloser() {
-  const ok = simularDispositionDemo();
-  if (!ok) return null;
-  return getCloserDashboard();
-}
-
-/** Suscripción a cambios de agenda (mock WebSocket). */
-export function onCloserAgendaChange(fn) {
-  return subscribeCloserAgenda(fn);
 }
 
 /**
@@ -1979,10 +1953,8 @@ export async function getHome(mesSel) {
         label: 'Automatizado',
         value: sistemas.cobertura.pct,
         format: 'pct',
-        previous: 30,
         sourceId: 'manual',
-        updatedAt: SYNC.man,
-        objetivo: 80,
+        updatedAt: new Date().toISOString(),
       },
     ].filter(Boolean),
     acciones,
