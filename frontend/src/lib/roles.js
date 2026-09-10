@@ -80,8 +80,8 @@ export const RUTAS_POR_ROL = {
     '/ideas',
   ],
   ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas'],
-  // Ads es plata: la maneja Franco, no el director de marketing.
-  marketing: ['/', '/calendario', '/marketing', '/metas', '/ideas'],
+  // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
+  marketing: ['/', '/marketing', '/metas', '/ideas'],
   founder: [
     '/',
     '/reporte',
