@@ -555,9 +555,45 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     }
 
 
+def _nombres_canonicos() -> dict[str, str]:
+    """Cómo se llama de verdad cada uno. El CRM guarda la misma persona escrita de varias
+    formas ("Nick" y "Nick Xanderz"), y agrupar por el texto crudo la parte en dos.
+    Manda el nombre del equipo; si no está, el más completo de los que aparecen."""
+    with _lock:
+        guardado = _cache.get("canonicos")
+        if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
+    mapa: dict[str, str] = {}
+    try:
+        vistos = [f["nombre"] for f in crm_db.consultar(
+            "SELECT DISTINCT closer AS nombre FROM lead WHERE coalesce(closer, '') <> '' "
+            "UNION SELECT DISTINCT setter FROM lead WHERE coalesce(setter, '') <> ''")]
+        equipo = [m["nombre"] for m in crm_db.consultar("SELECT nombre FROM teammember WHERE activo")]
+        por_pila: dict[str, str] = {}
+        for n in sorted(vistos, key=len, reverse=True):  # el más largo primero
+            pila = (_norm(n).split() or [""])[0]
+            if pila:
+                por_pila.setdefault(pila, n.strip())
+        for n in equipo:  # el nombre del equipo pisa a la variante suelta
+            pila = (_norm(n).split() or [""])[0]
+            if pila:
+                por_pila[pila] = n.strip()
+        for n in vistos:
+            pila = (_norm(n).split() or [""])[0]
+            if pila and por_pila.get(pila):
+                mapa[_norm(n)] = por_pila[pila]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron unificar los nombres del equipo: %s", str(e)[:160])
+    with _lock:
+        _cache["canonicos"] = {"at": datetime.utcnow(), "data": mapa}
+    return mapa
+
+
 def _persona(nombre: str | None) -> str:
     n = (nombre or "").strip()
-    return n or "Sin asignar"
+    if not n:
+        return "Sin asignar"
+    return _nombres_canonicos().get(_norm(n), n)
 
 
 def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
@@ -1006,7 +1042,7 @@ def _olvidar_meses() -> None:
     índice de dueños y el caché del calendario: rehacerlos en cada guardado es lo que
     hacía que la respuesta tardara y el proxy cortara con un 502."""
     with _lock:
-        for k in [k for k in _cache if k != "duenios"]:
+        for k in [k for k in _cache if k not in ("duenios", "canonicos")]:
             _cache.pop(k, None)
 
 

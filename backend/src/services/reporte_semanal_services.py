@@ -78,7 +78,7 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
 
     por_closer: dict[str, dict] = {}
     for f, c in utiles:
-        nombre = (f["closer"] or "").strip() or "Sin asignar"
+        nombre = ventas._persona(f["closer"])
         b = por_closer.setdefault(nombre, {"nombre": nombre, "agendadas": 0, "shows": 0,
                                            "cierres": 0, "senas": 0, "cashUsd": 0.0})
         b["agendadas"] += 1
