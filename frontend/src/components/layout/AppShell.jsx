@@ -3,6 +3,7 @@ import { MesProvider } from '../../lib/MesContext.jsx';
 import { RolProvider } from '../../lib/RolContext.jsx';
 import { IdeasProvider } from '../../lib/useIdeas.jsx';
 import GateLlamadas from '../ventas/GateLlamadas.jsx';
+import BotonAtvAi from './BotonAtvAi.jsx';
 import Sidebar from './Sidebar.jsx';
 import Topbar from './Topbar.jsx';
 
@@ -18,6 +19,7 @@ export default function AppShell() {
               <Topbar />
               <Outlet />
             </div>
+            <BotonAtvAi />
           </div>
         </IdeasProvider>
       </MesProvider>

@@ -4,13 +4,16 @@ import { useRol } from '../../lib/RolContext.jsx';
 import { filtrarNav, homeParaRol, ROL_LIST, ROLES } from '../../lib/roles.js';
 import Icon from '../ui/Icon.jsx';
 
+const ORDEN_GRUPOS = ['Tablero', 'Áreas', 'Dirección', 'Sistema'];
+
 const NAV = [
-  { to: '/', icon: 'home', label: 'Home', end: true },
-  { to: '/calendario', icon: 'calendario', label: 'Calendario' },
+  { to: '/', icon: 'home', label: 'Home', end: true, grupo: 'Tablero' },
+  { to: '/calendario', icon: 'calendario', label: 'Calendario', grupo: 'Tablero' },
   {
     to: '/fulfillment',
     icon: 'clientes',
     label: 'Fulfillment',
+    grupo: 'Áreas',
     sub: [
       { to: '/fulfillment', label: 'Resumen', end: true, roles: ['csm', 'operaciones', 'admin', 'founder'] },
       { to: '/fulfillment/ops', label: 'Salud de cartera', roles: ['admin', 'operaciones', 'founder'] },
@@ -23,13 +26,13 @@ const NAV = [
       { to: '/fulfillment/chats', label: 'Chats en vivo', roles: ['csm', 'operaciones', 'admin', 'founder'] },
     ],
   },
-  { to: '/asistente', icon: 'ideas', label: 'ATV AI' },
-  { to: '/marketing', icon: 'marketing', label: 'Marketing' },
-  { to: '/ads', icon: 'ads', label: 'Ads' },
+  { to: '/marketing', icon: 'marketing', label: 'Marketing', grupo: 'Áreas' },
+  { to: '/ads', icon: 'ads', label: 'Ads', grupo: 'Áreas' },
   {
     to: '/ventas',
     icon: 'ventas',
     label: 'Ventas',
+    grupo: 'Áreas',
     sub: [
       { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer', 'admin', 'founder'] },
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer', 'admin', 'founder'] },
@@ -39,12 +42,12 @@ const NAV = [
       { to: '/ventas/ops', label: 'Salud vs meta', roles: ['admin', 'operaciones', 'founder'] },
     ],
   },
-  { to: '/reporte', icon: 'check', label: 'Reporte semanal' },
-  { to: '/metas', icon: 'check', label: 'Metas' },
-  { to: '/sistemas', icon: 'sistemas', label: 'Sistemas' },
-  { to: '/cobranza', icon: 'cobranza', label: 'Cobranza' },
-  { to: '/ideas', icon: 'ideas', label: 'Ideas' },
-  { to: '/configuracion', icon: 'config', label: 'Configuración' },
+  { to: '/reporte', icon: 'check', label: 'Reporte semanal', grupo: 'Dirección' },
+  { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
+  { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
+  { to: '/cobranza', icon: 'cobranza', label: 'Cobranza', grupo: 'Áreas' },
+  { to: '/ideas', icon: 'ideas', label: 'Ideas', grupo: 'Sistema' },
+  { to: '/configuracion', icon: 'config', label: 'Configuración', grupo: 'Sistema' },
 ];
 
 export default function Sidebar() {
@@ -52,6 +55,11 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { user, rol, rolReal, preview, puedePreview, setPreview } = useRol();
   const nav = filtrarNav(NAV, rol);
+  // Agrupado para que la barra se lea de un vistazo: dónde estoy, las áreas del negocio,
+  // lo que sirve para decidir y lo del sistema.
+  const grupos = ORDEN_GRUPOS
+    .map((nombre) => ({ nombre, items: nav.filter((i) => (i.grupo ?? 'Tablero') === nombre) }))
+    .filter((g) => g.items.length);
 
   function salir() {
     setPreview(null);
@@ -76,32 +84,36 @@ export default function Sidebar() {
       </div>
 
       <nav className="nav">
-        <div className="nav-group eyebrow">Tablero</div>
-        {nav.map((item) => (
-          <div key={item.to}>
-            <NavLink
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
+        {grupos.map((g) => (
+          <div key={g.nombre} className="nav-seccion">
+            <div className="nav-group eyebrow">{g.nombre}</div>
+            {g.items.map((item) => (
+              <div key={item.to}>
+                <NavLink
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                >
+                  <Icon name={item.icon} />
+                  {item.label}
+                </NavLink>
 
-            {item.sub && pathname.startsWith(item.to) && (
-              <div className="subnav">
-                {item.sub.map((s) => (
-                  <NavLink
-                    key={s.to}
-                    to={s.to}
-                    end={s.end}
-                    className={({ isActive }) => `subnav-item${isActive ? ' active' : ''}`}
-                  >
-                    {s.label}
-                  </NavLink>
-                ))}
+                {item.sub && pathname.startsWith(item.to) && (
+                  <div className="subnav">
+                    {item.sub.map((s) => (
+                      <NavLink
+                        key={s.to}
+                        to={s.to}
+                        end={s.end}
+                        className={({ isActive }) => `subnav-item${isActive ? ' active' : ''}`}
+                      >
+                        {s.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            ))}
           </div>
         ))}
       </nav>

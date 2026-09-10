@@ -5123,6 +5123,26 @@ button.lista-item:hover { background: var(--surface-2); }
 /* Metas individuales: una fila por persona, la misma grilla en todas, y una barra que
    dice de un vistazo si va en ritmo con lo que lleva transcurrido el mes. */
 .meta-ind-tabla { display: grid; }
+/* ATV AI vive flotando abajo a la izquierda, sobre el borde de la barra: se usa desde
+   cualquier vista, no es una sección más del tablero. */
+.atv-ai-fab {
+  position: fixed; left: 16px; bottom: 16px; z-index: 60;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 14px 10px 12px; border-radius: 999px;
+  background: var(--brand); color: #fff; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--brand); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.atv-ai-fab:hover { background: var(--brand-hi); border-color: var(--brand-hi); transform: translateY(-1px); }
+.atv-ai-fab.activo { background: var(--brand-hi); border-color: #fff; }
+.atv-ai-fab svg { flex: none; }
+@media (max-width: 900px) {
+  .atv-ai-fab { padding: 12px; }
+  .atv-ai-fab-texto { display: none; }
+}
+/* La barra no queda tapada por el botón. */
+.sidebar-foot { padding-bottom: 56px; }
+.nav-seccion + .nav-seccion { margin-top: var(--space-4); }
 /* La cadena que explica de qué depende el cierre: cierres → shows → agendas. */
 .depende-cadena { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
 .depende-paso { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13.5px;
