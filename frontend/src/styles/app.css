@@ -5191,3 +5191,14 @@ body.gate-abierto .shell { display: none; }
 @keyframes girar { to { transform: rotate(360deg); } }
 .recargar-icono { display: inline-block; margin-right: 5px; }
 .recargar-icono.girando { animation: girar 0.9s linear infinite; }
+.cal-cell.falta-reporte { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 13%, transparent); }
+.cal-cell.con-reporte { border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 11%, transparent); }
+.cal-reportes-resumen { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border-soft); }
+.cal-reportes-resumen > div { display: grid; gap: 1px; }
+.cal-reportes-resumen .num { font-size: 17px; font-weight: 600; }
+.cal-reportes-resumen .dim { font-size: 11px; }
+.cal-reporte { display: grid; gap: 10px; padding: 12px 0 16px; border-bottom: 1px solid var(--border-soft); margin-bottom: 12px; }
+.cal-reporte-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.cal-reporte-lista li { display: flex; justify-content: space-between; gap: var(--space-3); }
+.reporte-form { display: grid; gap: var(--space-3); }
+.reporte-acciones { display: flex; justify-content: flex-end; gap: 8px; }

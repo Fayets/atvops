@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Card from '../ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../ui/Loading.jsx';
-import { getMisReportes, guardarReporteDia } from '../../data/api.js';
+import FormReporteDia from './FormReporteDia.jsx';
+import { getMisReportes } from '../../data/api.js';
 
 const DIAS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
 const mesLargo = (mes) =>
@@ -9,26 +10,8 @@ const mesLargo = (mes) =>
 const diaLargo = (iso) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 
-/** Formulario del día: los números que carga el setter en su reporte. */
+/** El día en un modal, con el mismo formulario que usa el calendario personal. */
 function FormDia({ dia, campos, rol, onGuardado, onCerrar }) {
-  const [valores, setValores] = useState(() =>
-    Object.fromEntries(campos.map((c) => [c.id, dia.valores?.[c.id] || ''])),
-  );
-  const [nota, setNota] = useState(dia.nota ?? '');
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState(null);
-
-  const guardar = async () => {
-    setGuardando(true);
-    setError(null);
-    try {
-      onGuardado(await guardarReporteDia(dia.fecha, { ...valores, nota }, rol));
-    } catch (e) {
-      setError(e.message);
-      setGuardando(false);
-    }
-  };
-
   return (
     <div className="modal-backdrop" onClick={onCerrar} role="presentation">
       <div className="modal-card reporte-dia" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Reporte del ${dia.fecha}`}>
@@ -39,32 +22,7 @@ function FormDia({ dia, campos, rol, onGuardado, onCerrar }) {
           </div>
           <button type="button" className="btn ghost" onClick={onCerrar}>Cerrar</button>
         </header>
-
-        <div className="reporte-campos">
-          {campos.map((c) => (
-            <label key={c.id} className="campo">
-              <span>{c.label}</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={valores[c.id]}
-                onChange={(e) => setValores((v) => ({ ...v, [c.id]: e.target.value }))}
-                placeholder="0"
-              />
-            </label>
-          ))}
-        </div>
-
-        <label className="campo">
-          <span>Cómo estuvo el día (opcional)</span>
-          <textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Qué funcionó, qué no, algo para recordar" />
-        </label>
-
-        {error && <div className="pendiente-error">{error}</div>}
-
-        <button className="btn primary" onClick={guardar} disabled={guardando}>
-          {guardando ? 'Guardando…' : 'Guardar el día'}
-        </button>
+        <FormReporteDia dia={dia} campos={campos} rol={rol} onGuardado={onGuardado} />
       </div>
     </div>
   );

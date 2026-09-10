@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { crearReunion, borrarReunion, getIntegrantes, getReunionesMes } from '../../data/api.js';
+import { crearReunion, borrarReunion, getIntegrantes, getMisReportes, getReunionesMes } from '../../data/api.js';
 import { ahora, hoyIso, nombreMesAnio } from '../../lib/format.js';
+import FormReporteDia from '../ventas/FormReporteDia.jsx';
 import { useResource } from '../../lib/hooks.js';
+import { useRol } from '../../lib/RolContext.jsx';
 import Avatar from '../ui/Avatar.jsx';
 import Card from '../ui/Card.jsx';
 import Icon from '../ui/Icon.jsx';
@@ -44,6 +46,21 @@ function participantesDelDia(reuniones) {
   return [...seen.values()];
 }
 
+/** Para el setter, el calendario personal marca además los días sin reporte. */
+function useReportesDelMes(activo, anio, mes0) {
+  const [reportes, setReportes] = useState(null);
+  const mes = `${anio}-${String(mes0 + 1).padStart(2, '0')}`;
+  useEffect(() => {
+    if (!activo) return undefined;
+    let vivo = true;
+    getMisReportes({ mes, rol: 'setter' })
+      .then((d) => vivo && setReportes(d))
+      .catch(() => vivo && setReportes(null));
+    return () => { vivo = false; };
+  }, [activo, mes]);
+  return [reportes, setReportes];
+}
+
 export default function CalendarioReuniones() {
   const hoy = ahora();
   const [cursor, setCursor] = useState({ anio: hoy.getFullYear(), mes0: hoy.getMonth() });
@@ -54,6 +71,10 @@ export default function CalendarioReuniones() {
   const [elegidos, setElegidos] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState('');
+  const { rol } = useRol();
+  const esSetter = rol === 'setter';
+  const [reportes, setReportes] = useReportesDelMes(esSetter, cursor.anio, cursor.mes0);
+  const [editandoReporte, setEditandoReporte] = useState(false);
 
   const { data, loading, error } = useResource(
     () => getReunionesMes(cursor.anio, cursor.mes0 + 1),
@@ -154,6 +175,8 @@ export default function CalendarioReuniones() {
                 if (!dia) return <div key={`e-${i}`} className="cal-cell vacia" />;
                 const iso = isoDe(cursor.anio, cursor.mes0, dia);
                 const items = porDia.get(iso) ?? [];
+                const rep = reportes?.dias?.find((x) => x.fecha === iso);
+                const claseReporte = !rep || rep.futuro ? '' : rep.cargado ? ' con-reporte' : ' falta-reporte';
                 const gente = participantesDelDia(items);
                 const extra = Math.max(0, gente.length - 3);
                 const visibles = gente.slice(0, 3);
@@ -161,8 +184,8 @@ export default function CalendarioReuniones() {
                   <button
                     key={iso}
                     type="button"
-                    className={`cal-cell${items.length ? ' con-reu' : ''}${iso === fechaSel ? ' sel' : ''}${iso === hoyStr ? ' hoy' : ''}`}
-                    onClick={() => setDiaSel(dia)}
+                    className={`cal-cell${items.length ? ' con-reu' : ''}${claseReporte}${iso === fechaSel ? ' sel' : ''}${iso === hoyStr ? ' hoy' : ''}`}
+                    onClick={() => { setDiaSel(dia); setEditandoReporte(false); }}
                   >
                     <span className="cal-num num">{dia}</span>
                     {visibles.length > 0 && (
@@ -181,6 +204,26 @@ export default function CalendarioReuniones() {
               })}
             </div>
           )}
+          {esSetter && reportes?.miembro && (
+            <div className="cal-reportes-resumen">
+              <div>
+                <span className="num">{reportes.resumen.cargados}</span>
+                <span className="dim">días cargados</span>
+              </div>
+              <div>
+                <span className="num" style={{ color: reportes.resumen.faltan ? 'var(--brand-hi)' : 'var(--ok)' }}>
+                  {reportes.resumen.faltan}
+                </span>
+                <span className="dim">sin cargar</span>
+              </div>
+              {reportes.campos.map((c) => (
+                <div key={c.id}>
+                  <span className="num">{reportes.resumen.totales[c.id]}</span>
+                  <span className="dim">{c.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {loading ? <p className="dim" style={{ marginTop: 8 }}>Cargando…</p> : null}
         </div>
 
@@ -189,6 +232,39 @@ export default function CalendarioReuniones() {
           <h3>
             {diaSel} {etiquetaMes}
           </h3>
+
+          {esSetter && reportes?.miembro && (() => {
+            const dia = reportes.dias.find((x) => x.fecha === fechaSel);
+            if (!dia) return null;
+            if (dia.futuro) {
+              return <p className="dim" style={{ margin: '8px 0 16px' }}>El reporte se carga cuando el día termine.</p>;
+            }
+            if (editandoReporte || !dia.cargado) {
+              return (
+                <div className="cal-reporte">
+                  <div className="eyebrow">{dia.cargado ? 'Corregir el reporte' : 'Falta el reporte de este día'}</div>
+                  <FormReporteDia
+                    dia={dia}
+                    campos={reportes.campos}
+                    onGuardado={(nuevo) => { setReportes(nuevo); setEditandoReporte(false); }}
+                    onCancelar={dia.cargado ? () => setEditandoReporte(false) : undefined}
+                  />
+                </div>
+              );
+            }
+            return (
+              <div className="cal-reporte cargado">
+                <div className="eyebrow">Reporte del día</div>
+                <ul className="cal-reporte-lista">
+                  {reportes.campos.map((c) => (
+                    <li key={c.id}><span className="dim">{c.label}</span><span className="num">{dia.valores[c.id]}</span></li>
+                  ))}
+                </ul>
+                {dia.nota && <p className="dim" style={{ margin: '6px 0 0' }}>{dia.nota}</p>}
+                <button className="btn sm" onClick={() => setEditandoReporte(true)}>Corregir</button>
+              </div>
+            );
+          })()}
 
           {delDia.length === 0 ? (
             <p className="dim" style={{ margin: '8px 0 16px' }}>
