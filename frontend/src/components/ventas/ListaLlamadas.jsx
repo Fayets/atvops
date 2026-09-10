@@ -6,6 +6,7 @@ import { guardarResultadoLlamada } from '../../data/api.js';
 const VENTA = ['Cerrado', 'Seña'];
 const TONO = {
   cierre: 'ok', show: 'plain', no_show: 'alert', sin_reportar: 'warn', agendado: 'off', descartada: 'off',
+  sin_crm: 'off',
 };
 // El color del estado elegido: verde si vendió, rojo si se cayó, ámbar si sigue vivo.
 const TONO_ESTADO = {
@@ -15,7 +16,7 @@ const TONO_ESTADO = {
 };
 const LABEL = {
   cierre: 'venta', show: 'reportada', no_show: 'no show', sin_reportar: 'falta cargar',
-  agendado: 'agendada', descartada: 'descartada',
+  agendado: 'agendada', descartada: 'descartada', sin_crm: 'solo en el calendario',
 };
 
 // El CRM guarda el resultado en minúscula y a veces sin tilde ("sena", "reagenda"),
@@ -117,6 +118,9 @@ function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
 
 function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGuardado }) {
   // Si el closer ya cargó un estado, se muestra ese; si no, en qué situación está la llamada.
+  // Reunión que está en el calendario y el CRM no tiene: se muestra para que cuente en el
+  // mes, pero no se le puede cargar resultado porque no hay dónde guardarlo.
+  const soloCalendario = llamada.estado === 'sin_crm';
   const cargado = canonico(llamada.resultado, estados);
   const etiqueta = cargado || LABEL[llamada.estado] || llamada.estado;
   const tono = llamada.estado === 'descartada'
@@ -132,8 +136,10 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
         <div className="llamada-quien">
           <div className="strong">{llamada.prospecto}</div>
           <div className="dim">
-            {[llamada.facturaHoy && `factura ${llamada.facturaHoy}`, llamada.origen, llamada.setter && `set por ${llamada.setter}`]
-              .filter(Boolean).join(' · ') || 'Sin datos'}
+            {soloCalendario
+              ? `${llamada.segunda ? 'Segunda reunión' : 'Reunión'} del calendario · todavía no está en el CRM`
+              : ([llamada.facturaHoy && `factura ${llamada.facturaHoy}`, llamada.origen,
+                  llamada.setter && `set por ${llamada.setter}`].filter(Boolean).join(' · ') || 'Sin datos')}
           </div>
           {llamada.estado === 'cierre' && (
             <div className="llamada-venta-resumen">
@@ -145,12 +151,14 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
         </div>
         <div className="llamada-derecha">
           <Pill tone={tono} dot>{etiqueta}</Pill>
-          <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
-            {abierta ? 'Cerrar' : (!llamada.resultado || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
-          </button>
+          {!soloCalendario && (
+            <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
+              {abierta ? 'Cerrar' : (!llamada.resultado || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
+            </button>
+          )}
         </div>
       </div>
-      {abierta && (
+      {abierta && !soloCalendario && (
         <FormResultado
           llamada={llamada}
           programas={programas}

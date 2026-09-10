@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 import unicodedata
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from decouple import config
 
@@ -45,7 +45,12 @@ def _norm(t: str | None) -> str:
     return " ".join(t.split())
 
 
-def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime) -> str:
+def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime,
+                solo_calendario: bool = False) -> str:
+    # La reunión que está en el calendario pero no en el CRM cuenta como agendada del mes,
+    # pero no como show ni como deuda del closer: nadie puede cargarle un resultado.
+    if solo_calendario:
+        return "sin_crm"
     r = _norm(resultado)
     if r in [_norm(x) for x in DESCARTE]:
         return "descartada"
@@ -80,6 +85,74 @@ def _leads(desde: date, hasta: date) -> list[dict]:
     )
 
 
+def _clave_persona(nombre: str | None) -> str:
+    """El nombre del prospecto sin la marca, para cruzar CRM y calendario.
+    En el CRM el lead suele llamarse "Fulano and Aumenta Tu Valor"; en el calendario,
+    "2da reu Fulano and Aumenta Tu Valor". Los dos tienen que dar "fulano"."""
+    from src.services import gcal_services
+
+    limpio, _ = gcal_services._prospecto(nombre or "")
+    return _norm(limpio)
+
+
+def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
+    """Agrega las reuniones que están en el calendario y el CRM no tiene.
+
+    El CRM guarda una sola fecha por lead: cuando alguien tiene una segunda reunión, o le
+    pisa la primera o directamente no entra. El calendario sí las tiene todas.
+
+    El cruce es uno a uno y dentro del mismo mes: una llamada del CRM cubre una sola
+    reunión del calendario, y una reunión de septiembre no se da por cubierta porque el
+    lead tenga su llamada en agosto. Primero se cruza por email y si no, por nombre.
+    Si el calendario no responde, quedan solo las del CRM.
+    """
+    from src.services import gcal_services
+
+    if not gcal_services.configurado():
+        return filas
+    inicio = datetime.combine(desde, time.min).replace(tzinfo=AR_TZ)
+    fin = datetime.combine(hasta, time.min).replace(tzinfo=AR_TZ)
+    reuniones = gcal_services.reuniones_venta(inicio, fin)
+    if not reuniones:
+        return filas
+
+    # Las llamadas del CRM que todavía no cubrieron ninguna reunión, mes por mes.
+    libres: dict[tuple[int, int], list[dict]] = {}
+    conocidos: dict[str, dict] = {}
+    for f in filas:
+        libres.setdefault((f["call"].year, f["call"].month), []).append(f)
+        conocidos.setdefault(_clave_persona(f.get("nombre")), f)
+
+    extras = []
+    for r in sorted(reuniones, key=lambda x: x["inicioAt"]):
+        cuando = datetime.fromisoformat(r["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
+        candidatos = libres.get((cuando.year, cuando.month), [])
+        emails = {_norm(e) for e in (r.get("invitados") or []) if _norm(e)}
+        nombre = _norm(r["prospecto"])
+        elegido = next((i for i, c in enumerate(candidatos) if _norm(c.get("email")) in emails and emails), None)
+        if elegido is None:
+            elegido = next((i for i, c in enumerate(candidatos) if _clave_persona(c.get("nombre")) == nombre), None)
+        if elegido is not None:
+            candidatos.pop(elegido)
+            continue
+        base = conocidos.get(nombre, {})
+        extras.append({
+            "id": f"cal:{r['eventoId']}",
+            "nombre": r["prospecto"], "email": next(iter(emails), ""),
+            "telefono": "", "ig": "",
+            "origen": (base.get("origen") or "").strip() or "Orgánico",
+            "closer": base.get("closer") or "", "setter": base.get("setter") or "",
+            "call": cuando, "agendo": None, "agendo_en": "Google Calendar",
+            "pago": 0, "debe": 0, "ingresos_rango": "", "programa_ofrecido": "",
+            "vino_de_ads": False, "notas": r["titulo"], "created_at": None,
+            "resultado": "", "calificacion": "", "closer_report": "", "link_llamada": "",
+            "soloCalendario": True, "segunda": r["segunda"], "url": r.get("url"),
+        })
+    if extras:
+        logger.info("Calendario: %s reuniones que el CRM no tiene", len(extras))
+    return sorted(filas + extras, key=lambda f: f["call"])
+
+
 def _equipo() -> list[dict]:
     return crm_db.consultar("SELECT id, nombre, rol, activo FROM teammember WHERE activo ORDER BY rol, nombre")
 
@@ -106,12 +179,16 @@ def _num(v) -> float:
 
 def _bloque(leads: list[dict], ahora: datetime) -> dict:
     # Las descartadas quedan afuera de toda métrica.
-    leads = [l for l in leads if _clasificar(l["resultado"], l["calificacion"], l["call"], ahora) != "descartada"]
-    clases = [_clasificar(l["resultado"], l["calificacion"], l["call"], ahora) for l in leads]
+    def _clase(l: dict) -> str:
+        return _clasificar(l["resultado"], l["calificacion"], l["call"], ahora, l.get("soloCalendario", False))
+
+    leads = [l for l in leads if _clase(l) != "descartada"]
+    clases = [_clase(l) for l in leads]
     cierres = [l for l, c in zip(leads, clases) if c == "cierre"]
     shows = sum(1 for c in clases if c in ("show", "cierre"))
     no_shows = sum(1 for c in clases if c == "no_show")
     sin_reportar = sum(1 for c in clases if c == "sin_reportar")
+    sin_crm = sum(1 for c in clases if c == "sin_crm")
     agendados = len(leads)
     cash = sum(_num(l["pago"]) for l in cierres)
     evaluables = shows + no_shows
@@ -120,6 +197,7 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "shows": shows,
         "noShows": no_shows,
         "sinReportar": sin_reportar,
+        "sinCrm": sin_crm,
         "cierres": len(cierres),
         "cashUsd": round(cash, 2),
         "deudaUsd": round(sum(_num(l["debe"]) for l in cierres), 2),
@@ -152,10 +230,10 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     desde = min(inicio_mes, inicio_serie)
     hasta = max(fin_mes, hoy + timedelta(days=30))
 
-    leads = _leads(desde, hasta)
+    leads = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
     del_mes = [l for l in leads if inicio_mes <= l["call"].date() < fin_mes]
     mes_previo_inicio = date(anio - (m == 1), 12 if m == 1 else m - 1, 1)
-    previos = _leads(mes_previo_inicio, inicio_mes)
+    previos = _sumar_reuniones_del_calendario(_leads(mes_previo_inicio, inicio_mes), mes_previo_inicio, inicio_mes)
 
     # Serie semanal
     semanas = []
@@ -408,6 +486,15 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         """,
         (hoy - timedelta(days=dias_atras), hoy + timedelta(days=dias_adelante + 1), nombres),
     )
+    # El calendario completa las reuniones que el CRM no tiene. Se cruza contra TODAS las
+    # llamadas del período, no solo las de este closer, para no inventar duplicados de otro.
+    desde_cal = hoy - timedelta(days=dias_atras)
+    hasta_cal = hoy + timedelta(days=dias_adelante + 1)
+    del_calendario = [
+        f for f in _sumar_reuniones_del_calendario(_leads(desde_cal, hasta_cal), desde_cal, hasta_cal)
+        if f.get("soloCalendario") and _norm(f.get("closer")) in [_norm(n) for n in nombres]
+    ]
+    filas = sorted(list(filas) + del_calendario, key=lambda f: f["call"], reverse=True)
     precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
 
     def _fila(l: dict) -> dict:
@@ -420,7 +507,9 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
             "facturaHoy": (l["ingresos_rango"] or "").strip(),
             "resultado": (l["resultado"] or "").strip(),
-            "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora),
+            "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora, l.get("soloCalendario", False)),
+            "soloCalendario": bool(l.get("soloCalendario")),
+            "segunda": bool(l.get("segunda")),
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
             "cashUsd": _num(l["pago"]), "saldoUsd": _num(l["debe"]),

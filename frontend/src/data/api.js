@@ -1030,6 +1030,10 @@ export async function getVentasOps(mes) {
   if (real.actual.sinReportar > 0) {
     diagnostico = `Hay ${real.actual.sinReportar} llamadas del mes sin resultado cargado: hasta que se reporten, el show rate y el close rate quedan cortos. `;
   }
+  if (real.actual.sinCrm > 0) {
+    // El CRM guarda una sola fecha por lead, así que las segundas reuniones se leen del calendario.
+    diagnostico += `${real.actual.sinCrm} de las reuniones del mes están en el calendario y no en el CRM: cuentan como agendadas, pero sin resultado no entran al show rate. `;
+  }
   if (peor?.id === 'conversaciones' && actual.conversaciones === 0) {
     diagnostico += 'No hay reportes de setting cargados este mes, así que el techo del funnel está a ciegas.';
   } else if (peor) {

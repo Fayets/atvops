@@ -55,7 +55,7 @@ def _semana_de(texto: str | None) -> date:
 def _bloque_ventas(desde: date, hasta: date) -> dict:
     """Las llamadas con fecha en el rango, con la misma definición que usa Ventas."""
     if not crm_db.disponible():
-        return {"agendadas": 0, "shows": 0, "noShows": 0, "sinReportar": 0, "cierres": 0,
+        return {"agendadas": 0, "shows": 0, "noShows": 0, "sinReportar": 0, "sinCrm": 0, "cierres": 0,
                 "cashUsd": 0, "facturacionUsd": 0, "showRate": None, "closeRate": None, "aovUsd": 0,
                 "porCloser": [], "ventas": []}
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
@@ -68,12 +68,17 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
         """,
         (desde, hasta),
     )
+    # El calendario completa las reuniones que el CRM no guarda (una segunda reunión le pisa
+    # la fecha a la primera, o directamente no entra).
+    filas = ventas._sumar_reuniones_del_calendario(filas, desde, hasta)
     precios = {ventas._norm(p["nombre"]): p["precioUsd"] for p in ventas.programas()}
-    clases = [ventas._clasificar(f["resultado"], f["calificacion"], f["call"], ahora) for f in filas]
+    clases = [ventas._clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
+                                 f.get("soloCalendario", False)) for f in filas]
     utiles = [(f, c) for f, c in zip(filas, clases) if c != "descartada"]
     cierres = [f for f, c in utiles if c == "cierre"]
     shows = sum(1 for _, c in utiles if c in ("show", "cierre"))
     no_shows = sum(1 for _, c in utiles if c == "no_show")
+    sin_crm = sum(1 for _, c in utiles if c == "sin_crm")
     cash = sum(_num(f["pago"]) for f in cierres)
     facturacion = sum(precios.get(ventas._norm((f["programa_ofrecido"] or "")), 0.0) for f in cierres)
 
@@ -93,6 +98,7 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
         "shows": shows,
         "noShows": no_shows,
         "sinReportar": sum(1 for _, c in utiles if c == "sin_reportar"),
+        "sinCrm": sin_crm,
         "cierres": len(cierres),
         "cashUsd": round(cash, 2),
         "facturacionUsd": round(facturacion, 2),

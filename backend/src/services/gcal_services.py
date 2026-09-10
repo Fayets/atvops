@@ -352,3 +352,62 @@ def estado() -> dict:
         return {"configurado": True, "calendarId": cred["calendar_id"], "origenCredenciales": cred["origen"]}
     except HTTPException as e:
         return {"configurado": False, "detalle": str(e.detail)}
+
+
+# ------------------------------------------- reuniones de venta del calendario
+
+# El título de una reunión de ventas siempre nombra a la empresa: "Fulano and Aumenta
+# Tu Valor", "Fulano & Aumenta Tu Valor", "2da reu Fulano and Aumenta Tu Valor".
+# Las internas (Weekly, Ventas Lucas & Nick, 1a1, Reu Boost) no la nombran.
+_MARCA = re.compile(r"aumenta\s+tu\s+valor", re.I)
+_SEGUNDA = re.compile(r"^\s*(2da|2ª|2°|2\.?a|segunda|tercera|3ra)\s*(reuni[oó]n|reu|call|llamada)?\s*[:\-]?\s*", re.I)
+_COLA_MARCA = re.compile(r"\s*(?:\band\b|\by\b|&|\bcon\b)?\s*aumenta\s+tu\s+valor\s*$", re.I)
+_CABEZA_MARCA = re.compile(r"^\s*aumenta\s+tu\s+valor\s*(?:\band\b|\by\b|&|\bcon\b)?\s*", re.I)
+
+
+def _prospecto(titulo: str) -> tuple[str, bool]:
+    """Saca del título el nombre del prospecto y si es una reunión de seguimiento."""
+    limpio = (titulo or "").strip()
+    segunda = bool(_SEGUNDA.match(limpio))
+    if segunda:
+        limpio = _SEGUNDA.sub("", limpio, count=1)
+    limpio = _COLA_MARCA.sub("", limpio)
+    limpio = _CABEZA_MARCA.sub("", limpio)
+    return re.sub(r"\s+", " ", limpio).strip(" -:&"), segunda
+
+
+def reuniones_venta(desde: datetime, hasta: datetime, refrescar: bool = False) -> list[dict]:
+    """Las reuniones de venta que hay en el calendario entre esas dos fechas.
+
+    Es la única fuente que guarda TODAS las reuniones de un prospecto: el CRM tiene una
+    sola fecha por lead, así que una segunda reunión le pisa la primera o no entra.
+    Si Google falla, devuelve vacío: las métricas siguen saliendo del CRM.
+    """
+    clave = f"reuniones:{desde.date()}:{hasta.date()}"
+    with _lock:
+        guardado = _cache.get(clave)
+        if guardado and not refrescar and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
+    try:
+        cred = credenciales()
+        eventos = _traer(cred["calendar_id"], cred["service_account_json"], desde, hasta)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Calendario: no se pudieron leer las reuniones (%s)", str(e)[:120])
+        return []
+
+    salida = []
+    for e in eventos:
+        titulo = e.get("titulo") or ""
+        if not _MARCA.search(titulo):
+            continue
+        nombre, segunda = _prospecto(titulo)
+        if not nombre:
+            continue
+        salida.append({
+            "eventoId": e["id"], "titulo": titulo, "prospecto": nombre, "segunda": segunda,
+            "inicioAt": e["inicioAt"], "tipo": e.get("tipo") or "", "url": e.get("url"),
+            "invitados": [i.get("email", "") for i in (e.get("invitados") or [])],
+        })
+    with _lock:
+        _cache[clave] = {"at": datetime.utcnow(), "data": salida}
+    return salida

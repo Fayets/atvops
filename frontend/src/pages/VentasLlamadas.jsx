@@ -35,7 +35,7 @@ export default function VentasLlamadas() {
       .filter((l) => (q ? l.prospecto.toLowerCase().includes(q) : true));
   }, [vista, filtro, busqueda]);
 
-  const cargadas = (vista?.llamadas ?? []).filter((l) => l.estado !== 'sin_reportar' && l.estado !== 'agendado');
+  const cargadas = (vista?.llamadas ?? []).filter((l) => !['sin_reportar', 'agendado', 'sin_crm'].includes(l.estado));
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
