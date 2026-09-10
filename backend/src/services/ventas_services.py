@@ -168,6 +168,32 @@ def _referencias(evento_ids: list[str]) -> dict[str, int]:
                 for r in select(r for r in ReunionCrm if r.evento_id in evento_ids)}
 
 
+def _guardar_propio(lead_id: int, evento_id: str, prospecto: str, quien: str, **campos) -> None:
+    """Guarda el resultado en la base de ATV Ops, que es la que manda."""
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    try:
+        with db_session:
+            fila = (ReunionCrm.get(evento_id=evento_id) if evento_id else None) or ReunionCrm.get(lead_id=lead_id)
+            if fila is None:
+                fila = ReunionCrm(evento_id=evento_id or f"lead:{lead_id}", lead_id=lead_id,
+                                  prospecto=prospecto[:200], creado_por=quien[:80])
+            if evento_id and fila.evento_id != evento_id:
+                fila.evento_id = evento_id
+            fila.lead_id = lead_id
+            if prospecto:
+                fila.prospecto = prospecto[:200]
+            for k, v in campos.items():
+                setattr(fila, k, v)
+            fila.actualizado_por = quien[:80]
+            fila.actualizado_at = datetime.utcnow()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo guardar la llamada %s en ATV Ops: %s", lead_id, str(e)[:160])
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar en la base de ATV Ops: {str(e)[:140]}") from e
+
+
 def _atar_reunion(evento_id: str, lead_id: int, prospecto: str, inicio: datetime, quien: str) -> None:
     """Deja anotado que esa reunión del calendario es esa llamada del CRM.
 
@@ -189,6 +215,65 @@ def _atar_reunion(evento_id: str, lead_id: int, prospecto: str, inicio: datetime
                        inicio_at=inicio, creado_por=quien[:80])
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo atar la reunión %s al lead %s: %s", evento_id, lead_id, str(e)[:160])
+
+
+def _propias(evento_ids: list[str], lead_ids: list[int]) -> dict:
+    """Lo que ATV Ops tiene cargado de esas reuniones. Manda sobre el CRM."""
+    from pony.orm import db_session, select
+
+    from src.models import ReunionCrm
+
+    salida = {"por_evento": {}, "por_lead": {}}
+    if not evento_ids and not lead_ids:
+        return salida
+    try:
+        with db_session:
+            filas = list(select(r for r in ReunionCrm
+                                if r.evento_id in evento_ids or r.lead_id in lead_ids))
+            for r in filas:
+                dato = {
+                    "resultado": (r.resultado or "").strip(),
+                    "programa": (r.programa or "").strip(),
+                    "cashUsd": r.cash_usd or 0.0,
+                    "saldoUsd": r.saldo_usd or 0.0,
+                    "nota": (r.nota or "").strip(),
+                    "descartada": bool(r.descartada),
+                    "leadId": r.lead_id,
+                    "eventoId": r.evento_id,
+                }
+                if not (dato["resultado"] or dato["descartada"]):
+                    continue  # todavía no se cargó acá: manda lo que diga el CRM
+                salida["por_evento"][r.evento_id] = dato
+                salida["por_lead"][r.lead_id] = dato
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo leer lo cargado en ATV Ops: %s", str(e)[:160])
+    return salida
+
+
+def _aplicar_lo_propio(filas: list[dict]) -> list[dict]:
+    """Pisa lo que dice el CRM con lo que se cargó en ATV Ops.
+
+    El sync de atv-mkt cambia estados y fechas por su cuenta; lo que el equipo carga acá
+    no se puede perder por eso. Si acá no hay nada cargado, se respeta el CRM.
+    """
+    propias = _propias([f.get("eventoId") for f in filas if f.get("eventoId")],
+                       [f["id"] for f in filas if isinstance(f.get("id"), int)])
+    if not propias["por_evento"] and not propias["por_lead"]:
+        return filas
+    for f in filas:
+        dato = propias["por_evento"].get(f.get("eventoId")) or propias["por_lead"].get(f.get("id"))
+        if not dato:
+            continue
+        if dato["descartada"]:
+            f["resultado"] = "descartada"
+            continue
+        f["resultado"] = _norm(dato["resultado"])
+        f["programa_ofrecido"] = dato["programa"]
+        f["pago"] = dato["cashUsd"]
+        f["debe"] = dato["saldoUsd"]
+        if dato["nota"]:
+            f["closer_report"] = dato["nota"]
+    return filas
 
 
 def _leads_por_id(ids: list[int]) -> list[dict]:
@@ -313,7 +398,7 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         })
     if extras:
         logger.info("Calendario: %s reuniones que el CRM no registró", len(extras))
-    return sorted(_marcar_duplicados(filas + extras), key=lambda f: f["call"])
+    return sorted(_marcar_duplicados(_aplicar_lo_propio(filas + extras)), key=lambda f: f["call"])
 
 
 def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
@@ -928,6 +1013,8 @@ def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False
         lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
     _puede_cargar(lead_id, usuario)
     nuevo = "Agendado" if recuperar else "Descartada"
+    _guardar_propio(int(lead_id), "", "", usuario.get("username") or "",
+                    descartada=not recuperar, resultado="" if recuperar else "Descartada")
     crm_db.ejecutar("UPDATE lead SET status = %s, estado = %s WHERE id = %s", (nuevo, nuevo, int(lead_id)))
     logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
     _olvidar_meses()
@@ -964,13 +1051,18 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
         toca_saldo = True  # una llamada que no es venta no deja deuda
     nota = str(datos.get("nota") or "").strip()[:2000]
     quien = (usuario.get("nombre") or usuario.get("username") or "")
-    # Queda anotado qué reunión del calendario es esta llamada, para que el sync de
-    # atv-mkt no la despegue cuando le cambie la fecha.
+    # Qué reunión del calendario es esta llamada, para que el sync de atv-mkt no la
+    # despegue cuando le cambie la fecha.
     evento = str(datos.get("evento") or "").strip()
-    if evento:
-        _atar_reunion(evento, int(lead_id), str(datos.get("prospecto") or "")[:200],
-                      datetime.now(AR_TZ).replace(tzinfo=None), usuario.get("username") or "")
 
+    # Primero la base de ATV Ops, que es la fuente. El CRM se actualiza después para que
+    # atv-mkt muestre lo mismo mientras dure la mudanza: si falla, el dato no se pierde.
+    propio = {"resultado": resultado, "programa": programa, "cash_usd": cash,
+              "nota": nota, "descartada": False}
+    if toca_saldo:
+        propio["saldo_usd"] = saldo
+    _guardar_propio(int(lead_id), evento, str(datos.get("prospecto") or ""),
+                    usuario.get("username") or "", **propio)
     crm_db.ejecutar(
         f"UPDATE lead SET status = %s, estado = %s, programa_ofrecido = %s, pago = %s, "
         f"{'debe = %s, ' if toca_saldo else ''}"

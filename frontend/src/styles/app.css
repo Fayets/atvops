@@ -5182,15 +5182,22 @@ button.lista-item:hover { background: var(--surface-2); }
 .kpi.clickable:hover { border-color: var(--text-3); }
 .kpi-ver { margin-top: 6px; font-size: 11px; color: var(--text-3); opacity: 0; transition: opacity 0.15s ease; }
 .kpi.clickable:hover .kpi-ver { opacity: 1; }
-.detalle-metrica { max-width: 620px; width: 100%; display: grid; gap: var(--space-4); }
+.detalle-metrica { width: min(680px, 92vw); max-width: none; display: grid; gap: var(--space-4); }
 .detalle-metrica header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .detalle-metrica header h3 { margin: 0 0 4px; font-size: 17px; }
 .detalle-metrica header p { margin: 0; font-size: 12.5px; max-width: 400px; }
 .detalle-lista { display: grid; max-height: 52vh; overflow-y: auto; }
-.detalle-fila { display: grid; grid-template-columns: 54px minmax(0, 1fr) 84px auto; gap: var(--space-3); align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+/* Todas las columnas del mismo ancho en todas las filas, y el valor alineado a la
+   derecha bajo su título: así se leen en vertical sin buscar. */
+.detalle-fila { display: grid; grid-template-columns: 62px minmax(90px, 1fr) 96px 132px; gap: var(--space-3); align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.detalle-fila.sin-valor { grid-template-columns: 62px minmax(90px, 1fr) 96px; }
 .detalle-fila:last-child { border-bottom: none; }
+.detalle-fila .strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalle-fila > span:nth-child(3), .detalle-fila > span:nth-child(4) { text-align: right; }
+.detalle-fila .valor { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalle-fila.cabecera { position: sticky; top: 0; z-index: 1; background: var(--surface); padding-bottom: 6px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); border-bottom-color: var(--border); }
 .detalle-metrica footer { font-size: 11.5px; }
-.detalle-fila.sin-valor { grid-template-columns: 54px minmax(0, 1fr) 84px; }
 .pendiente-descartar { border: none; background: none; color: var(--text-3); font-size: 11.5px; text-decoration: underline; cursor: pointer; padding: 0; justify-self: center; }
 .pendiente-descartar:hover { color: var(--brand-hi); }
 body.gate-abierto { overflow: hidden; }

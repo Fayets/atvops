@@ -248,7 +248,15 @@ class EventoCliente(db.Entity):
 
 
 class ReunionCrm(db.Entity):
-    """Qué llamada del CRM corresponde a qué reunión del Google Calendar.
+    """La llamada de ventas, con lo que ATV Ops sabe de ella.
+
+    Es la base propia: acá vive el resultado que carga el equipo, y manda sobre lo que
+    diga el CRM de atv-mkt. Ese sistema pisa fechas y duplica leads en cada sync, así que
+    si el resultado viviera solo allá se perdería. Se sigue escribiendo también en el CRM
+    para que atv-mkt muestre lo mismo mientras dure la mudanza, pero lo que se lee en el
+    tablero sale de acá.
+
+    Guarda además qué llamada del CRM corresponde a qué reunión del Google Calendar.
 
     Hace falta porque el CRM guarda una sola fecha por lead y el sync de atv-mkt la
     pisa: una llamada cargada para la reunión del 3 amanece con la fecha del 11, y sin
@@ -265,3 +273,12 @@ class ReunionCrm(db.Entity):
     inicio_at = Optional(datetime)           # cuándo es la reunión, en hora de Argentina
     creado_por = Optional(str)
     creado_at = Required(datetime, default=datetime.utcnow)
+    # Lo que cargó el equipo. Vacío = todavía no se cargó y manda lo que diga el CRM.
+    resultado = Optional(str)
+    programa = Optional(str)
+    cash_usd = Optional(float)
+    saldo_usd = Optional(float)
+    nota = Optional(str)
+    descartada = Required(bool, default=False)
+    actualizado_por = Optional(str)
+    actualizado_at = Optional(datetime)
