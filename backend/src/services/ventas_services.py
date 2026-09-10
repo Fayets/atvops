@@ -116,6 +116,35 @@ def _clave_persona(nombre: str | None) -> str:
     return _norm(limpio)
 
 
+def _duenio_de_cada_lead() -> dict[str, dict]:
+    """Quién atiende a cada prospecto, mirando TODO el CRM y no solo el período pedido.
+
+    Hace falta porque una segunda reunión puede caer meses después de la llamada que dejó
+    registrada el CRM: el lead de Pablo Ingratta tiene su llamada en agosto y su segunda
+    reunión en septiembre. Se indexa por email y por nombre limpio.
+    """
+    with _lock:
+        guardado = _cache.get("duenios")
+        if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
+    filas = crm_db.consultar(
+        "SELECT nombre, email, closer, setter, origen, call FROM lead "
+        "WHERE coalesce(closer, '') <> '' ORDER BY call NULLS FIRST"
+    )
+    indice: dict[str, dict] = {}
+    for f in filas:  # el más reciente pisa al viejo: gana el closer que lo atiende hoy
+        datos = {"closer": f["closer"], "setter": f["setter"] or "", "origen": (f["origen"] or "").strip()}
+        email = _norm(f.get("email"))
+        nombre = _clave_persona(f.get("nombre"))
+        if email:
+            indice[f"email:{email}"] = datos
+        if nombre:
+            indice[f"nombre:{nombre}"] = datos
+    with _lock:
+        _cache["duenios"] = {"at": datetime.utcnow(), "data": indice}
+    return indice
+
+
 def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
     """Deja en la lista TODAS las reuniones que hubo, no solo las que el CRM guardó.
 
@@ -174,7 +203,12 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
     for j, r in enumerate(reuniones):
         if j in reunion_usada:
             continue
-        base = conocidos.get(r["_nombre"], {})
+        base = conocidos.get(r["_nombre"]) or {}
+        if not (base.get("closer") or "").strip():
+            # El lead puede estar fuera del período: se busca en todo el CRM.
+            duenios = _duenio_de_cada_lead()
+            base = next((duenios[f"email:{e}"] for e in r["_emails"] if f"email:{e}" in duenios),
+                        duenios.get(f"nombre:{r['_nombre']}")) or base
         extras.append({
             "id": f"cal:{r['eventoId']}",
             "nombre": r["prospecto"], "email": next(iter(r["_emails"]), ""),
