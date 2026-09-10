@@ -18,12 +18,18 @@ const LABEL = {
   agendado: 'agendada', descartada: 'descartada',
 };
 
+// El CRM guarda el resultado en minúscula y a veces sin tilde ("sena", "reagenda"),
+// así que se compara sin tildes ni separadores para encontrar el estado que le corresponde.
+const _clave = (t) => (t ?? '').toString().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const canonico = (valor, estados) => estados.find((e) => _clave(e) === _clave(valor)) ?? '';
+
 const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
 function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
-  const [resultado, setResultado] = useState(llamada.resultado || '');
+  const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
   const [saldo, setSaldo] = useState(llamada.saldoUsd || '');
@@ -110,6 +116,12 @@ function FormResultado({ llamada, programas, estados, onGuardado, onCerrar }) {
 }
 
 function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGuardado }) {
+  // Si el closer ya cargó un estado, se muestra ese; si no, en qué situación está la llamada.
+  const cargado = canonico(llamada.resultado, estados);
+  const etiqueta = cargado || LABEL[llamada.estado] || llamada.estado;
+  const tono = llamada.estado === 'descartada'
+    ? 'off'
+    : (cargado ? (TONO_ESTADO[cargado] ?? 'plain') : (TONO[llamada.estado] ?? 'plain'));
   return (
     <div className={`llamada${abierta ? ' abierta' : ''}`}>
       <div className="llamada-cab">
@@ -132,7 +144,7 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
           )}
         </div>
         <div className="llamada-derecha">
-          <Pill tone={TONO[llamada.estado] ?? 'plain'} dot>{LABEL[llamada.estado] ?? llamada.estado}</Pill>
+          <Pill tone={tono} dot>{etiqueta}</Pill>
           <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
             {abierta ? 'Cerrar' : (!llamada.resultado || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
           </button>
