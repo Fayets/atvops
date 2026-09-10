@@ -392,14 +392,22 @@ def _marcar_duplicados(filas: list[dict]) -> list[dict]:
     for iguales in grupos.values():
         if len(iguales) < 2:
             continue
+        # Manda la que tiene el resultado cargado: es la que alguien completó. La otra es
+        # la copia que dejó el sync, aunque le haya tocado quedar atada a la reunión.
         mejor = sorted(iguales, key=lambda f: (
-            0 if f.get("eventoId") else 1,
             0 if _norm(f.get("resultado")) not in ("", "agendado", "pendiente") else 1,
+            0 if f.get("eventoId") else 1,
             str(f.get("id")),
         ))[0]
         for f in iguales:
-            if f is not mejor:
-                f["duplicada"] = True
+            if f is mejor:
+                continue
+            f["duplicada"] = True
+            # La que se queda hereda la reunión del calendario, para no perderla.
+            if f.get("eventoId") and not mejor.get("eventoId"):
+                mejor["eventoId"] = f["eventoId"]
+                mejor["segunda"] = f.get("segunda", False)
+                mejor["call"] = f["call"]
     return filas
 
 

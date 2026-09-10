@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import LlamadasPendientes from './LlamadasPendientes.jsx';
 import { getMisLlamadas, login } from '../../data/api.js';
+import { mesId } from '../../lib/format.js';
 import { GATE_KEY as CLAVE_SALIDA } from '../../lib/auth.js';
 import { useRol } from '../../lib/RolContext.jsx';
 const ROLES_SALIDA = ['admin', 'founder', 'operaciones'];
@@ -99,7 +100,9 @@ export default function GateLlamadas() {
   useEffect(() => {
     if (rol !== 'closer') return;
     let vivo = true;
-    getMisLlamadas()
+    // Solo el mes en curso: lo de meses cerrados ya no se carga, y trabarle el sistema
+    // al closer por llamadas de hace tres semanas no le sirve a nadie.
+    getMisLlamadas(undefined, mesId())
       .then((d) => {
         if (!vivo) return;
         setData(d);
