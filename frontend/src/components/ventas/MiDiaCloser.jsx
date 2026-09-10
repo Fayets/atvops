@@ -67,7 +67,7 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, encabezado, on
 }
 
 /** El mismo calendario de Google que ve el director de ventas. */
-function CalendarioReal() {
+function CalendarioReal({ onCambio }) {
   const [detalle, setDetalle] = useState(null);
   const [tick, setTick] = useState(0);
   // El rango lo manda el calendario según la semana o el mes que esté mostrando.
@@ -122,7 +122,7 @@ function CalendarioReal() {
         <NuevaReunion
           programas={reuniones?.programas ?? []}
           estados={reuniones?.estados ?? []}
-          onCreada={() => setTick((t) => t + 1)}
+          onCreada={() => { setTick((t) => t + 1); onCambio?.(); }}
           onCerrar={() => setAgregando(false)}
         />
       )}
@@ -132,7 +132,7 @@ function CalendarioReal() {
           estado={editando.estado}
           programas={reuniones?.programas ?? []}
           estados={reuniones?.estados ?? []}
-          onGuardado={() => setTick((t) => t + 1)}
+          onGuardado={() => { setTick((t) => t + 1); onCambio?.(); }}
           onCerrar={() => setEditando(null)}
         />
       )}
@@ -141,7 +141,7 @@ function CalendarioReal() {
 }
 
 /** Mi día: los números del mes del closer y el calendario del equipo. */
-export default function MiDiaCloser({ data }) {
+export default function MiDiaCloser({ data, onCambio }) {
   const { mes = {}, llamadas = [] } = data ?? {};
   const [detalle, setDetalle] = useState(null);
 
@@ -192,7 +192,7 @@ export default function MiDiaCloser({ data }) {
           onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'), 'Facturación')} />
       </div>
 
-      <CalendarioReal />
+      <CalendarioReal onCambio={onCambio} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 

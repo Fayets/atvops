@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import MiDiaCloser from '../components/ventas/MiDiaCloser.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -12,6 +12,8 @@ export default function VentasCloser() {
   const [local, setLocal] = useState(null);
   const { data, loading, error } = useResource(getMisLlamadas, [tick]);
   const vista = local ?? data;
+  // Cargar un resultado o agregar una reunión tiene que mover los números de arriba.
+  const refrescar = useCallback(() => { setLocal(null); setTick((t) => t + 1); }, []);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
@@ -41,7 +43,7 @@ export default function VentasCloser() {
           No encontramos llamadas a tu nombre en el CRM. Pedile a Franco que revise cómo figurás como closer.
         </div>
       ) : (
-        <MiDiaCloser data={vista} />
+        <MiDiaCloser data={vista} onCambio={refrescar} />
       )}
     </div>
   );

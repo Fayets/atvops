@@ -8,7 +8,8 @@ import { useMes } from '../lib/MesContext.jsx';
 /** Día a día del equipo de ventas. */
 export default function VentasOperativaPage() {
   const { mes } = useMes();
-  const { data, loading, error } = useResource(() => getVentas(mes), [mes]);
+  const [refresco, setRefresco] = useState(0);
+  const { data, loading, error } = useResource(() => getVentas(mes), [mes, refresco]);
   const [tick, setTick] = useState(0);
   // El calendario avisa qué semana o mes está mostrando y se trae justo ese rango.
   const [rango, setRango] = useState(null);
@@ -47,7 +48,7 @@ export default function VentasOperativaPage() {
           onActualizar={() => setTick((t) => t + 1)}
           onRango={onRango}
           reuniones={reuniones}
-          onCargado={() => setTick((t) => t + 1)}
+          onCargado={() => { setTick((t) => t + 1); setRefresco((n) => n + 1); }}
         />
       )}
     </div>
