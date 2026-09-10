@@ -122,7 +122,7 @@ export default function SetterVista({ data, onCompletarReporte }) {
           titulo="Meta del mes · proyección"
           proyeccion={data.metaMes.proyeccion}
           contexto={data.contexto}
-          cuotaLabel={`Tu cuota (÷ ${data.metaMes.headcount} ${data.metaMes.headcount === 1 ? 'setter' : 'setters'})`}
+          cuotaLabel="Tu cuota del mes"
           cuotaItems={[
             { label: 'Conversaciones / mes', value: data.metaMes.cuotaMes.conversaciones },
             { label: 'Agendas / mes', value: data.metaMes.cuotaMes.agendadas },

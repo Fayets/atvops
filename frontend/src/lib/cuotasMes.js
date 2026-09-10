@@ -5,12 +5,11 @@
 
 import { decretoPlantilla, leerDecretoGuardado } from './metasMes.js';
 
-/** Si el backend no dijo cuánta gente hay, se reparte entre una sola persona: es mejor
- *  mostrar la meta entera que inventar un equipo que no existe. */
-export const EQUIPO_VENTAS_SIZE = {
-  closers: 1,
-  setters: 1,
-};
+/**
+ * La meta del decreto no se reparte: cada uno carga la del equipo entera.
+ * Repartirla hacía que con dos setters cargados a nadie le apareciera el número real,
+ * y que el número cambiara solo por dar de alta a alguien.
+ */
 
 function ceilDiv(n, d) {
   return d > 0 ? Math.ceil(n / d) : 0;
@@ -59,16 +58,14 @@ export function metaProyeccionMes(mes) {
 /**
  * Cuota personal del closer + meta de equipo, alineada a la proyección.
  * @param {string} mes
- * @param {{ closers?: number }} [opts]
  */
-export function cuotasCloserDesdeProyeccion(mes, opts = {}) {
-  const n = opts.closers ?? EQUIPO_VENTAS_SIZE.closers;
+export function cuotasCloserDesdeProyeccion(mes) {
   const m = metaProyeccionMes(mes);
   const personal = {
-    llamadas: ceilDiv(m.agendas, n),
-    shows: ceilDiv(m.shows, n),
-    cierres: ceilDiv(m.cierres, n),
-    cashUsd: ceilDiv(m.cashUsd, n),
+    llamadas: m.agendas,
+    shows: m.shows,
+    cierres: m.cierres,
+    cashUsd: m.cashUsd,
   };
   return {
     proyeccion: m,
@@ -83,25 +80,23 @@ export function cuotasCloserDesdeProyeccion(mes, opts = {}) {
       showRate: m.showRate,
       closeRate: m.closeRate,
     },
-    headcount: n,
   };
 }
 
 /**
  * Cuota personal del setter (día + mes) alineada a la proyección.
  * @param {string} mes
- * @param {{ setters?: number, diasMes?: number, diasLaborales?: number }} [opts]
+ * @param {{ diasMes?: number, diasLaborales?: number }} [opts]
  */
 export function cuotasSetterDesdeProyeccion(mes, opts = {}) {
-  const n = opts.setters ?? EQUIPO_VENTAS_SIZE.setters;
   const diasMes = opts.diasMes ?? 30;
   const diasLab = opts.diasLaborales ?? Math.max(1, Math.round(diasMes * (22 / 30)));
   const m = metaProyeccionMes(mes);
 
   const mesPersonal = {
-    conversaciones: ceilDiv(m.conversaciones, n),
-    calendlys: ceilDiv(m.calendlys, n),
-    agendadas: ceilDiv(m.agendas, n),
+    conversaciones: m.conversaciones,
+    calendlys: m.calendlys,
+    agendadas: m.agendas,
     // Cuántas de las conversaciones tienen que terminar en agenda.
     tasaAgendado: m.conversaciones ? (m.agendas / m.conversaciones) * 100 : 0,
   };

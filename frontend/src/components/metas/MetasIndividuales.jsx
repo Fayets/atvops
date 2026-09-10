@@ -70,7 +70,7 @@ export default function MetasIndividuales({ titulo, sub, columnas, filas, espera
       sub={sub}
       actions={<Pill tone="plain" dot>{`${gente} ${gente === 1 ? 'persona' : 'personas'} · va ${esperado}% del mes`}</Pill>}
       flush
-      foot="La parte de cada uno es la meta del equipo dividida por la cantidad de personas del rol."
+      foot="Cada uno lleva la meta del mes entera: no se reparte entre las personas del rol."
     >
       <div className="meta-ind-tabla">
         <div className="meta-ind-fila cabecera">

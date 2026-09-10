@@ -105,25 +105,32 @@ export default function Metas() {
       if (!mias.length && deMiRol) return [{ nombre: miNombre }];
       return mias;
     };
+    // La meta del decreto no se reparte: cada uno carga la del equipo entera.
     const armar = (id, titulo, sub, columnas, gente, filas) => {
       if (!filas.length) return;
-      const n = gente || 1;
       bloques.push({
-        id, titulo, sub, columnas, gente: n,
+        id, titulo, sub, columnas, gente,
         filas: filas.map((f) => ({
           persona: f.nombre,
           metricas: columnas.map((c) => ({
-            id: c.id, format: c.format,
-            actual: c.valor(f),
-            // Un porcentaje es la misma meta para cada uno; una cantidad se reparte.
-            parte: c.format === 'pct' ? c.meta : Math.round(c.meta / n),
+            id: c.id, format: c.format, actual: c.valor(f), parte: c.meta,
           })),
         })),
       });
     };
 
+    // Quién ocupa cada rol sale de los usuarios de ATV Ops, no de quién aparece en el CRM:
+    // así el que todavía no hizo nada este mes igual ve su fila, y no aparece gente de otro rol.
+    const gente = (nombres, filasCrm) => {
+      if (!nombres?.length) return filasCrm;
+      return nombres.map((n) => {
+        const pila = n.trim().toLowerCase().split(' ')[0];
+        return filasCrm.find((f) => f.nombre.trim().toLowerCase().includes(pila)) ?? { nombre: n };
+      });
+    };
+
     // Closer: su trabajo empieza cuando la llamada existe. Mide tasas, no cantidades.
-    const closers = (d.porCloser ?? []).filter((c) => c.nombre !== 'Sin asignar');
+    const closers = gente(d.equipoOps?.closers, (d.porCloser ?? []).filter((c) => c.nombre !== 'Sin asignar'));
     armar(
       'closers', 'Closers',
       `Las tasas del mes contra el decreto. Close rate muy bueno: ${formatValue(decreto.closeRateMuyBueno ?? 0, 'pct')}.`,
@@ -131,11 +138,11 @@ export default function Metas() {
         { id: 'showRate', nombre: 'Show rate', format: 'pct', meta: decreto.showUpRate ?? 0, valor: (c) => c.showRate ?? 0 },
         { id: 'closeRate', nombre: 'Close rate', format: 'pct', meta: decreto.closeRateBueno ?? 0, valor: (c) => c.closeRate ?? 0 },
       ],
-      d.equipoOps?.closers ?? Math.max(closers.length, 1), soloMio(closers, esCloser),
+      closers.length, soloMio(closers, esCloser),
     );
 
     // Setter: trae las conversaciones y las agendas.
-    const setters = (d.porSetter ?? []).filter((c) => c.nombre !== 'Sin asignar');
+    const setters = gente(d.equipoOps?.setters, (d.porSetter ?? []).filter((c) => c.nombre !== 'Sin asignar'));
     const conversacionesDe = (s) =>
       (d.settersMes ?? []).find((x) => x.nombre === s.nombre)?.metricas?.conversaciones ?? 0;
     armar(
@@ -144,7 +151,7 @@ export default function Metas() {
         { id: 'conversaciones', nombre: 'Conversaciones', meta: decreto.conversaciones ?? 0, valor: conversacionesDe },
         { id: 'agendas', nombre: 'Llamadas agendadas', meta: decreto.agendas ?? 0, valor: (s) => s.agendados ?? 0 },
       ],
-      d.equipoOps?.setters ?? Math.max(setters.length, 1), soloMio(setters, esSetter),
+      setters.length, soloMio(setters, esSetter),
     );
 
     // Marketing: abre los chats de los que salen las conversaciones.

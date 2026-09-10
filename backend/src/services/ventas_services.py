@@ -461,23 +461,27 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
     }
 
 
-def _cuantos_del_rol(rol: str) -> int:
-    """Cuánta gente de ese rol hay hoy, según los usuarios de ATV Ops.
+def _gente_del_rol(rol: str) -> list[str]:
+    """Quién tiene ese rol hoy, según los usuarios de ATV Ops.
 
     El `teammember` del CRM viejo tiene marcados como activos a personas que ya no
-    trabajan acá, así que repartir la cuota por ahí da números inflados.
+    trabajan acá, así que mirar ahí muestra gente que no existe.
     """
     try:
-        from pony.orm import count, db_session, select
+        from pony.orm import db_session, select
 
         from src.models import Usuario
 
         with db_session:
-            n = count(u for u in Usuario if u.rol == rol)
-        return max(1, int(n))
+            return sorted((u.nombre or u.username).strip()
+                          for u in select(u for u in Usuario if u.rol == rol))
     except Exception as e:  # noqa: BLE001
-        logger.warning("No se pudo contar el equipo de %s: %s", rol, str(e)[:160])
-        return 1
+        logger.warning("No se pudo leer el equipo de %s: %s", rol, str(e)[:160])
+        return []
+
+
+def _cuantos_del_rol(rol: str) -> int:
+    return max(1, len(_gente_del_rol(rol)))
 
 
 def _equipo() -> list[dict]:
@@ -745,7 +749,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "mes": mes,
         "contexto": {"mes": mes, "diaHoy": dia_hoy, "diasMes": dias_mes, "syncAt": datetime.now(AR_TZ).isoformat()},
         # Cuánta gente hay de cada rol hoy: la cuota individual se reparte con esto.
-        "equipoOps": {"closers": _cuantos_del_rol("closer"), "setters": _cuantos_del_rol("setter")},
+        "equipoOps": {"closers": _gente_del_rol("closer"), "setters": _gente_del_rol("setter")},
         "topFunnel": top_funnel,
         "reporteClosersMes": reporte_closers_mes,
         "actual": actual,

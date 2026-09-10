@@ -1221,9 +1221,7 @@ export async function getFulfillmentOps(mes) {
 export async function getCloserDashboard(mes) {
   const real = await pedir('/api/ventas/mis-llamadas');
   const ctx = contextoDeMes(mes || mesId());
-  // Cuántos closers hay de verdad: sale del backend, no de un número escrito acá.
-  const equipo = await getVentasReal(ctx.mes).then((v) => v.equipoOps).catch(() => null);
-  const cuotas = cuotasCloserDesdeProyeccion(ctx.mes, { closers: equipo?.closers, diasMes: ctx.diasMes });
+  const cuotas = cuotasCloserDesdeProyeccion(ctx.mes);
   const m = real.mes ?? {};
   const meta = cuotas.personalMes ?? {};
   const pctDe = (v, x) => (x ? (v / x) * 100 : 0);
@@ -1260,8 +1258,7 @@ export async function getSetterDashboard(mes) {
   if (mes) q.set('mes', mes);
   const real = await pedir(`/api/ventas/mi-setting${q.toString() ? `?${q}` : ''}`);
   const ctx = contextoDeMes(real.mes);
-  // El reparto usa la cantidad real de setters del equipo, no un número fijo.
-  const cuotas = cuotasSetterDesdeProyeccion(real.mes, { setters: real.setters, diasMes: ctx.diasMes });
+  const cuotas = cuotasSetterDesdeProyeccion(real.mes, { diasMes: ctx.diasMes });
   const metaDia = cuotas.personalDia;
   const metaMes = cuotas.personalMes;
 
@@ -1315,7 +1312,6 @@ export async function getSetterDashboard(mes) {
         conversaciones: metaDia.conversaciones ?? 0,
       },
       proyeccion: cuotas.proyeccion,
-      headcount: cuotas.headcount,
       ritmoEsperado,
       actualCalendlys: mesT.linksEnviados,
       actualAgendadas: mesT.agendas,
