@@ -4,7 +4,6 @@
  */
 
 import { decretoPlantilla, leerDecretoGuardado } from './metasMes.js';
-import { OPS_VENTAS_META } from '../data/mock/ventasOps.js';
 
 /** Headcount default hasta que haya roster real. */
 export const EQUIPO_VENTAS_SIZE = {
@@ -28,12 +27,12 @@ export function metaProyeccionMes(mes) {
   const guardado = leerDecretoGuardado(mes);
   const plantilla = decretoPlantilla(mes);
   const d = guardado || plantilla;
-  const showRate = d.showUpRate ?? d.showRate ?? OPS_VENTAS_META.showRate;
-  const closeRate = d.closeRateBueno ?? d.closeRate ?? OPS_VENTAS_META.closeRate;
-  const agendas = d.agendas ?? OPS_VENTAS_META.agendas;
+  const showRate = d.showUpRate ?? d.showRate ?? 0;
+  const closeRate = d.closeRateBueno ?? d.closeRate ?? 0;
+  const agendas = d.agendas ?? 0;
   const shows = d.shows ?? round(agendas * (showRate / 100));
   const cierres = d.cierres ?? round(shows * (closeRate / 100));
-  const cashUsd = d.cashMeta ?? OPS_VENTAS_META.cashUsd;
+  const cashUsd = d.cashMeta ?? 0;
   const conversaciones = d.conversaciones ?? OPS_VENTAS_META.conversaciones;
   const calendlys = d.aplicaciones ?? OPS_VENTAS_META.aplicaciones;
   const ticket = cierres > 0 ? cashUsd / cierres : OPS_VENTAS_META.averageSaleUsd;

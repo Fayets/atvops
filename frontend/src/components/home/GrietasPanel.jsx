@@ -11,7 +11,7 @@ const TONO = { alta: 'alert', media: 'warn', baja: 'off' };
  * @param {{ grietas: import('../../data/types.js').Grieta[] }} props
  */
 export default function GrietasPanel({ grietas }) {
-  const altas = grietas.filter((g) => g.severidad === 'alta').length;
+  const altas = (grietas ?? []).filter((g) => g.severidad === 'alta').length;
 
   return (
     <Card
@@ -25,7 +25,7 @@ export default function GrietasPanel({ grietas }) {
       flush
       foot="Una grieta se cierra de dos formas: corrigiendo el dato, o automatizando la fuente para que no vuelva a abrirse."
     >
-      {grietas.map((g) => (
+      {(grietas ?? []).map((g) => (
         <div key={g.id} className={`grieta ${g.severidad}`}>
           <i className="sev" />
           <div>

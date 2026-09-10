@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from src.controllers.auth_controller import get_current_user
+from src.services import cartera_services as cartera
+from src.services import marketing_services as marketing
 from src.services import ventas_services as ventas
 
 router = APIRouter()
@@ -95,3 +97,53 @@ def registrar_resultado(lead_id: int, user: dict = Depends(get_current_user), pa
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al guardar el resultado.")
+
+
+@router.get("/mi-setting")
+def mi_setting(user: dict = Depends(get_current_user), mes: str | None = None):
+    """Los números del setter: hoy, el mes y las llamadas que agendó."""
+    try:
+        return ventas.mi_setting(user, mes=mes)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer tu setting.")
+
+
+@router.get("/marketing")
+def marketing_real(_user: dict = Depends(get_current_user), mes: str | None = None, refrescar: bool = False):
+    """Ads, contenido, historias y setting del mes, del CRM de Marketing."""
+    try:
+        return marketing.resumen(mes=mes, refrescar=refrescar)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer marketing.")
+
+
+@router.get("/cobranza")
+def cobranza_real(_user: dict = Depends(get_current_user), mes: str | None = None, refrescar: bool = False):
+    """Cuotas y deuda de la cartera, del esquema clients."""
+    try:
+        return cartera.resumen(mes=mes, refrescar=refrescar)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer cobranza.")
+
+
+@router.get("/cartera-ops")
+def cartera_ops(_user: dict = Depends(get_current_user), mes: str | None = None):
+    """Altas, bajas, vencimientos y plata de la cartera para la vista OPS."""
+    try:
+        return cartera.ops(mes=mes)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer la cartera.")
+
+
+@router.get("/fuentes")
+def fuentes(_user: dict = Depends(get_current_user)):
+    """Qué fuentes están conectadas: lo que no lo esté, se muestra en cero."""
+    return {"crm": ventas.estado(), "marketing": marketing.estado(), "cobranza": cartera.estado()}

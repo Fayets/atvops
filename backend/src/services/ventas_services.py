@@ -650,3 +650,74 @@ def guardar_reporte(fecha: str, datos: dict, usuario: dict, rol: str = "setter")
     logger.info("Reporte %s de %s (%s) guardado por %s", dia, miembro["nombre"], rol, usuario.get("username"))
     _cache.clear()
     return mis_reportes(usuario, dia.strftime("%Y-%m"), rol)
+
+
+def mi_setting(usuario: dict, mes: str | None = None) -> dict:
+    """Lo que hizo el setter: sus números de hoy y del mes, y las llamadas que agendó."""
+    hoy = datetime.now(AR_TZ).date()
+    mes = mes or hoy.strftime("%Y-%m")
+    inicio, fin = date(int(mes[:4]), int(mes[5:7]), 1), None
+    anio, m = int(mes[:4]), int(mes[5:7])
+    fin = date(anio + (m == 12), (m % 12) + 1, 1)
+
+    reportes = mis_reportes(usuario, mes, "setter")
+    miembro = reportes.get("miembro")
+    dias = reportes.get("dias", [])
+    de_hoy = next((d for d in dias if d["fecha"] == hoy.isoformat()), None)
+    totales = reportes.get("resumen", {}).get("totales", {})
+
+    agendadas: list[dict] = []
+    equipo = {"conversaciones": 0, "linksEnviados": 0, "agendas": 0}
+    if miembro:
+        filas = crm_db.consultar(
+            f"""
+            SELECT l.id, l.nombre, l.call, l.agendo, l.closer, l.origen, l.ingresos_rango,
+                   {RESULTADO_SQL} AS resultado,
+                   lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
+            FROM lead l WHERE l.setter = %s AND l.call >= %s AND l.call < %s ORDER BY l.call DESC
+            """,
+            (miembro["nombre"], inicio, fin),
+        )
+        ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+        agendadas = [
+            {
+                "id": f["id"], "prospecto": (f["nombre"] or "").strip() or "Sin nombre",
+                "fechaAt": f["call"].isoformat() if f["call"] else None,
+                "closer": (f["closer"] or "").strip() or "Sin asignar",
+                "origen": (f["origen"] or "").strip(), "facturaHoy": (f["ingresos_rango"] or "").strip(),
+                "estado": _clasificar(f["resultado"], f["calificacion"], f["call"], ahora),
+            }
+            for f in filas
+        ]
+        suma = crm_db.consultar(
+            "SELECT coalesce(sum(conversaciones),0) c, coalesce(sum(links_enviados),0) l, coalesce(sum(agendas),0) a "
+            "FROM setter_report WHERE fecha >= %s AND fecha < %s",
+            (inicio, fin),
+        )
+        if suma:
+            equipo = {"conversaciones": int(_num(suma[0]["c"])), "linksEnviados": int(_num(suma[0]["l"])),
+                      "agendas": int(_num(suma[0]["a"]))}
+
+    return {
+        "generadoAt": datetime.now(AR_TZ).isoformat(),
+        "mes": mes,
+        "miembro": miembro,
+        "detalle": reportes.get("detalle"),
+        "dia": {
+            "fecha": hoy.isoformat(),
+            "cargado": bool(de_hoy and de_hoy["cargado"]),
+            "conversaciones": int((de_hoy or {}).get("valores", {}).get("conversaciones", 0)),
+            "linksEnviados": int((de_hoy or {}).get("valores", {}).get("links_enviados", 0)),
+            "agendas": int((de_hoy or {}).get("valores", {}).get("agendas", 0)),
+        },
+        "mesTotales": {
+            "conversaciones": int(totales.get("conversaciones", 0)),
+            "linksEnviados": int(totales.get("links_enviados", 0)),
+            "agendas": int(totales.get("agendas", 0)),
+            "seguimientos": int(totales.get("seguimientos", 0)),
+            "diasCargados": reportes.get("resumen", {}).get("cargados", 0),
+            "diasSinCargar": reportes.get("resumen", {}).get("faltan", 0),
+        },
+        "equipo": equipo,
+        "agendadas": agendadas,
+    }

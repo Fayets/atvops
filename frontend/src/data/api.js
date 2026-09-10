@@ -1,29 +1,26 @@
 /**
  * FRONTERA DE DATOS.
  *
- * Todo lo que el dashboard muestra entra por acá. Hoy las funciones leen los
- * mocks de `./mock/` y derivan las métricas; cuando una fuente se automatiza,
- * se reemplaza el cuerpo de UNA función por un `fetch` al backend y el resto
- * del código no se entera. Ese es el objetivo: migrar fuente por fuente.
+ * Todo lo que el dashboard muestra entra por acá, y todo sale de una fuente real.
+ * Lo que todavía no tiene fuente conectada se muestra en cero: nunca datos inventados.
  *
- *   getFulfillment() → GET /api/clientes (+ score/heurísticas en frontend)
- *   getClientes()    → GET /api/clientes (boost / advantage / avanzados / principiantes)
- *   getCobranza()    → GET /api/cobranza (ATV Clients cuotas)
- *   getMetasMes()    → mock decreto + avance + diagnóstico (Marketing/Ventas)
- *   getVentas()      → mock (Calendly + payments)
- *   getMarketing()   → mock (Ads Manager)
- *   getOnboarding()  → mock
- *   getSistemas()    → mock
- *   getHome()        → composición de las anteriores
+ *   getFulfillment()  → GET /api/clientes (transcripts de Discord + score)
+ *   getVentas()       → GET /api/ventas (CRM de ATV Marketing: leads, llamadas, cierres)
+ *   getMisLlamadas()  → GET /api/ventas/mis-llamadas (las llamadas del closer)
+ *   getSetterDashboard() → GET /api/ventas/mi-setting (reportes diarios del setter)
+ *   getMarketing()    → GET /api/ventas/marketing (Ads, reels, YouTube, historias, setting)
+ *   getCobranza()     → GET /api/ventas/cobranza (cuotas del esquema clients)
+ *   getFulfillmentOps() → GET /api/ventas/cartera-ops (altas, bajas, vencimientos)
+ *   getMetasMes()     → decreto del equipo + avance real
+ *   getHome()         → composición de las anteriores
  *
- * FULFILLMENT + acciones de la semana: Discord (+ cobranza si ATV Clients responde).
- * Marketing/Ventas del cuadro home pueden seguir en mock hasta conectar esas fuentes.
+ * Sin fuente todavía: onboarding, grietas de datos, upsells y recompras, NPS y quejas.
+ * Esas funciones devuelven cero o listas vacías a propósito.
  *
  * @typedef {import('./types.js').Metric} Metric
  * @typedef {import('./types.js').ResumenArea} ResumenArea
  */
 
-import { DECRETO_SEPTIEMBRE_2026, REAL_DIA_14, CONTEXTO_MOCK } from './mock/metasMes.js';
 import {
   calcularAvance,
   calcularDiagnostico,
@@ -32,43 +29,6 @@ import {
   tasasImplicitas,
 } from '../lib/metasMes.js';
 import { contextoDeMes } from '../lib/mes.js';
-import { GRIETAS, PEDIDOS, PEDIDOS_SEMANA } from './mock/home.js';
-import { CAMPANIAS, FRECUENCIA, GASTO_CANAL, GASTO_DIARIO } from './mock/marketing.js';
-import { DURACION_HISTORICA, PROCESOS } from './mock/onboarding.js';
-import { OPS_VENTAS_META } from './mock/ventasOps.js';
-import {
-  OPS_FF_CALIDAD,
-  OPS_FF_CONTEXTO,
-  OPS_FF_EXPANSION,
-  OPS_FF_PROGRAMAS,
-  OPS_FF_RESUMEN,
-  OPS_FF_SALUD,
-} from './mock/fulfillmentOps.js';
-import {
-  CLOSER_ACTUAL,
-  CLOSER_CONTEXTO,
-  CLOSER_EQUIPO,
-  CLOSER_FOLLOW_UPS,
-  CLOSER_PERFIL,
-  CLOSER_SEMANAS,
-} from './mock/closer.js';
-import {
-  getCloserAgenda,
-  getCloserDisposicionesRecientes,
-  guardarDispositionEnStore,
-  simularDispositionDemo,
-  subscribeCloserAgenda,
-} from './mock/closerStore.js';
-import {
-  SETTER_ACTUAL_DIA,
-  SETTER_ACTUAL_MES,
-  SETTER_APLICACIONES,
-  SETTER_CONTEXTO,
-  SETTER_EQUIPO,
-  SETTER_PERFIL,
-  SETTER_SEMANAS,
-} from './mock/setter.js';
-import { completarSetterReporte, getSetterReporte } from './mock/setterStore.js';
 import {
   calcularCloseRate,
   calcularShowRate,
@@ -82,7 +42,6 @@ import {
 } from '../lib/cuotasMes.js';
 import { coberturaAutomatizacion, DATA_FIELDS, SOURCE_LIST, SOURCES } from './sources.js';
 import { ahora, diasEntre, formatValue, hoyIso, mesId, nombreMesAnio, formatFecha } from '../lib/format.js';
-import { EMBUDO_VENTAS, METAS } from './mock/metas.js';
 import { diaDentroDelMes, diasDelMes, ritmo, semanaIso } from '../lib/pacing.js';
 import {
   accionMarketing,
@@ -850,19 +809,25 @@ export async function borrarPrograma(id) {
 }
 
 /** Meta del mes: el decreto que carga el equipo; si no hay, los objetivos por defecto. */
+const META_VACIA = {
+  conversaciones: 0, aplicaciones: 0, agendas: 0, shows: 0, cierres: 0,
+  cashUsd: 0, showRate: 0, closeRate: 0, averageSaleUsd: 0,
+};
+
 function metaDelMes(mes) {
   const guardado = leerDecretoGuardado?.(mes) ?? null;
-  if (!guardado) return { ...OPS_VENTAS_META, fuente: 'default' };
+  // Sin decreto cargado no hay meta: se muestra en cero, no un número inventado.
+  if (!guardado) return { ...META_VACIA, fuente: 'sin_decreto' };
   return {
-    conversaciones: guardado.conversaciones ?? OPS_VENTAS_META.conversaciones,
-    aplicaciones: guardado.aplicaciones ?? OPS_VENTAS_META.aplicaciones,
-    agendas: guardado.agendas ?? OPS_VENTAS_META.agendas,
-    shows: guardado.shows ?? OPS_VENTAS_META.shows,
-    cierres: guardado.cierres ?? OPS_VENTAS_META.cierres,
-    cashUsd: guardado.cashMeta ?? OPS_VENTAS_META.cashUsd,
-    showRate: guardado.showRate ?? OPS_VENTAS_META.showRate,
-    closeRate: guardado.closeRate ?? OPS_VENTAS_META.closeRate,
-    averageSaleUsd: guardado.averageSaleUsd ?? OPS_VENTAS_META.averageSaleUsd,
+    conversaciones: guardado.conversaciones ?? 0,
+    aplicaciones: guardado.aplicaciones ?? 0,
+    agendas: guardado.agendas ?? 0,
+    shows: guardado.shows ?? 0,
+    cierres: guardado.cierres ?? 0,
+    cashUsd: guardado.cashMeta ?? 0,
+    showRate: guardado.showRate ?? 0,
+    closeRate: guardado.closeRate ?? 0,
+    averageSaleUsd: guardado.averageSaleUsd ?? 0,
     fuente: 'decreto',
   };
 }
@@ -1103,62 +1068,101 @@ export async function getVentasOps(mes) {
   };
 }
 
-export async function getFulfillmentOps() {
-  const ctx = OPS_FF_CONTEXTO;
-  const r = OPS_FF_RESUMEN;
-  const exp = OPS_FF_EXPANSION;
-  const salud = OPS_FF_SALUD;
-  const cal = OPS_FF_CALIDAD;
-  const programas = OPS_FF_PROGRAMAS;
-
-  const gapCaja2 = exp.metaCaja2Usd - exp.caja2Usd;
-  const pctCaja2 = exp.metaCaja2Usd ? (exp.caja2Usd / exp.metaCaja2Usd) * 100 : 0;
-  let estadoCaja2 = 'ok';
-  const ritmoEsperado = (ctx.diaHoy / ctx.diasMes) * 100;
-  if (pctCaja2 < ritmoEsperado - 15) estadoCaja2 = 'alert';
-  else if (pctCaja2 < ritmoEsperado - 5) estadoCaja2 = 'warn';
-
+export async function getFulfillmentOps(mes) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  const [ops, fulfillment] = await Promise.all([
+    pedir(`/api/ventas/cartera-ops${q.toString() ? `?${q}` : ''}`),
+    getFulfillment().catch(() => null),
+  ]);
+  const ctx = contextoDeMes(mes || ops.mes || mesId());
+  const r = ops.resumen;
+  const salud = ops.salud;
   const totalEstado = salud.vigentes + salud.proximosAVencer + salud.vencidos;
-  const porEstado = [
+
+  const programas = (ops.programas ?? []).map((x) => ({
+    id: x.nombre,
+    label: x.nombre.charAt(0).toUpperCase() + x.nombre.slice(1),
+    clientes: x.clientes,
+    activos: x.activos,
+    revenueUsd: x.cobradoUsd,
+    deudaUsd: x.deudaUsd,
+    ticketUsd: x.clientes ? Math.round(x.cobradoUsd / x.clientes) : 0,
+  }));
+
+  const distribucion = [
     { id: 'vigentes', label: 'Vigentes', valor: salud.vigentes, pct: totalEstado ? (salud.vigentes / totalEstado) * 100 : 0, color: 'var(--ok)' },
     { id: 'proximos', label: 'Próximos a vencer', valor: salud.proximosAVencer, pct: totalEstado ? (salud.proximosAVencer / totalEstado) * 100 : 0, color: 'var(--warn)' },
     { id: 'vencidos', label: 'Vencidos', valor: salud.vencidos, pct: totalEstado ? (salud.vencidos / totalEstado) * 100 : 0, color: 'var(--brand-hi)' },
   ];
 
-  const ratioWinsQuejas = cal.quejasMes ? cal.winsMes / cal.quejasMes : cal.winsMes;
-  let alertaSalud = null;
-  if (salud.vencenProximos7d >= 10) {
-    alertaSalud = `${salud.vencenProximos7d} clientes vencen en los próximos 7 días · revenue en riesgo: ${formatValue(salud.revenueRiesgo7dUsd, 'usd')}.`;
-  }
+  const alertaSalud = salud.vencenProximos7d
+    ? `${salud.vencenProximos7d} clientes vencen en los próximos 7 días · revenue en riesgo: ${formatValue(salud.revenueRiesgo7dUsd, 'usd')}.`
+    : null;
 
-  return responder({
-    contexto: ctx,
+  const verdes = fulfillment?.semaforoTotales?.verde ?? 0;
+  const totalSemaforo = fulfillment ? (fulfillment.activos?.length ?? 0) : 0;
+
+  return {
+    contexto: { ...ctx, mes: ops.mes, syncAt: ops.generadoAt },
+    conectado: ops.conectado,
     resumen: {
       ...r,
+      onboardingsMes: r.altasMes,
+      onboardingsMesAnterior: r.altasMesAnterior,
+      metaOnboarding: 0,
+      churnMes: r.bajasMes,
+      caja2MesUsd: r.cuotasMesUsd,
+      deltaOnboarding: r.altasMes - r.altasMesAnterior,
       programas,
-      deltaOnboarding: r.onboardingsMes - r.onboardingsMesAnterior,
-      pctOnboarding: r.metaOnboarding ? (r.onboardingsMes / r.metaOnboarding) * 100 : 0,
     },
+    // Upsells, recompras y downsells no tienen fuente todavía: van en cero.
     expansion: {
-      ...exp,
-      gapCaja2,
-      pctCaja2,
-      estadoCaja2,
+      upsells: { cantidad: 0, revenueUsd: 0 },
+      recompras: { cantidad: 0, revenueUsd: 0 },
+      downsells: { cantidad: 0, revenueUsd: 0 },
+      caja2Usd: r.cuotasMesUsd,
+      metaCaja2Usd: 0,
+      gapCaja2: 0,
+      pctCaja2: 0,
+      estadoCaja2: 'sin_meta',
+      porSemana: [],
+      candidatos: fulfillment?.candidatos?.length ?? 0,
     },
     salud: {
       ...salud,
-      porEstado,
       programas,
+      porEstado: distribucion,
+      distribucion,
+      enPausa: 0,
+      noRenuevan: salud.vencidos,
+      enLlamadaRecompra: 0,
       alerta: alertaSalud,
     },
     calidad: {
-      ...cal,
-      ratioWinsQuejas,
-      deltaQuejas: cal.quejasMes - cal.quejasMesAnterior,
-      deltaWins: cal.winsMes - cal.winsMesAnterior,
+      enVerde: verdes,
+      totalCartera: totalSemaforo,
+      pctVerde: totalSemaforo ? (verdes / totalSemaforo) * 100 : 0,
+      silencio7d: fulfillment?.silencio?.length ?? 0,
+      sinActivar: fulfillment?.sinActivar?.length ?? 0,
+      // Wins reales del fulfillment; quejas y NPS no tienen fuente todavía.
+      wins: (fulfillment?.winsRecientes ?? []).map((c) => ({
+        id: c.id, cliente: c.nombre, texto: c.activacion?.descripcion ?? '', fechaAt: c.activacion?.primerResultadoAt,
+      })),
+      winsMes: fulfillment?.winsRecientes?.length ?? 0,
+      deltaWins: 0,
+      quejas: [],
+      quejasMes: 0,
+      deltaQuejas: 0,
+      ratioWinsQuejas: 0,
+      nps: 0,
+      diasOnboardingPromedio: 0,
+      tasaActivacion7d: 0,
     },
-    syncAt: ctx.syncAt,
-  });
+    programas: ops.programas,
+    syncAt: ops.generadoAt,
+    mes: ops.mes,
+  };
 }
 
 /**
@@ -1166,139 +1170,35 @@ export async function getFulfillmentOps() {
  * Metas personales y de equipo salen de la proyección/decreto del mes.
  * Agenda vive en closerStore (mock en vivo) para dispositions + polling.
  */
-export async function getCloserDashboard() {
-  const ctx = CLOSER_CONTEXTO;
-  const actual = CLOSER_ACTUAL;
-  const semanas = CLOSER_SEMANAS;
+export async function getCloserDashboard(mes) {
+  const real = await pedir('/api/ventas/mis-llamadas');
+  const ctx = contextoDeMes(mes || mesId());
   const cuotas = cuotasCloserDesdeProyeccion(ctx.mes);
-  const meta = cuotas.personal;
-  const agenda = getCloserAgenda();
-  const hoyLlamadas = agenda
-    .filter((l) => l.fechaAt.startsWith(ctx.hoyIso))
-    .sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
-  const resumenHoy = resumenCalendarioHoy(hoyLlamadas);
-
-  const pctDe = (v, m) => (m ? (v / m) * 100 : 0);
-  const estadoDe = (pct, ritmoEsperado) => {
-    if (pct >= ritmoEsperado - 2) return 'ok';
-    if (pct >= ritmoEsperado - 15) return 'warn';
-    return 'alert';
-  };
+  const m = real.mes ?? {};
+  const meta = cuotas.personalMes ?? {};
+  const pctDe = (v, x) => (x ? (v / x) * 100 : 0);
   const ritmoEsperado = (ctx.diaHoy / ctx.diasMes) * 100;
-
-  // Show rate ATV: (calificados + descalificados + cerrados) / agendadas (incl. canceladas; excl. reagendadas)
-  const showRate = calcularShowRate(agenda);
-  const closeRate = calcularCloseRate(agenda);
-  const showsMes = agenda.filter(esShow).length || actual.shows;
-  const cierresMes = agenda.filter((l) => l.estado === 'cerrado').length || actual.cierres;
-  const cashMes =
-    agenda.reduce((s, l) => s + (l.estado === 'cerrado' && l.montoUsd ? Number(l.montoUsd) : 0), 0) ||
-    actual.cashUsd;
-
-  const valShows = Math.max(actual.shows, showsMes);
-  const valCierres = Math.max(actual.cierres, cierresMes);
-  const valCash = Math.max(actual.cashUsd, cashMes);
-
-  const kpis = [
-    {
-      id: 'llamadas',
-      label: 'Llamadas hechas',
-      value: actual.llamadas,
-      meta: meta.llamadas,
-      varianza: actual.llamadas - meta.llamadas,
-      format: 'count',
-      pct: pctDe(actual.llamadas, meta.llamadas),
-      estado: estadoDe(pctDe(actual.llamadas, meta.llamadas), ritmoEsperado),
-      serie: semanas.map((s) => s.llamadas),
-      previous: semanas[semanas.length - 2]?.llamadas ?? null,
-    },
-    {
-      id: 'shows',
-      label: 'Shows',
-      value: valShows,
-      meta: meta.shows,
-      varianza: valShows - meta.shows,
-      format: 'count',
-      pct: pctDe(valShows, meta.shows),
-      estado: estadoDe(pctDe(valShows, meta.shows), ritmoEsperado),
-      serie: semanas.map((s) => s.shows),
-      previous: semanas[semanas.length - 2]?.shows ?? null,
-      extra: `Show rate ${formatValue(showRate, 'pct')} · meta ${formatValue(cuotas.ratesMeta.showRate, 'pct')}`,
-    },
-    {
-      id: 'cierres',
-      label: 'Cierres',
-      value: valCierres,
-      meta: meta.cierres,
-      varianza: valCierres - meta.cierres,
-      format: 'count',
-      pct: pctDe(valCierres, meta.cierres),
-      estado: estadoDe(pctDe(valCierres, meta.cierres), ritmoEsperado),
-      serie: semanas.map((s) => s.cierres),
-      previous: semanas[semanas.length - 2]?.cierres ?? null,
-      extra: `Close rate ${formatValue(closeRate, 'pct')} · meta ${formatValue(cuotas.ratesMeta.closeRate, 'pct')}`,
-    },
-    {
-      id: 'cash',
-      label: 'Cash generado',
-      value: valCash,
-      meta: meta.cashUsd,
-      varianza: valCash - meta.cashUsd,
-      format: 'usd',
-      pct: pctDe(valCash, meta.cashUsd),
-      estado: estadoDe(pctDe(valCash, meta.cashUsd), ritmoEsperado),
-      serie: semanas.map((s) => s.cashUsd),
-      previous: semanas[semanas.length - 2]?.cashUsd ?? null,
-    },
-  ];
-
-  const metaEquipoUsd = cuotas.equipo.metaUsd;
-  const actualEquipoUsd = CLOSER_EQUIPO.actualUsd;
-  const gapEquipo = metaEquipoUsd - actualEquipoUsd;
-  const pctEquipo = pctDe(actualEquipoUsd, metaEquipoUsd);
-  const estadoEquipo = estadoVsRitmo(pctEquipo, ritmoEsperado);
-
-  const ticketProm = valCierres ? valCash / valCierres : cuotas.proyeccion.ticketUsd;
-  const ventasFaltan = Math.max(0, Math.ceil(gapEquipo / (ticketProm || 11000)));
-  const adelanto = pctEquipo - ritmoEsperado;
-  const insightEquipo =
-    adelanto >= 0
-      ? `El equipo va ${Math.round(adelanto)}% adelantado; faltan ~${ventasFaltan} ventas para llegar a meta.`
-      : `El equipo va ${Math.round(Math.abs(adelanto))}% atrasado; faltan ~${ventasFaltan} ventas para llegar a meta.`;
-
-  return responder({
-    perfil: CLOSER_PERFIL,
-    contexto: ctx,
-    agenda,
-    hoy: {
-      iso: ctx.hoyIso,
-      llamadas: hoyLlamadas,
-      total: resumenHoy.total,
-      showsConfirmados: resumenHoy.showsConfirmados,
-      pendientesConfirmar: resumenHoy.pendientes,
-      pendientes: resumenHoy.pendientes,
-    },
-    kpis,
-    metaMes: {
-      proyeccion: cuotas.proyeccion,
-      cuota: meta,
-      headcount: cuotas.headcount,
-      ritmoEsperado,
-      ratesMeta: cuotas.ratesMeta,
-    },
-    equipo: {
-      metaUsd: metaEquipoUsd,
-      actualUsd: actualEquipoUsd,
-      porSemana: CLOSER_EQUIPO.porSemana,
-      gapUsd: gapEquipo,
-      pctMeta: pctEquipo,
-      estado: estadoEquipo,
-      insight: insightEquipo,
-    },
-    followUps: [...CLOSER_FOLLOW_UPS].sort((a, b) => b.diasSinContacto - a.diasSinContacto),
-    dispositions: getCloserDisposicionesRecientes(),
-    syncAt: new Date().toISOString(),
+  const estado = (pct) => (pct >= ritmoEsperado - 2 ? 'ok' : pct >= ritmoEsperado - 15 ? 'warn' : 'alert');
+  const kpi = (id, label, value, objetivo, format = 'count') => ({
+    id, label, value, meta: objetivo, format, pct: pctDe(value, objetivo), estado: estado(pctDe(value, objetivo)),
   });
+
+  return {
+    perfil: { id: 'closer', nombre: real.closer ?? 'Closer' },
+    contexto: { ...ctx, ritmoEsperado, syncAt: real.generadoAt },
+    conectado: Boolean(real.closer),
+    kpisMes: [
+      kpi('cash_mes', 'Cash del mes', m.cashUsd ?? 0, meta.cashUsd ?? 0, 'usd'),
+      kpi('cierres_mes', 'Ventas', m.cierres ?? 0, meta.cierres ?? 0),
+      kpi('shows_mes', 'Shows', m.shows ?? 0, meta.shows ?? 0),
+      kpi('agendadas_mes', 'Agendas', m.agendadas ?? 0, meta.agendadas ?? 0),
+    ],
+    metaMes: { ...meta, actualCash: m.cashUsd ?? 0, actualCierres: m.cierres ?? 0 },
+    llamadas: real.llamadas ?? [],
+    mesReal: m,
+    syncAt: real.generadoAt,
+    mes: ctx.mes,
+  };
 }
 
 /** Guarda disposition (mock store). Futuro: POST /api/ventas/dispositions. */
@@ -1323,313 +1223,218 @@ export function onCloserAgendaChange(fn) {
  * Dashboard personal del Setter: día, mes, equipo y Calendlys enviados.
  * Metas diarias/mensuales y de equipo salen de la proyección/decreto del mes.
  */
-export async function getSetterDashboard() {
-  const ctx = SETTER_CONTEXTO;
-  const actualMes = SETTER_ACTUAL_MES;
-  const semanas = SETTER_SEMANAS;
-  const reporte = getSetterReporte();
-  const cuotas = cuotasSetterDesdeProyeccion(ctx.mes, { diasMes: ctx.diasMes });
-  const metaDia = {
-    aplicaciones: cuotas.personalDia.calendlys,
-    agendadas: cuotas.personalDia.agendadas,
-  };
-  const metaMes = {
-    aplicaciones: cuotas.personalMes.calendlys,
-    agendadas: cuotas.personalMes.agendadas,
-    tasaAgendado: cuotas.personalMes.tasaAgendado,
-  };
-
-  // Si ya hay reporte del día, los KPIs del día reflejan lo cargado.
-  const actualDia = {
-    aplicaciones: reporte.payload?.calendlysEnviados ?? SETTER_ACTUAL_DIA.aplicaciones,
-    agendadas: reporte.payload?.agendas ?? SETTER_ACTUAL_DIA.agendadas,
-  };
+export async function getSetterDashboard(mes) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  const real = await pedir(`/api/ventas/mi-setting${q.toString() ? `?${q}` : ''}`);
+  const ctx = contextoDeMes(real.mes);
+  const cuotas = cuotasSetterDesdeProyeccion(real.mes);
+  const metaDia = cuotas.personalDia;
+  const metaMes = cuotas.personalMes;
 
   const pctDe = (v, m) => (m ? (v / m) * 100 : 0);
-  const estadoDe = (pct, ritmoEsperado) => {
-    if (pct >= ritmoEsperado - 2) return 'ok';
-    if (pct >= ritmoEsperado - 15) return 'warn';
-    return 'alert';
-  };
+  const estadoDia = (pct) => (pct >= 100 ? 'ok' : pct >= 60 ? 'warn' : 'alert');
   const ritmoEsperado = (ctx.diaHoy / ctx.diasMes) * 100;
-  /** Para metas diarias: 100% = cumplió el día. */
-  const estadoDia = (pct) => {
-    if (pct >= 100) return 'ok';
-    if (pct >= 60) return 'warn';
-    return 'alert';
-  };
+  const estadoMes = (pct) => (pct >= ritmoEsperado - 2 ? 'ok' : pct >= ritmoEsperado - 15 ? 'warn' : 'alert');
 
-  const tasaAgendado = actualMes.aplicaciones
-    ? (actualMes.agendadas / actualMes.aplicaciones) * 100
-    : 0;
+  const kpi = (id, label, value, meta, format = 'count', mensual = false) => ({
+    id, label, value, meta, format,
+    pct: pctDe(value, meta),
+    estado: mensual ? estadoMes(pctDe(value, meta)) : estadoDia(pctDe(value, meta)),
+  });
 
-  /** Mock: diasReporte = días previos; si completó hoy, +1. */
-  const diasReporte = actualMes.diasReporte + (reporte.completado ? 1 : 0);
+  const dia = real.dia;
+  const mesT = real.mesTotales;
 
-  const diaKpis = [
-    {
-      id: 'apps_hoy',
-      label: 'Calendlys enviados hoy',
-      value: actualDia.aplicaciones,
-      meta: metaDia.aplicaciones,
-      format: 'count',
-      pct: pctDe(actualDia.aplicaciones, metaDia.aplicaciones),
-      estado: estadoDia(pctDe(actualDia.aplicaciones, metaDia.aplicaciones)),
+  return {
+    perfil: { id: 'setter', nombre: real.miembro?.nombre ?? 'Setter' },
+    contexto: { ...ctx, mes: real.mes, ritmoEsperado, syncAt: real.generadoAt },
+    conectado: Boolean(real.miembro),
+    detalle: real.detalle,
+    dia: {
+      cargado: dia.cargado,
+      kpis: [
+        kpi('apps_hoy', 'Calendlys enviados hoy', dia.linksEnviados, metaDia.calendlys),
+        kpi('agendadas_hoy', 'Llamadas agendadas hoy', dia.agendas, metaDia.agendadas),
+        kpi('conversaciones_hoy', 'Conversaciones hoy', dia.conversaciones, metaDia.conversaciones ?? 0),
+      ],
     },
-    {
-      id: 'agendadas_hoy',
-      label: 'Llamadas agendadas hoy',
-      value: actualDia.agendadas,
-      meta: metaDia.agendadas,
-      format: 'count',
-      pct: pctDe(actualDia.agendadas, metaDia.agendadas),
-      estado: estadoDia(pctDe(actualDia.agendadas, metaDia.agendadas)),
-    },
-  ];
-
-  const kpisMes = [
-    {
-      id: 'apps_mes',
-      label: 'Calendlys enviados del mes',
-      value: actualMes.aplicaciones,
-      meta: metaMes.aplicaciones,
-      varianza: actualMes.aplicaciones - metaMes.aplicaciones,
-      format: 'count',
-      pct: pctDe(actualMes.aplicaciones, metaMes.aplicaciones),
-      estado: estadoDe(pctDe(actualMes.aplicaciones, metaMes.aplicaciones), ritmoEsperado),
-      serie: semanas.map((s) => s.aplicaciones),
-    },
-    {
-      id: 'agendadas_mes',
-      label: 'Llamadas agendadas del mes',
-      value: actualMes.agendadas,
-      meta: metaMes.agendadas,
-      varianza: actualMes.agendadas - metaMes.agendadas,
-      format: 'count',
-      pct: pctDe(actualMes.agendadas, metaMes.agendadas),
-      estado: estadoDe(pctDe(actualMes.agendadas, metaMes.agendadas), ritmoEsperado),
-      serie: semanas.map((s) => s.agendadas),
-    },
-    {
-      id: 'tasa',
-      label: 'Tasa de agendado',
-      value: tasaAgendado,
-      meta: metaMes.tasaAgendado,
-      varianza: tasaAgendado - metaMes.tasaAgendado,
-      format: 'pct',
-      pct: pctDe(tasaAgendado, metaMes.tasaAgendado),
-      estado: estadoDe(pctDe(tasaAgendado, metaMes.tasaAgendado), 100),
-      serie: semanas.map((s) => s.tasa),
-      extra: `${actualMes.agendadas} de ${actualMes.aplicaciones} Calendlys`,
-    },
-    {
-      id: 'reportes',
-      label: 'Días con reporte completado',
-      value: diasReporte,
-      meta: ctx.diaHoy,
-      varianza: diasReporte - ctx.diaHoy,
-      format: 'count',
-      pct: pctDe(diasReporte, ctx.diaHoy),
-      estado: estadoDia(pctDe(diasReporte, ctx.diaHoy)),
-      serie: [4, 5, 5, diasReporte],
-      extra: `${diasReporte} de ${ctx.diaHoy} días`,
-    },
-  ];
-
-  const metaEquipoCal = cuotas.equipo.metaCalendlys;
-  const actualEquipoCal = SETTER_EQUIPO.actualAplicaciones;
-  const gapEquipo = metaEquipoCal - actualEquipoCal;
-  const pctEquipo = pctDe(actualEquipoCal, metaEquipoCal);
-  const estadoEquipo = estadoVsRitmo(pctEquipo, ritmoEsperado);
-
-  const adelanto = pctEquipo - ritmoEsperado;
-  const faltan = Math.max(0, gapEquipo);
-  const insightEquipo =
-    adelanto >= 0
-      ? `El equipo va ${Math.round(adelanto)}% adelantado; faltan ${faltan} Calendlys enviados para llegar a meta.`
-      : `El equipo va ${Math.round(Math.abs(adelanto))}% atrasado; faltan ${faltan} Calendlys enviados para llegar a meta.`;
-
-  return responder({
-    perfil: SETTER_PERFIL,
-    contexto: ctx,
-    dia: { kpis: diaKpis },
-    reporte,
-    kpisMes,
+    kpisMes: [
+      kpi('apps_mes', 'Calendlys del mes', mesT.linksEnviados, metaMes.calendlys, 'count', true),
+      kpi('agendadas_mes', 'Agendas del mes', mesT.agendas, metaMes.agendadas, 'count', true),
+      kpi('conversaciones_mes', 'Conversaciones del mes', mesT.conversaciones, metaMes.conversaciones ?? 0, 'count', true),
+      kpi('dias_cargados', 'Días reportados', mesT.diasCargados, mesT.diasCargados + mesT.diasSinCargar, 'count', true),
+    ],
     metaMes: {
-      proyeccion: cuotas.proyeccion,
-      cuotaDia: metaDia,
-      cuotaMes: metaMes,
-      headcount: cuotas.headcount,
-      ritmoEsperado,
+      ...metaMes,
+      actualCalendlys: mesT.linksEnviados,
+      actualAgendadas: mesT.agendas,
+      tasaAgendado: mesT.linksEnviados ? (mesT.agendas / mesT.linksEnviados) * 100 : 0,
     },
     equipo: {
-      metaAplicaciones: metaEquipoCal,
-      actualAplicaciones: actualEquipoCal,
-      gap: gapEquipo,
-      pctMeta: pctEquipo,
-      estado: estadoEquipo,
-      insight: insightEquipo,
+      metaAplicaciones: cuotas.equipoMes?.calendlys ?? 0,
+      actualAplicaciones: real.equipo.linksEnviados,
+      gap: Math.max(0, (cuotas.equipoMes?.calendlys ?? 0) - real.equipo.linksEnviados),
+      estado: estadoMes(pctDe(real.equipo.linksEnviados, cuotas.equipoMes?.calendlys ?? 0)),
+      insight: `El equipo lleva ${real.equipo.conversaciones} conversaciones y ${real.equipo.agendas} agendas este mes.`,
     },
-    aplicaciones: [...SETTER_APLICACIONES].sort((a, b) =>
-      b.fechaAplicacionAt.localeCompare(a.fechaAplicacionAt),
-    ),
-    syncAt: ctx.syncAt,
-  });
+    aplicaciones: (real.agendadas ?? []).map((a) => ({
+      id: a.id,
+      prospecto: a.prospecto,
+      fechaAt: a.fechaAt,
+      closer: a.closer,
+      origen: a.origen,
+      facturaHoy: a.facturaHoy,
+      estado: a.estado === 'cierre' ? 'cerrado' : a.estado === 'no_show' ? 'no_show' : a.estado === 'sin_reportar' ? 'pendiente' : 'agendado',
+    })),
+    reporte: { cargado: dia.cargado, payload: null },
+    syncAt: real.generadoAt,
+    mes: real.mes,
+  };
 }
 
-/** Marca el reporte del día como completado. Futuro: POST. */
+/** El reporte del día del setter: se guarda en el CRM, igual que desde el calendario. */
 export async function completarReporteSetter(payload = {}) {
-  completarSetterReporte(payload);
+  const hoy = new Date().toISOString().slice(0, 10);
+  await guardarReporteDia(hoy, {
+    conversaciones: payload.conversaciones ?? 0,
+    links_enviados: payload.calendlysEnviados ?? payload.links_enviados ?? 0,
+    agendas: payload.agendas ?? 0,
+    seguimientos: payload.seguimientos ?? 0,
+    outbounds: payload.outbounds ?? 0,
+    leads_nuevos: payload.leadsNuevos ?? 0,
+    nota: payload.nota ?? '',
+  });
   return getSetterDashboard();
 }
 
 /* --------------------------------------------------------------- marketing */
 
 /** Solo Ads Manager (sin Instagram) — liviano para metas / gasto. */
+/** Ads, contenido, historias y setting del mes: todo del CRM de Marketing. */
+export async function getMarketingReal(mes, { refrescar = false } = {}) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  if (refrescar) q.set('refrescar', 'true');
+  return pedir(`/api/ventas/marketing${q.toString() ? `?${q}` : ''}`);
+}
+
+function campaniasDeAds(raw) {
+  return (raw.ads.campanias ?? []).map((c) => ({
+    id: c.nombre,
+    nombre: c.nombre,
+    canal: 'Meta',
+    objetivo: (c.objetivo ?? '').replace('OUTCOME_', '').toLowerCase(),
+    estado: (c.estado ?? '').toLowerCase() === 'active' ? 'activa' : 'pausada',
+    gastoUsd: c.gastoUsd,
+    leads: c.conversiones,
+    cplUsd: c.costoPorConversionUsd,
+    ctr: c.ctr,
+    alcance: c.alcance,
+    impresiones: c.impresiones,
+    clicks: c.clicks,
+    frecuencia: c.alcance ? Number((c.impresiones / c.alcance).toFixed(2)) : 0,
+    roas: 0,
+    ultimaSyncAt: raw.generadoAt,
+  }));
+}
+
 export async function getMetaAds(mes) {
-  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
-  return pedir(`/api/meta/ads${q}`);
-}
-
-/** Contenido Instagram del mes (reels/posts + stories). */
-export async function getInstagram(mes) {
-  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
-  return pedir(`/api/meta/instagram${q}`);
-}
-
-/** Ads + Instagram en paralelo (fallback mock si Ads falla). */
-export async function getMarketing(mes) {
-  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
-  try {
-    const [raw, ig] = await Promise.all([
-      pedir(`/api/meta/ads${q}`),
-      pedir(`/api/meta/instagram${q}`).catch(() => null),
-    ]);
-    return {
-      campanias: raw.campanias ?? [],
-      gastoCanal: raw.gastoCanal ?? [],
-      gastoDiario: raw.gastoDiario ?? [],
-      umbrales: raw.umbrales ?? FRECUENCIA,
-      kpis: raw.kpis ?? [],
-      instagram: ig,
-      inversionAds: raw.inversionAds ?? 0,
-      syncAt: raw.syncAt ?? null,
-      fuente: raw.fuente ?? 'meta_ads',
-      mes: raw.mes,
-    };
-  } catch {
-    return getMarketingMock();
-  }
-}
-
-function getMarketingMock() {
-  const gasto = CAMPANIAS.reduce((s, c) => s + c.gastoUsd, 0);
-  const leads = CAMPANIAS.reduce((s, c) => s + c.leads, 0);
-  const revenueAtribuido = GASTO_CANAL.reduce((s, c) => s + c.gastoUsd * c.roas, 0);
-  const roas = revenueAtribuido / (gasto || 1);
-  const activas = CAMPANIAS.filter((c) => c.estado === 'activa');
-  const quemadas = CAMPANIAS.filter((c) => c.frecuencia >= FRECUENCIA.quemado);
-
-  /** @type {Metric[]} */
-  const kpis = [
-    {
-      id: 'roas',
-      label: 'ROAS',
-      value: roas,
-      format: 'x',
-      previous: 3.9,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      nota: 'El revenue atribuido se cruza a mano: no hay pixel en las campañas de tráfico a DM.',
-    },
-    {
-      id: 'cpl',
-      label: 'Cost per lead',
-      value: gasto / (leads || 1),
-      format: 'usd',
-      previous: 46.2,
-      sourceId: 'ads_manager',
-      updatedAt: SYNC.ads,
-      good: 'down',
-    },
-    {
-      id: 'gasto_ads',
-      label: 'Gasto del mes',
-      value: gasto,
-      format: 'usd',
-      previous: 28900,
-      sourceId: 'ads_manager',
-      updatedAt: SYNC.ads,
-      good: 'neutral',
-      serie: GASTO_DIARIO.map((d) => d.gastoUsd),
-    },
-    {
-      id: 'campanias_activas',
-      label: 'Campañas activas',
-      value: activas.length,
-      format: 'count',
-      previous: 6,
-      sourceId: 'ads_manager',
-      updatedAt: SYNC.ads,
-      good: 'neutral',
-      nota: quemadas.length
-        ? `${quemadas.length} con la frecuencia pasada de ${FRECUENCIA.quemado}.`
-        : 'Ninguna con la frecuencia quemada.',
-    },
-  ];
-
+  const raw = await getMarketingReal(mes);
+  const a = raw.ads;
+  const kpi = (id, label, value, format, nota, objetivo) => ({
+    id, label, value, format, previous: null, objetivo,
+    sourceId: 'ads_manager', updatedAt: raw.generadoAt, nota,
+  });
   return {
-    campanias: CAMPANIAS,
-    gastoCanal: GASTO_CANAL,
-    gastoDiario: GASTO_DIARIO,
-    umbrales: FRECUENCIA,
-    kpis,
-    instagram: null,
-    fuente: 'mock',
+    campanias: campaniasDeAds(raw),
+    totales: {
+      gastoUsd: a.gastoUsd, leads: a.conversiones, cplUsd: a.costoPorConversionUsd,
+      impresiones: a.impresiones, clicks: a.clicks, alcance: a.alcance, ctr: a.ctr,
+    },
+    gastoCanal: a.gastoUsd ? [{ canal: 'Meta', gastoUsd: a.gastoUsd }] : [],
+    gastoDiario: [],
+    // El módulo 07_ads manda: la frecuencia gobierna la salud del creativo.
+    umbrales: { objetivo: 1.4, quemado: 1.6 },
+    kpis: [
+      kpi('gasto_ads', 'Inversión', a.gastoUsd, 'usd', `${a.campanias.length} campañas en el mes`),
+      kpi('leads_ads', 'Conversiones', a.conversiones, 'count', 'Reportadas por Meta'),
+      kpi('cpl', 'Costo por conversión', a.costoPorConversionUsd, 'usd', 'Inversión sobre conversiones'),
+      kpi('ctr', 'CTR', a.ctr, 'pct', `${formatValue(a.clicks, 'count')} clicks sobre ${formatValue(a.impresiones, 'count')} impresiones`),
+    ],
+    inversionAds: a.gastoUsd,
+    conectado: raw.conectado,
+    detalle: raw.detalle,
+    syncAt: raw.generadoAt,
+    fuente: 'meta_ads',
+    mes: raw.mes,
   };
 }
 
-/* -------------------------------------------------------------- onboarding */
-
-export async function getOnboarding() {
-  const clienteCerrados = PROCESOS.filter((p) => p.tipo === 'cliente' && p.cerradoAt);
-  const staffCerrados = PROCESOS.filter((p) => p.tipo === 'staff' && p.cerradoAt);
-
-  const promCliente = clienteCerrados.reduce((s, p) => s + p.diasTranscurridos, 0) / (clienteCerrados.length || 1);
-  const promStaff = staffCerrados.reduce((s, p) => s + p.diasTranscurridos, 0) / (staffCerrados.length || 1);
-
-  /** @type {Metric[]} */
-  const kpis = [
-    {
-      id: 'onboarding_cliente',
-      label: 'Pago → primer entregable',
-      value: promCliente,
-      format: 'days',
-      previous: 7,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      good: 'down',
-      objetivo: 7,
-      serie: DURACION_HISTORICA.map((d) => d.cliente).filter((v) => v !== null),
+export async function getInstagram(mes) {
+  const raw = await getMarketingReal(mes);
+  return {
+    publicaciones: raw.contenido.publicaciones,
+    totales: {
+      reels: raw.contenido.reels,
+      reproducciones: raw.contenido.reproducciones,
+      alcance: raw.contenido.alcance,
+      interacciones: raw.contenido.interacciones,
     },
-    {
-      id: 'onboarding_staff',
-      label: 'Contrato → primer día productivo',
-      value: promStaff,
-      format: 'days',
-      previous: 16,
-      sourceId: 'manual',
-      updatedAt: SYNC.man,
-      good: 'down',
-      objetivo: 10,
-      serie: DURACION_HISTORICA.map((d) => d.staff).filter((v) => v !== null),
-    },
-  ];
-
-  return responder({ procesos: PROCESOS, duracion: DURACION_HISTORICA, kpis });
+    syncAt: raw.generadoAt,
+    mes: raw.mes,
+  };
 }
 
-/* ---------------------------------------------------------------- sistemas */
+export async function getMarketing(mes) {
+  const raw = await getMarketingReal(mes);
+  const ads = await getMetaAds(mes);
+  const c = raw.contenido;
+  const kpi = (id, label, value, format, nota, sourceId = 'mkt_crm') => ({
+    id, label, value, format, previous: null, sourceId, updatedAt: raw.generadoAt, nota,
+  });
+
+  return {
+    campanias: ads.campanias,
+    gastoCanal: ads.gastoCanal,
+    gastoDiario: [],
+    umbrales: ads.umbrales,
+    inversionAds: raw.ads.gastoUsd,
+    instagram: {
+      publicaciones: c.publicaciones,
+      totales: { reels: c.reels, reproducciones: c.reproducciones, alcance: c.alcance, interacciones: c.interacciones },
+    },
+    contenido: c,
+    historias: raw.historias,
+    setting: raw.setting,
+    storiesActivas: raw.historias.secuencias,
+    publicaciones: c.publicaciones,
+    kpis: [
+      kpi('reproducciones', 'Reproducciones', c.reproducciones, 'count', `${c.reels} reels publicados este mes`, 'mkt_crm'),
+      kpi('alcance_ig', 'Alcance', c.alcance, 'count', `${formatValue(c.interacciones, 'count')} interacciones`, 'mkt_crm'),
+      kpi('chats_historias', 'Chats de historias', raw.historias.chats, 'count', `${raw.historias.secuencias} secuencias cargadas`),
+      kpi('conversaciones_setting', 'Conversaciones de setting', raw.setting.conversaciones, 'count', `${raw.setting.agendas} agendas`),
+      kpi('inversion_ads', 'Inversión en Ads', raw.ads.gastoUsd, 'usd', `${raw.ads.conversiones} conversiones`, 'ads_manager'),
+    ],
+    conectado: raw.conectado,
+    detalle: raw.detalle,
+    syncAt: raw.generadoAt,
+    fuente: 'mkt_crm',
+    mes: raw.mes,
+  };
+}
+
+export async function getOnboarding() {
+  // Sin fuente conectada todavía: cero en vez de números inventados.
+  return {
+    procesos: [],
+    duracion: [],
+    kpis: [
+      { id: 'onboarding_cliente', label: 'Pago → primer entregable', value: 0, format: 'days', previous: null, sourceId: 'manual', updatedAt: null, good: 'down', objetivo: 7, serie: [] },
+      { id: 'onboarding_staff', label: 'Contrato → primer día productivo', value: 0, format: 'days', previous: null, sourceId: 'manual', updatedAt: null, good: 'down', objetivo: 10, serie: [] },
+    ],
+  };
+}
 
 export async function getSistemas() {
   const cobertura = coberturaAutomatizacion();
@@ -1640,33 +1445,31 @@ export async function getSistemas() {
   });
 }
 
-/* -------------------------------------------------------------------- home */
-
 export async function getMetas() {
   const hoy = ahora();
   const mes = mesId(hoy);
   const diasMes = diasDelMes(mes);
   const diaHoy = diaDentroDelMes(hoy, mes);
-  const metas = METAS.map((meta) => {
-    const acumulado = recortarAcumulado(meta.acumulado, diaHoy);
-    return {
-      meta: { ...meta, mes, acumulado },
-      ritmo: ritmo({ meta: meta.meta, actual: acumulado.at(-1) ?? 0, diasMes, diaHoy }),
-    };
-  });
-  return responder({
+  const mkt = await getMktResumen(mes).catch(() => null);
+
+  // El embudo sale del CRM; las metas por área viven en el decreto (vista Metas).
+  const embudo = [
+    { id: 'conversaciones', label: 'Conversaciones', valor: mkt?.conversaciones ?? 0 },
+    { id: 'aplicaciones', label: 'Links enviados', valor: mkt?.aplicaciones ?? 0 },
+    { id: 'agendas', label: 'Agendas', valor: mkt?.agendas ?? 0 },
+    { id: 'shows', label: 'Shows', valor: mkt?.shows ?? 0 },
+    { id: 'cierres', label: 'Cierres', valor: mkt?.cierres ?? 0 },
+  ];
+
+  return {
     mes: { id: mes, nombre: nombreMesAnio(hoy), dia: diaHoy, dias: diasMes, fraccion: diaHoy / diasMes },
     semana: `S${semanaIso(hoy)}`,
-    metas,
-    embudo: EMBUDO_VENTAS,
-  });
+    metas: [],
+    embudo,
+    syncAt: mkt?.syncAt ?? null,
+  };
 }
 
-/**
- * Decreto mensual Marketing↔Ventas + avance + diagnóstico.
- * @param {string} [mesSel]
- * @param {{ incluirAds?: boolean }} [opts] — Ads (inversión) solo cuando hace falta (vista Ads).
- */
 export async function getMetasMes(mesSel, opts = {}) {
   const ctx = contextoDeMes(mesSel || mesId());
   const guardado = leerDecretoGuardado(ctx.mes);
@@ -1737,10 +1540,29 @@ export async function getMetasMes(mesSel, opts = {}) {
   });
 }
 
-/** Resumen comercial real desde ATV MKT (vía backend). */
+/**
+ * Resumen comercial del mes con datos reales: el setting sale de los reportes diarios,
+ * y las agendas, cierres y cash del CRM. Lo que no tenga fuente queda en cero.
+ */
 export async function getMktResumen(mes) {
-  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
-  return pedir(`/api/mkt/resumen${q}`);
+  const [ventas, marketing] = await Promise.all([
+    getVentasReal(mes).catch(() => null),
+    getMarketingReal(mes).catch(() => null),
+  ]);
+  const v = ventas?.actual ?? {};
+  return {
+    mes: ventas?.mes ?? marketing?.mes ?? mes,
+    chats: marketing?.setting?.conversaciones ?? 0,
+    conversaciones: marketing?.setting?.conversaciones ?? 0,
+    aplicaciones: marketing?.setting?.linksEnviados ?? 0,
+    agendas: v.agendados ?? 0,
+    shows: v.shows ?? 0,
+    cierres: v.cierres ?? 0,
+    cash: v.cashUsd ?? 0,
+    inversionAds: marketing?.ads?.gastoUsd ?? 0,
+    syncAt: ventas?.generadoAt ?? marketing?.generadoAt ?? null,
+    fuente: 'CRM de ATV Marketing',
+  };
 }
 
 /**
@@ -1819,11 +1641,11 @@ export function cobranzaVacia(motivo = 'Cobranza no disponible') {
 }
 
 export async function getCobranza(mes) {
-  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
-  const raw = await pedir(`/api/cobranza${q}`);
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  const raw = await pedir(`/api/ventas/cobranza${q.toString() ? `?${q}` : ''}`);
   const ctx = contextoDeMes(mes || raw.mes || mesId());
-  const diasMes = ctx.diasMes;
-  const diaHoy = ctx.diaHoy;
+  const m = raw.delMes;
 
   const cuotas = (raw.cuotas ?? []).map((c) => ({
     id: c.id,
@@ -1831,37 +1653,51 @@ export async function getCobranza(mes) {
     plan: c.plan,
     montoUsd: c.montoUsd,
     venceAt: c.venceAt,
-    estado: c.estado,
-    pagadaAt: c.pagadaAt,
-    diasAtraso: c.diasAtraso ?? 0,
-    tipo: c.tipo,
+    estado: c.estado === 'pagada' ? 'pagada' : c.estado,
+    pagadaAt: c.pagoAt,
+    diasAtraso: c.diasVencida ?? 0,
+    responsable: c.responsable,
   }));
 
-  const totalMes = raw.totalMes ?? 0;
-  const cobrado = raw.cobrado ?? 0;
+  const kpi = (id, label, value, format, nota, objetivo) => ({
+    id, label, value, format, previous: null, objetivo,
+    sourceId: 'atv_clients', updatedAt: raw.generadoAt, nota,
+  });
 
   return {
     cuotas,
-    cobrado,
-    esperadoHoy: raw.esperadoHoy ?? 0,
-    totalMes,
-    vencidas: raw.vencidas ?? { n: 0, usd: 0, detalle: 'Sin cuotas vencidas' },
-    porVencerSemana: raw.porVencerSemana ?? { n: 0, usd: 0 },
-    ritmoCobro: ritmo({ meta: totalMes, actual: cobrado, diasMes, diaHoy }),
-    pctSobreVencido: raw.pctSobreVencido ?? 100,
-    kpis: raw.kpis ?? [],
-    syncAt: raw.syncAt ?? null,
+    vencidas: { n: raw.vencidas.length, usd: m.vencidoUsd, detalle: `${raw.vencidas.length} cuotas vencidas sin pagar` },
+    porVencerSemana: {
+      n: (raw.proximas ?? []).filter((c) => diasEntre(new Date().toISOString(), c.venceAt) <= 7).length,
+      usd: (raw.proximas ?? [])
+        .filter((c) => diasEntre(new Date().toISOString(), c.venceAt) <= 7)
+        .reduce((s, c) => s + c.montoUsd, 0),
+    },
+    cobrado: m.cobradoUsd,
+    esperadoHoy: Math.round((m.totalUsd * ctx.diaHoy) / ctx.diasMes),
+    totalMes: m.totalUsd,
+    ritmoCobro: ritmo({ meta: m.totalUsd, actual: m.cobradoUsd, diasMes: ctx.diasMes, diaHoy: ctx.diaHoy }),
+    pctSobreVencido: m.pctCobrado,
+    kpis: [
+      kpi('cobrado_mes', 'Cobrado del mes', m.cobradoUsd, 'usd', `${m.pctCobrado}% de ${formatValue(m.totalUsd, 'usd')} a cobrar`, m.totalUsd),
+      kpi('pendiente_mes', 'Pendiente del mes', m.pendienteUsd, 'usd', `${m.cuotas} cuotas con vencimiento este mes`),
+      kpi('vencido', 'Vencido sin cobrar', m.vencidoUsd, 'usd', `${raw.vencidas.length} cuotas pasadas de fecha`),
+      kpi('deuda_cartera', 'Deuda de la cartera', raw.cartera.deudaUsd, 'usd', `${raw.cartera.vigentes} clientes vigentes de ${raw.cartera.clientes}`),
+    ],
+    cartera: raw.cartera,
+    proximas: raw.proximas ?? [],
+    listaVencidas: raw.vencidas ?? [],
+    conectado: raw.conectado,
+    detalle: raw.detalle,
+    syncAt: raw.generadoAt,
     mes: raw.mes,
-    fuente: raw.fuente,
-    unavailable: false,
-    error: null,
+    fuente: 'ATV Clients',
   };
 }
 
-/* ------------------------------------------------------------ grietas */
-
 export async function getGrietas() {
-  return responder({ grietas: GRIETAS, pedidos: PEDIDOS, pedidosSemana: PEDIDOS_SEMANA });
+  // Sin fuente conectada: se muestran en cero en vez de datos inventados.
+  return { grietas: [], pedidos: [], pedidosSemana: [] };
 }
 
 /* ----------------------------------------------------------- home */
@@ -1916,7 +1752,7 @@ export async function getHome(mesSel) {
       diasMes,
       mes,
       dueno: 'Juan Cruz',
-      sourceId: 'atv_mkt',
+      sourceId: 'mkt_crm',
       principal: true,
     }),
     bloqueMeta({
@@ -1930,7 +1766,7 @@ export async function getHome(mesSel) {
       diasMes,
       mes,
       dueno: 'Juan Cruz',
-      sourceId: 'atv_mkt',
+      sourceId: 'mkt_crm',
     }),
   ];
 
@@ -1946,7 +1782,7 @@ export async function getHome(mesSel) {
       diasMes,
       mes,
       dueno: 'Lucas',
-      sourceId: 'atv_mkt',
+      sourceId: 'mkt_crm',
       principal: true,
     }),
     bloqueMeta({
@@ -1960,7 +1796,7 @@ export async function getHome(mesSel) {
       diasMes,
       mes,
       dueno: 'Lucas',
-      sourceId: 'atv_mkt',
+      sourceId: 'mkt_crm',
     }),
   ];
 

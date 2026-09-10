@@ -15,10 +15,11 @@ import Pill from '../ui/Pill.jsx';
  *           semanas: { semana: string, pedidos: number }[] }} props
  */
 export default function PedidosPanel({ pedidos, semanas }) {
-  const base = semanas[semanas.length - 1].pedidos;
-  const previa = semanas[semanas.length - 2].pedidos;
+  // Sin serie cargada, el panel arranca en cero.
+  const base = semanas?.[semanas.length - 1]?.pedidos ?? 0;
+  const previa = semanas?.[semanas.length - 2]?.pedidos ?? 0;
   const [conteo, setConteo] = useLocalState('atv-ops:pedidos-semana', base);
-  const sinCubrir = pedidos.filter((p) => !p.yaEstaEnTablero).length;
+  const sinCubrir = (pedidos ?? []).filter((p) => !p.yaEstaEnTablero).length;
 
   return (
     <Card
@@ -49,11 +50,11 @@ export default function PedidosPanel({ pedidos, semanas }) {
             </button>
           </div>
         </div>
-        <Sparkline data={[...semanas.map((s) => s.pedidos).slice(0, -1), conteo]} height={44} />
+        <Sparkline data={[...(semanas ?? []).map((s) => s.pedidos).slice(0, -1), conteo]} height={44} />
         <div className="legend">
           <span className="k">
             <i style={{ background: 'var(--brand)' }} />
-            {semanas[0].semana} → {semanas[semanas.length - 1].semana}
+            {semanas?.length ? `${semanas[0].semana} → ${semanas[semanas.length - 1].semana}` : 'Sin serie cargada'}
           </span>
         </div>
       </div>

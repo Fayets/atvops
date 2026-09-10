@@ -8,7 +8,8 @@ import { hace } from '../../lib/format.js';
  *           conNombre?: boolean }} props
  */
 export default function SourceTag({ sourceId, updatedAt, conNombre = true }) {
-  const fuente = SOURCES[sourceId];
+  // Un id desconocido no puede tumbar la pantalla: se muestra como sin conectar.
+  const fuente = SOURCES[sourceId] ?? { id: sourceId, nombre: sourceId, status: 'sin_conectar', lastSyncAt: null };
   const sync = updatedAt ?? fuente.lastSyncAt;
   const etiqueta = {
     conectada: 'automatizado',
