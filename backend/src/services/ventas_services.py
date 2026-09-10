@@ -681,13 +681,13 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     cierres = [l for l in ventas if _norm(l["resultado"]) == _norm("Cerrado")]
     senas = [l for l in ventas if l not in cierres]
     shows = sum(1 for c in clases if c in ("show", "cierre"))
-    # La agenda la trae el setter una sola vez: la segunda reunión con el mismo prospecto
-    # cuenta como show y como cierre, pero no como agenda nueva.
+    # Cuántas son segunda vuelta con el mismo prospecto. Es un dato para leer el mes, no
+    # un descuento: esa reunión también se agendó y también hubo que ir.
     seguimientos = sum(1 for l in leads if l.get("seguimiento"))
     no_shows = sum(1 for c in clases if c == "no_show")
     sin_reportar = sum(1 for c in clases if c == "sin_reportar")
     sin_crm = sum(1 for c in clases if c == "sin_crm")
-    agendados = len(leads) - seguimientos
+    agendados = len(leads)
     cash = sum(_num(l["pago"]) for l in ventas)
     evaluables = shows + no_shows
     return {
@@ -1132,8 +1132,8 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     """Los números del mes del closer: agenda, show rate, close rate y ticket promedio.
 
     La seña no es un cierre: es plata que entró con la venta a medio hacer. Va contada
-    aparte y no sube el close rate. El seguimiento tampoco es una agenda: es la segunda
-    vuelta del mismo prospecto, y sí suma al show y al cierre.
+    aparte y no sube el close rate. Lo único que queda afuera de la agenda es lo que se
+    descarta a mano: el resto de las reuniones cuentan, sean primera o quinta.
     """
     shows = sum(1 for x in del_mes if x["estado"] in ("show", "cierre"))
     no_shows = sum(1 for x in del_mes if x["estado"] == "no_show")
@@ -1144,9 +1144,9 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     cash = round(sum(x["cashUsd"] for x in ventas), 2)
     facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
     return {
-        # La agenda es la primera reunión del prospecto: las que vienen después son
-        # seguimiento del mismo lead, no una agenda nueva que haya conseguido el setter.
-        "agendadas": len(del_mes) - seguimientos,
+        # Toda reunión del mes es una agenda. La segunda vuelta con el mismo prospecto
+        # también se agenda, también hay que ir: se cuenta aparte, no se descuenta.
+        "agendadas": len(del_mes),
         "seguimientos": seguimientos,
         "reuniones": len(del_mes),
         "porVenir": sum(1 for x in del_mes if x["estado"] == "agendado" and not x["pasada"]),

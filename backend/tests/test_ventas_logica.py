@@ -59,7 +59,7 @@ def test_solo_calendario_y_duplicada_tienen_su_clase():
 
 # ------------------------------------------------------------------ _bloque
 
-def test_bloque_separa_cierres_de_senas_y_no_cuenta_seguimientos_como_agenda():
+def test_bloque_separa_cierres_de_senas_y_cuenta_toda_reunion_como_agenda():
     leads = [
         fila("A", AYER, "cerrado", pago=5000),
         fila("B", AYER, "seña", pago=200),
@@ -71,7 +71,7 @@ def test_bloque_separa_cierres_de_senas_y_no_cuenta_seguimientos_como_agenda():
     b = v._bloque(leads, AHORA)
     assert b["reuniones"] == 5                 # la descartada no cuenta para nada
     assert b["seguimientos"] == 1
-    assert b["agendados"] == 4                 # el seguimiento no es agenda nueva
+    assert b["agendados"] == 5                 # la segunda vuelta también se agendó
     assert b["shows"] == 4                     # cerrado, seña, seguimiento, seguimiento
     assert b["noShows"] == 1
     assert b["cierres"] == 1 and b["senas"] == 1 and b["ventas"] == 2
@@ -160,8 +160,11 @@ def test_las_altas_usan_el_flush_del_modulo_no_el_de_la_sesion():
 
 # ------------------------------------------------------------------ _metricas_closer
 
-def test_metricas_closer_no_cuenta_el_seguimiento_como_agenda():
-    """La agenda la consigue el setter: la segunda reunión con el mismo prospecto no es una."""
+def test_metricas_closer_cuenta_toda_reunion_como_agenda():
+    """La segunda reunión con el mismo prospecto también se agendó: cuenta, y se avisa aparte.
+
+    Lo único que no suma es lo que se descarta a mano, que llega ya filtrado.
+    """
     del_mes = [
         {"estado": "cierre", "resultado": "Cerrado", "pasada": True, "seguimiento": False,
          "cashUsd": 3000.0, "facturacionUsd": 3000.0, "saldoUsd": 0.0},
@@ -173,7 +176,7 @@ def test_metricas_closer_no_cuenta_el_seguimiento_como_agenda():
     m = v._metricas_closer(del_mes, [del_mes[0]])
     assert m["reuniones"] == 3
     assert m["seguimientos"] == 1
-    assert m["agendadas"] == 2          # el seguimiento no abre una agenda nueva
+    assert m["agendadas"] == 3          # ninguna se descuenta por ser seguimiento
     assert m["porVenir"] == 1
     assert m["shows"] == 2              # pero sí se presentó: cuenta como show
     assert m["closeRate"] == 50.0
