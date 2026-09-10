@@ -504,8 +504,13 @@ def _nombres_crm(usuario: dict) -> list[str]:
     return sorted(set(nombres)) or [usuario.get("nombre") or usuario.get("username") or ""]
 
 
-def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, closer: str | None = None) -> dict:
-    """Las llamadas del closer: las que vienen, las de hoy y las que le falta reportar."""
+def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, closer: str | None = None,
+                 mes: str | None = None) -> dict:
+    """Las llamadas del closer: las que vienen, las de hoy y las que le falta reportar.
+
+    Con `mes` ("2026-09") trae exactamente ese mes. Sin él, una ventana alrededor de hoy,
+    que es lo que necesita el bloqueo por llamadas sin cargar.
+    """
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     hoy = ahora.date()
     nombres = [closer] if (closer and usuario.get("rol") in ROLES_PRECIOS | {"ventas"}) else _nombres_crm(usuario)
@@ -515,8 +520,13 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
 
     # Se lee todo el período y recién después se filtra por closer: el cruce con el
     # calendario tiene que ver todas las llamadas para no duplicar las de otro.
-    desde = hoy - timedelta(days=dias_atras)
-    hasta = hoy + timedelta(days=dias_adelante + 1)
+    if mes:
+        anio, m = int(mes[:4]), int(mes[5:7])
+        desde = date(anio, m, 1)
+        hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+    else:
+        desde = hoy - timedelta(days=dias_atras)
+        hasta = hoy + timedelta(days=dias_adelante + 1)
     mios = [_norm(n) for n in nombres]
     filas = sorted(
         [f for f in _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)

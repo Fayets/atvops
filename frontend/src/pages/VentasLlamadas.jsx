@@ -8,6 +8,7 @@ import Tabs from '../components/ui/Tabs.jsx';
 import { formatValue } from '../lib/format.js';
 import { getMisLlamadas } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
+import { useMes } from '../lib/MesContext.jsx';
 
 const FILTROS = [
   { value: 'todas', label: 'Todas' },
@@ -24,7 +25,8 @@ export default function VentasLlamadas() {
   const [local, setLocal] = useState(null);
   const [filtro, setFiltro] = useState('todas');
   const [busqueda, setBusqueda] = useState('');
-  const { data, loading, error } = useResource(getMisLlamadas, [tick]);
+  const { mes } = useMes();
+  const { data, loading, error } = useResource(() => getMisLlamadas(undefined, mes), [tick, mes]);
   const vista = local ?? data;
 
   const filas = useMemo(() => {
@@ -44,7 +46,7 @@ export default function VentasLlamadas() {
       <PageHeader
         eyebrow={vista?.closer ? `Closer · ${vista.closer}` : 'Closer'}
         title="Llamadas"
-        desc="Todas tus llamadas de los últimos 30 días con el resultado cargado. Tocá una para corregirla."
+        desc="Todas tus reuniones del mes elegido, con el resultado que cargaste en cada una. Tocá una para corregirla."
         actions={
           <>
             <SourceTag sourceId="mkt_crm" updatedAt={vista?.generadoAt} />
@@ -74,8 +76,8 @@ export default function VentasLlamadas() {
           </div>
 
           <Card
-            title={`${filas.length} llamadas`}
-            sub={`${cargadas.length} con resultado cargado · ${formatValue(vista?.mes?.cashUsd ?? 0, 'usd')} cobrados este mes`}
+            title={`${filas.length} reuniones`}
+            sub={`${cargadas.length} con resultado cargado · ${formatValue(vista?.mes?.cashUsd ?? 0, 'usd')} cobrados en el mes`}
             flush
           >
             <ListaLlamadas

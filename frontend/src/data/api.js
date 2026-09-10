@@ -762,8 +762,13 @@ export async function getVentasReal(mes, { refrescar = false } = {}) {
 }
 
 /** Las llamadas del closer logueado, con lo que ya reportó y lo que le falta. */
-export async function getMisLlamadas(closer) {
-  return pedir(`/api/ventas/mis-llamadas${closer ? `?closer=${encodeURIComponent(closer)}` : ''}`);
+export async function getMisLlamadas(closer, mes) {
+  // Sin mes trae la ventana alrededor de hoy, que es la que usa el bloqueo por llamadas sin cargar.
+  const q = new URLSearchParams();
+  if (closer) q.set('closer', closer);
+  if (mes) q.set('mes', mes);
+  const cola = q.toString();
+  return pedir(`/api/ventas/mis-llamadas${cola ? `?${cola}` : ''}`);
 }
 
 /** El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó. */
@@ -2135,8 +2140,10 @@ export async function guardarDatosCliente(clienteId, payload) {
 }
 
 /** Agenda real del Google Calendar de ATV (vista de Ventas). */
-export async function getAgendaVentas({ dias = 14, diasAtras = 1, refrescar = false } = {}) {
-  return pedir(`/api/calendario-ventas?dias=${dias}&diasAtras=${diasAtras}${refrescar ? '&refrescar=true' : ''}`);
+export async function getAgendaVentas({ dias = 14, diasAtras = 1, refrescar = false, desde, hasta } = {}) {
+  // Con desde/hasta se pide el rango que la vista está mostrando; si no, una ventana alrededor de hoy.
+  const rango = desde && hasta ? `&desde=${desde}&hasta=${hasta}` : '';
+  return pedir(`/api/calendario-ventas?dias=${dias}&diasAtras=${diasAtras}${rango}${refrescar ? '&refrescar=true' : ''}`);
 }
 
 /** Del título de Calendly ("2da reu DANILO and Aumenta Tu Valor") sale el nombre del prospecto. */
@@ -2163,8 +2170,8 @@ const ESTADO_POR_RESPUESTA = { accepted: 'confirmado', declined: 'rechazado', te
  * del equipo. Los datos del formulario de Calendly (teléfono, Instagram, facturación)
  * vienen ya parseados del backend.
  */
-export async function getLlamadosAgenda({ dias = 21, diasAtras = 7, refrescar = false } = {}) {
-  const agenda = await getAgendaVentas({ dias, diasAtras, refrescar });
+export async function getLlamadosAgenda({ dias = 21, diasAtras = 7, refrescar = false, desde, hasta } = {}) {
+  const agenda = await getAgendaVentas({ dias, diasAtras, refrescar, desde, hasta });
   const llamados = (agenda.eventos ?? []).map((e) => {
     const externos = (e.invitados ?? []).filter((i) => !i.equipo);
     const principal = externos[0] ?? null;

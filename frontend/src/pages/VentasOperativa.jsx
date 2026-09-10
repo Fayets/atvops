@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import VentasOperativa from '../components/ventas/VentasOperativa.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import { getLlamadosAgenda, getVentas } from '../data/api.js';
@@ -10,9 +10,12 @@ export default function VentasOperativaPage() {
   const { mes } = useMes();
   const { data, loading, error } = useResource(() => getVentas(mes), [mes]);
   const [tick, setTick] = useState(0);
+  // El calendario avisa qué semana o mes está mostrando y se trae justo ese rango.
+  const [rango, setRango] = useState(null);
+  const onRango = useCallback((desde, hasta) => setRango({ desde, hasta }), []);
   const { data: agenda, loading: cargandoAgenda, error: agendaError } = useResource(
-    () => getLlamadosAgenda({ refrescar: tick > 0 }),
-    [tick],
+    () => getLlamadosAgenda({ refrescar: tick > 0, ...(rango ?? {}) }),
+    [tick, rango?.desde, rango?.hasta],
   );
 
   if (error) {
@@ -37,6 +40,7 @@ export default function VentasOperativaPage() {
           agendaError={agendaError}
           actualizando={cargandoAgenda}
           onActualizar={() => setTick((t) => t + 1)}
+          onRango={onRango}
         />
       )}
     </div>

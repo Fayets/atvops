@@ -42,7 +42,7 @@ function urgenciaFollow(dias) {
  * Vista operativa día a día del Director de Ventas.
  * @param {{ data: object }} props
  */
-export default function VentasOperativa({ data, agenda, agendaError, actualizando, onActualizar }) {
+export default function VentasOperativa({ data, agenda, agendaError, actualizando, onActualizar, onRango }) {
   const [detalle, setDetalle] = useState(null);
   const [filtroEvento, setFiltroEvento] = useState('todos');
   const [filtroTipo, setFiltroTipo] = useState('todos');
@@ -93,6 +93,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
             : 'Cargando el Google Calendar de ATV…'}
           actualizando={actualizando}
           onActualizar={onActualizar}
+          onRango={onRango}
         />
       )}
 

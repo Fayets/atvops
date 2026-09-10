@@ -58,10 +58,10 @@ def borrar_programa(programa_id: int, user: dict = Depends(get_current_user)):
 
 
 @router.get("/mis-llamadas")
-def mis_llamadas(user: dict = Depends(get_current_user), closer: str | None = None):
+def mis_llamadas(user: dict = Depends(get_current_user), closer: str | None = None, mes: str | None = None):
     """Las llamadas del closer logueado: lo que viene y lo que le falta reportar."""
     try:
-        return ventas.mis_llamadas(user, closer=closer)
+        return ventas.mis_llamadas(user, closer=closer, mes=mes)
     except HTTPException as e:
         raise e
     except Exception:

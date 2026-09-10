@@ -7,10 +7,12 @@ router = APIRouter()
 
 
 @router.get("")
-def agenda(_user: dict = Depends(get_current_user), dias: int = 14, diasAtras: int = 1, refrescar: bool = False):
-    """Agenda real del Google Calendar de ATV."""
+def agenda(_user: dict = Depends(get_current_user), dias: int = 14, diasAtras: int = 1,
+           refrescar: bool = False, desde: str | None = None, hasta: str | None = None):
+    """Agenda real del Google Calendar de ATV. Con `desde`/`hasta` trae ese rango exacto."""
     try:
-        return gcal.agenda(dias=dias, dias_atras=diasAtras, refrescar=refrescar)
+        return gcal.agenda(dias=dias, dias_atras=diasAtras, refrescar=refrescar,
+                           desde_iso=desde, hasta_iso=hasta)
     except HTTPException as e:
         raise e
     except Exception:

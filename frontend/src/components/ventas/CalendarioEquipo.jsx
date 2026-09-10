@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatFecha, formatFechaHora } from '../../lib/format.js';
@@ -31,10 +31,13 @@ function parseAt(iso) {
 
 /**
  * Calendario del equipo: semana o mes con las llamadas reales del Google Calendar de ATV.
+ * Avisa por `onRango` qué días está mostrando, para que la página traiga del calendario
+ * ese rango y no queden días vacíos al navegar hacia atrás o hacia adelante.
  * @param {{ llamados: object[], onSelect: (l: object) => void, sub?: string,
- *           actualizando?: boolean, onActualizar?: () => void }} props
+ *           actualizando?: boolean, onActualizar?: () => void,
+ *           onRango?: (desde: string, hasta: string) => void }} props
  */
-export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar }) {
+export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -73,6 +76,15 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   }, [llamados]);
 
   const keyDe = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+  // El rango visible, en fecha local, para pedirle al backend exactamente esos días.
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const visibles = modo === 'semana' ? semana : mes;
+  const desde = iso(visibles[0]);
+  const hasta = iso(visibles[visibles.length - 1]);
+  useEffect(() => {
+    onRango?.(desde, hasta);
+  }, [desde, hasta, onRango]);
 
   const navegar = (dir) => {
     const n = new Date(ancla);

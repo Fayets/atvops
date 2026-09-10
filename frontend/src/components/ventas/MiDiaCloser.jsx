@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import CalendarioEquipo from './CalendarioEquipo.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
@@ -62,10 +62,13 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, onCerrar }) {
 function CalendarioReal() {
   const [detalle, setDetalle] = useState(null);
   const [tick, setTick] = useState(0);
+  // El rango lo manda el calendario según la semana o el mes que esté mostrando.
+  const [rango, setRango] = useState(null);
   const { data, loading, error } = useResource(
-    () => getLlamadosAgenda({ dias: 21, diasAtras: 7, refrescar: tick > 0 }),
-    [tick],
+    () => getLlamadosAgenda({ dias: 21, diasAtras: 7, refrescar: tick > 0, ...(rango ?? {}) }),
+    [tick, rango?.desde, rango?.hasta],
   );
+  const onRango = useCallback((desde, hasta) => setRango({ desde, hasta }), []);
 
   if (error) {
     return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">{error.message}</div></Card>;
@@ -81,6 +84,7 @@ function CalendarioReal() {
         sub={`${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
         actualizando={loading}
         onActualizar={() => setTick((t) => t + 1)}
+        onRango={onRango}
       />
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
     </>

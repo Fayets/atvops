@@ -18,7 +18,7 @@ import json
 import logging
 import re
 import threading
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 from decouple import config
@@ -308,19 +308,34 @@ def _traer(cal_id: str, sa_json: str, desde: datetime, hasta: datetime) -> list[
     return eventos
 
 
-def agenda(dias: int = 14, dias_atras: int = 1, refrescar: bool = False) -> dict:
-    """Eventos del calendario de ATV, agrupados por día, en hora Argentina."""
-    dias = max(1, min(dias, 60))
-    clave = f"{dias}|{dias_atras}"
+def agenda(dias: int = 14, dias_atras: int = 1, refrescar: bool = False,
+           desde_iso: str | None = None, hasta_iso: str | None = None) -> dict:
+    """Eventos del calendario de ATV, agrupados por día, en hora Argentina.
+
+    Por defecto es una ventana alrededor de hoy. Si la vista está mostrando otra semana u
+    otro mes, manda `desde_iso`/`hasta_iso` y se trae exactamente ese rango: si no, los
+    días que quedan fuera de la ventana se ven vacíos aunque tengan reuniones.
+    """
     ahora = datetime.now(AR_TZ)
+    if desde_iso and hasta_iso:
+        d0, d1 = date.fromisoformat(desde_iso), date.fromisoformat(hasta_iso)
+        if d1 < d0:
+            d0, d1 = d1, d0
+        d1 = min(d1, d0 + timedelta(days=120))
+        clave = f"rango|{d0}|{d1}"
+    else:
+        dias = max(1, min(dias, 60))
+        d0 = (ahora - timedelta(days=max(0, dias_atras))).date()
+        d1 = (ahora + timedelta(days=dias)).date()
+        clave = f"{dias}|{dias_atras}"
     with _lock:
         guardado = _cache.get(clave)
         if guardado and not refrescar and (ahora - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
             return guardado["data"]
 
     cred = credenciales()
-    desde = datetime.combine((ahora - timedelta(days=max(0, dias_atras))).date(), time.min, tzinfo=AR_TZ)
-    hasta = datetime.combine((ahora + timedelta(days=dias)).date(), time.max, tzinfo=AR_TZ)
+    desde = datetime.combine(d0, time.min, tzinfo=AR_TZ)
+    hasta = datetime.combine(d1, time.max, tzinfo=AR_TZ)
     eventos = _traer(cred["calendar_id"], cred["service_account_json"], desde, hasta)
 
     hoy = ahora.date()
