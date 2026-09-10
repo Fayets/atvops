@@ -1222,6 +1222,25 @@ def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
     return numero, ""
 
 
+def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None,
+                      con_lista: bool = True) -> dict:
+    """Saca una llamada de la lista y de todas las métricas, o la devuelve.
+
+    No borra nada: solo la marca en la base de ATV Ops, así una descartada por error se
+    recupera con el programa, el cash y la nota que tenía. Las internas, las duplicadas y
+    las que no eran de venta quedan en el filtro "Descartadas".
+    """
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede borrar llamadas.")
+    lead_id, evento = _ficha_para(lead_id, usuario)
+    _guardar_propio(int(lead_id), evento, "", usuario.get("username") or "",
+                    descartada=not recuperar, resultado="" if recuperar else "Descartada")
+    logger.info("Llamada %s %s por %s", lead_id or evento,
+                "recuperada" if recuperar else "descartada", usuario.get("username"))
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True}
+
+
 def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     """Le abre ficha en ATV Ops a una reunión del calendario, para poder cargarle el
     resultado. No se toca el CRM viejo: lo que se carga acá no le cambia los números

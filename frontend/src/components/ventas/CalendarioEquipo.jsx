@@ -81,12 +81,16 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
 
   const keyDe = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
-  // Una reunión "cargada" es la que ya tiene resultado en el CRM: se pinta distinto.
+  // Cada reunión se pinta según lo que le pasó: celeste la que ya tiene resultado
+  // cargado, roja la descartada (no cuenta para las agendas), punteada la que todavía
+  // no está en el CRM.
   const estadoDe = (l) => estados?.[l.id];
   const clasesDe = (l) => {
     const e = estadoDe(l);
     if (!e) return '';
-    return e.resultado ? ' cargada' : (e.estado === 'sin_crm' ? ' sin-crm' : '');
+    if (e.estado === 'descartada') return ' descartada';
+    if (e.resultado) return ' cargada';
+    return e.estado === 'sin_crm' ? ' sin-crm' : '';
   };
   // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
   // para no dispararse también cuando en realidad fue doble click.
@@ -199,14 +203,18 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                           className={`ventas-cal-ev estado-${l.estado}${clasesDe(l)}`}
                           onClick={() => alClick(l)}
                           onDoubleClick={() => abrirEditor(l)}
-                          title={estadoDe(l)?.resultado
-                            ? `${estadoDe(l).resultado} · doble click para cambiarlo`
-                            : (estadoDe(l) ? 'Doble click para cargar el resultado' : undefined)}
+                          title={estadoDe(l)?.estado === 'descartada'
+                            ? 'Descartada · no cuenta para las agendas. Doble click para recuperarla'
+                            : (estadoDe(l)?.resultado
+                              ? `${estadoDe(l).resultado} · doble click para cambiarlo`
+                              : (estadoDe(l) ? 'Doble click para cargar el resultado' : undefined))}
                         >
                           <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
                           <span className="who">{l.prospecto}</span>
                           <span className="meta">
-                            {estadoDe(l)?.resultado || `${l.oferta}${l.facturacion ? ` · ${l.facturacion}` : ''}`}
+                            {estadoDe(l)?.estado === 'descartada'
+                              ? 'descartada · no cuenta'
+                              : (estadoDe(l)?.resultado || `${l.oferta}${l.facturacion ? ` · ${l.facturacion}` : ''}`)}
                           </span>
                         </button>
                       ))
