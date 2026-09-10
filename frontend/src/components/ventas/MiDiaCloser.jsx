@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import CalendarioEquipo from './CalendarioEquipo.jsx';
 import EditorReunion from './EditorReunion.jsx';
+import NuevaReunion from './NuevaReunion.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
 import { formatValue } from '../../lib/format.js';
@@ -77,10 +78,25 @@ function CalendarioReal() {
   );
   const onRango = useCallback((desde, hasta) => setRango({ desde, hasta }), []);
   const [editando, setEditando] = useState(null);
+  const [agregando, setAgregando] = useState(false);
   const { data: reuniones } = useResource(
     () => (rango ? getEstadoReuniones(rango) : Promise.resolve(null)),
     [tick, rango?.desde, rango?.hasta],
   );
+
+  // Las reuniones cargadas a mano no están en Google: se suman para que el calendario las dibuje.
+  const llamadosConManuales = [
+    ...(data?.llamados ?? []),
+    ...(reuniones?.manuales ?? []).map((m) => ({
+      id: m.eventoId, prospecto: m.prospecto, titulo: m.prospecto,
+      email: '', telefono: '', instagram: '', facturacion: '', respuestas: [],
+      fechaAt: m.fechaAt, duracionMin: 60, todoElDia: false,
+      estado: 'pendiente', oferta: 'Cargada a mano',
+      closer: m.closer || 'Equipo ATV', invitados: [],
+      zoomUrl: null, meetUrl: null, url: null,
+      notasSetter: m.reporte || '', montoUsd: m.cashUsd || null, origen: 'atv-ops',
+    })),
+  ];
 
   if (error) {
     return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">{error.message}</div></Card>;
@@ -91,7 +107,7 @@ function CalendarioReal() {
   return (
     <>
       <CalendarioEquipo
-        llamados={data.llamados ?? []}
+        llamados={llamadosConManuales}
         onSelect={setDetalle}
         sub={`${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
         actualizando={loading}
@@ -99,8 +115,17 @@ function CalendarioReal() {
         onRango={onRango}
         estados={reuniones?.porEvento}
         onEditar={(reunion, estado) => setEditando({ reunion, estado })}
+        onAgregar={() => setAgregando(true)}
       />
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
+      {agregando && (
+        <NuevaReunion
+          programas={reuniones?.programas ?? []}
+          estados={reuniones?.estados ?? []}
+          onCreada={() => setTick((t) => t + 1)}
+          onCerrar={() => setAgregando(false)}
+        />
+      )}
       {editando && (
         <EditorReunion
           reunion={editando.reunion}
