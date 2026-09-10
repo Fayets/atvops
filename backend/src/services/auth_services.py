@@ -218,6 +218,58 @@ def ensure_reunion_crm_columns() -> None:
         con.close()
 
 
+def ensure_conversacion_columns() -> None:
+    """La tabla de conversaciones nació contando solo los avisos de ManyChat. Ahora también
+    entran los de Instagram, así que cada fila dice de dónde salió."""
+    from src.db import DB_SCHEMA, ES_POSTGRES
+
+    columnas = [("fuente", "TEXT")]
+    if ES_POSTGRES:
+        import psycopg2
+
+        from src.db import _postgres_kwargs
+
+        kw = _postgres_kwargs()
+        conn = psycopg2.connect(
+            user=kw["user"], password=kw["password"], host=kw["host"], port=kw["port"],
+            dbname=kw["database"], **({"sslmode": kw["sslmode"]} if "sslmode" in kw else {}),
+        )
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM information_schema.tables WHERE table_schema=%s AND table_name='conversaciones_ig'",
+                    (DB_SCHEMA,),
+                )
+                if cur.fetchone() is None:
+                    return  # la crea Pony con las columnas incluidas
+                for nombre, tipo in columnas:
+                    cur.execute(f'ALTER TABLE "{DB_SCHEMA}".conversaciones_ig ADD COLUMN IF NOT EXISTS {nombre} {tipo}')
+        finally:
+            conn.close()
+        return
+
+    import sqlite3
+
+    filename = config("DB_FILENAME", default="data/atv_ops.db")
+    if filename in {":memory:", ":sharedmemory:"}:
+        return
+    path = Path(filename)
+    if not path.exists():
+        return
+    con = sqlite3.connect(path)
+    try:
+        tablas = {f[0] for f in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "ConversacionIg" not in tablas:
+            return
+        tiene = {f[1] for f in con.execute('PRAGMA table_info("ConversacionIg")')}
+        for nombre, tipo in columnas:
+            if nombre not in tiene:
+                con.execute(f'ALTER TABLE "ConversacionIg" ADD COLUMN {nombre} {tipo}')
+        con.commit()
+    finally:
+        con.close()
+
+
 def ensure_idea_usuario_column() -> None:
     """Tabla de ideas creada antes de que fueran por usuario: agrega la columna
     y asigna las huérfanas a Franco. Cubre SQLite (local) y Postgres (server)."""

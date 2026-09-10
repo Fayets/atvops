@@ -109,8 +109,8 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
             label="Calendly enviados"
             valor={calendlys}
             nota={propias
-              ? `${formatValue(propias.personas ?? 0, 'count')} personas escribieron este mes`
-              : 'el flujo de ManyChat todavía no le avisa a ATV Ops'}
+              ? `${formatValue(propias.personas ?? 0, 'count')} ${propias.personas === 1 ? 'persona escribió' : 'personas escribieron'} este mes`
+              : 'todavía no llega ningún aviso de Instagram ni de ManyChat'}
           />
           <Numero label="Reels publicados" valor={propio.reels} nota={`${formatValue(propio.reproducciones, 'count')} reproducciones`} />
           <Numero label="Alcance" valor={propio.alcance} nota={`${formatValue(propio.interacciones, 'count')} interacciones`} />

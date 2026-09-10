@@ -381,7 +381,8 @@ class ConversacionIg(db.Entity):
     keyword = Optional(str, index=True)
     content_url = Optional(str)
     contacto_id = Optional(str, index=True)
-    payload = Optional(str)                   # lo que mandó ManyChat, por si hay que revisarlo
+    fuente = Optional(str, index=True)        # instagram | manychat
+    payload = Optional(str)                   # el aviso crudo, por si hay que revisarlo
 
 
 class PublicacionYt(db.Entity):
