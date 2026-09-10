@@ -5,7 +5,7 @@
  * Lo que todavía no tiene fuente conectada se muestra en cero: nunca datos inventados.
  *
  *   getFulfillment()  → GET /api/clientes (transcripts de Discord + score)
- *   getVentas()       → GET /api/ventas (CRM de ATV Marketing: leads, llamadas, cierres)
+ *   getVentas()       → GET /api/ventas (base de ATV Ops: llamadas, cierres, cash)
  *   getMisLlamadas()  → GET /api/ventas/mis-llamadas (las llamadas del closer)
  *   getSetterDashboard() → GET /api/ventas/mi-setting (reportes diarios del setter)
  *   getMarketing()    → GET /api/ventas/marketing (Ads, reels, YouTube, historias, setting)
@@ -1654,7 +1654,7 @@ export async function getMktResumen(mes) {
     cash: v.cashUsd ?? 0,
     inversionAds: marketing?.ads?.gastoUsd ?? 0,
     syncAt: ventas?.generadoAt ?? marketing?.generadoAt ?? null,
-    fuente: 'CRM de ATV Marketing',
+    fuente: 'Base de ATV Ops',
   };
 }
 

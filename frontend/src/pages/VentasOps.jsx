@@ -30,7 +30,7 @@ export default function VentasOps() {
         eyebrow="OPS · Ventas"
         title="Salud vs meta"
         desc="Proyección, funnel math y rates. Para decidir y reportar — no para operar el día a día."
-        actions={<SourceTag sourceId="mkt_crm" updatedAt={data?.syncAt} />}
+        actions={<SourceTag sourceId="ventas_ops" updatedAt={data?.syncAt} />}
       />
 
       {loading || !data ? (

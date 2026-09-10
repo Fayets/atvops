@@ -24,6 +24,19 @@ export const SOURCES = {
     proximoPaso:
       'La cartera (un canal = un cliente) ya sale de los transcripts. Falta el clasificador de activación/mix y payments para MRR/NRR.',
   },
+  ventas_ops: {
+    id: 'ventas_ops',
+    nombre: 'Base de ATV Ops',
+    descripcion:
+      'Las llamadas de ventas viven acá: el resultado, el programa, el cash y las reuniones cargadas a mano. '
+      + 'El calendario de ATV aporta qué reuniones hubo, y el CRM viejo solo completa el histórico anterior a la mudanza.',
+    status: 'conectada',
+    lastSyncAt: null,
+    responsable: 'Franco',
+    metodo: 'Base propia (esquema ops) + Google Calendar; el CRM de atv-mkt se espeja mientras dure la mudanza',
+    proximoPaso:
+      'Apagar el sync de Google Calendar en atv-mkt: mientras corra sigue creando leads duplicados en esa base.',
+  },
   mkt_crm: {
     id: 'mkt_crm',
     nombre: 'CRM de ATV Marketing',

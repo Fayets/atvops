@@ -59,7 +59,7 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, encabezado, on
             ))}
           </div>
         )}
-        <footer className="dim">{llamadas.length} llamadas · sale del CRM de ATV Marketing</footer>
+        <footer className="dim">{llamadas.length} llamadas · base de ATV Ops</footer>
       </div>
     </div>
   );
@@ -160,7 +160,7 @@ export default function MiDiaCloser({ data }) {
         <Kpi
           label="Close rate"
           valor={pct(mes.closeRate)}
-          nota={`${mes.cierres ?? 0} cerradas sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
+          nota={`${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cerrada' : 'cerradas'} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
           onVer={ver('Close rate', 'Las ventas cerradas sobre las llamadas que sí se presentaron. Las señas no cuentan: la venta todavía no está hecha.', shows, (l) => (l.estado === 'cierre' ? dinero(l) : '—'), 'Cash')} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
           nota={`cash promedio ${formatValue(mes.cashPromedioUsd ?? 0, 'usd')}`}

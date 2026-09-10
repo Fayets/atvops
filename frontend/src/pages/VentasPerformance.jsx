@@ -25,7 +25,7 @@ export default function VentasPerformancePage() {
         eyebrow="Director de Ventas · Lucas"
         title="Performance"
         desc="KPIs, tablas por closer/setter, embudo y proyección vs meta."
-        actions={<SourceTag sourceId="mkt_crm" updatedAt={data?.syncAt} />}
+        actions={<SourceTag sourceId="ventas_ops" updatedAt={data?.syncAt} />}
       />
 
       {loading || !data ? (

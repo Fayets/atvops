@@ -111,7 +111,7 @@ export default function ReporteSemanal() {
         desc="Lo que hizo cada área en la semana y qué falta para llegar a la meta del mes."
         actions={
           <>
-            <SourceTag sourceId="mkt_crm" updatedAt={data?.generadoAt} />
+            <SourceTag sourceId="ventas_ops" updatedAt={data?.generadoAt} />
             <div className="ventas-cal-actions">
               <button className="btn sm" onClick={() => mover(-1)} aria-label="Semana anterior">‹</button>
               <button className="btn sm" onClick={() => setSemana(null)}>Esta semana</button>
