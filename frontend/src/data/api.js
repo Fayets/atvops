@@ -1286,7 +1286,8 @@ export async function getSetterDashboard(mes) {
   if (mes) q.set('mes', mes);
   const real = await pedir(`/api/ventas/mi-setting${q.toString() ? `?${q}` : ''}`);
   const ctx = contextoDeMes(real.mes);
-  const cuotas = cuotasSetterDesdeProyeccion(real.mes);
+  // El reparto usa la cantidad real de setters del equipo, no un número fijo.
+  const cuotas = cuotasSetterDesdeProyeccion(real.mes, { setters: real.setters, diasMes: ctx.diasMes });
   const metaDia = cuotas.personalDia;
   const metaMes = cuotas.personalMes;
 
@@ -1297,6 +1298,8 @@ export async function getSetterDashboard(mes) {
 
   const kpi = (id, label, value, meta, format = 'count', mensual = false) => ({
     id, label, value, meta, format,
+    // Cuánto le falta o le sobra contra la meta: sin esto la vista mostraba "Varianza NaN".
+    varianza: (Number(value) || 0) - (Number(meta) || 0),
     pct: pctDe(value, meta),
     estado: mensual ? estadoMes(pctDe(value, meta)) : estadoDia(pctDe(value, meta)),
   });
@@ -1312,28 +1315,45 @@ export async function getSetterDashboard(mes) {
     dia: {
       cargado: dia.cargado,
       kpis: [
-        kpi('apps_hoy', 'Calendlys enviados hoy', dia.linksEnviados, metaDia.calendlys),
-        kpi('agendadas_hoy', 'Llamadas agendadas hoy', dia.agendas, metaDia.agendadas),
         kpi('conversaciones_hoy', 'Conversaciones hoy', dia.conversaciones, metaDia.conversaciones ?? 0),
+        kpi('agendadas_hoy', 'Llamadas agendadas hoy', dia.agendas, metaDia.agendadas),
+        kpi('apps_hoy', 'Calendlys enviados hoy', dia.linksEnviados, metaDia.calendlys),
       ],
     },
     kpisMes: [
-      kpi('apps_mes', 'Calendlys del mes', mesT.linksEnviados, metaMes.calendlys, 'count', true),
-      kpi('agendadas_mes', 'Agendas del mes', mesT.agendas, metaMes.agendadas, 'count', true),
       kpi('conversaciones_mes', 'Conversaciones del mes', mesT.conversaciones, metaMes.conversaciones ?? 0, 'count', true),
+      kpi('agendadas_mes', 'Agendas del mes', mesT.agendas, metaMes.agendadas, 'count', true),
+      kpi('apps_mes', 'Calendlys del mes', mesT.linksEnviados, metaMes.calendlys, 'count', true),
       kpi('dias_cargados', 'Días reportados', mesT.diasCargados, mesT.diasCargados + mesT.diasSinCargar, 'count', true),
     ],
     metaMes: {
       ...metaMes,
+      // La vista lee la cuota por mes y por día con estos nombres.
+      cuotaMes: {
+        aplicaciones: metaMes.calendlys ?? 0,
+        agendadas: metaMes.agendadas ?? 0,
+        conversaciones: metaMes.conversaciones ?? 0,
+        tasaAgendado: metaMes.tasaAgendado ?? 0,
+      },
+      cuotaDia: {
+        aplicaciones: metaDia.calendlys ?? 0,
+        agendadas: metaDia.agendadas ?? 0,
+        conversaciones: metaDia.conversaciones ?? 0,
+      },
+      proyeccion: cuotas.proyeccion,
+      headcount: cuotas.headcount,
+      ritmoEsperado,
       actualCalendlys: mesT.linksEnviados,
       actualAgendadas: mesT.agendas,
       tasaAgendado: mesT.linksEnviados ? (mesT.agendas / mesT.linksEnviados) * 100 : 0,
     },
     equipo: {
-      metaAplicaciones: cuotas.equipoMes?.calendlys ?? 0,
-      actualAplicaciones: real.equipo.linksEnviados,
-      gap: Math.max(0, (cuotas.equipoMes?.calendlys ?? 0) - real.equipo.linksEnviados),
-      estado: estadoMes(pctDe(real.equipo.linksEnviados, cuotas.equipoMes?.calendlys ?? 0)),
+      metaConversaciones: cuotas.equipo?.metaConversaciones ?? 0,
+      actualConversaciones: real.equipo.conversaciones,
+      metaAplicaciones: cuotas.equipo?.metaAgendas ?? 0,
+      actualAplicaciones: real.equipo.agendas,
+      gap: Math.max(0, (cuotas.equipo?.metaAgendas ?? 0) - real.equipo.agendas),
+      estado: estadoMes(pctDe(real.equipo.agendas, cuotas.equipo?.metaAgendas ?? 0)),
       insight: `El equipo lleva ${real.equipo.conversaciones} conversaciones y ${real.equipo.agendas} agendas este mes.`,
     },
     aplicaciones: (real.agendadas ?? []).map((a) => ({

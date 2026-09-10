@@ -33,9 +33,11 @@ export function metaProyeccionMes(mes) {
   const shows = d.shows ?? round(agendas * (showRate / 100));
   const cierres = d.cierres ?? round(shows * (closeRate / 100));
   const cashUsd = d.cashMeta ?? 0;
-  const conversaciones = d.conversaciones ?? OPS_VENTAS_META.conversaciones;
-  const calendlys = d.aplicaciones ?? OPS_VENTAS_META.aplicaciones;
-  const ticket = cierres > 0 ? cashUsd / cierres : OPS_VENTAS_META.averageSaleUsd;
+  // Todo sale del decreto. Lo que el decreto no fija queda en cero: antes esto apuntaba
+  // a una constante de las metas de ejemplo que ya no existe y rompía la vista del setter.
+  const conversaciones = d.conversaciones ?? 0;
+  const calendlys = d.aplicaciones ?? d.linksEnviados ?? 0;
+  const ticket = cierres > 0 ? cashUsd / cierres : 0;
 
   return {
     mes,
@@ -96,12 +98,15 @@ export function cuotasSetterDesdeProyeccion(mes, opts = {}) {
   const m = metaProyeccionMes(mes);
 
   const mesPersonal = {
+    conversaciones: ceilDiv(m.conversaciones, n),
     calendlys: ceilDiv(m.calendlys, n),
     agendadas: ceilDiv(m.agendas, n),
-    tasaAgendado: m.calendlys ? (m.agendas / m.calendlys) * 100 : 33,
+    // Cuántas de las conversaciones tienen que terminar en agenda.
+    tasaAgendado: m.conversaciones ? (m.agendas / m.conversaciones) * 100 : 0,
   };
   const diaPersonal = {
-    calendlys: Math.max(1, ceilDiv(mesPersonal.calendlys, diasLab)),
+    conversaciones: Math.max(1, ceilDiv(mesPersonal.conversaciones, diasLab)),
+    calendlys: ceilDiv(mesPersonal.calendlys, diasLab),
     agendadas: Math.max(1, ceilDiv(mesPersonal.agendadas, diasLab)),
   };
 
@@ -110,6 +115,7 @@ export function cuotasSetterDesdeProyeccion(mes, opts = {}) {
     personalMes: mesPersonal,
     personalDia: diaPersonal,
     equipo: {
+      metaConversaciones: m.conversaciones,
       metaCalendlys: m.calendlys,
       metaAgendas: m.agendas,
     },

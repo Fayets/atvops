@@ -152,11 +152,11 @@ export default function SetterVista({ data, onCompletarReporte }) {
           titulo="Meta del mes · proyección"
           proyeccion={data.metaMes.proyeccion}
           contexto={data.contexto}
-          cuotaLabel={`Tu cuota (÷ ${data.metaMes.headcount} setters)`}
+          cuotaLabel={`Tu cuota (÷ ${data.metaMes.headcount} ${data.metaMes.headcount === 1 ? 'setter' : 'setters'})`}
           cuotaItems={[
-            { label: 'Calendlys / mes', value: data.metaMes.cuotaMes.aplicaciones },
+            { label: 'Conversaciones / mes', value: data.metaMes.cuotaMes.conversaciones },
             { label: 'Agendas / mes', value: data.metaMes.cuotaMes.agendadas },
-            { label: 'Calendlys / día', value: data.metaMes.cuotaDia.aplicaciones },
+            { label: 'Conversaciones / día', value: data.metaMes.cuotaDia.conversaciones },
             { label: 'Agendas / día', value: data.metaMes.cuotaDia.agendadas },
           ]}
           equipo={{

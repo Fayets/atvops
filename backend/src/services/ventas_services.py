@@ -1386,6 +1386,8 @@ def mi_setting(usuario: dict, mes: str | None = None) -> dict:
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "mes": mes,
         "miembro": miembro,
+        # Cuántos setters hay de verdad: la cuota se reparte entre ellos, no entre un número fijo.
+        "setters": max(1, sum(1 for m in _equipo() if m["rol"] == "setter")),
         "detalle": reportes.get("detalle"),
         "dia": {
             "fecha": hoy.isoformat(),
