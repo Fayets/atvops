@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ContenidoInstagram from '../components/marketing/ContenidoInstagram.jsx';
 import ConversacionesPorContenido from '../components/marketing/ConversacionesPorContenido.jsx';
 import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
 import DiagnosticoMes from '../components/metas/DiagnosticoMes.jsx';
@@ -7,7 +8,7 @@ import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
-import { getInstagram, getMarketing, getMetasMes } from '../data/api.js';
+import { getInstagram, getInstagramPropio, getMarketing, getMetasMes, sincronizarInstagram } from '../data/api.js';
 import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
@@ -182,6 +183,14 @@ export default function Marketing() {
   const metas = useResource(() => getMetasMes(mes), [mes]);
   // Conversaciones abiertas y qué contenido las trajo: sale del CRM, no de reportes.
   const mkt = useResource(() => getMarketing(mes), [mes]);
+  // Reels e historias propios: se traen solos cada 3 h, y el botón fuerza una pasada.
+  const [tickIg, setTickIg] = useState(0);
+  const [sincronizando, setSincronizando] = useState(false);
+  const propio = useResource(() => getInstagramPropio(mes), [mes, tickIg]);
+  const traerAhora = async () => {
+    setSincronizando(true);
+    try { await sincronizarInstagram(); setTickIg((n) => n + 1); } finally { setSincronizando(false); }
+  };
 
   const data = ig.data;
   const metasData = metas.data;
@@ -221,6 +230,15 @@ export default function Marketing() {
   return (
     <div className="page">
       {mkt.data && <ConversacionesPorContenido marketing={mkt.data} />}
+
+      {propio.data && (
+        <ContenidoInstagram
+          instagram={propio.data}
+          youtube={mkt.data?.contenido?.youtube}
+          sincronizando={sincronizando}
+          onSincronizar={traerAhora}
+        />
+      )}
 
       {metas.loading && !metasData ? (
         <SkeletonBlock height={200} />

@@ -111,7 +111,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             (inicio, fin),
         )
         videos = crm_db.consultar(
-            "SELECT title, url, published_at, views, likes, comments_count, impressions, ctr, chats "
+            "SELECT title, url, published_at, views, likes, comments_count, impressions, ctr, chats, thumbnail_url "
             "FROM youtubecontent WHERE published_at >= %s AND published_at < %s ORDER BY views DESC",
             (inicio, fin),
         )
@@ -194,6 +194,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
                         "fecha": v["published_at"].isoformat() if v["published_at"] else None,
                         "vistas": int(_num(v["views"])), "likes": int(_num(v["likes"])),
                         "ctr": round(_num(v["ctr"]), 2), "chats": int(_num(v.get("chats"))),
+                        "thumbnail": (v.get("thumbnail_url") or "").strip() or None,
                     }
                     for v in videos[:10]
                 ],

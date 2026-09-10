@@ -331,3 +331,26 @@ class ConexionApi(db.Entity):
     origen = Optional(str)                       # de dónde salieron
     actualizado_por = Optional(str)
     actualizado_at = Required(datetime, default=datetime.utcnow)
+
+
+class PublicacionIg(db.Entity):
+    """Lo que se publicó en Instagram, traído de la cuenta con su propio token.
+
+    Reels e historias en la misma tabla: comparten fecha, enlace y métricas, y lo que
+    cambia entre uno y otro va en `metricas`. Las historias duran 24 horas en Instagram,
+    así que la sincronización cada tres horas es lo que permite conservarlas: una vez
+    guardadas acá, la secuencia entera queda.
+    """
+
+    _table_ = _tabla("publicaciones_ig", "PublicacionIg")
+
+    id = PrimaryKey(int, auto=True)
+    ig_id = Required(str, unique=True)
+    tipo = Required(str, index=True)          # reel | historia
+    publicado_at = Required(datetime, index=True)
+    permalink = Optional(str)
+    caption = Optional(str)
+    thumbnail = Optional(str)
+    metricas = Required(str, default="{}")    # JSON: views, reach, replies, saved…
+    visto_at = Required(datetime, default=datetime.utcnow)   # cuándo se trajo
+    actualizado_at = Required(datetime, default=datetime.utcnow)

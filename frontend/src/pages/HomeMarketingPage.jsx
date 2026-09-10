@@ -1,7 +1,8 @@
+import CalendarioContenido from '../components/marketing/CalendarioContenido.jsx';
 import HomeMarketing from '../components/marketing/HomeMarketing.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import { getMarketing, getMetasMes } from '../data/api.js';
+import { getInstagramPropio, getMarketing, getMetasMes } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
@@ -16,6 +17,8 @@ export default function HomeMarketingPage() {
   const { mes, nombreMes } = useMes();
   const mkt = useResource(() => getMarketing(mes), [mes]);
   const metas = useResource(() => getMetasMes(mes), [mes]);
+  // Reels e historias con su miniatura: se sincronizan solos cada 3 horas.
+  const propio = useResource(() => getInstagramPropio(mes), [mes]);
 
   if (mkt.error) return <div className="page"><ErrorState error={mkt.error} /></div>;
 
@@ -31,12 +34,20 @@ export default function HomeMarketingPage() {
           <SkeletonBlock height={280} />
         </>
       ) : (
-        <HomeMarketing
-          marketing={mkt.data}
-          decreto={metas.data?.decreto ?? {}}
-          contexto={metas.data?.contexto ?? {}}
-          nombreMes={nombreMes}
-        />
+        <>
+          <HomeMarketing
+            marketing={mkt.data}
+            decreto={metas.data?.decreto ?? {}}
+            contexto={metas.data?.contexto ?? {}}
+            nombreMes={nombreMes}
+          />
+          <CalendarioContenido
+            mes={mes}
+            nombreMes={nombreMes}
+            instagram={propio.data}
+            youtube={mkt.data?.contenido?.youtube}
+          />
+        </>
       )}
     </div>
   );

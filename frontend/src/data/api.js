@@ -777,6 +777,16 @@ export async function guardarResultadoLlamada(leadId, payload, mes, { lista = tr
   });
 }
 
+/** Reels y secuencias de historias del mes, traídos de Instagram con el token propio. */
+export async function getInstagramPropio(mes) {
+  return pedir(`/api/ventas/instagram${mes ? `?mes=${mes}` : ''}`);
+}
+
+/** Trae ahora lo último de Instagram, sin esperar la pasada de cada tres horas. */
+export async function sincronizarInstagram() {
+  return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });
+}
+
 /** Cargar a mano una reunión que nunca pasó por el calendario (un referido, un chat). */
 export async function crearLlamada(payload) {
   return pedir('/api/ventas/llamadas', {
