@@ -5119,6 +5119,24 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-derecha { display: flex; align-items: center; gap: 8px; }
 .llamada-form { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-4); }
 .llamada-estados { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Metas individuales: una fila por persona, la misma grilla en todas, y una barra que
+   dice de un vistazo si va en ritmo con lo que lleva transcurrido el mes. */
+.meta-ind-tabla { display: grid; }
+.meta-ind-fila { display: grid; grid-template-columns: minmax(120px, 1.4fr) repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-4); align-items: start; padding: 12px var(--space-4); border-bottom: 1px solid var(--border-soft); }
+.meta-ind-fila:last-child { border-bottom: none; }
+.meta-ind-fila.cabecera { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-3); padding-bottom: 8px; border-bottom-color: var(--border); }
+.meta-ind-fila.total { background: var(--surface-2); border-top: 1px solid var(--border); }
+.meta-ind-quien { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.meta-ind-celda { display: grid; gap: 4px; min-width: 0; }
+.meta-ind-valor { font-size: 13.5px; white-space: nowrap; }
+.meta-ind-pct { font-size: 11px; }
+.meta-ind-barra { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.meta-ind-barra span { display: block; height: 100%; border-radius: 999px; background: var(--text-3); }
+.meta-ind-barra span[data-tono="ok"] { background: var(--ok); }
+.meta-ind-barra span[data-tono="warn"] { background: var(--warn); }
+.meta-ind-barra span[data-tono="alert"] { background: var(--alert); }
 /* Cargar el resultado desde el calendario: el mismo formulario, en una ficha más ancha. */
 .editor-reunion { width: min(560px, 100%); display: grid; gap: var(--space-3); }
 .editor-reunion .modal-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }

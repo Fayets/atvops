@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import MetaMesForm from '../components/metas/MetaMesForm.jsx';
+import MetasIndividuales from '../components/metas/MetasIndividuales.jsx';
 import MetasPersonales from '../components/metas/MetasPersonales.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
-import { getCloserDashboard, getMetasMes, getSetterDashboard } from '../data/api.js';
+import Tabs from '../components/ui/Tabs.jsx';
+import { getCloserDashboard, getMetasMes, getSetterDashboard, getVentasReal } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { useRol } from '../lib/RolContext.jsx';
@@ -24,7 +26,7 @@ import {
  */
 export default function Metas() {
   const { mes, nombreMes, setMes } = useMes();
-  const { rol } = useRol();
+  const { rol, user } = useRol();
   const puedeEditar = puedeEditarMetas(rol);
   const esCloser = puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol);
   const esSetter = puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol);
@@ -35,6 +37,9 @@ export default function Metas() {
     [mes, tick, esCloser, esSetter],
   );
   const guardados = Object.keys(leerDecretos()).sort().reverse();
+  const [vista, setVista] = useState('equipo');
+  // Para comparar la meta del equipo con lo que lleva cada uno hace falta el real por persona.
+  const ventas = useResource(() => getVentasReal(mes), [mes, tick]);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
   if (loading || !data) {
@@ -76,6 +81,90 @@ export default function Metas() {
       ];
     }
     return null;
+  })();
+
+  // Cuánto del mes transcurrió: sirve para saber si alguien va en ritmo o atrasado.
+  const esperadoDelMes = Math.min(100, Math.round((ctx.diaHoy / (ctx.diasMes || 30)) * 100));
+
+  const bloquesIndividuales = (() => {
+    const d = ventas.data;
+    if (!d) return [];
+    const bloques = [];
+    const soloMio = (lista) => {
+      // El closer o setter ve su fila; quien mira todo el área las ve todas.
+      if (puedeVerVentasDirector(rol) || puedeEditar) return lista;
+      const yo = (personal.data?.closer || personal.data?.setter || user?.nombre || user?.username || '').trim().toLowerCase();
+      return yo ? lista.filter((x) => x.nombre.trim().toLowerCase().includes(yo.split(' ')[0])) : lista;
+    };
+
+    // La parte de cada uno se calcula sobre todo el equipo, aunque después se muestre
+    // una sola fila: si no, al closer le aparecería toda la meta como si fuera suya.
+    const todosClosers = (d.porCloser ?? []).filter((c) => c.nombre !== 'Sin asignar');
+    const closers = soloMio(todosClosers);
+    if (closers.length) {
+      const n = todosClosers.length || 1;
+      const cols = [
+        { id: 'agendados', nombre: 'Llamadas agendadas' },
+        { id: 'shows', nombre: 'Shows' },
+        { id: 'cierres', nombre: 'Cierres' },
+        { id: 'cashUsd', nombre: 'Cash cobrado', format: 'usd' },
+      ];
+      const metas = {
+        agendados: decreto.agendas ?? 0,
+        shows: Math.round((decreto.agendas ?? 0) * ((decreto.showUpRate ?? 0) / 100)),
+        cierres: Math.round((decreto.agendas ?? 0) * ((decreto.showUpRate ?? 0) / 100) * ((decreto.closeRateBueno ?? 0) / 100)),
+        cashUsd: decreto.cashMeta ?? 0,
+      };
+      bloques.push({
+        id: 'closers',
+        titulo: 'Closers',
+        sub: 'Lo que lleva cada uno contra la parte que le toca de la meta del mes.',
+        columnas: cols,
+        gente: n,
+        filas: closers.map((c) => ({
+          persona: c.nombre,
+          metricas: cols.map((col) => ({
+            id: col.id, format: col.format,
+            actual: c[col.id] ?? 0,
+            parte: Math.round((metas[col.id] ?? 0) / n),
+          })),
+        })),
+        metaEquipo: cols.map((col) => ({
+          id: col.id, format: col.format,
+          actual: (d.porCloser ?? []).reduce((t, c) => t + (c[col.id] ?? 0), 0),
+          meta: metas[col.id] ?? 0,
+        })),
+      });
+    }
+
+    const todosSetters = (d.porSetter ?? []).filter((c) => c.nombre !== 'Sin asignar');
+    const setters = soloMio(todosSetters);
+    if (setters.length) {
+      const n = todosSetters.length || 1;
+      const cols = [{ id: 'agendados', nombre: 'Llamadas agendadas' }];
+      const metas = { agendados: decreto.agendas ?? 0 };
+      bloques.push({
+        id: 'setters',
+        titulo: 'Setters',
+        sub: 'Las agendas que trajo cada uno contra la parte que le toca.',
+        columnas: cols,
+        gente: n,
+        filas: setters.map((c) => ({
+          persona: c.nombre,
+          metricas: cols.map((col) => ({
+            id: col.id, format: col.format,
+            actual: c[col.id] ?? 0,
+            parte: Math.round((metas[col.id] ?? 0) / n),
+          })),
+        })),
+        metaEquipo: cols.map((col) => ({
+          id: col.id, format: col.format,
+          actual: (d.porSetter ?? []).reduce((t, c) => t + (c[col.id] ?? 0), 0),
+          meta: metas[col.id] ?? 0,
+        })),
+      });
+    }
+    return bloques;
   })();
 
   return (
@@ -131,21 +220,37 @@ export default function Metas() {
         ) : null}
       </div>
 
-      {cuotaItems && (
-        <MetasPersonales
-          items={cuotaItems}
-          diaHoy={ctx.diaHoy}
-          diasMes={ctx.diasMes}
-        />
-      )}
-
-      <MetaMesForm
-        decretoInicial={decreto}
-        mes={mes}
-        nombreMes={nombreMes}
-        editable={editable}
-        onGuardado={() => setTick((n) => n + 1)}
+      <Tabs
+        value={vista}
+        onChange={setVista}
+        options={[
+          { value: 'equipo', label: 'Metas del equipo' },
+          { value: 'individuales', label: 'Metas individuales' },
+        ]}
       />
+
+      {vista === 'equipo' ? (
+        <MetaMesForm
+          decretoInicial={decreto}
+          mes={mes}
+          nombreMes={nombreMes}
+          editable={editable}
+          onGuardado={() => setTick((n) => n + 1)}
+        />
+      ) : (
+        <>
+          {cuotaItems && (
+            <MetasPersonales
+              items={cuotaItems}
+              diaHoy={ctx.diaHoy}
+              diasMes={ctx.diasMes}
+            />
+          )}
+          {bloquesIndividuales.map((b) => (
+            <MetasIndividuales key={b.id} {...b} esperado={esperadoDelMes} />
+          ))}
+        </>
+      )}
     </div>
   );
 }
