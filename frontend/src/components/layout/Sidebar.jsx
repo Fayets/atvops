@@ -28,7 +28,18 @@ const NAV = [
       { to: '/fulfillment/chats', label: 'Chats en vivo', roles: ['csm'] },
     ],
   },
-  { to: '/marketing', icon: 'marketing', label: 'Marketing', grupo: 'Áreas' },
+  {
+    to: '/marketing',
+    icon: 'marketing',
+    label: 'Marketing',
+    grupo: 'Áreas',
+    sub: [
+      { to: '/marketing', label: 'Resumen', end: true },
+      { to: '/marketing/reels', label: 'Reels' },
+      { to: '/marketing/historias', label: 'Historias' },
+      { to: '/marketing/youtube', label: 'YouTube' },
+    ],
+  },
   { to: '/ads', icon: 'ads', label: 'Ads', grupo: 'Áreas' },
   {
     to: '/ventas',

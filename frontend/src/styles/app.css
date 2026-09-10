@@ -5162,6 +5162,24 @@ button.lista-item:hover { background: var(--surface-2); }
 .ig-dato { display: inline-flex; align-items: baseline; gap: 5px; font-size: 13px; }
 .ig-dato .dim { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
 .ig-thumb.chico { width: 44px; }
+.ig-thumb.ancho { width: 120px; }
+.ig-thumb.ancho img { aspect-ratio: 16 / 9; object-fit: cover; }
+
+/* Una secuencia se lee de izquierda a derecha, como se publicó. */
+.seq-fila { display: flex; gap: var(--space-3); overflow-x: auto; padding: var(--space-4); scroll-snap-type: x proximity; }
+.seq-pieza { flex: 0 0 auto; width: 116px; display: grid; gap: 6px; scroll-snap-align: start;
+  position: relative; color: inherit; }
+.seq-pieza img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft); display: block; }
+.seq-pieza:hover img { border-color: var(--brand); }
+.seq-sinfoto { display: grid; place-items: center; width: 100%; aspect-ratio: 9 / 16;
+  border-radius: var(--radius-sm); border: 1px dashed var(--border); font-size: 11px; }
+.seq-n { position: absolute; top: 6px; left: 6px; z-index: 1; background: rgba(0, 0, 0, 0.6);
+  color: #fff; border-radius: 999px; min-width: 20px; height: 20px; display: grid; place-items: center;
+  font-size: 11px; font-weight: 600; }
+.seq-datos { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; font-size: 12px; }
+.seq-datos .dim { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.seq-respuestas { color: var(--ok); font-weight: 600; }
 .ig-thumb.chico img { border-radius: 6px; }
 
 .ig-secuencias { display: grid; }

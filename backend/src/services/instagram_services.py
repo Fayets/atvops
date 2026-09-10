@@ -20,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from decouple import config
 
@@ -75,6 +76,34 @@ def _insights(token: str, media_id: str, metricas: str) -> dict:
     return salida
 
 
+# Las URLs de imagen de Instagram están firmadas y vencen en horas: si se guardara el
+# enlace, la miniatura dejaría de verse al día siguiente. Se baja el archivo y se sirve
+# desde acá.
+FOTOS = Path(__file__).resolve().parents[2] / "data" / "ig"
+
+
+def _bajar_foto(url: str, ig_id: str) -> str:
+    """Guarda la miniatura y devuelve la ruta pública. Si falla, cadena vacía."""
+    if not url:
+        return ""
+    destino = FOTOS / f"{ig_id}.jpg"
+    publica = f"/uploads/ig/{ig_id}.jpg"
+    if destino.exists() and destino.stat().st_size > 0:
+        return publica
+    try:
+        FOTOS.mkdir(parents=True, exist_ok=True)
+        pedido = urllib.request.Request(url, headers={"User-Agent": "atv-ops"})
+        with urllib.request.urlopen(pedido, timeout=25) as r:
+            datos = r.read()
+        if not datos:
+            return ""
+        destino.write_bytes(datos)
+        return publica
+    except Exception as e:  # noqa: BLE001
+        logger.info("No se pudo bajar la miniatura de %s: %s", ig_id, str(e)[:120])
+        return ""
+
+
 def _fecha(iso: str | None) -> datetime | None:
     if not iso:
         return None
@@ -94,13 +123,15 @@ def _guardar(tipo: str, item: dict, metricas: dict) -> bool:
     if cuando is None:
         return False
     ahora = datetime.utcnow()
+    # Un video trae thumbnail_url; una foto viene en media_url.
+    origen_foto = item.get("thumbnail_url") or item.get("media_url") or ""
     with db_session:
         fila = PublicacionIg.get(ig_id=item["id"])
         if fila is None:
             PublicacionIg(ig_id=item["id"], tipo=tipo, publicado_at=cuando,
                           permalink=(item.get("permalink") or "")[:500],
                           caption=(item.get("caption") or "")[:2000],
-                          thumbnail=(item.get("thumbnail_url") or item.get("media_url") or "")[:500],
+                          thumbnail=_bajar_foto(origen_foto, item["id"]),
                           metricas=json.dumps(metricas), visto_at=ahora, actualizado_at=ahora)
             return True
         fila.metricas = json.dumps(metricas)
@@ -109,6 +140,10 @@ def _guardar(tipo: str, item: dict, metricas: dict) -> bool:
             fila.permalink = item["permalink"][:500]
         if item.get("caption"):
             fila.caption = item["caption"][:2000]
+        # Se rebaja mientras no sea un archivo propio: antes se guardaba el enlace de
+        # Instagram, que vence, y las filas viejas quedaron apuntando a la nada.
+        if not str(fila.thumbnail or "").startswith("/uploads/"):
+            fila.thumbnail = _bajar_foto(origen_foto, item["id"])
         return False
 
 

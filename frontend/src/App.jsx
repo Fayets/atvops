@@ -9,6 +9,7 @@ import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
 import Home from './pages/Home.jsx';
 import HomeMarketingPage from './pages/HomeMarketingPage.jsx';
+import ContenidoPage from './pages/marketing/ContenidoPage.jsx';
 import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
@@ -135,7 +136,12 @@ export default function App() {
               <Route path="chats/:categoria/:canal" element={<Chats />} />
             </Route>
 
-            <Route path="marketing" element={<Marketing />} />
+            <Route path="marketing">
+              <Route index element={<Marketing />} />
+              <Route path="reels" element={<ContenidoPage vista="reels" />} />
+              <Route path="historias" element={<ContenidoPage vista="historias" />} />
+              <Route path="youtube" element={<ContenidoPage vista="youtube" />} />
+            </Route>
             <Route path="ads" element={<Ads />} />
             <Route path="ventas">
               <Route index element={<VentasIndex />} />
