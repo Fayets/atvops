@@ -45,8 +45,10 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
     setError(null);
     try {
       // El saldo no se pide: lo que quedó debiendo se ve en Cobranza, no acá.
+      // El evento viaja para dejar atada la reunión a esta llamada del CRM.
       onGuardado(await guardarResultadoLlamada(llamada.id, {
         resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), nota,
+        evento: llamada.eventoId || '', prospecto: llamada.prospecto || '',
       }, mes));
     } catch (e) {
       setError(e.message);

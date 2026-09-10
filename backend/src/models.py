@@ -245,3 +245,23 @@ class EventoCliente(db.Entity):
     clave = Required(str)                 # dedupe: canal|fecha|tipo|titulo normalizado
     fuente = Required(str, default="claude")
     registrado_at = Required(datetime, default=datetime.utcnow)
+
+
+class ReunionCrm(db.Entity):
+    """Qué llamada del CRM corresponde a qué reunión del Google Calendar.
+
+    Hace falta porque el CRM guarda una sola fecha por lead y el sync de atv-mkt la
+    pisa: una llamada cargada para la reunión del 3 amanece con la fecha del 11, y sin
+    esta referencia la del 3 vuelve a verse como si no estuviera cargada y se duplica.
+    La referencia vive acá, en la base de ATV Ops, así no se toca el esquema del CRM.
+    """
+
+    _table_ = _tabla("reuniones_crm", "ReunionCrm")
+
+    id = PrimaryKey(int, auto=True)
+    evento_id = Required(str, unique=True)   # id del evento en Google Calendar
+    lead_id = Required(int, index=True)      # id de la llamada en el CRM
+    prospecto = Optional(str)
+    inicio_at = Optional(datetime)           # cuándo es la reunión, en hora de Argentina
+    creado_por = Optional(str)
+    creado_at = Required(datetime, default=datetime.utcnow)

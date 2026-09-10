@@ -18,6 +18,7 @@ export default function EditorReunion({ reunion, estado, programas, estados, onG
     cashUsd: estado.cashUsd,
     saldoUsd: estado.saldoUsd,
     reporte: estado.reporte,
+    eventoId: estado.eventoId || reunion.id,
   };
 
   return (

@@ -146,18 +146,74 @@ def _duenio_de_cada_lead() -> dict[str, dict]:
     return indice
 
 
+def _referencias(evento_ids: list[str]) -> dict[str, int]:
+    """Qué llamada del CRM quedó atada a cada reunión del calendario."""
+    if not evento_ids:
+        return {}
+    from pony.orm import db_session, select
+
+    from src.models import ReunionCrm
+
+    with db_session:
+        return {r.evento_id: r.lead_id
+                for r in select(r for r in ReunionCrm if r.evento_id in evento_ids)}
+
+
+def _atar_reunion(evento_id: str, lead_id: int, prospecto: str, inicio: datetime, quien: str) -> None:
+    """Deja anotado que esa reunión del calendario es esa llamada del CRM.
+
+    Sin esto, cuando el sync de atv-mkt le cambia la fecha a la llamada, la reunión
+    vuelve a verse como no cargada y se crea una llamada duplicada.
+    """
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    try:
+        with db_session:
+            ya = ReunionCrm.get(evento_id=evento_id)
+            if ya:
+                ya.lead_id = lead_id
+                ya.inicio_at = inicio
+                return
+            ReunionCrm(evento_id=evento_id, lead_id=lead_id, prospecto=prospecto[:200],
+                       inicio_at=inicio, creado_por=quien[:80])
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo atar la reunión %s al lead %s: %s", evento_id, lead_id, str(e)[:160])
+
+
+def _leads_por_id(ids: list[int]) -> list[dict]:
+    """Las llamadas del CRM por id, sin importar en qué fecha las haya dejado el sync."""
+    if not ids:
+        return []
+    filas = crm_db.consultar(
+        f"""
+        SELECT l.id, l.nombre, l.email, l.telefono, l.ig, l.origen, l.closer, l.setter,
+               l.call, l.agendo, l.agendo_en, l.pago, l.debe, l.ingresos_rango,
+               l.programa_ofrecido, l.vino_de_ads, l.notas, l.created_at,
+               l.closer_report, l.link_llamada,
+               {RESULTADO_SQL} AS resultado,
+               lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
+        FROM lead l WHERE l.id = ANY(%s)
+        """,
+        (list(ids),),
+    )
+    return _horas_locales(filas)
+
+
 def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
     """Deja en la lista TODAS las reuniones que hubo, no solo las que el CRM guardó.
 
     El CRM tiene una sola fecha por lead, así que cuando un prospecto tiene varias
     reuniones hasta cerrar, la última le pisa a las anteriores. El calendario sí las
-    tiene todas.
+    tiene todas, y una vez que alguien carga un resultado queda anotado en ATV Ops qué
+    llamada del CRM es esa reunión: esa referencia manda, aunque después el sync de
+    atv-mkt le cambie la fecha a la llamada.
 
-    Se aparea cada llamada del CRM con la reunión del calendario más cercana en el tiempo
-    de esa misma persona (por email y si no, por nombre), empezando por las que coinciden
-    mejor. Esa llamada se queda con la fecha del calendario, que es la que vale, y con su
-    resultado. Toda reunión que quede sin aparear se agrega: es una reunión que existió y
-    el CRM no registró. Si el calendario no responde, quedan solo las del CRM.
+    Lo que no tiene referencia se aparea con la reunión más cercana en el tiempo de esa
+    misma persona, por email y si no, por nombre. Toda reunión que quede sin aparear se
+    agrega: existió aunque el CRM no la registre. Si el calendario no responde, quedan
+    solo las del CRM.
     """
     from src.services import gcal_services
 
@@ -174,19 +230,41 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         r["_emails"] = {_norm(e) for e in (r.get("invitados") or []) if _norm(e)}
         r["_nombre"] = _clave_persona(r["prospecto"])
 
-    # Todos los cruces posibles, del que mejor coincide en el tiempo al que peor.
+    # Las que ya tienen su llamada anotada: se traen por id, estén donde estén.
+    referencias = _referencias([r["eventoId"] for r in reuniones])
+    conocidas = {f["id"]: f for f in filas}
+    for extra in _leads_por_id([i for i in referencias.values() if i not in conocidas]):
+        filas.append(extra)
+        conocidas[extra["id"]] = extra
+
+    fila_usada: set = set()
+    reunion_usada: set = set()
+    por_id = {f["id"]: i for i, f in enumerate(filas)}
+    for j, r in enumerate(reuniones):
+        lead = referencias.get(r["eventoId"])
+        i = por_id.get(lead)
+        if i is None or i in fila_usada:
+            continue
+        fila_usada.add(i)
+        reunion_usada.add(j)
+        filas[i]["call"] = r["_cuando"]
+        filas[i]["segunda"] = r["segunda"]
+        filas[i]["eventoId"] = r["eventoId"]
+
+    # El resto: todos los cruces posibles, del que mejor coincide en el tiempo al que peor.
     posibles = []
     for i, f in enumerate(filas):
+        if i in fila_usada:
+            continue
         email = _norm(f.get("email"))
         nombre = _clave_persona(f.get("nombre"))
         for j, r in enumerate(reuniones):
+            if j in reunion_usada:
+                continue
             if not ((email and email in r["_emails"]) or (nombre and nombre == r["_nombre"])):
                 continue
             posibles.append((abs((f["call"] - r["_cuando"]).total_seconds()), i, j))
     posibles.sort()
-
-    fila_usada: set[int] = set()
-    reunion_usada: set[int] = set()
     for _, i, j in posibles:
         if i in fila_usada or j in reunion_usada:
             continue
@@ -246,6 +324,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
         programa = (f.get("programa_ofrecido") or "").strip()
         por_evento[evento] = {
             "id": f["id"],
+            "eventoId": evento,
             "prospecto": (f.get("nombre") or "").strip(),
             "fechaAt": f["call"].isoformat(),
             "resultado": (f.get("resultado") or "").strip(),
@@ -626,6 +705,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora, l.get("soloCalendario", False)),
             "soloCalendario": bool(l.get("soloCalendario")),
             "segunda": bool(l.get("segunda")),
+            "eventoId": l.get("eventoId") or "",
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
             "cashUsd": _num(l["pago"]), "saldoUsd": _num(l["debe"]),
@@ -708,6 +788,11 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     nombre = reunion["prospecto"][:200]
     email = next(iter({_norm(e) for e in (reunion.get("invitados") or []) if _norm(e)}), "")
 
+    # Si esta reunión ya tiene su llamada anotada, se usa esa y no se crea otra.
+    atada = _referencias([evento_id]).get(evento_id)
+    if atada and crm_db.consultar("SELECT id FROM lead WHERE id = %s", (atada,)):
+        return int(atada)
+
     # Si ya existe esa misma reunión (la creó otro, o la sincronizó atv-mkt), se usa esa.
     ya = crm_db.consultar(
         "SELECT id FROM lead WHERE call >= %s AND call <= %s AND "
@@ -716,6 +801,8 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
          email, email, f"%{nombre.lower()}%"),
     )
     if ya:
+        _atar_reunion(evento_id, int(ya[0]["id"]), nombre, cuando,
+                      usuario.get("username") or "")
         return int(ya[0]["id"])
 
     duenio = _duenio_de_cada_lead()
@@ -734,6 +821,7 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     if not filas:
         raise HTTPException(status_code=502, detail="No se pudo crear la llamada en el CRM.")
     nuevo_id = int(filas[0]["id"])
+    _atar_reunion(evento_id, nuevo_id, nombre, cuando, usuario.get("username") or "")
     logger.info("Reunión del calendario %s creada en el CRM como lead %s por %s",
                 evento_id, nuevo_id, usuario.get("username"))
     _cache.clear()
@@ -813,6 +901,12 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
         toca_saldo = True  # una llamada que no es venta no deja deuda
     nota = str(datos.get("nota") or "").strip()[:2000]
     quien = (usuario.get("nombre") or usuario.get("username") or "")
+    # Queda anotado qué reunión del calendario es esta llamada, para que el sync de
+    # atv-mkt no la despegue cuando le cambie la fecha.
+    evento = str(datos.get("evento") or "").strip()
+    if evento:
+        _atar_reunion(evento, int(lead_id), str(datos.get("prospecto") or "")[:200],
+                      datetime.now(AR_TZ).replace(tzinfo=None), usuario.get("username") or "")
 
     crm_db.ejecutar(
         f"UPDATE lead SET status = %s, estado = %s, programa_ofrecido = %s, pago = %s, "
