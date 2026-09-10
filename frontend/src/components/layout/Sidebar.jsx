@@ -39,6 +39,7 @@ const NAV = [
       { to: '/ventas/ops', label: 'Salud vs meta', roles: ['admin', 'operaciones', 'founder'] },
     ],
   },
+  { to: '/reporte', icon: 'check', label: 'Reporte semanal' },
   { to: '/metas', icon: 'check', label: 'Metas' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas' },
   { to: '/cobranza', icon: 'cobranza', label: 'Cobranza' },

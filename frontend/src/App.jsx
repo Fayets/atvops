@@ -13,6 +13,7 @@ import Marketing from './pages/Marketing.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
 import Metas from './pages/Metas.jsx';
+import ReporteSemanal from './pages/ReporteSemanal.jsx';
 import VentasCloser from './pages/VentasCloser.jsx';
 import VentasLlamadas from './pages/VentasLlamadas.jsx';
 import VentasOperativaPage from './pages/VentasOperativa.jsx';
@@ -107,6 +108,7 @@ export default function App() {
           <Route element={<RequireRole />}>
             <Route index element={<HomeIndex />} />
             <Route path="calendario" element={<Calendario />} />
+            <Route path="reporte" element={<ReporteSemanal />} />
 
             <Route path="fulfillment">
               <Route index element={<Resumen />} />

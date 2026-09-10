@@ -3,6 +3,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from src.controllers.auth_controller import get_current_user
 from src.services import cartera_services as cartera
 from src.services import marketing_services as marketing
+from src.services import reporte_semanal_services as reporte
 from src.services import ventas_services as ventas
 
 router = APIRouter()
@@ -141,6 +142,17 @@ def cartera_ops(_user: dict = Depends(get_current_user), mes: str | None = None)
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al leer la cartera.")
+
+
+@router.get("/reporte-semanal")
+def reporte_semanal(_user: dict = Depends(get_current_user), semana: str | None = None, refrescar: bool = False):
+    """Todo lo que pasó en una semana: marketing, ventas, cartera y ads."""
+    try:
+        return reporte.reporte(semana=semana, refrescar=refrescar)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al armar el reporte semanal.")
 
 
 @router.get("/fuentes")

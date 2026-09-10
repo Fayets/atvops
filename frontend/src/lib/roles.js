@@ -70,6 +70,7 @@ export const RUTAS_POR_ROL = {
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   operaciones: [
     '/',
+    '/reporte',
     '/asistente',
     '/calendario',
     '/fulfillment',
@@ -82,6 +83,7 @@ export const RUTAS_POR_ROL = {
   marketing: ['/', '/calendario', '/marketing', '/ads', '/metas', '/ideas'],
   founder: [
     '/',
+    '/reporte',
     '/asistente',
     '/calendario',
     '/fulfillment',
@@ -95,6 +97,7 @@ export const RUTAS_POR_ROL = {
   ],
   admin: [
     '/',
+    '/reporte',
     '/asistente',
     '/calendario',
     '/fulfillment',

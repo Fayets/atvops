@@ -775,6 +775,14 @@ export async function guardarResultadoLlamada(leadId, payload) {
   });
 }
 
+/** El reporte de una semana: marketing, ventas, cartera y ads en un solo lugar. */
+export async function getReporteSemanal(semana, { refrescar = false } = {}) {
+  const q = new URLSearchParams();
+  if (semana) q.set('semana', semana);
+  if (refrescar) q.set('refrescar', 'true');
+  return pedir(`/api/ventas/reporte-semanal${q.toString() ? `?${q}` : ''}`);
+}
+
 /** Los días del mes con y sin reporte cargado (rojo / verde en el calendario). */
 export async function getMisReportes({ mes, rol = 'setter' } = {}) {
   const q = new URLSearchParams({ rol });
