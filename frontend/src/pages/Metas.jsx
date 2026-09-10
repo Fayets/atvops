@@ -8,6 +8,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import { getCloserDashboard, getMetasMes, getSetterDashboard, getVentasReal } from '../data/api.js';
+import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { useRol } from '../lib/RolContext.jsx';
@@ -97,63 +98,56 @@ export default function Metas() {
       const yo = (personal.data?.closer || personal.data?.setter || user?.nombre || user?.username || '').trim().toLowerCase();
       return yo ? lista.filter((x) => x.nombre.trim().toLowerCase().includes(yo.split(' ')[0])) : lista;
     };
-
-    // La parte de cada uno se calcula sobre todo el equipo, aunque después se muestre
-    // una sola fila: si no, al closer le aparecería toda la meta como si fuera suya.
-    const todosClosers = (d.porCloser ?? []).filter((c) => c.nombre !== 'Sin asignar');
-    const closers = soloMio(todosClosers);
-    if (closers.length) {
-      const n = todosClosers.length || 1;
-      const showsMeta = Math.round((decreto.agendas ?? 0) * ((decreto.showUpRate ?? 0) / 100));
-      // El closer no responde por las agendas: eso lo trae el setter. Su trabajo empieza
-      // cuando la llamada se hace, así que mide shows, cierres, close rate y cash.
-      const cols = [
-        { id: 'shows', nombre: 'Shows', meta: showsMeta },
-        { id: 'cierres', nombre: 'Cierres', meta: Math.round(showsMeta * ((decreto.closeRateBueno ?? 0) / 100)) },
-        { id: 'closeRate', nombre: 'Close rate', format: 'pct', meta: decreto.closeRateBueno ?? 0, sinDividir: true },
-        { id: 'cashUsd', nombre: 'Cash cobrado', format: 'usd', meta: decreto.cashMeta ?? 0 },
-      ];
-      const tasa = (cierres, shows) => (shows > 0 ? Math.round((cierres / shows) * 1000) / 10 : 0);
-      const valor = (c, id) => (id === 'closeRate' ? tasa(c.cierres ?? 0, c.shows ?? 0) : (c[id] ?? 0));
+    const armar = (id, titulo, sub, columnas, gente, filas) => {
+      if (!filas.length) return;
+      const n = gente || 1;
       bloques.push({
-        id: 'closers',
-        titulo: 'Closers',
-        sub: 'Lo que lleva cada uno contra la parte que le toca de la meta del mes.',
-        columnas: cols,
-        gente: n,
-        filas: closers.map((c) => ({
-          persona: c.nombre,
-          metricas: cols.map((col) => ({
-            id: col.id, format: col.format,
-            actual: valor(c, col.id),
-            // Un porcentaje no se reparte: la meta de close rate es la misma para todos.
-            parte: col.sinDividir ? col.meta : Math.round(col.meta / n),
+        id, titulo, sub, columnas, gente: n,
+        filas: filas.map((f) => ({
+          persona: f.nombre,
+          metricas: columnas.map((c) => ({
+            id: c.id, format: c.format,
+            actual: c.valor(f),
+            // Un porcentaje es la misma meta para cada uno; una cantidad se reparte.
+            parte: c.format === 'pct' ? c.meta : Math.round(c.meta / n),
           })),
         })),
       });
-    }
+    };
 
-    const todosSetters = (d.porSetter ?? []).filter((c) => c.nombre !== 'Sin asignar');
-    const setters = soloMio(todosSetters);
-    if (setters.length) {
-      const n = todosSetters.length || 1;
-      const cols = [{ id: 'agendados', nombre: 'Llamadas agendadas' }];
-      const metas = { agendados: decreto.agendas ?? 0 };
-      bloques.push({
-        id: 'setters',
-        titulo: 'Setters',
-        sub: 'Las agendas que trajo cada uno contra la parte que le toca.',
-        columnas: cols,
-        gente: n,
-        filas: setters.map((c) => ({
-          persona: c.nombre,
-          metricas: cols.map((col) => ({
-            id: col.id, format: col.format,
-            actual: c[col.id] ?? 0,
-            parte: Math.round((metas[col.id] ?? 0) / n),
-          })),
-        })),
-      });
+    // Closer: su trabajo empieza cuando la llamada existe. Mide tasas, no cantidades.
+    const closers = (d.porCloser ?? []).filter((c) => c.nombre !== 'Sin asignar');
+    armar(
+      'closers', 'Closers',
+      `Las tasas del mes contra el decreto. Close rate muy bueno: ${formatValue(decreto.closeRateMuyBueno ?? 0, 'pct')}.`,
+      [
+        { id: 'showRate', nombre: 'Show rate', format: 'pct', meta: decreto.showUpRate ?? 0, valor: (c) => c.showRate ?? 0 },
+        { id: 'closeRate', nombre: 'Close rate', format: 'pct', meta: decreto.closeRateBueno ?? 0, valor: (c) => c.closeRate ?? 0 },
+      ],
+      closers.length, soloMio(closers),
+    );
+
+    // Setter: trae las conversaciones y las agendas.
+    const setters = (d.porSetter ?? []).filter((c) => c.nombre !== 'Sin asignar');
+    const conversacionesDe = (s) =>
+      (d.settersMes ?? []).find((x) => x.nombre === s.nombre)?.metricas?.conversaciones ?? 0;
+    armar(
+      'setters', 'Setters', 'Lo que tiene que entrar para que haya llamadas que tomar.',
+      [
+        { id: 'conversaciones', nombre: 'Conversaciones', meta: decreto.conversaciones ?? 0, valor: conversacionesDe },
+        { id: 'agendas', nombre: 'Llamadas agendadas', meta: decreto.agendas ?? 0, valor: (s) => s.agendados ?? 0 },
+      ],
+      setters.length, soloMio(setters),
+    );
+
+    // Marketing: abre los chats de los que salen las conversaciones.
+    const chats = d.topFunnel?.chats ?? 0;
+    if (puedeVerVentasDirector(rol) || puedeEditar) {
+      armar(
+        'marketing', 'Marketing', 'Los chats abiertos, que son el techo de todo lo de abajo.',
+        [{ id: 'chats', nombre: 'Chats abiertos', meta: decreto.chats ?? 0, valor: (m) => m.chats ?? 0 }],
+        1, [{ nombre: 'Equipo de marketing', chats }],
+      );
     }
     return bloques;
   })();
