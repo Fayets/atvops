@@ -103,18 +103,21 @@ export default function Metas() {
     const closers = soloMio(todosClosers);
     if (closers.length) {
       const n = todosClosers.length || 1;
+      const showsMeta = Math.round((decreto.agendas ?? 0) * ((decreto.showUpRate ?? 0) / 100));
+      // El closer no responde por las agendas: eso lo trae el setter. Su trabajo empieza
+      // cuando la llamada se hace, así que mide shows, cierres, close rate y cash.
       const cols = [
-        { id: 'agendados', nombre: 'Llamadas agendadas' },
-        { id: 'shows', nombre: 'Shows' },
-        { id: 'cierres', nombre: 'Cierres' },
-        { id: 'cashUsd', nombre: 'Cash cobrado', format: 'usd' },
+        { id: 'shows', nombre: 'Shows', meta: showsMeta },
+        { id: 'cierres', nombre: 'Cierres', meta: Math.round(showsMeta * ((decreto.closeRateBueno ?? 0) / 100)) },
+        { id: 'closeRate', nombre: 'Close rate', format: 'pct', meta: decreto.closeRateBueno ?? 0, sinDividir: true },
+        { id: 'cashUsd', nombre: 'Cash cobrado', format: 'usd', meta: decreto.cashMeta ?? 0 },
       ];
-      const metas = {
-        agendados: decreto.agendas ?? 0,
-        shows: Math.round((decreto.agendas ?? 0) * ((decreto.showUpRate ?? 0) / 100)),
-        cierres: Math.round((decreto.agendas ?? 0) * ((decreto.showUpRate ?? 0) / 100) * ((decreto.closeRateBueno ?? 0) / 100)),
-        cashUsd: decreto.cashMeta ?? 0,
-      };
+      const tasa = (cierres, shows) => (shows > 0 ? Math.round((cierres / shows) * 1000) / 10 : 0);
+      const valor = (c, id) => (id === 'closeRate' ? tasa(c.cierres ?? 0, c.shows ?? 0) : (c[id] ?? 0));
+      const totalEquipo = (id) => (id === 'closeRate'
+        ? tasa(todosClosers.reduce((t, c) => t + (c.cierres ?? 0), 0),
+               todosClosers.reduce((t, c) => t + (c.shows ?? 0), 0))
+        : (d.porCloser ?? []).reduce((t, c) => t + (c[id] ?? 0), 0));
       bloques.push({
         id: 'closers',
         titulo: 'Closers',
@@ -125,14 +128,15 @@ export default function Metas() {
           persona: c.nombre,
           metricas: cols.map((col) => ({
             id: col.id, format: col.format,
-            actual: c[col.id] ?? 0,
-            parte: Math.round((metas[col.id] ?? 0) / n),
+            actual: valor(c, col.id),
+            // Un porcentaje no se reparte: la meta de close rate es la misma para todos.
+            parte: col.sinDividir ? col.meta : Math.round(col.meta / n),
           })),
         })),
         metaEquipo: cols.map((col) => ({
           id: col.id, format: col.format,
-          actual: (d.porCloser ?? []).reduce((t, c) => t + (c[col.id] ?? 0), 0),
-          meta: metas[col.id] ?? 0,
+          actual: totalEquipo(col.id),
+          meta: col.meta,
         })),
       });
     }
