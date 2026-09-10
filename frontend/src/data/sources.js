@@ -37,6 +37,18 @@ export const SOURCES = {
     proximoPaso:
       'Apagar el sync de Google Calendar en atv-mkt: mientras corra sigue creando leads duplicados en esa base.',
   },
+  instagram_ops: {
+    id: 'instagram_ops',
+    nombre: 'Instagram de ATV',
+    descripcion:
+      'Reels e historias traídos con el token de la cuenta, con lo que mide Instagram: alcance, vistas, respuestas, compartidos y visitas al perfil. Las historias se guardan acá porque Instagram las borra a las 24 horas.',
+    status: 'conectada',
+    lastSyncAt: null,
+    responsable: 'Emi',
+    metodo: 'Graph API v21 desde ATV Ops, cada tres horas; las miniaturas se descargan porque el enlace de Instagram vence',
+    proximoPaso:
+      'El token de la cuenta vence el 02-11-2026: hay que renovarlo antes o las historias dejan de guardarse.',
+  },
   mkt_crm: {
     id: 'mkt_crm',
     nombre: 'CRM de ATV Marketing',

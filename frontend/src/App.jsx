@@ -138,6 +138,7 @@ export default function App() {
 
             <Route path="marketing">
               <Route index element={<Marketing />} />
+              <Route path="calendario" element={<ContenidoPage vista="calendario" />} />
               <Route path="reels" element={<ContenidoPage vista="reels" />} />
               <Route path="historias" element={<ContenidoPage vista="historias" />} />
               <Route path="youtube" element={<ContenidoPage vista="youtube" />} />

@@ -65,7 +65,14 @@ export default function CalendarioContenido({ mes, nombreMes, instagram, youtube
       title="Mes de contenido"
       sub={`${nombreMes} · se publicó en ${conContenido} de ${delMes} días`}
       flush
-      foot="Una miniatura por pieza. Los días vacíos son días sin publicar."
+      foot={
+        <div className="cont-cal-leyenda dim">
+          <span><i className="reel" />Reel</span>
+          <span><i className="secuencia" />Historias</span>
+          <span><i className="youtube" />YouTube</span>
+          <span>Una miniatura por pieza. Los días vacíos son días sin publicar.</span>
+        </div>
+      }
     >
       <div className="cont-cal">
         {DIAS.map((d) => <div key={d} className="cont-cal-label">{d}</div>)}

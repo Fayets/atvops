@@ -33,8 +33,9 @@ CADA_HORAS = int(config("IG_SYNC_HORAS", default=3))
 # Un reel deja de moverse con el tiempo: solo se refrescan las métricas de los recientes.
 DIAS_REFRESCO = int(config("IG_REFRESCO_DIAS", default=45))
 
-METRICAS_REEL = "views,reach,saved,shares,total_interactions,comments,likes"
-METRICAS_HISTORIA = "views,reach,replies,navigation,total_interactions"
+METRICAS_REEL = ("views", "reach", "saved", "shares", "total_interactions", "comments", "likes")
+METRICAS_HISTORIA = ("views", "reach", "replies", "shares", "navigation", "profile_visits",
+                     "total_interactions")
 
 _lock = threading.Lock()
 _ultima: dict = {}
@@ -64,8 +65,8 @@ def _pedir(token: str, path: str, **params) -> dict:
         return {}
 
 
-def _insights(token: str, media_id: str, metricas: str) -> dict:
-    data = _pedir(token, f"{media_id}/insights", metric=metricas).get("data") or []
+def _leer_insights(token: str, media_id: str, metricas: tuple[str, ...]) -> dict:
+    data = _pedir(token, f"{media_id}/insights", metric=",".join(metricas)).get("data") or []
     salida = {}
     for d in data:
         valores = d.get("values") or [{}]
@@ -73,6 +74,21 @@ def _insights(token: str, media_id: str, metricas: str) -> dict:
             salida[d.get("name")] = int(valores[0].get("value") or 0)
         except (TypeError, ValueError):
             pass
+    return salida
+
+
+def _insights(token: str, media_id: str, metricas: tuple[str, ...]) -> dict:
+    """Las métricas de una publicación, pidiéndolas todas juntas.
+
+    Instagram rechaza el pedido entero si una sola métrica no aplica a ese medio —una
+    historia de foto no tiene las mismas que un reel— y se vuelve sin nada. Cuando pasa,
+    se piden de a una: se pierde la métrica que no existe, no las siete.
+    """
+    salida = _leer_insights(token, media_id, metricas)
+    if salida:
+        return salida
+    for m in metricas:
+        salida.update(_leer_insights(token, media_id, (m,)))
     return salida
 
 
@@ -225,20 +241,45 @@ def contenido(desde, hasta) -> dict:
     por_dia: dict[str, list[dict]] = {}
     for h in historias:
         por_dia.setdefault(h["fecha"][:10], []).append(h)
-    secuencias = [{
-        "fecha": dia,
-        "historias": sorted(items, key=lambda x: x["fecha"]),
-        "piezas": len(items),
-        "vistas": sum(x.get("views", 0) for x in items),
-        "alcance": max((x.get("reach", 0) for x in items), default=0),
-        "respuestas": sum(x.get("replies", 0) for x in items),
-        # Cuánta gente se fue en el camino: la primera contra la última.
-        "retencion": round(items[-1].get("reach", 0) / items[0].get("reach", 1) * 100, 1)
-        if items and items[0].get("reach") else None,
-    } for dia, items in sorted(por_dia.items(), reverse=True)]
+    secuencias = [_secuencia(dia, items) for dia, items in sorted(por_dia.items(), reverse=True)]
 
     return {"reels": sorted(reels, key=lambda r: r["fecha"], reverse=True),
             "secuencias": secuencias, "conectado": True}
+
+
+def _secuencia(dia: str, items: list[dict]) -> dict:
+    """Un día de historias leído como lo que es: una sola pieza contada en partes.
+
+    Lo que importa no es cuánto midió cada historia suelta sino dónde se cae la gente. Por
+    eso cada pieza lleva su caída contra la anterior y su retención contra la primera: ahí
+    se ve si el corte fue la historia larga, la que pedía algo o la que aburrió.
+    """
+    orden = sorted(items, key=lambda x: x["fecha"])
+    alcances = [x.get("reach") or 0 for x in orden]
+    primera = alcances[0] if alcances else 0
+    anterior = 0
+    for h, alcance in zip(orden, alcances):
+        h["caida"] = round((anterior - alcance) / anterior * 100, 1) if anterior else None
+        h["retencion"] = round(alcance / primera * 100, 1) if primera else None
+        anterior = alcance
+    piezas = len(orden)
+    return {
+        "fecha": dia,
+        "historias": orden,
+        "piezas": piezas,
+        # Vistas y alcance se suman pieza por pieza, como en el panel de marketing: es el
+        # trabajo total que hizo la secuencia, no el de la historia más vista.
+        "vistas": sum(x.get("views") or 0 for x in orden),
+        "vistasPromedio": round(sum(x.get("views") or 0 for x in orden) / piezas) if piezas else 0,
+        "alcance": sum(alcances),
+        "alcancePico": max(alcances, default=0),
+        "respuestas": sum(x.get("replies") or 0 for x in orden),
+        "compartidos": sum(x.get("shares") or 0 for x in orden),
+        "visitasPerfil": sum(x.get("profile_visits") or 0 for x in orden),
+        "interacciones": sum(x.get("total_interactions") or 0 for x in orden),
+        # Cuánta gente se fue en el camino: la primera contra la última.
+        "retencion": round(alcances[-1] / primera * 100, 1) if primera else None,
+    }
 
 
 def estado() -> dict:

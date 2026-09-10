@@ -132,7 +132,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, nombreMes 
         title="El contenido que más trajo"
         sub={top.length ? 'Ordenado por conversaciones abiertas este mes' : 'Todavía sin contenido con palabra clave este mes'}
         flush
-        foot={<Link to="/marketing">Ver todo el contenido →</Link>}
+        foot={<Link to="/marketing/calendario">Ver el mes de contenido →</Link>}
       >
         {top.length === 0 ? (
           <div className="empty">Un reel sin palabra clave cargada no se puede atribuir.</div>

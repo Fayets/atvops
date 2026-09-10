@@ -35,6 +35,7 @@ const NAV = [
     grupo: 'Áreas',
     sub: [
       { to: '/marketing', label: 'Resumen', end: true },
+      { to: '/marketing/calendario', label: 'Calendario' },
       { to: '/marketing/reels', label: 'Reels' },
       { to: '/marketing/historias', label: 'Historias' },
       { to: '/marketing/youtube', label: 'YouTube' },
