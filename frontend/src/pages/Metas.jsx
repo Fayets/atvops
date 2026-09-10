@@ -115,10 +115,6 @@ export default function Metas() {
       ];
       const tasa = (cierres, shows) => (shows > 0 ? Math.round((cierres / shows) * 1000) / 10 : 0);
       const valor = (c, id) => (id === 'closeRate' ? tasa(c.cierres ?? 0, c.shows ?? 0) : (c[id] ?? 0));
-      const totalEquipo = (id) => (id === 'closeRate'
-        ? tasa(todosClosers.reduce((t, c) => t + (c.cierres ?? 0), 0),
-               todosClosers.reduce((t, c) => t + (c.shows ?? 0), 0))
-        : (d.porCloser ?? []).reduce((t, c) => t + (c[id] ?? 0), 0));
       bloques.push({
         id: 'closers',
         titulo: 'Closers',
@@ -133,11 +129,6 @@ export default function Metas() {
             // Un porcentaje no se reparte: la meta de close rate es la misma para todos.
             parte: col.sinDividir ? col.meta : Math.round(col.meta / n),
           })),
-        })),
-        metaEquipo: cols.map((col) => ({
-          id: col.id, format: col.format,
-          actual: totalEquipo(col.id),
-          meta: col.meta,
         })),
       });
     }
@@ -161,11 +152,6 @@ export default function Metas() {
             actual: c[col.id] ?? 0,
             parte: Math.round((metas[col.id] ?? 0) / n),
           })),
-        })),
-        metaEquipo: cols.map((col) => ({
-          id: col.id, format: col.format,
-          actual: (d.porSetter ?? []).reduce((t, c) => t + (c[col.id] ?? 0), 0),
-          meta: metas[col.id] ?? 0,
         })),
       });
     }

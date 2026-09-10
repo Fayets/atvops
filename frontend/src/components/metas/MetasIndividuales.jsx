@@ -44,10 +44,9 @@ function Fila({ persona, metricas, esperado }) {
 
 /**
  * @param {{ titulo: string, sub: string, columnas: {id: string, nombre: string, format?: string}[],
- *           filas: {persona: string, metricas: object[]}[], esperado: number,
- *           metaEquipo: object[], gente: number }} props
+ *           filas: {persona: string, metricas: object[]}[], esperado: number, gente: number }} props
  */
-export default function MetasIndividuales({ titulo, sub, columnas, filas, esperado, metaEquipo, gente }) {
+export default function MetasIndividuales({ titulo, sub, columnas, filas, esperado, gente }) {
   if (!filas.length) {
     return (
       <Card title={titulo} sub={sub}>
@@ -73,26 +72,6 @@ export default function MetasIndividuales({ titulo, sub, columnas, filas, espera
         {filas.map((f) => (
           <Fila key={f.persona} persona={f.persona} metricas={f.metricas} esperado={esperado} />
         ))}
-        <div className="meta-ind-fila total">
-          <div className="meta-ind-quien"><span className="strong">Equipo</span></div>
-          {metaEquipo.map((m) => (
-            <div key={m.id} className="meta-ind-celda">
-              <div className="meta-ind-valor num">
-                {formatValue(m.actual, m.format)}
-                <span className="dim"> / {formatValue(m.meta, m.format)}</span>
-              </div>
-              <div className="meta-ind-barra">
-                <span
-                  style={{ width: `${Math.min(RITMO(m.actual, m.meta) ?? 0, 100)}%` }}
-                  data-tono={tono(RITMO(m.actual, m.meta), esperado)}
-                />
-              </div>
-              <div className="meta-ind-pct dim">
-                {RITMO(m.actual, m.meta) == null ? '—' : `${RITMO(m.actual, m.meta)}%`}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </Card>
   );
