@@ -802,10 +802,11 @@ export async function getEstadoReuniones({ desde, hasta } = {}) {
  * Saca una llamada de la lista y de las métricas, o la devuelve con recuperar=true.
  * No borra la fila del CRM: la llamada queda en el filtro "Descartadas" con todo lo que tenía.
  */
-export async function descartarLlamada(leadId, { recuperar = false, mes } = {}) {
+export async function descartarLlamada(leadId, { recuperar = false, mes, lista = true } = {}) {
   const q = new URLSearchParams();
   if (recuperar) q.set('recuperar', 'true');
   if (mes) q.set('mes', mes);
+  if (!lista) q.set('lista', 'false');
   const cola = q.toString();
   return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/descartar${cola ? `?${cola}` : ''}`, {
     method: 'POST',

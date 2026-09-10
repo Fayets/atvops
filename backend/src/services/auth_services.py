@@ -167,7 +167,7 @@ def ensure_reunion_crm_columns() -> None:
     from src.db import DB_SCHEMA, ES_POSTGRES
 
     columnas = [
-        ("resultado", "TEXT"), ("programa", "TEXT"), ("cash_usd", "DOUBLE PRECISION"),
+        ("resultado", "TEXT"), ("closer", "TEXT"), ("programa", "TEXT"), ("cash_usd", "DOUBLE PRECISION"),
         ("saldo_usd", "DOUBLE PRECISION"), ("nota", "TEXT"),
         ("descartada", "BOOLEAN DEFAULT FALSE NOT NULL"),
         ("actualizado_por", "TEXT"), ("actualizado_at", "TIMESTAMP"),

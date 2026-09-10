@@ -5191,6 +5191,8 @@ button.lista-item:hover { background: var(--surface-2); }
 .editor-reunion .modal-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .editor-reunion .modal-cab .dim { font-size: 12px; text-transform: none; }
 .editor-reunion-aviso { font-size: 12px; }
+.editor-reunion-acciones { display: inline-flex; align-items: center; gap: 6px; }
+.editor-reunion-acciones .dim { font-size: 12px; white-space: nowrap; }
 .editor-reunion .llamada-form { padding: 0; border: 0; }
 /* La reunión que ya tiene resultado cargado se distingue de un vistazo. */
 .ventas-cal-ev.cargada { background: var(--cal-cargada-bg, #dbeafe); border-color: var(--cal-cargada-borde, #93c5fd); }

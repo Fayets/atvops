@@ -159,7 +159,7 @@ def _referencias(evento_ids: list[str]) -> dict[str, int]:
     """Qué llamada del CRM quedó atada a cada reunión del calendario."""
     if not evento_ids:
         return {}
-    from pony.orm import db_session, select
+    from pony.orm import db_session, desc, select
 
     from src.models import ReunionCrm
 
@@ -219,7 +219,7 @@ def _atar_reunion(evento_id: str, lead_id: int, prospecto: str, inicio: datetime
 
 def _propias(evento_ids: list[str], lead_ids: list[int]) -> dict:
     """Lo que ATV Ops tiene cargado de esas reuniones. Manda sobre el CRM."""
-    from pony.orm import db_session, select
+    from pony.orm import db_session, desc, select
 
     from src.models import ReunionCrm
 
@@ -238,6 +238,7 @@ def _propias(evento_ids: list[str], lead_ids: list[int]) -> dict:
                     "saldoUsd": r.saldo_usd or 0.0,
                     "nota": (r.nota or "").strip(),
                     "descartada": bool(r.descartada),
+                    "closer": (r.closer or "").strip(),
                     "leadId": r.lead_id,
                     "eventoId": r.evento_id,
                 }
@@ -266,14 +267,50 @@ def _aplicar_lo_propio(filas: list[dict]) -> list[dict]:
             continue
         if dato["descartada"]:
             f["resultado"] = "descartada"
+            f["soloCalendario"] = False
             continue
+        if dato["resultado"]:
+            # Ya tiene resultado cargado acá: deja de ser "solo del calendario".
+            f["soloCalendario"] = False
         f["resultado"] = dato["resultado"].strip().lower()
+        if dato.get("closer") and not (f.get("closer") or "").strip():
+            f["closer"] = dato["closer"]
         f["programa_ofrecido"] = dato["programa"]
         f["pago"] = dato["cashUsd"]
         f["debe"] = dato["saldoUsd"]
         if dato["nota"]:
             f["closer_report"] = dato["nota"]
     return filas
+
+
+def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
+    """Las llamadas que viven solo en ATV Ops: las que se cargaron a mano y las que se
+    crearon desde el calendario. No existen en el CRM viejo y no tienen por qué existir."""
+    from pony.orm import db_session, desc, select
+
+    from src.models import ReunionCrm
+
+    try:
+        with db_session:
+            filas = list(select(r for r in ReunionCrm
+                                if r.lead_id == 0 and r.inicio_at is not None
+                                and r.inicio_at >= datetime.combine(desde, time.min)
+                                and r.inicio_at < datetime.combine(hasta, time.min)))
+            return [{
+                "id": f"ops:{r.id}", "nombre": r.prospecto or "Sin nombre", "email": "",
+                "telefono": "", "ig": "", "origen": "Cargada en ATV Ops",
+                "closer": (r.closer or "").strip(), "setter": "",
+                "call": r.inicio_at, "agendo": None, "agendo_en": "ATV Ops",
+                "pago": r.cash_usd or 0.0, "debe": r.saldo_usd or 0.0,
+                "ingresos_rango": "", "programa_ofrecido": (r.programa or "").strip(),
+                "vino_de_ads": False, "notas": (r.nota or "").strip(), "created_at": r.creado_at,
+                "closer_report": (r.nota or "").strip(), "link_llamada": "",
+                "resultado": "descartada" if r.descartada else (r.resultado or "").strip().lower(),
+                "calificacion": "", "eventoId": r.evento_id,
+            } for r in filas]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las llamadas propias: %s", str(e)[:160])
+        return []
 
 
 def _leads_por_id(ids: list[int]) -> list[dict]:
@@ -311,8 +348,9 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
     """
     from src.services import gcal_services
 
+    filas = filas + _llamadas_propias(desde, hasta)
     if not gcal_services.configurado():
-        return filas
+        return _marcar_seguimientos(_marcar_duplicados(filas))
     inicio = datetime.combine(desde, time.min).replace(tzinfo=AR_TZ)
     fin_rango = datetime.combine(hasta, time.min).replace(tzinfo=AR_TZ)
     reuniones = gcal_services.reuniones_venta(inicio, fin_rango)
@@ -398,7 +436,8 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         })
     if extras:
         logger.info("Calendario: %s reuniones que el CRM no registró", len(extras))
-    return sorted(_marcar_duplicados(_aplicar_lo_propio(filas + extras)), key=lambda f: f["call"])
+    return sorted(_marcar_seguimientos(_marcar_duplicados(_aplicar_lo_propio(filas + extras))),
+                  key=lambda f: f["call"])
 
 
 def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
@@ -468,7 +507,7 @@ def _gente_del_rol(rol: str) -> list[str]:
     trabajan acá, así que mirar ahí muestra gente que no existe.
     """
     try:
-        from pony.orm import db_session, select
+        from pony.orm import db_session, desc, select
 
         from src.models import Usuario
 
@@ -488,17 +527,49 @@ def _equipo() -> list[dict]:
     return crm_db.consultar("SELECT id, nombre, rol, activo FROM teammember WHERE activo ORDER BY rol, nombre")
 
 
+def _reportes_propios(rol: str, desde: date) -> list[dict]:
+    """Los reportes diarios que se cargan en ATV Ops, con la forma que tenían los del CRM."""
+    import json as _json
+
+    from pony.orm import db_session, desc, select
+
+    from src.models import ReporteDia
+
+    try:
+        with db_session:
+            filas = list(select(r for r in ReporteDia if r.rol == rol and r.fecha >= desde)
+                         .order_by(lambda r: desc(r.fecha)))
+            salida = []
+            for r in filas:
+                try:
+                    valores = _json.loads(r.valores or "{}")
+                except ValueError:
+                    valores = {}
+                salida.append({"id": f"ops:{r.id}", "fecha": r.fecha, "created_at": r.actualizado_at,
+                               "nombre": r.persona, "rol": r.rol, "notas": r.nota or "",
+                               **{c: valores.get(c, 0) for c in CAMPOS_REPORTE[rol]}})
+            return salida
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los reportes de ATV Ops: %s", str(e)[:160])
+        return []
+
+
 def _reportes(tabla: str, desde: date, limite: int = 400) -> list[dict]:
     campos = {
         "closer_report": "r.llamadas_agendadas, r.shows, r.cierres, r.calificados, r.descalificados, r.ingreso, r.seguimiento, r.notas",
         "setter_report": "r.conversaciones, r.agendas, r.links_enviados, r.leads_nuevos, r.seguimientos, r.outbounds, r.notas",
     }[tabla]
-    return crm_db.consultar(
+    viejos = crm_db.consultar(
         f"SELECT r.id, r.fecha, r.created_at, m.nombre, m.rol, {campos} "
         f"FROM {tabla} r JOIN teammember m ON m.id = r.member_id "
         f"WHERE r.fecha >= %s ORDER BY r.fecha DESC LIMIT {limite}",
         (desde,),
     )
+    # Los nuevos se cargan en ATV Ops; los del CRM viejo quedan como histórico.
+    rol = tabla.replace("_report", "")
+    propios = _reportes_propios(rol, desde)
+    ya = {(r["nombre"], r["fecha"]) for r in propios}
+    return propios + [f for f in viejos if (f["nombre"], f["fecha"]) not in ya]
 
 
 def _num(v) -> float:
@@ -506,6 +577,53 @@ def _num(v) -> float:
         return float(v or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
+    """Cuándo fue la primera reunión de cada prospecto, mirando todo el histórico.
+
+    Hace falta para no contar dos veces la misma agenda: si DANILO tuvo su llamada en
+    agosto, las de septiembre son seguimiento, no agendas nuevas. La agenda la trae el
+    setter una sola vez.
+    """
+    with _lock:
+        guardado = _cache.get("primeras")
+        if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
+    primeras: dict[str, datetime] = {}
+    try:
+        for f in crm_db.consultar(
+                "SELECT nombre, min(call) primera FROM lead WHERE call IS NOT NULL GROUP BY nombre"):
+            clave = _clave_persona(f["nombre"])
+            cuando = _a_argentina(f["primera"])
+            if clave and cuando and (clave not in primeras or cuando < primeras[clave]):
+                primeras[clave] = cuando
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo calcular la primera reunión de cada uno: %s", str(e)[:160])
+    with _lock:
+        _cache["primeras"] = {"at": datetime.utcnow(), "data": primeras}
+    return primeras
+
+
+def _marcar_seguimientos(filas: list[dict]) -> list[dict]:
+    """Marca qué reuniones son seguimiento: las que no son la primera del prospecto.
+
+    Cuentan como show, como cierre y como cash, pero no como agenda: la agenda ya la
+    trajo el setter cuando armó la primera.
+    """
+    primeras = _primera_reunion_de_cada_uno()
+    por_persona: dict[str, datetime] = dict(primeras)
+    for f in sorted(filas, key=lambda x: x["call"]):
+        clave = _clave_persona(f.get("nombre"))
+        if not clave:
+            continue
+        primera = por_persona.get(clave)
+        if primera is None or f["call"] <= primera:
+            por_persona[clave] = f["call"]
+            f["seguimiento"] = False
+        else:
+            f["seguimiento"] = True
+    return filas
 
 
 def _marcar_duplicados(filas: list[dict]) -> list[dict]:
@@ -555,14 +673,19 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     cierres = [l for l in ventas if _norm(l["resultado"]) == _norm("Cerrado")]
     senas = [l for l in ventas if l not in cierres]
     shows = sum(1 for c in clases if c in ("show", "cierre"))
+    # La agenda la trae el setter una sola vez: la segunda reunión con el mismo prospecto
+    # cuenta como show y como cierre, pero no como agenda nueva.
+    seguimientos = sum(1 for l in leads if l.get("seguimiento"))
     no_shows = sum(1 for c in clases if c == "no_show")
     sin_reportar = sum(1 for c in clases if c == "sin_reportar")
     sin_crm = sum(1 for c in clases if c == "sin_crm")
-    agendados = len(leads)
+    agendados = len(leads) - seguimientos
     cash = sum(_num(l["pago"]) for l in ventas)
     evaluables = shows + no_shows
     return {
         "agendados": agendados,
+        "seguimientos": seguimientos,
+        "reuniones": len(leads),
         "shows": shows,
         "noShows": no_shows,
         "sinReportar": sin_reportar,
@@ -820,14 +943,51 @@ ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
 ROLES_CARGAN_LLAMADAS = ROLES_PRECIOS | {"ventas", "closer", "setter"}
 
 
+def _sembrar_programas() -> None:
+    """La primera vez copia el catálogo del CRM viejo. Después vive solo acá."""
+    from pony.orm import db_session, desc, select
+
+    from src.models import Programa
+
+    with db_session:
+        if select(p for p in Programa).count():
+            return
+        try:
+            filas = crm_db.consultar("SELECT name, price_usd, sort_order FROM offered_program ORDER BY sort_order, name")
+        except Exception:  # noqa: BLE001
+            return
+        for f in filas:
+            nombre = (f["name"] or "").strip()
+            if nombre and not Programa.get(nombre=nombre):
+                Programa(nombre=nombre[:120], precio_usd=_num(f["price_usd"]),
+                         orden=int(f["sort_order"] or 0), actualizado_por="migración")
+        if filas:
+            logger.info("Programas: %s copiados del CRM viejo a ATV Ops", len(filas))
+
+
 def programas() -> list[dict]:
-    """Catálogo de programas con su precio: el precio es la facturación de cada venta."""
-    filas = crm_db.consultar("SELECT id, name, price_usd, sort_order FROM offered_program ORDER BY sort_order, name")
-    return [{"id": f["id"], "nombre": f["name"], "precioUsd": _num(f["price_usd"]), "orden": f["sort_order"]} for f in filas]
+    """Catálogo de programas con su precio: el precio es la facturación de cada venta.
+    Vive en la base de ATV Ops; el CRM viejo solo sirvió para sembrarlo."""
+    from pony.orm import db_session, desc, select
+
+    from src.models import Programa
+
+    try:
+        _sembrar_programas()
+        with db_session:
+            return [{"id": p.id, "nombre": p.nombre, "precioUsd": p.precio_usd, "orden": p.orden}
+                    for p in select(p for p in Programa if p.activo).order_by(lambda p: (p.orden, p.nombre))]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo leer el catálogo de programas: %s", str(e)[:160])
+        return []
 
 
 def guardar_programa(datos: dict, usuario: dict) -> list[dict]:
     """Alta o edición de un programa y su precio. Solo ops, admin o founder."""
+    from pony.orm import db_session
+
+    from src.models import Programa
+
     if usuario.get("rol") not in ROLES_PRECIOS:
         raise HTTPException(status_code=403, detail="Tu rol no puede cambiar los precios de los programas.")
     nombre = str(datos.get("nombre") or "").strip()[:120]
@@ -840,28 +1000,34 @@ def guardar_programa(datos: dict, usuario: dict) -> list[dict]:
     if precio < 0:
         raise HTTPException(status_code=400, detail="El precio no puede ser negativo.")
     orden = int(datos.get("orden") or 0)
-    pid = datos.get("id")
-    if pid:
-        crm_db.ejecutar(
-            "UPDATE offered_program SET name = %s, price_usd = %s, sort_order = %s WHERE id = %s",
-            (nombre, precio, orden, int(pid)),
-        )
-    else:
-        crm_db.ejecutar(
-            "INSERT INTO offered_program (user_id, name, price_usd, sort_order, created_at) "
-            "VALUES ((SELECT coalesce(min(user_id), 1) FROM offered_program), %s, %s, %s, now())",
-            (nombre, precio, orden),
-        )
+    quien = (usuario.get("username") or "")[:80]
+    with db_session:
+        p = Programa.get(id=int(datos["id"])) if datos.get("id") else Programa.get(nombre=nombre)
+        if p is None:
+            p = Programa(nombre=nombre, precio_usd=precio, orden=orden, actualizado_por=quien)
+        else:
+            p.nombre, p.precio_usd, p.orden, p.activo = nombre, precio, orden, True
+            p.actualizado_por, p.actualizado_at = quien, datetime.utcnow()
     logger.info("Programa '%s' guardado por %s a %s USD", nombre, usuario.get("username"), precio)
-    _cache.clear()
+    _olvidar_meses()
     return programas()
 
 
 def borrar_programa(pid: int, usuario: dict) -> list[dict]:
+    """No se borra: se da de baja, así las ventas viejas conservan su precio."""
+    from pony.orm import db_session
+
+    from src.models import Programa
+
     if usuario.get("rol") not in ROLES_PRECIOS:
         raise HTTPException(status_code=403, detail="Tu rol no puede borrar programas.")
-    crm_db.ejecutar("DELETE FROM offered_program WHERE id = %s", (int(pid),))
-    _cache.clear()
+    with db_session:
+        p = Programa.get(id=int(pid))
+        if p:
+            p.activo = False
+            p.actualizado_por = (usuario.get("username") or "")[:80]
+            p.actualizado_at = datetime.utcnow()
+    _olvidar_meses()
     return programas()
 
 
@@ -994,74 +1160,6 @@ _VACIOS_LEAD = ("ig", "telefono", "avatar", "keyword", "content_url", "manychat_
                 "razon_compra", "programada_ofrecido_llamada")
 
 
-def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
-    """Crea en el CRM la reunión que hasta ahora solo existía en el calendario.
-
-    Se hace cuando el closer va a cargarle el resultado: el CRM sigue siendo la fuente
-    única, así que la reunión tiene que existir ahí para poder guardar cash y programa.
-    Si ya la creó otro, devuelve la que está y no duplica.
-    """
-    from src.services import gcal_services
-
-    # Casi siempre la reunión ya se leyó al mostrar el calendario: se toma de ahí en vez
-    # de pedirle a Google un año entero, que es lo que hacía tardar el guardado.
-    reunion = gcal_services.reunion_por_id(evento_id)
-    if reunion is None:
-        hoy = datetime.now(AR_TZ).date()
-        desde = datetime.combine(hoy - timedelta(days=120), time.min).replace(tzinfo=AR_TZ)
-        hasta = datetime.combine(hoy + timedelta(days=120), time.min).replace(tzinfo=AR_TZ)
-        reunion = next((r for r in gcal_services.reuniones_venta(desde, hasta) if r["eventoId"] == evento_id), None)
-    if reunion is None:
-        raise HTTPException(status_code=404, detail="Esa reunión ya no está en el calendario.")
-
-    cuando = datetime.fromisoformat(reunion["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
-    cuando_utc = _a_utc(cuando)
-    nombre = reunion["prospecto"][:200]
-    email = next(iter({_norm(e) for e in (reunion.get("invitados") or []) if _norm(e)}), "")
-
-    # Si esta reunión ya tiene su llamada anotada, se usa esa y no se crea otra.
-    atada = _referencias([evento_id]).get(evento_id)
-    if atada and crm_db.consultar("SELECT id FROM lead WHERE id = %s", (atada,)):
-        return int(atada)
-
-    # Si ya existe esa misma reunión (la creó otro, o la sincronizó atv-mkt), se usa esa.
-    ya = crm_db.consultar(
-        "SELECT id FROM lead WHERE call >= %s AND call <= %s AND "
-        "(lower(trim(coalesce(email, ''))) = %s AND %s <> '' OR lower(trim(nombre)) LIKE %s) LIMIT 1",
-        (cuando_utc - timedelta(minutes=90), cuando_utc + timedelta(minutes=90),
-         email, email, f"%{nombre.lower()}%"),
-    )
-    if ya:
-        _atar_reunion(evento_id, int(ya[0]["id"]), nombre, cuando,
-                      usuario.get("username") or "")
-        return int(ya[0]["id"])
-
-    duenio = _duenio_de_cada_lead()
-    base = (duenio.get(f"email:{email}") if email else None) or duenio.get(f"nombre:{_clave_persona(nombre)}") or {}
-    quien = (usuario.get("nombre") or usuario.get("username") or "")
-    columnas = ", ".join(_VACIOS_LEAD)
-    valores = ", ".join(["''"] * len(_VACIOS_LEAD))
-    filas = crm_db.insertar(
-        f"INSERT INTO lead (user_id, nombre, email, origen, closer, setter, call, agendo, agendo_en, "
-        f"status, estado, programa_ofrecido, notas, closer_report, created_at, {columnas}) "
-        f"VALUES ((SELECT coalesce(min(user_id), 1) FROM lead), %s, %s, %s, %s, %s, %s, now(), "
-        f"'Google Calendar', 'Agendado', '', '', %s, '', now(), {valores}) RETURNING id",
-        (nombre, email, (base.get("origen") or "").strip() or "Orgánico",
-         # Solo se pone de closer a quien realmente toma llamadas: si un admin carga la
-         # reunión de otro, la llamada queda sin asignar en vez de contarle a él.
-         base.get("closer") or (quien if usuario.get("rol") in {"closer", "ventas"} else ""),
-         base.get("setter") or "", cuando_utc, reunion["titulo"][:500]),
-    )
-    if not filas:
-        raise HTTPException(status_code=502, detail="No se pudo crear la llamada en el CRM.")
-    nuevo_id = int(filas[0]["id"])
-    _atar_reunion(evento_id, nuevo_id, nombre, cuando, usuario.get("username") or "")
-    logger.info("Reunión del calendario %s creada en el CRM como lead %s por %s",
-                evento_id, nuevo_id, usuario.get("username"))
-    _olvidar_meses()
-    return nuevo_id
-
-
 def _olvidar_meses() -> None:
     """Tira los resúmenes por mes, que son los que cambian al guardar. Se conservan el
     índice de dueños y el caché del calendario: rehacerlos en cada guardado es lo que
@@ -1087,43 +1185,88 @@ def _lista_despues_de_guardar(usuario: dict, mes: str | None) -> dict:
                 "llamadas": [], "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA)}
 
 
-def _puede_cargar(lead_id: int, usuario: dict) -> None:
-    """Que la llamada exista y que el rol trabaje en ventas. No se pide que sea suya:
-    el calendario es del equipo y a veces el lead figura a nombre de otro closer."""
-    if not crm_db.consultar("SELECT id FROM lead WHERE id = %s", (int(lead_id),)):
-        raise HTTPException(status_code=404, detail="Esa llamada no existe en el CRM.")
-    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
-        raise HTTPException(status_code=403, detail="Tu rol no puede cargar resultados de llamadas.")
+def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
+    """Devuelve (id del CRM viejo o 0, id del evento) para cualquier forma de id.
 
-
-def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False, mes: str | None = None,
-                      con_lista: bool = True) -> dict:
-    """Saca una llamada de la lista y de todas las métricas, o la devuelve.
-
-    No borra la fila ni pisa el programa, el cash o la nota: solo cambia el estado, así
-    una llamada descartada por error se recupera con todo lo que tenía. Las internas y
-    las cargadas de más quedan en el filtro "Descartadas".
+    Una llamada puede venir del CRM (número), del calendario ("cal:evento") o de ATV Ops
+    ("ops:n"). En los tres casos lo que se escribe es la ficha de ATV Ops.
     """
-    if isinstance(lead_id, str) and lead_id.startswith("cal:"):
-        if recuperar:
-            raise HTTPException(status_code=400, detail="Esa reunión todavía no está en el CRM.")
-        lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
-    _puede_cargar(lead_id, usuario)
-    nuevo = "Agendado" if recuperar else "Descartada"
-    _guardar_propio(int(lead_id), "", "", usuario.get("username") or "",
-                    descartada=not recuperar, resultado="" if recuperar else "Descartada")
-    crm_db.ejecutar("UPDATE lead SET status = %s, estado = %s WHERE id = %s", (nuevo, nuevo, int(lead_id)))
-    logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    texto = str(lead_id)
+    if texto.startswith("cal:"):
+        evento = texto[4:]
+        crear_lead_desde_calendario(evento, usuario)
+        return 0, evento
+    if texto.startswith("ops:"):
+        with db_session:
+            r = ReunionCrm.get(id=int(texto[4:]))
+        if r is None:
+            raise HTTPException(status_code=404, detail="Esa llamada ya no existe.")
+        return 0, r.evento_id
+    numero = int(texto)
+    if not crm_db.consultar("SELECT id FROM lead WHERE id = %s", (numero,)):
+        raise HTTPException(status_code=404, detail="Esa llamada no existe.")
+    return numero, ""
+
+
+def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
+    """Le abre ficha en ATV Ops a una reunión del calendario, para poder cargarle el
+    resultado. No se toca el CRM viejo: lo que se carga acá no le cambia los números
+    a atv-mkt.
+    """
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    from src.services import gcal_services
+
+    with db_session:
+        ya = ReunionCrm.get(evento_id=evento_id)
+        if ya is not None:
+            return ya.lead_id or -ya.id
+
+    reunion = gcal_services.reunion_por_id(evento_id)
+    if reunion is None:
+        hoy = datetime.now(AR_TZ).date()
+        desde = datetime.combine(hoy - timedelta(days=120), time.min).replace(tzinfo=AR_TZ)
+        hasta = datetime.combine(hoy + timedelta(days=120), time.min).replace(tzinfo=AR_TZ)
+        reunion = next((r for r in gcal_services.reuniones_venta(desde, hasta) if r["eventoId"] == evento_id), None)
+    if reunion is None:
+        raise HTTPException(status_code=404, detail="Esa reunión ya no está en el calendario.")
+
+    cuando = datetime.fromisoformat(reunion["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
+    nombre = reunion["prospecto"][:200]
+    email = next(iter({_norm(e) for e in (reunion.get("invitados") or []) if _norm(e)}), "")
+    duenio = _duenio_de_cada_lead()
+    base = (duenio.get(f"email:{email}") if email else None) or duenio.get(f"nombre:{_clave_persona(nombre)}") or {}
+
+    with db_session:
+        r = ReunionCrm(evento_id=evento_id, lead_id=0, prospecto=nombre, inicio_at=cuando,
+                       closer=(base.get("closer") or "")[:120],
+                       creado_por=(usuario.get("username") or "")[:80])
+        db_session.flush()
+        nuevo_id = r.id
+    logger.info("Reunión del calendario %s abierta en ATV Ops (ficha %s) por %s",
+                evento_id, nuevo_id, usuario.get("username"))
     _olvidar_meses()
-    return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
+    return -nuevo_id
 
 
 def crear_llamada_manual(datos: dict, usuario: dict) -> dict:
     """Una reunión que existió pero nunca pasó por el calendario.
 
-    El referido que Nick cerró por privado, la llamada que se armó por chat: no hay evento
-    de Google, así que se carga a mano y desde acá entra a las métricas como cualquier otra.
+    El referido que se cerró por privado, la llamada que se armó por chat. Vive solo en
+    ATV Ops: no se le crea nada al CRM viejo.
     """
+    import uuid
+
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
     if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
         raise HTTPException(status_code=403, detail="Tu rol no puede cargar llamadas.")
     prospecto = str(datos.get("prospecto") or "").strip()[:200]
@@ -1134,46 +1277,35 @@ def crear_llamada_manual(datos: dict, usuario: dict) -> dict:
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="La fecha de la reunión no es válida.")
 
-    email = _norm(datos.get("email"))
-    duenio = _duenio_de_cada_lead()
-    base = (duenio.get(f"email:{email}") if email else None) or duenio.get(f"nombre:{_clave_persona(prospecto)}") or {}
     quien = (usuario.get("nombre") or usuario.get("username") or "")
+    duenio = _duenio_de_cada_lead()
+    base = duenio.get(f"nombre:{_clave_persona(prospecto)}") or {}
     closer = str(datos.get("closer") or "").strip() or base.get("closer") or (
         quien if usuario.get("rol") in {"closer", "ventas"} else "")
-    origen = str(datos.get("origen") or "").strip() or "Referido"
 
-    columnas = ", ".join(_VACIOS_LEAD)
-    valores = ", ".join(["''"] * len(_VACIOS_LEAD))
-    filas = crm_db.insertar(
-        f"INSERT INTO lead (user_id, nombre, email, origen, closer, setter, call, agendo, agendo_en, "
-        f"status, estado, programa_ofrecido, notas, closer_report, created_at, {columnas}) "
-        f"VALUES ((SELECT coalesce(min(user_id), 1) FROM lead), %s, %s, %s, %s, %s, %s, now(), "
-        f"'ATV Ops', 'Agendado', '', '', %s, '', now(), {valores}) RETURNING id",
-        (prospecto, email, origen, closer, str(datos.get("setter") or "").strip(),
-         _a_utc(cuando), str(datos.get("nota") or "").strip()[:500]),
-    )
-    if not filas:
-        raise HTTPException(status_code=502, detail="No se pudo crear la llamada.")
-    lead_id = int(filas[0]["id"])
-    _guardar_propio(lead_id, f"manual:{lead_id}", prospecto, usuario.get("username") or "",
-                    inicio_at=cuando)
+    evento = f"manual:{uuid.uuid4().hex[:16]}"
+    with db_session:
+        r = ReunionCrm(evento_id=evento, lead_id=0, prospecto=prospecto, inicio_at=cuando,
+                       closer=closer[:120], nota=str(datos.get("nota") or "").strip()[:2000],
+                       creado_por=(usuario.get("username") or "")[:80])
+        db_session.flush()
+        ficha = r.id
     logger.info("Llamada cargada a mano por %s: %s el %s", usuario.get("username"), prospecto, cuando)
     _olvidar_meses()
 
     resultado = str(datos.get("resultado") or "").strip()
     if resultado:
-        registrar_resultado(lead_id, {**datos, "evento": f"manual:{lead_id}"}, usuario, con_lista=False)
-    return {"id": lead_id, "prospecto": prospecto, "fechaAt": cuando.isoformat(), "closer": closer}
+        registrar_resultado(f"ops:{ficha}", {**datos, "evento": evento}, usuario, con_lista=False)
+    return {"id": f"ops:{ficha}", "prospecto": prospecto, "fechaAt": cuando.isoformat(), "closer": closer}
 
 
 def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,
                         con_lista: bool = True) -> dict:
-    """Guarda lo que cargó el closer en el CRM, que es la fuente única: así ATV Marketing
-    y ATV Ops muestran lo mismo y no hay dos verdades."""
-    # La reunión que venía solo del calendario se crea en el CRM antes de guardarle nada.
-    if isinstance(lead_id, str) and lead_id.startswith("cal:"):
-        lead_id = crear_lead_desde_calendario(lead_id[4:], usuario)
-    _puede_cargar(lead_id, usuario)
+    """Guarda lo que cargó el closer en la base de ATV Ops, que es la fuente.
+    Al CRM viejo no se le escribe nada."""
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cargar resultados de llamadas.")
+    lead_id, evento_de_la_ficha = _ficha_para(lead_id, usuario)
 
     resultado = str(datos.get("resultado") or "").strip()
     if resultado not in ESTADOS_LLAMADA:
@@ -1196,25 +1328,21 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
         toca_saldo = True  # una llamada que no es venta no deja deuda
     nota = str(datos.get("nota") or "").strip()[:2000]
     quien = (usuario.get("nombre") or usuario.get("username") or "")
+    # Si la llamada no tiene closer, se queda con quien la carga, siempre que tome llamadas.
+    closer_nuevo = str(datos.get("closer") or "").strip() or (
+        quien if usuario.get("rol") in {"closer", "ventas"} else "")
     # Qué reunión del calendario es esta llamada, para que el sync de atv-mkt no la
     # despegue cuando le cambie la fecha.
-    evento = str(datos.get("evento") or "").strip()
+    evento = str(datos.get("evento") or "").strip() or evento_de_la_ficha
 
-    # Primero la base de ATV Ops, que es la fuente. El CRM se actualiza después para que
-    # atv-mkt muestre lo mismo mientras dure la mudanza: si falla, el dato no se pierde.
+    # Se guarda solo en la base de ATV Ops. Al CRM viejo no se le escribe nada: lo que se
+    # corrige acá no tiene por qué cambiarle los números a atv-mkt.
     propio = {"resultado": resultado, "programa": programa, "cash_usd": cash,
-              "nota": nota, "descartada": False}
+              "nota": nota, "descartada": False, "closer": closer_nuevo}
     if toca_saldo:
         propio["saldo_usd"] = saldo
     _guardar_propio(int(lead_id), evento, str(datos.get("prospecto") or ""),
                     usuario.get("username") or "", **propio)
-    crm_db.ejecutar(
-        f"UPDATE lead SET status = %s, estado = %s, programa_ofrecido = %s, pago = %s, "
-        f"{'debe = %s, ' if toca_saldo else ''}"
-        "closer_report = COALESCE(NULLIF(%s, ''), closer_report), closer = COALESCE(NULLIF(closer, ''), %s) "
-        "WHERE id = %s",
-        (resultado, resultado, programa, cash, *( (saldo,) if toca_saldo else () ), nota, quien, int(lead_id)),
-    )
     logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
     _olvidar_meses()
     return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
@@ -1254,12 +1382,8 @@ def _miembro(usuario: dict, rol: str, crear: bool = True) -> dict | None:
     nombre = (usuario.get("nombre") or usuario.get("username") or "").strip()[:120]
     if not nombre:
         return None
-    user_id = min((m["user_id"] for m in miembros), default=1)
-    crm_db.ejecutar(
-        "INSERT INTO teammember (user_id, nombre, rol, activo, created_at) VALUES (%s, %s, %s, true, now())",
-        (user_id, nombre, rol),
-    )
-    logger.info("Alta de %s como %s en el equipo (venía de ATV Ops)", nombre, rol)
+    # No se da de alta a nadie en el CRM viejo: el equipo son los usuarios de ATV Ops.
+    logger.info("%s carga reportes como %s sin estar en el equipo del CRM viejo", nombre, rol)
     creado = crm_db.consultar(
         "SELECT id, user_id, nombre, rol FROM teammember WHERE nombre = %s AND rol = %s ORDER BY id DESC LIMIT 1",
         (nombre, rol),
@@ -1340,22 +1464,22 @@ def guardar_reporte(fecha: str, datos: dict, usuario: dict, rol: str = "setter")
             raise HTTPException(status_code=400, detail=f"{ETIQUETAS_REPORTE.get(c, c)} tiene que ser un número.")
     nota = str(datos.get("nota") or datos.get("notas") or "").strip()[:2000]
 
-    tabla = f"{rol}_report"
-    existe = crm_db.consultar(f"SELECT id FROM {tabla} WHERE member_id = %s AND fecha = %s", (miembro["id"], dia))
-    asignaciones = ", ".join(f"{c} = %s" for c in campos)
-    if existe:
-        crm_db.ejecutar(
-            f"UPDATE {tabla} SET {asignaciones}, notas = %s WHERE id = %s",
-            (*[valores[c] for c in campos], nota, existe[0]["id"]),
-        )
-    else:
-        columnas = ", ".join(campos)
-        marcas = ", ".join(["%s"] * len(campos))
-        crm_db.ejecutar(
-            f"INSERT INTO {tabla} (user_id, member_id, fecha, {columnas}, notas, created_at) "
-            f"VALUES (%s, %s, %s, {marcas}, %s, now())",
-            (miembro["user_id"], miembro["id"], dia, *[valores[c] for c in campos], nota),
-        )
+    # El reporte vive en la base de ATV Ops. Al CRM viejo no se le escribe nada.
+    import json as _json
+
+    from pony.orm import db_session
+
+    from src.models import ReporteDia
+
+    persona = (miembro["nombre"] or "").strip()
+    with db_session:
+        r = ReporteDia.get(persona=persona, rol=rol, fecha=dia)
+        if r is None:
+            r = ReporteDia(persona=persona, rol=rol, fecha=dia)
+        r.valores = _json.dumps(valores)
+        r.nota = nota
+        r.actualizado_por = (usuario.get("username") or "")[:80]
+        r.actualizado_at = datetime.utcnow()
     logger.info("Reporte %s de %s (%s) guardado por %s", dia, miembro["nombre"], rol, usuario.get("username"))
     _cache.clear()
     return mis_reportes(usuario, dia.strftime("%Y-%m"), rol)

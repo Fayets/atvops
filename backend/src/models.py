@@ -268,13 +268,14 @@ class ReunionCrm(db.Entity):
 
     id = PrimaryKey(int, auto=True)
     evento_id = Required(str, unique=True)   # id del evento en Google Calendar
-    lead_id = Required(int, index=True)      # id de la llamada en el CRM
+    lead_id = Required(int, index=True, default=0)   # id en el CRM viejo; 0 = solo de acá
     prospecto = Optional(str)
     inicio_at = Optional(datetime)           # cuándo es la reunión, en hora de Argentina
     creado_por = Optional(str)
     creado_at = Required(datetime, default=datetime.utcnow)
     # Lo que cargó el equipo. Vacío = todavía no se cargó y manda lo que diga el CRM.
     resultado = Optional(str)
+    closer = Optional(str)
     programa = Optional(str)
     cash_usd = Optional(float)
     saldo_usd = Optional(float)
@@ -282,3 +283,33 @@ class ReunionCrm(db.Entity):
     descartada = Required(bool, default=False)
     actualizado_por = Optional(str)
     actualizado_at = Optional(datetime)
+
+
+class Programa(db.Entity):
+    """El catálogo de programas con su precio. Vive acá: el precio lo fija ops en ATV Ops
+    y no tiene por qué depender del CRM viejo."""
+
+    _table_ = _tabla("programas", "Programa")
+
+    id = PrimaryKey(int, auto=True)
+    nombre = Required(str, unique=True)
+    precio_usd = Required(float, default=0.0)
+    orden = Required(int, default=0)
+    activo = Required(bool, default=True)
+    actualizado_por = Optional(str)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+
+
+class ReporteDia(db.Entity):
+    """El reporte diario que carga el setter o el closer. También vive acá."""
+
+    _table_ = _tabla("reportes_dia", "ReporteDia")
+
+    id = PrimaryKey(int, auto=True)
+    persona = Required(str, index=True)      # nombre de quien lo carga
+    rol = Required(str)                      # setter | closer
+    fecha = Required(date, index=True)
+    valores = Required(str, default="{}")    # JSON con las métricas del día
+    nota = Optional(str)
+    actualizado_por = Optional(str)
+    actualizado_at = Required(datetime, default=datetime.utcnow)

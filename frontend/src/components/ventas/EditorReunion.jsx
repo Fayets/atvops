@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { FormResultado } from './ListaLlamadas.jsx';
+import { descartarLlamada } from '../../data/api.js';
 
 const fecha = (iso) =>
   new Date(iso).toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -10,6 +12,24 @@ const fecha = (iso) =>
  *           onGuardado: () => void, onCerrar: () => void, mes?: string }} props
  */
 export default function EditorReunion({ reunion, estado, programas, estados, onGuardado, onCerrar, mes }) {
+  const [borrando, setBorrando] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
+  const [error, setError] = useState(null);
+
+  const borrar = async () => {
+    setBorrando(true);
+    setError(null);
+    try {
+      await descartarLlamada(estado.id, { mes, lista: false });
+      onGuardado();
+      onCerrar();
+    } catch (e) {
+      setError(e.message);
+      setBorrando(false);
+      setConfirmar(false);
+    }
+  };
+
   const llamada = {
     id: estado.id,
     prospecto: estado.prospecto || reunion.prospecto,
@@ -33,7 +53,22 @@ export default function EditorReunion({ reunion, estado, programas, estados, onG
               {estado.closer ? ` · ${estado.closer}` : ''}
             </div>
           </div>
-          <button className="btn sm ghost" onClick={onCerrar} aria-label="Cerrar">✕</button>
+          <span className="editor-reunion-acciones">
+            {confirmar ? (
+              <>
+                <span className="dim">{error || '¿La borro?'}</span>
+                <button className="btn sm alerta" onClick={borrar} disabled={borrando}>
+                  {borrando ? 'Borrando…' : 'Sí'}
+                </button>
+                <button className="btn sm" onClick={() => setConfirmar(false)} disabled={borrando}>No</button>
+              </>
+            ) : (
+              <button className="btn sm ghost" onClick={() => setConfirmar(true)} title="Sacarla de la lista y de las métricas">
+                Borrar
+              </button>
+            )}
+            <button className="btn sm ghost" onClick={onCerrar} aria-label="Cerrar">✕</button>
+          </span>
         </header>
         {estado.estado === 'sin_crm' && (
           <div className="dim editor-reunion-aviso">
