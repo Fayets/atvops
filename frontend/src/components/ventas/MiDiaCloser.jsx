@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
+import CalendarioEquipo from './CalendarioEquipo.jsx';
+import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
-import { guardarResultadoLlamada } from '../../data/api.js';
+import { getLlamadosAgenda, guardarResultadoLlamada } from '../../data/api.js';
+import { useResource } from '../../lib/hooks.js';
 
 const VENTA = ['Cerrado', 'Seña'];
 const TONO = {
@@ -145,7 +148,41 @@ function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGu
   );
 }
 
-/** Mi día: las llamadas del closer y la carga del resultado. */
+const pct = (v) => (v == null ? '—' : `${v}%`);
+
+function Kpi({ label, valor, nota, tono }) {
+  return (
+    <article className="kpi sm">
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value-row"><span className="kpi-value num" style={tono ? { color: tono } : undefined}>{valor}</span></div>
+      <div className="kpi-nota">{nota}</div>
+    </article>
+  );
+}
+
+/** El mismo calendario de Google que ve el director de ventas. */
+function CalendarioReal() {
+  const [detalle, setDetalle] = useState(null);
+  const { data, loading, error } = useResource(() => getLlamadosAgenda({ dias: 21, diasAtras: 7 }), []);
+
+  if (error) {
+    return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">{error.message}</div></Card>;
+  }
+  if (loading || !data) return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">Cargando…</div></Card>;
+
+  return (
+    <>
+      <CalendarioEquipo
+        llamados={data.llamados ?? []}
+        onSelect={setDetalle}
+        sub={`${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
+      />
+      {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
+    </>
+  );
+}
+
+/** Mi día: resumen del closer, el calendario real y la carga de resultados. */
 export default function MiDiaCloser({ data, onActualizado }) {
   const [abierta, setAbierta] = useState(null);
   const { llamadas = [], programas = [], estados = [], mes = {} } = data ?? {};
@@ -176,29 +213,27 @@ export default function MiDiaCloser({ data, onActualizado }) {
   return (
     <div className="mi-dia">
       <div className="kpi-grid">
-        <article className="kpi sm">
-          <div className="kpi-label">Cash cobrado</div>
-          <div className="kpi-value-row"><span className="kpi-value num">{formatValue(mes.cashUsd ?? 0, 'usd')}</span></div>
-          <div className="kpi-nota">este mes{mes.saldoUsd ? ` · ${formatValue(mes.saldoUsd, 'usd')} por cobrar` : ''}</div>
-        </article>
-        <article className="kpi sm">
-          <div className="kpi-label">Facturación</div>
-          <div className="kpi-value-row"><span className="kpi-value num">{formatValue(mes.facturacionUsd ?? 0, 'usd')}</span></div>
-          <div className="kpi-nota">precio de los programas vendidos</div>
-        </article>
-        <article className="kpi sm">
-          <div className="kpi-label">Ventas</div>
-          <div className="kpi-value-row"><span className="kpi-value num">{mes.cierres ?? 0}</span></div>
-          <div className="kpi-nota">{mes.shows ?? 0} shows sobre {mes.agendadas ?? 0} agendadas</div>
-        </article>
-        <article className="kpi sm">
-          <div className="kpi-label">Sin cargar</div>
-          <div className="kpi-value-row">
-            <span className="kpi-value num" style={{ color: mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)' }}>{mes.sinReportar ?? 0}</span>
-          </div>
-          <div className="kpi-nota">este mes</div>
-        </article>
+        <Kpi label="Agendas del mes" valor={mes.agendadas ?? 0}
+          nota={`${mes.porVenir ?? 0} todavía por venir`} />
+        <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
+          tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
+          nota="llamadas que ya pasaron sin resultado" />
+        <Kpi label="Cash cobrado" valor={formatValue(mes.cashUsd ?? 0, 'usd')}
+          nota={mes.saldoUsd ? `${formatValue(mes.saldoUsd, 'usd')} por cobrar` : 'este mes'} />
+        <Kpi label="Facturación" valor={formatValue(mes.facturacionUsd ?? 0, 'usd')}
+          nota={`${mes.cierres ?? 0} ventas · AOV ${formatValue(mes.aovUsd ?? 0, 'usd')}`} />
       </div>
+
+      <div className="kpi-grid">
+        <Kpi label="Show rate" valor={pct(mes.showRate)} nota={`${mes.shows ?? 0} shows`} />
+        <Kpi label="No show" valor={pct(mes.noShowRate)} tono={mes.noShows ? 'var(--warn)' : undefined}
+          nota={`${mes.noShows ?? 0} llamadas caídas`} />
+        <Kpi label="Close rate" valor={pct(mes.closeRate)} nota={`${mes.cierres ?? 0} sobre ${mes.shows ?? 0} shows`} />
+        <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
+          nota={`cash promedio ${formatValue(mes.cashPromedioUsd ?? 0, 'usd')}`} />
+      </div>
+
+      <CalendarioReal />
 
       {grupos.pendientes.length > 0 && (
         <Card title="Falta cargar el resultado" sub={`${grupos.pendientes.length} llamadas de los últimos 30 días sin resultado`} flush>

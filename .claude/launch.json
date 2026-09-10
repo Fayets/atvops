@@ -4,13 +4,30 @@
     {
       "name": "atv-ops-backend",
       "runtimeExecutable": "backend/.venv/bin/uvicorn",
-      "runtimeArgs": ["main:app", "--host", "127.0.0.1", "--port", "8010", "--reload", "--reload-dir", "backend"],
+      "runtimeArgs": [
+        "main:app",
+        "--host",
+        "::",
+        "--port",
+        "8010",
+        "--reload",
+        "--reload-dir",
+        "backend"
+      ],
       "port": 8010
     },
     {
       "name": "atv-ops-frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5174"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5174"
+      ],
       "port": 5174
     }
   ]

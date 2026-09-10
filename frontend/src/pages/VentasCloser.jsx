@@ -20,7 +20,7 @@ export default function VentasCloser() {
       <PageHeader
         eyebrow={vista?.closer ? `Closer · ${vista.closer}` : 'Closer'}
         title="Mi día"
-        desc="Tus llamadas. Cargá qué pasó en cada una, qué programa compró y cuánto cash dejó."
+        desc="Tus números del mes, el calendario del equipo y las llamadas para cargar el resultado."
         actions={
           <>
             <SourceTag sourceId="mkt_crm" updatedAt={vista?.generadoAt} />

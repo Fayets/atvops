@@ -435,15 +435,32 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         "programas": programas(),
         "estados": list(ESTADOS_LLAMADA),
         "llamadas": llamadas,
-        "mes": {
-            "agendadas": len(del_mes),
-            "sinReportar": sum(1 for x in del_mes if x["estado"] == "sin_reportar"),
-            "shows": sum(1 for x in del_mes if x["estado"] in ("show", "cierre")),
-            "cierres": len(ventas),
-            "cashUsd": round(sum(x["cashUsd"] for x in ventas), 2),
-            "facturacionUsd": round(sum(x["facturacionUsd"] for x in ventas), 2),
-            "saldoUsd": round(sum(x["saldoUsd"] for x in ventas), 2),
-        },
+        "mes": _metricas_closer(del_mes, ventas),
+    }
+
+
+def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
+    """Los números del mes del closer: agenda, show rate, close rate y ticket promedio."""
+    shows = sum(1 for x in del_mes if x["estado"] in ("show", "cierre"))
+    no_shows = sum(1 for x in del_mes if x["estado"] == "no_show")
+    evaluables = shows + no_shows
+    cash = round(sum(x["cashUsd"] for x in ventas), 2)
+    facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
+    return {
+        "agendadas": len(del_mes),
+        "porVenir": sum(1 for x in del_mes if x["estado"] == "agendado" and not x["pasada"]),
+        "sinReportar": sum(1 for x in del_mes if x["estado"] == "sin_reportar"),
+        "shows": shows,
+        "noShows": no_shows,
+        "cierres": len(ventas),
+        "cashUsd": cash,
+        "facturacionUsd": facturacion,
+        "saldoUsd": round(sum(x["saldoUsd"] for x in ventas), 2),
+        "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
+        "noShowRate": round(no_shows / evaluables * 100, 1) if evaluables else None,
+        "closeRate": round(len(ventas) / shows * 100, 1) if shows else None,
+        "aovUsd": round(facturacion / len(ventas), 2) if ventas else 0,
+        "cashPromedioUsd": round(cash / len(ventas), 2) if ventas else 0,
     }
 
 
