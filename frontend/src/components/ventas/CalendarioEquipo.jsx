@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatFecha, formatFechaHora } from '../../lib/format.js';
@@ -88,7 +88,26 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     if (!e) return '';
     return e.resultado ? ' cargada' : (e.estado === 'sin_crm' ? ' sin-crm' : '');
   };
+  // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
+  // para no dispararse también cuando en realidad fue doble click.
+  const clickPendiente = useRef(null);
+  const cancelarClick = () => {
+    if (clickPendiente.current) {
+      clearTimeout(clickPendiente.current);
+      clickPendiente.current = null;
+    }
+  };
+  useEffect(() => cancelarClick, []);
+
+  const alClick = (l) => {
+    cancelarClick();
+    clickPendiente.current = setTimeout(() => {
+      clickPendiente.current = null;
+      onSelect(l);
+    }, 230);
+  };
   const abrirEditor = (l) => {
+    cancelarClick();
     const e = estadoDe(l);
     if (e && onEditar) onEditar(l, e);
   };
@@ -173,7 +192,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                           key={l.id}
                           type="button"
                           className={`ventas-cal-ev estado-${l.estado}${clasesDe(l)}`}
-                          onClick={() => onSelect(l)}
+                          onClick={() => alClick(l)}
                           onDoubleClick={() => abrirEditor(l)}
                           title={estadoDe(l)?.resultado
                             ? `${estadoDe(l).resultado} · doble click para cambiarlo`
@@ -213,7 +232,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                       key={l.id}
                       type="button"
                       className={`ventas-cal-ev mini estado-${l.estado}${clasesDe(l)}`}
-                      onClick={() => onSelect(l)}
+                      onClick={() => alClick(l)}
                       onDoubleClick={() => abrirEditor(l)}
                       title={`${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
                     >
