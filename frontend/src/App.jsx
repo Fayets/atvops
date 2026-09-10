@@ -40,6 +40,13 @@ import {
 } from './lib/roles.js';
 
 /** /ventas: Closer → Mi día · Setter → Mi progreso · OPS → Salud vs meta · resto → Operativa. */
+/** El día a día de fulfillment es del CSM; el resto entra a la lectura de cartera. */
+function FulfillmentIndex() {
+  const { rol } = useRol();
+  if (rol !== 'csm') return <Navigate to="/fulfillment/ops" replace />;
+  return <Resumen />;
+}
+
 function VentasIndex() {
   const { rol } = useRol();
   if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
@@ -111,7 +118,7 @@ export default function App() {
             <Route path="reporte" element={<ReporteSemanal />} />
 
             <Route path="fulfillment">
-              <Route index element={<Resumen />} />
+              <Route index element={<FulfillmentIndex />} />
               <Route path="ops" element={<FulfillmentOps />} />
               <Route path="clientes" element={<Clientes />} />
               <Route path="clientes/:clienteId" element={<ClienteDetalle />} />

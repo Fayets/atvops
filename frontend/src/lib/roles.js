@@ -192,6 +192,10 @@ export function filtrarNav(nav, rol) {
         return puedeVerRuta(s.to, rol);
       });
       if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
+      // Ops y dirección entran directo a la lectura de cartera, no al día a día del CSM.
+      if (item.to === '/fulfillment' && rol !== 'csm') {
+        return { ...item, to: '/fulfillment/ops', sub };
+      }
       if (item.to.startsWith('/ventas') && sub.length === 0) return null;
       // Operaciones: el link padre de Ventas apunta a la vista OPS.
       if (item.to === '/ventas' && !puedeVerVentasDirector(rol) && !puedeVerVentasCloser(rol) && !puedeVerVentasSetter(rol) && puedeVerVentasOps(rol)) {
