@@ -525,16 +525,37 @@ ETIQUETAS_REPORTE = {
 }
 
 
-def _miembro(usuario: dict, rol: str) -> dict | None:
-    """El teammember del CRM que corresponde a este usuario, por su nombre de pila."""
+def _miembro(usuario: dict, rol: str, crear: bool = True) -> dict | None:
+    """El teammember del CRM que corresponde a este usuario, por su nombre de pila.
+
+    Si el usuario es de ATV Ops y todavía no existe en el CRM, se crea: el equipo se
+    administra desde acá y el CRM viejo se va quedando como espejo mientras dure.
+    """
     base = _norm(usuario.get("nombre") or usuario.get("username") or "")
     if not base:
         return None
     primero = base.split()[0]
-    for m in crm_db.consultar("SELECT id, user_id, nombre, rol FROM teammember WHERE activo ORDER BY id"):
+    miembros = crm_db.consultar("SELECT id, user_id, nombre, rol FROM teammember WHERE activo ORDER BY id")
+    for m in miembros:
         if m["rol"] == rol and _norm(m["nombre"]).split()[:1] == [primero]:
             return m
-    return None
+    # Solo se da de alta a la persona real, no a un admin mirando la vista de otro rol.
+    if not crear or (usuario.get("rol") or "") != rol:
+        return None
+    nombre = (usuario.get("nombre") or usuario.get("username") or "").strip()[:120]
+    if not nombre:
+        return None
+    user_id = min((m["user_id"] for m in miembros), default=1)
+    crm_db.ejecutar(
+        "INSERT INTO teammember (user_id, nombre, rol, activo, created_at) VALUES (%s, %s, %s, true, now())",
+        (user_id, nombre, rol),
+    )
+    logger.info("Alta de %s como %s en el equipo (venía de ATV Ops)", nombre, rol)
+    creado = crm_db.consultar(
+        "SELECT id, user_id, nombre, rol FROM teammember WHERE nombre = %s AND rol = %s ORDER BY id DESC LIMIT 1",
+        (nombre, rol),
+    )
+    return creado[0] if creado else None
 
 
 def mis_reportes(usuario: dict, mes: str | None = None, rol: str = "setter") -> dict:
@@ -548,7 +569,7 @@ def mis_reportes(usuario: dict, mes: str | None = None, rol: str = "setter") -> 
     miembro = _miembro(usuario, rol)
     if miembro is None:
         return {"mes": mes, "miembro": None, "campos": [], "dias": [],
-                "detalle": "No encontramos tu nombre en el equipo del CRM. Pedile a Franco que lo cargue."}
+                "detalle": "Todavía no estás dado de alta como parte del equipo. Avisale a Franco."}
 
     tabla = f"{rol}_report"
     filas = crm_db.consultar(
@@ -599,7 +620,7 @@ def guardar_reporte(fecha: str, datos: dict, usuario: dict, rol: str = "setter")
         raise HTTPException(status_code=400, detail="No se puede cargar un día que todavía no pasó.")
     miembro = _miembro(usuario, rol)
     if miembro is None:
-        raise HTTPException(status_code=400, detail="No encontramos tu nombre en el equipo del CRM.")
+        raise HTTPException(status_code=400, detail="Todavía no estás dado de alta como parte del equipo.")
 
     campos = CAMPOS_REPORTE[rol]
     valores = {}
