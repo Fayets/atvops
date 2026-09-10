@@ -786,6 +786,15 @@ export async function guardarResultadoLlamada(leadId, payload, mes, { lista = tr
   });
 }
 
+/** Cargar a mano una reunión que nunca pasó por el calendario (un referido, un chat). */
+export async function crearLlamada(payload) {
+  return pedir('/api/ventas/llamadas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 /**
  * Para cada reunión del calendario, si ya tiene el resultado cargado y con qué id.
  * El calendario del equipo lo usa para pintar lo cargado y para editarlo ahí mismo.

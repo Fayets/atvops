@@ -151,7 +151,14 @@ export default function ReporteSemanal() {
           <div className="kpi-grid">
             <Metrica label="Llamadas agendadas" valor={v.agendadas} nota={<Delta actual={v.agendadas} previo={vp.agendadas} />} />
             <Metrica label="Se presentaron" valor={v.shows} nota={v.showRate != null ? `${v.showRate}% de show` : 'sin llamadas evaluables'} />
-            <Metrica label="Ventas" valor={v.cierres} nota={v.closeRate != null ? `${v.closeRate}% de cierre` : 'sin shows esta semana'} />
+            <Metrica
+              label="Ventas"
+              valor={v.cierres}
+              nota={[
+                v.closeRate != null ? `${v.closeRate}% de cierre` : 'sin shows esta semana',
+                v.senas ? `${v.senas} con seña aparte` : null,
+              ].filter(Boolean).join(' · ')}
+            />
             <Metrica label="Cash cobrado" valor={v.cashUsd} format="usd"
               nota={`facturado ${formatValue(v.facturacionUsd ?? 0, 'usd')}`} />
           </div>

@@ -267,7 +267,7 @@ def _aplicar_lo_propio(filas: list[dict]) -> list[dict]:
         if dato["descartada"]:
             f["resultado"] = "descartada"
             continue
-        f["resultado"] = _norm(dato["resultado"])
+        f["resultado"] = dato["resultado"].strip().lower()
         f["programa_ofrecido"] = dato["programa"]
         f["pago"] = dato["cashUsd"]
         f["debe"] = dato["saldoUsd"]
@@ -431,11 +431,33 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "reporte": (f.get("closer_report") or "").strip(),
             "segunda": bool(f.get("segunda")),
         }
+    # Las cargadas a mano no tienen evento de Google: el calendario las dibuja con esto.
+    manuales = []
+    for f in filas:
+        if f.get("duplicada") or not isinstance(f.get("id"), int):
+            continue
+        if not str(f.get("agendo_en") or "").strip().lower().startswith("atv ops"):
+            continue
+        dato = por_evento.get(f"manual:{f['id']}") or {
+            "id": f["id"], "eventoId": f"manual:{f['id']}",
+            "prospecto": (f.get("nombre") or "").strip(),
+            "fechaAt": f["call"].isoformat(),
+            "resultado": "" if f["call"] > ahora else (f.get("resultado") or "").strip(),
+            "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora),
+            "closer": f.get("closer") or "", "setter": f.get("setter") or "",
+            "programa": (f.get("programa_ofrecido") or "").strip(),
+            "facturacionUsd": precios.get(_norm((f.get("programa_ofrecido") or "")), 0.0),
+            "cashUsd": _num(f.get("pago")), "saldoUsd": _num(f.get("debe")),
+            "reporte": (f.get("closer_report") or "").strip(), "segunda": False,
+        }
+        por_evento[dato["eventoId"]] = dato
+        manuales.append({**dato, "manual": True})
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "desde": desde.isoformat(), "hasta": hasta.isoformat(),
         "programas": programas(), "estados": list(ESTADOS_LLAMADA),
         "porEvento": por_evento,
+        "manuales": manuales,
     }
 
 
@@ -504,13 +526,17 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
 
     leads = [l for l in leads if _clase(l) not in ("descartada", "duplicada")]
     clases = [_clase(l) for l in leads]
-    cierres = [l for l, c in zip(leads, clases) if c == "cierre"]
+    ventas = [l for l, c in zip(leads, clases) if c == "cierre"]
+    # La seña no es un cierre: es plata que entró con la venta a medio hacer. Cuenta para
+    # el cash, no para el close rate.
+    cierres = [l for l in ventas if _norm(l["resultado"]) == _norm("Cerrado")]
+    senas = [l for l in ventas if l not in cierres]
     shows = sum(1 for c in clases if c in ("show", "cierre"))
     no_shows = sum(1 for c in clases if c == "no_show")
     sin_reportar = sum(1 for c in clases if c == "sin_reportar")
     sin_crm = sum(1 for c in clases if c == "sin_crm")
     agendados = len(leads)
-    cash = sum(_num(l["pago"]) for l in cierres)
+    cash = sum(_num(l["pago"]) for l in ventas)
     evaluables = shows + no_shows
     return {
         "agendados": agendados,
@@ -519,11 +545,13 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "sinReportar": sin_reportar,
         "sinCrm": sin_crm,
         "cierres": len(cierres),
+        "senas": len(senas),
+        "ventas": len(ventas),
         "cashUsd": round(cash, 2),
-        "deudaUsd": round(sum(_num(l["debe"]) for l in cierres), 2),
+        "deudaUsd": round(sum(_num(l["debe"]) for l in ventas), 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
-        "averageSaleUsd": round(cash / len(cierres), 2) if cierres else 0,
+        "averageSaleUsd": round(cash / len(ventas), 2) if ventas else 0,
     }
 
 
@@ -1019,6 +1047,54 @@ def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False
     logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
     _olvidar_meses()
     return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
+
+
+def crear_llamada_manual(datos: dict, usuario: dict) -> dict:
+    """Una reunión que existió pero nunca pasó por el calendario.
+
+    El referido que Nick cerró por privado, la llamada que se armó por chat: no hay evento
+    de Google, así que se carga a mano y desde acá entra a las métricas como cualquier otra.
+    """
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cargar llamadas.")
+    prospecto = str(datos.get("prospecto") or "").strip()[:200]
+    if not prospecto:
+        raise HTTPException(status_code=400, detail="Falta el nombre del prospecto.")
+    try:
+        cuando = datetime.fromisoformat(str(datos.get("fechaAt") or "").replace("Z", "")).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="La fecha de la reunión no es válida.")
+
+    email = _norm(datos.get("email"))
+    duenio = _duenio_de_cada_lead()
+    base = (duenio.get(f"email:{email}") if email else None) or duenio.get(f"nombre:{_clave_persona(prospecto)}") or {}
+    quien = (usuario.get("nombre") or usuario.get("username") or "")
+    closer = str(datos.get("closer") or "").strip() or base.get("closer") or (
+        quien if usuario.get("rol") in {"closer", "ventas"} else "")
+    origen = str(datos.get("origen") or "").strip() or "Referido"
+
+    columnas = ", ".join(_VACIOS_LEAD)
+    valores = ", ".join(["''"] * len(_VACIOS_LEAD))
+    filas = crm_db.insertar(
+        f"INSERT INTO lead (user_id, nombre, email, origen, closer, setter, call, agendo, agendo_en, "
+        f"status, estado, programa_ofrecido, notas, closer_report, created_at, {columnas}) "
+        f"VALUES ((SELECT coalesce(min(user_id), 1) FROM lead), %s, %s, %s, %s, %s, %s, now(), "
+        f"'ATV Ops', 'Agendado', '', '', %s, '', now(), {valores}) RETURNING id",
+        (prospecto, email, origen, closer, str(datos.get("setter") or "").strip(),
+         _a_utc(cuando), str(datos.get("nota") or "").strip()[:500]),
+    )
+    if not filas:
+        raise HTTPException(status_code=502, detail="No se pudo crear la llamada.")
+    lead_id = int(filas[0]["id"])
+    _guardar_propio(lead_id, f"manual:{lead_id}", prospecto, usuario.get("username") or "",
+                    inicio_at=cuando)
+    logger.info("Llamada cargada a mano por %s: %s el %s", usuario.get("username"), prospecto, cuando)
+    _olvidar_meses()
+
+    resultado = str(datos.get("resultado") or "").strip()
+    if resultado:
+        registrar_resultado(lead_id, {**datos, "evento": f"manual:{lead_id}"}, usuario, con_lista=False)
+    return {"id": lead_id, "prospecto": prospecto, "fechaAt": cuando.isoformat(), "closer": closer}
 
 
 def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,

@@ -41,7 +41,7 @@ function parseAt(iso) {
  *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void }} props
  */
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
-                                           estados, onEditar }) {
+                                           estados, onEditar, onAgregar }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -140,6 +140,11 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       sub={sub ?? 'Google Calendar de ATV'}
       actions={
         <div className="ventas-cal-actions">
+          {onAgregar && (
+            <button type="button" className="btn sm" onClick={onAgregar} title="Cargar una reunión que no está en el calendario">
+              + Reunión
+            </button>
+          )}
           {onActualizar && (
             <button
               type="button"

@@ -120,6 +120,18 @@ def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recu
         raise HTTPException(status_code=500, detail=f"No se pudo borrar la llamada: {str(e)[:180]}")
 
 
+@router.post("/llamadas")
+def crear_llamada(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+    """Cargar a mano una reunión que nunca pasó por el calendario (un referido, un chat)."""
+    try:
+        return ventas.crear_llamada_manual(payload, user)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló crear la llamada a mano")
+        raise HTTPException(status_code=500, detail=f"No se pudo crear la llamada: {str(e)[:180]}")
+
+
 @router.get("/reuniones")
 def reuniones(_user: dict = Depends(get_current_user), desde: str | None = None, hasta: str | None = None):
     """Estado de cada reunión del calendario, para pintarlo y editarlo desde el calendario."""

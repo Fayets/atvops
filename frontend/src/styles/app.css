@@ -5119,6 +5119,7 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-derecha { display: flex; align-items: center; gap: 8px; }
 .llamada-form { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-4); }
 .llamada-estados { display: flex; flex-wrap: wrap; gap: 6px; }
+.campo-titulo { display: block; font-size: 11.5px; color: var(--text-3); margin-bottom: 6px; }
 /* Metas individuales: una fila por persona, la misma grilla en todas, y una barra que
    dice de un vistazo si va en ritmo con lo que lleva transcurrido el mes. */
 .meta-ind-tabla { display: grid; }

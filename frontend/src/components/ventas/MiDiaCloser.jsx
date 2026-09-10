@@ -157,8 +157,11 @@ export default function MiDiaCloser({ data }) {
         <Kpi label="No show" valor={pct(mes.noShowRate)} tono={mes.noShows ? 'var(--warn)' : undefined}
           nota={`${mes.noShows ?? 0} llamadas caídas`}
           onVer={ver('No show', 'Las que no se presentaron o se cancelaron.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '', 'Resultado')} />
-        <Kpi label="Close rate" valor={pct(mes.closeRate)} nota={`${mes.cierres ?? 0} sobre ${mes.shows ?? 0} shows`}
-          onVer={ver('Close rate', 'Las ventas sobre las llamadas que sí se presentaron.', shows, (l) => (l.estado === 'cierre' ? dinero(l) : '—'), 'Cash')} />
+        <Kpi
+          label="Close rate"
+          valor={pct(mes.closeRate)}
+          nota={`${mes.cierres ?? 0} cerradas sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
+          onVer={ver('Close rate', 'Las ventas cerradas sobre las llamadas que sí se presentaron. Las señas no cuentan: la venta todavía no está hecha.', shows, (l) => (l.estado === 'cierre' ? dinero(l) : '—'), 'Cash')} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
           nota={`cash promedio ${formatValue(mes.cashPromedioUsd ?? 0, 'usd')}`}
           onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'), 'Facturación')} />

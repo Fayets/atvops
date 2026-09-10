@@ -66,21 +66,25 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
     clases = [ventas._clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
                                  f.get("soloCalendario", False)) for f in filas]
     utiles = [(f, c) for f, c in zip(filas, clases) if c != "descartada"]
-    cierres = [f for f, c in utiles if c == "cierre"]
+    ventas_cerradas = [f for f, c in utiles if c == "cierre"]
+    # La seña no suma al close rate: la venta todavía no está hecha.
+    cierres = [f for f in ventas_cerradas if ventas._norm(f["resultado"]) == ventas._norm("Cerrado")]
+    senas = [f for f in ventas_cerradas if f not in cierres]
     shows = sum(1 for _, c in utiles if c in ("show", "cierre"))
     no_shows = sum(1 for _, c in utiles if c == "no_show")
     sin_crm = sum(1 for _, c in utiles if c == "sin_crm")
-    cash = sum(_num(f["pago"]) for f in cierres)
-    facturacion = sum(precios.get(ventas._norm((f["programa_ofrecido"] or "")), 0.0) for f in cierres)
+    cash = sum(_num(f["pago"]) for f in ventas_cerradas)
+    facturacion = sum(precios.get(ventas._norm((f["programa_ofrecido"] or "")), 0.0) for f in ventas_cerradas)
 
     por_closer: dict[str, dict] = {}
     for f, c in utiles:
         nombre = (f["closer"] or "").strip() or "Sin asignar"
-        b = por_closer.setdefault(nombre, {"nombre": nombre, "agendadas": 0, "shows": 0, "cierres": 0, "cashUsd": 0.0})
+        b = por_closer.setdefault(nombre, {"nombre": nombre, "agendadas": 0, "shows": 0,
+                                           "cierres": 0, "senas": 0, "cashUsd": 0.0})
         b["agendadas"] += 1
         b["shows"] += 1 if c in ("show", "cierre") else 0
         if c == "cierre":
-            b["cierres"] += 1
+            b["cierres" if f in cierres else "senas"] += 1
             b["cashUsd"] += _num(f["pago"])
 
     evaluables = shows + no_shows
@@ -90,12 +94,13 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
         "noShows": no_shows,
         "sinReportar": sum(1 for _, c in utiles if c == "sin_reportar"),
         "sinCrm": sin_crm,
+        "senas": len(senas),
         "cierres": len(cierres),
         "cashUsd": round(cash, 2),
         "facturacionUsd": round(facturacion, 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
-        "aovUsd": round(facturacion / len(cierres), 2) if cierres else 0,
+        "aovUsd": round(facturacion / len(ventas_cerradas), 2) if ventas_cerradas else 0,
         "porCloser": sorted(
             [{**b, "cashUsd": round(b["cashUsd"], 2)} for b in por_closer.values()],
             key=lambda x: -x["cashUsd"],
@@ -110,7 +115,7 @@ def _bloque_ventas(desde: date, hasta: date) -> dict:
                 "facturacionUsd": precios.get(ventas._norm((f["programa_ofrecido"] or "")), 0.0),
                 "fechaAt": f["call"].isoformat() if f["call"] else None,
             }
-            for f in cierres
+            for f in ventas_cerradas
         ],
     }
 

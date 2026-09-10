@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import EditorReunion from './EditorReunion.jsx';
+import NuevaReunion from './NuevaReunion.jsx';
 import CalendarioEquipo, { ESTADO } from './CalendarioEquipo.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
@@ -46,11 +47,34 @@ function urgenciaFollow(dias) {
 export default function VentasOperativa({ data, agenda, agendaError, actualizando, onActualizar, onRango,
                                           reuniones, onCargado }) {
   const [editando, setEditando] = useState(null);
+  const [agregando, setAgregando] = useState(false);
   const [detalle, setDetalle] = useState(null);
   const [filtroEvento, setFiltroEvento] = useState('todos');
   const [filtroTipo, setFiltroTipo] = useState('todos');
 
-  const llamados = agenda?.llamados ?? [];
+  // Las reuniones cargadas a mano no están en Google: se suman acá para que el calendario
+  // las dibuje igual que las demás.
+  const llamados = useMemo(() => {
+    const deGoogle = agenda?.llamados ?? [];
+    const manuales = (reuniones?.manuales ?? []).map((m) => ({
+      id: m.eventoId,
+      prospecto: m.prospecto,
+      titulo: m.prospecto,
+      email: '', telefono: '', instagram: '', facturacion: '', respuestas: [],
+      fechaAt: m.fechaAt,
+      duracionMin: 60,
+      todoElDia: false,
+      estado: 'pendiente',
+      oferta: 'Cargada a mano',
+      closer: m.closer || 'Equipo ATV',
+      invitados: [],
+      zoomUrl: null, meetUrl: null, url: null,
+      notasSetter: m.reporte || '',
+      montoUsd: m.cashUsd || null,
+      origen: 'atv-ops',
+    }));
+    return [...deGoogle, ...manuales];
+  }, [agenda?.llamados, reuniones?.manuales]);
 
   const pipeline = useMemo(() => {
     const ahora = new Date();
@@ -99,6 +123,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
           onRango={onRango}
           estados={reuniones?.porEvento}
           onEditar={(reunion, estado) => setEditando({ reunion, estado })}
+          onAgregar={() => setAgregando(true)}
         />
       )}
 
@@ -244,6 +269,14 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
       </Card>
 
       {detalle && <DetalleLlamada llamada={detalle} onCerrar={() => setDetalle(null)} />}
+      {agregando && (
+        <NuevaReunion
+          programas={reuniones?.programas ?? []}
+          estados={reuniones?.estados ?? []}
+          onCreada={onCargado}
+          onCerrar={() => setAgregando(false)}
+        />
+      )}
       {editando && (
         <EditorReunion
           reunion={editando.reunion}
