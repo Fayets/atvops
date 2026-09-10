@@ -5446,3 +5446,22 @@ body.gate-abierto .shell { display: none; }
 .meta-falta { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; font-size: 11.5px; }
 @media (max-width: 900px) { .meta-fila { grid-template-columns: 1fr; gap: 6px; } .meta-numeros, .meta-falta { text-align: left; justify-content: flex-start; } }
 
+
+/* Proyección del mes: columnas fijas para que los números se lean uno debajo del otro. */
+.proy-tabla { display: grid; }
+.proy-fila { display: grid; align-items: center; gap: var(--space-3);
+  grid-template-columns: minmax(150px, 1.6fr) repeat(5, minmax(70px, 1fr));
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-soft); }
+.proy-tabla.origen .proy-fila { grid-template-columns: minmax(150px, 1.6fr) repeat(4, minmax(70px, 1fr)); }
+.proy-fila:last-child { border-bottom: none; }
+.proy-fila > span:not(:first-child) { text-align: right; }
+.proy-fila.cabecera { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-3); background: var(--surface); }
+.proy-bien { color: var(--ok); font-weight: 600; }
+.proy-mal { color: var(--brand-hi); font-weight: 600; }
+.proy-acciones { margin: 0; padding-left: 1.1em; display: grid; gap: var(--space-3); }
+.proy-acciones li { line-height: 1.6; }
+@media (max-width: 900px) {
+  .proy-fila { grid-template-columns: minmax(110px, 1.4fr) repeat(3, minmax(60px, 1fr)); }
+  .proy-fila > span:nth-child(3), .proy-fila > span:nth-child(5) { display: none; }
+}

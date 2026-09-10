@@ -85,6 +85,34 @@ export function tasasImplicitas(decreto) {
   };
 }
 
+/**
+ * Adónde llega el mes si sigue el ritmo de hasta hoy.
+ *
+ * No es un pronóstico fino: es la cuenta que se hace a mano cuando alguien pregunta "¿y
+ * si seguimos así?". Sirve para decidir a mitad de mes, que es cuando todavía se puede
+ * hacer algo, y no el 30 mirando el resultado.
+ *
+ * @param {{ real: number, meta: number, diaHoy: number, diasMes: number }} p
+ */
+export function proyectarMes({ real, meta, diaHoy, diasMes }) {
+  const dias = Math.max(diaHoy, 1);
+  const restantes = Math.max(diasMes - diaHoy, 0);
+  const ritmoDia = real / dias;
+  const proyectado = Math.round(ritmoDia * diasMes);
+  const falta = Math.max((meta ?? 0) - real, 0);
+  return {
+    real,
+    meta: meta ?? 0,
+    ritmoDia,
+    proyectado,
+    // Cuánto hay que hacer por día en lo que queda para llegar igual.
+    necesarioDia: restantes > 0 ? falta / restantes : falta,
+    diasRestantes: restantes,
+    // Sin meta cargada no hay nada que comparar: no se inventa un semáforo.
+    zona: !meta ? null : proyectado >= meta ? 'ok' : proyectado >= meta * 0.85 ? 'warn' : 'alert',
+  };
+}
+
 export function tasasReales(real) {
   return {
     chatAConv: real.chats ? real.conversaciones / real.chats : 0,

@@ -12,6 +12,7 @@ import HomeMarketingPage from './pages/HomeMarketingPage.jsx';
 import ContenidoPage from './pages/marketing/ContenidoPage.jsx';
 import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
+import MarketingOpsPage from './pages/MarketingOpsPage.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
 import Metas from './pages/Metas.jsx';
@@ -87,6 +88,12 @@ function VentasPerformanceRoute() {
   return <VentasPerformancePage />;
 }
 
+/** Operaciones ve la proyección del mes; marketing, su tablero de contenido. */
+function MarketingIndex() {
+  const { rol } = useRol();
+  return rol === 'marketing' ? <Marketing /> : <MarketingOpsPage />;
+}
+
 function HomeIndex() {
   const { rol } = useRol();
   // Closer / Setter no ven el cuadro de mando de la empresa.
@@ -137,7 +144,7 @@ export default function App() {
             </Route>
 
             <Route path="marketing">
-              <Route index element={<Marketing />} />
+              <Route index element={<MarketingIndex />} />
               <Route path="calendario" element={<ContenidoPage vista="calendario" />} />
               <Route path="reels" element={<ContenidoPage vista="reels" />} />
               <Route path="historias" element={<ContenidoPage vista="historias" />} />
