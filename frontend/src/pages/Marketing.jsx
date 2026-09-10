@@ -11,6 +11,8 @@ import { getInstagram, getMarketing, getMetasMes } from '../data/api.js';
 import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
+import { useRol } from '../lib/RolContext.jsx';
+import { puedeVerRuta } from '../lib/roles.js';
 
 const FILTROS = [
   { id: 'todos', label: 'Todos' },
@@ -174,6 +176,7 @@ function ListaReels({ items }) {
 
 export default function Marketing() {
   const { mes } = useMes();
+  const { rol } = useRol();
   const [filtro, setFiltro] = useState('todos');
   const ig = useResource(() => getInstagram(mes), [mes]);
   const metas = useResource(() => getMetasMes(mes), [mes]);
@@ -275,9 +278,11 @@ export default function Marketing() {
             </div>
           )}
 
-          <p className="dim" style={{ margin: '14px 0 0', fontSize: 12.5 }}>
-            Gasto y campañas paid: <Link to="/ads">ir a Ads →</Link>
-          </p>
+          {puedeVerRuta('/ads', rol) && (
+            <p className="dim" style={{ margin: '14px 0 0', fontSize: 12.5 }}>
+              Gasto y campañas paid: <Link to="/ads">ir a Ads →</Link>
+            </p>
+          )}
         </Card>
       ) : ig.error ? (
         <ErrorState error={ig.error} />
