@@ -180,3 +180,39 @@ def test_metricas_closer_cuenta_toda_reunion_como_agenda():
     assert m["porVenir"] == 1
     assert m["shows"] == 2              # pero sí se presentó: cuenta como show
     assert m["closeRate"] == 50.0
+
+
+# ------------------------------------------------------------------ reprogramadas
+
+def test_la_llamada_que_se_cayo_y_se_rehizo_el_mismo_dia_no_es_no_show():
+    """Se cancela a la mañana y se hace a la tarde: se movió, no se perdió.
+
+    Contarla como caída ensucia el no show rate y le suma una agenda de más al setter,
+    cuando en el día hubo una sola reunión y el prospecto vino.
+    """
+    manana = fila("Juan Manuel Sanabria", datetime(2026, 9, 8, 9, 0), "cancelada", id=1)
+    tarde = fila("Juan Manuel Sanabria", datetime(2026, 9, 8, 20, 0), "seguimiento", id=2)
+    otro = fila("Adam", datetime(2026, 9, 4, 8, 30), "no show", id=3)
+    v._marcar_reprogramadas([manana, tarde, otro], AHORA)
+
+    assert manana["reprogramada"] and not tarde["reprogramada"]
+    assert not otro["reprogramada"]          # nadie lo rehizo: ese sí se perdió
+    assert v._clasificar(manana["resultado"], "", manana["call"], AHORA, reprogramada=True) == "reprogramada"
+
+
+def test_una_caida_que_se_rehace_otro_dia_si_es_no_show():
+    """El closer tuvo el hueco y alguien tuvo que volver a traerla."""
+    lunes = fila("Pedro", datetime(2026, 9, 7, 10, 0), "cancelada", id=1)
+    jueves = fila("Pedro", datetime(2026, 9, 10, 10, 0), "seguimiento", id=2)
+    v._marcar_reprogramadas([lunes, jueves], AHORA)
+    assert not lunes["reprogramada"]
+
+
+def test_la_reprogramada_no_se_queda_con_la_agenda_del_dia(monkeypatch):
+    """La agenda es de la reunión que se hizo, no de la que se cayó."""
+    monkeypatch.setattr(v, "_primera_reunion_de_cada_uno", lambda: {})
+    manana = fila("Sanabria", datetime(2026, 9, 8, 9, 0), "cancelada", id=1, reprogramada=True)
+    tarde = fila("Sanabria", datetime(2026, 9, 8, 20, 0), "seguimiento", id=2, reprogramada=False)
+    v._marcar_seguimientos([manana, tarde])
+    assert manana["seguimiento"] is False    # no cuenta, pero tampoco ocupa el lugar
+    assert tarde["seguimiento"] is False     # esta es la primera real del prospecto

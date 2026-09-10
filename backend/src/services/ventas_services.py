@@ -54,7 +54,11 @@ _CON_RESULTADO_N = frozenset(_norm(x) for x in CON_RESULTADO)
 
 
 def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime,
-                solo_calendario: bool = False, duplicada: bool = False) -> str:
+                solo_calendario: bool = False, duplicada: bool = False,
+                reprogramada: bool = False) -> str:
+    # Se cayó pero la reunión se hizo más tarde el mismo día: se movió, no se perdió.
+    if reprogramada:
+        return "reprogramada"
     # La reunión que está en el calendario pero no en el CRM cuenta como agendada del mes,
     # pero no como show ni como deuda del closer: nadie puede cargarle un resultado.
     if solo_calendario:
@@ -355,9 +359,10 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
     """
     from src.services import gcal_services
 
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     filas = filas + _llamadas_propias(desde, hasta)
     if not gcal_services.configurado():
-        return _marcar_seguimientos(_marcar_duplicados(filas))
+        return _marcar_seguimientos(_marcar_reprogramadas(_marcar_duplicados(filas), ahora))
     inicio = datetime.combine(desde, time.min).replace(tzinfo=AR_TZ)
     fin_rango = datetime.combine(hasta, time.min).replace(tzinfo=AR_TZ)
     reuniones = gcal_services.reuniones_venta(inicio, fin_rango)
@@ -443,8 +448,10 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         })
     if extras:
         logger.info("Calendario: %s reuniones que el CRM no registró", len(extras))
-    return sorted(_marcar_seguimientos(_marcar_duplicados(_aplicar_lo_propio(filas + extras))),
-                  key=lambda f: f["call"])
+    return sorted(
+        _marcar_seguimientos(_marcar_reprogramadas(
+            _marcar_duplicados(_aplicar_lo_propio(filas + extras)), ahora)),
+        key=lambda f: f["call"])
 
 
 def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
@@ -613,6 +620,32 @@ def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
     return primeras
 
 
+def _marcar_reprogramadas(filas: list[dict], ahora: datetime) -> list[dict]:
+    """La llamada que se cayó y se rehízo el mismo día no es un no show.
+
+    Pasa seguido: se cancela a la mañana y se hace a la tarde. Contarla como caída ensucia
+    el no show rate y le suma una agenda de más al setter, cuando en el día hubo una sola
+    reunión y el prospecto vino.
+
+    Solo aplica dentro del mismo día. Si se rearmó una semana después, esa sí se perdió:
+    el closer tuvo el hueco y alguien tuvo que volver a traerla.
+    """
+    hechas: set[tuple[str, date]] = set()
+    for f in filas:
+        clase = _clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
+                            f.get("soloCalendario", False), f.get("duplicada", False))
+        clave = _clave_persona(f.get("nombre"))
+        if clase in ("show", "cierre") and clave and f["call"]:
+            hechas.add((clave, f["call"].date()))
+    for f in filas:
+        clase = _clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
+                            f.get("soloCalendario", False), f.get("duplicada", False))
+        clave = _clave_persona(f.get("nombre"))
+        f["reprogramada"] = bool(
+            clase == "no_show" and clave and f["call"] and (clave, f["call"].date()) in hechas)
+    return filas
+
+
 def _marcar_seguimientos(filas: list[dict]) -> list[dict]:
     """Marca qué reuniones son seguimiento: las que no son la primera del prospecto.
 
@@ -624,6 +657,9 @@ def _marcar_seguimientos(filas: list[dict]) -> list[dict]:
     for f in sorted(filas, key=lambda x: x["call"]):
         clave = _clave_persona(f.get("nombre"))
         if not clave:
+            continue
+        if f.get("reprogramada"):
+            f["seguimiento"] = False
             continue
         primera = por_persona.get(clave)
         if primera is None or f["call"] <= primera:
@@ -671,9 +707,12 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     # Las descartadas quedan afuera de toda métrica.
     def _clase(l: dict) -> str:
         return _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
-                           l.get("soloCalendario", False), l.get("duplicada", False))
+                           l.get("soloCalendario", False), l.get("duplicada", False),
+                           l.get("reprogramada", False))
 
-    leads = [l for l in leads if _clase(l) not in ("descartada", "duplicada")]
+    # La descartada se saca a mano; la reprogramada, sola: ninguna de las dos es una
+    # reunión distinta.
+    leads = [l for l in leads if _clase(l) not in ("descartada", "duplicada", "reprogramada")]
     clases = [_clase(l) for l in leads]
     ventas = [l for l, c in zip(leads, clases) if c == "cierre"]
     # La seña no es un cierre: es plata que entró con la venta a medio hacer. Cuenta para
@@ -1097,10 +1136,12 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "facturaHoy": (l["ingresos_rango"] or "").strip(),
             "resultado": "" if l["call"] > ahora else (l["resultado"] or "").strip(),
             "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
-                                  l.get("soloCalendario", False), l.get("duplicada", False)),
+                                  l.get("soloCalendario", False), l.get("duplicada", False),
+                                  l.get("reprogramada", False)),
             "soloCalendario": bool(l.get("soloCalendario")),
             "segunda": bool(l.get("segunda")),
             "seguimiento": bool(l.get("seguimiento")),
+            "reprogramada": bool(l.get("reprogramada")),
             "eventoId": l.get("eventoId") or "",
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
@@ -1115,7 +1156,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     llamadas = [f for f in (_fila(l) for l in filas) if f["estado"] != "duplicada"]
     inicio_mes = hoy.replace(day=1)
     del_mes = [x for x in llamadas
-               if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes and x["estado"] != "descartada"]
+               if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes
+               and x["estado"] not in ("descartada", "reprogramada")]
     ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),

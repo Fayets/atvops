@@ -13,7 +13,7 @@ const fecha = (iso) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit
 
 const ESTADO_TEXTO = {
   cierre: 'venta', show: 'con show', no_show: 'no show', sin_reportar: 'sin cargar',
-  agendado: 'por venir', descartada: 'descartada',
+  agendado: 'por venir', descartada: 'descartada', reprogramada: 'se movió',
 };
 
 function Kpi({ label, valor, nota, tono, onVer }) {
@@ -156,12 +156,14 @@ export default function MiDiaCloser({ data, onCambio }) {
   const { mes = {}, llamadas = [] } = data ?? {};
   const [detalle, setDetalle] = useState(null);
 
-  // Las descartadas quedan afuera de todo: es lo mismo que hace el backend con los números.
+  // Afuera de todo, igual que en el backend: la descartada porque la sacaste a mano, y la
+  // que se cayó y se rehízo el mismo día porque no es una reunión distinta.
+  const FUERA = ['descartada', 'reprogramada'];
   const delMes = useMemo(() => {
     const inicio = new Date();
     inicio.setDate(1);
     inicio.setHours(0, 0, 0, 0);
-    return llamadas.filter((l) => new Date(l.fechaAt) >= inicio && l.estado !== 'descartada');
+    return llamadas.filter((l) => new Date(l.fechaAt) >= inicio && !FUERA.includes(l.estado));
   }, [llamadas]);
 
   const ventas = delMes.filter((l) => l.estado === 'cierre');
