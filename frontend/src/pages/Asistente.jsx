@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Mensaje from '../components/asistente/Mensaje.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import { preguntarAsistente } from '../data/api.js';
 import { formatFecha } from '../lib/format.js';
@@ -156,8 +157,7 @@ export default function Asistente() {
             )}
 
             {chat?.turnos.map((t) => (
-              <div key={t.id} className={`burbuja ${t.rol}`}>
-                <div className="burbuja-texto">{t.texto}</div>
+              <Mensaje key={t.id} turno={t} onReintentar={enviar}>
                 {t.citas?.length > 0 && (
                   <div className="burbuja-citas">
                     {t.citas.map((c) => (
@@ -173,7 +173,7 @@ export default function Asistente() {
                     {t.meta.coincidencias ? ` · ${t.meta.coincidencias} mensajes encontrados` : ''}
                   </div>
                 )}
-              </div>
+              </Mensaje>
             ))}
 
             {pensando && (

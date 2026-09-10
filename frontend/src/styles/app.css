@@ -5465,3 +5465,38 @@ body.gate-abierto .shell { display: none; }
   .proy-fila { grid-template-columns: minmax(110px, 1.4fr) repeat(3, minmax(60px, 1fr)); }
   .proy-fila > span:nth-child(3), .proy-fila > span:nth-child(5) { display: none; }
 }
+
+/* Markdown de las respuestas de ATV AI. */
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md-parrafo { margin: 0 0 var(--space-3); }
+.md-titulo { margin: var(--space-4) 0 var(--space-2); font-size: 14px; }
+.md-lista { margin: 0 0 var(--space-3); padding-left: 1.2em; display: grid; gap: 4px; }
+.md-cita { margin: 0 0 var(--space-3); padding: 6px 0 6px var(--space-3);
+  border-left: 2px solid var(--brand); color: var(--text-2); }
+.md code { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 4px;
+  padding: 1px 5px; font-size: 12.5px; }
+.md-codigo { position: relative; margin: 0 0 var(--space-3); padding: var(--space-4);
+  background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  overflow-x: auto; }
+.md-codigo code { background: none; border: 0; padding: 0; font-size: 12.5px; line-height: 1.55; }
+.md-codigo-lang { position: absolute; top: 6px; right: 10px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-3); }
+.md-tabla-scroll { overflow-x: auto; margin: 0 0 var(--space-3); }
+.md-tabla { border-collapse: collapse; width: 100%; font-size: 13px; }
+.md-tabla th, .md-tabla td { text-align: left; padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+.md-tabla th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+
+/* Copiar, reintentar y colapso de mensajes largos. */
+.burbuja-acciones { display: flex; gap: var(--space-2); margin-top: var(--space-3); opacity: 0; transition: opacity 0.15s; }
+.burbuja:hover .burbuja-acciones, .burbuja:focus-within .burbuja-acciones { opacity: 1; }
+.btn-mini { background: none; border: 1px solid var(--border-soft); border-radius: 6px;
+  color: var(--text-3); font: inherit; font-size: 11.5px; padding: 3px 9px; cursor: pointer; }
+.btn-mini:hover { color: var(--text); border-color: var(--border); }
+.btn-mini.hecho { color: var(--ok); border-color: var(--ok); }
+.burbuja-texto.recortada { -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent);
+  mask-image: linear-gradient(180deg, #000 70%, transparent); }
+.burbuja-abrir { background: none; border: 0; padding: 4px 0 0; color: var(--brand-hi);
+  font: inherit; font-size: 12px; cursor: pointer; }
+.burbuja-abrir:hover { text-decoration: underline; }
