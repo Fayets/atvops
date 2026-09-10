@@ -359,6 +359,31 @@ class PublicacionIg(db.Entity):
     actualizado_at = Required(datetime, default=datetime.utcnow)
 
 
+class ConversacionIg(db.Entity):
+    """Cada vez que alguien abrió una conversación por Instagram, o que se le mandó el link.
+
+    El bot de ManyChat es el que las abre: cuando alguien comenta la palabra de un reel o
+    escribe la palabra de la bio, arranca el flujo. Ese flujo avisa acá, así que la
+    conversación queda en la base de ATV Ops en el momento en que pasa, sin depender de
+    que atv-mkt siga levantado.
+
+    El mismo camino sirve para los links de Calendly que manda el flujo: no hay forma de
+    leerlos de los mensajes —Instagram no deja— pero sí de anotar cada envío cuando ocurre.
+    """
+
+    _table_ = _tabla("conversaciones_ig", "ConversacionIg")
+
+    id = PrimaryKey(int, auto=True)
+    evento = Required(str, index=True)        # conversacion | calendly | respuesta
+    at = Required(datetime, index=True)
+    ig_usuario = Optional(str, index=True)
+    nombre = Optional(str)
+    keyword = Optional(str, index=True)
+    content_url = Optional(str)
+    contacto_id = Optional(str, index=True)
+    payload = Optional(str)                   # lo que mandó ManyChat, por si hay que revisarlo
+
+
 class PublicacionYt(db.Entity):
     """Los videos del canal, traídos con la clave del canal.
 

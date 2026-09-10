@@ -1,7 +1,7 @@
 import HomeMarketing from '../components/marketing/HomeMarketing.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import { getInstagramPropio, getMarketing, getMetasMes, getYouTubePropio } from '../data/api.js';
+import { getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getYouTubePropio } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
@@ -19,6 +19,7 @@ export default function HomeMarketingPage() {
   // El contenido sale de la base propia, no del CRM de marketing.
   const ig = useResource(() => getInstagramPropio(mes), [mes]);
   const yt = useResource(() => getYouTubePropio(mes), [mes]);
+  const chats = useResource(() => getConversaciones(mes), [mes]);
 
   if (mkt.error) return <div className="page"><ErrorState error={mkt.error} /></div>;
 
@@ -38,6 +39,7 @@ export default function HomeMarketingPage() {
           marketing={mkt.data}
           decreto={metas.data?.decreto ?? {}}
           contexto={metas.data?.contexto ?? {}}
+          conversaciones={chats.data}
           instagram={ig.data}
           youtube={yt.data}
           nombreMes={nombreMes}

@@ -799,6 +799,11 @@ export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });
 }
 
+/** Las conversaciones que abrió Instagram y los Calendly enviados, de la base propia. */
+export async function getConversaciones(mes) {
+  return pedir(`/api/ventas/conversaciones${mes ? `?mes=${mes}` : ''}`);
+}
+
 /** Los videos del canal, de la base de ATV Ops. */
 export async function getYouTubePropio(mes) {
   return pedir(`/api/ventas/youtube${mes ? `?mes=${mes}` : ''}`);

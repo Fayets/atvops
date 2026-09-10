@@ -6,6 +6,7 @@ from src.controllers.auth_controller import get_current_user
 from src.services import cartera_services as cartera
 from src.services import instagram_services as instagram
 from src.services import youtube_services as youtube
+from src.services import conversaciones_services as conversaciones
 from src.services import marketing_services as marketing
 from src.services import onboarding_services as onboarding
 from src.services import reporte_semanal_services as reporte
@@ -151,6 +152,25 @@ def instagram_contenido(_user: dict = Depends(get_current_user), mes: str | None
     except Exception as e:  # noqa: BLE001
         log.exception("Falló leer el contenido de Instagram")
         raise HTTPException(status_code=500, detail=f"No se pudo leer Instagram: {str(e)[:180]}")
+
+
+@router.get("/conversaciones")
+def conversaciones_del_mes(_user: dict = Depends(get_current_user), mes: str | None = None):
+    """Las conversaciones que abrió Instagram y los Calendly que se mandaron, del mes."""
+    from datetime import date as _date
+
+    try:
+        hoy = _date.today()
+        mes = mes or hoy.strftime("%Y-%m")
+        anio, m = int(mes[:4]), int(mes[5:7])
+        inicio = _date(anio, m, 1)
+        fin = _date(anio + (m == 12), (m % 12) + 1, 1)
+        return {"mes": mes, **conversaciones.resumen(inicio, fin)}
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló leer las conversaciones")
+        raise HTTPException(status_code=500, detail=f"No se pudieron leer: {str(e)[:180]}")
 
 
 @router.get("/youtube")

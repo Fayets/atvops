@@ -13,7 +13,7 @@ import { formatValue } from '../../lib/format.js';
 const fecha = (iso) =>
   (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '—');
 
-function Numero({ label, valor, nota, format = 'count', tono }) {
+function Numero({ label, valor, nota, format = 'count', tono, fuente }) {
   return (
     <article className="kpi sm">
       <div className="kpi-label">{label}</div>
@@ -22,6 +22,7 @@ function Numero({ label, valor, nota, format = 'count', tono }) {
         {tono && <Pill tone={tono} dot>{tono === 'ok' ? 'en ritmo' : tono === 'warn' ? 'atención' : 'atrasado'}</Pill>}
       </div>
       {nota && <div className="kpi-nota">{nota}</div>}
+      {fuente && <div className="kpi-nota dim">{fuente}</div>}
     </article>
   );
 }
@@ -44,9 +45,10 @@ function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota, sinFuente
 
 /**
  * @param {{ marketing: object, decreto: object, contexto: {diaHoy: number, diasMes: number},
- *           instagram: object, youtube: object, nombreMes: string }} props
+ *           instagram: object, youtube: object, conversaciones: object, nombreMes: string }} props
  */
-export default function HomeMarketing({ marketing, decreto, contexto, instagram, youtube, nombreMes }) {
+export default function HomeMarketing({ marketing, decreto, contexto, instagram, youtube,
+                                        conversaciones, nombreMes }) {
   const conv = marketing?.conversaciones ?? {};
   const c = marketing?.contenido ?? {};
   const yt = youtube?.totales ?? {};
@@ -69,9 +71,12 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
   const diasMes = contexto?.diasMes ?? 30;
   const transcurrido = Math.min(100, Math.round((diaHoy / diasMes) * 100));
 
-  const metaChats = decreto?.chats ?? 0;
   const metaConversaciones = decreto?.conversaciones ?? 0;
-  const abiertas = conv.total ?? 0;
+  // Las propias son las que avisa el bot a ATV Ops. Mientras no llegue ninguna se sigue
+  // mostrando lo que cuenta el CRM, pero dicho: un número sin fuente no sirve para nada.
+  const propias = conversaciones?.conectado ? conversaciones : null;
+  const abiertas = propias ? propias.conversaciones : (conv.total ?? 0);
+  const calendlys = propias?.calendlys ?? 0;
   const pct = metaConversaciones ? Math.round((abiertas / metaConversaciones) * 100) : null;
   const tono = pct == null ? undefined : pct >= transcurrido ? 'ok' : pct >= transcurrido * 0.6 ? 'warn' : 'alert';
   const faltan = Math.max(metaConversaciones - abiertas, 0);
@@ -98,11 +103,14 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
             nota={metaConversaciones
               ? `${formatValue(metaConversaciones, 'count')} es la meta · faltan ${formatValue(faltan, 'count')}, ${formatValue(Math.ceil(faltan / semanasRestantes), 'count')} por semana`
               : 'Sin meta cargada en el decreto'}
+            fuente={propias ? 'las cuenta ATV Ops' : 'todavía las cuenta el CRM de atv-mkt'}
           />
           <Numero
-            label="Chats abiertos"
-            valor={0}
-            nota={metaChats ? `meta ${formatValue(metaChats, 'count')} · todavía sin fuente que los cuente` : 'sin fuente conectada'}
+            label="Calendly enviados"
+            valor={calendlys}
+            nota={propias
+              ? `${formatValue(propias.personas ?? 0, 'count')} personas escribieron este mes`
+              : 'el flujo de ManyChat todavía no le avisa a ATV Ops'}
           />
           <Numero label="Reels publicados" valor={propio.reels} nota={`${formatValue(propio.reproducciones, 'count')} reproducciones`} />
           <Numero label="Alcance" valor={propio.alcance} nota={`${formatValue(propio.interacciones, 'count')} interacciones`} />
