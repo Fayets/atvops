@@ -8,6 +8,7 @@ Nunca escribe: ATV Ops solo lee para mostrar métricas.
 
 from __future__ import annotations
 
+from contextlib import closing
 import logging
 
 from decouple import config
@@ -42,7 +43,7 @@ def ejecutar(sql: str, params: tuple | dict | None = None) -> int:
     except ImportError as e:
         raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
     try:
-        with psycopg2.connect(dsn(), connect_timeout=10) as cnx, cnx.cursor() as cur:
+        with closing(psycopg2.connect(dsn(), connect_timeout=10)) as cnx, cnx, cnx.cursor() as cur:
             cur.execute(sql, params or ())
             return cur.rowcount
     except HTTPException:
@@ -61,7 +62,7 @@ def insertar(sql: str, params: tuple | dict | None = None) -> list[dict]:
     except ImportError as e:
         raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
     try:
-        with psycopg2.connect(dsn(), connect_timeout=10) as cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
+        with closing(psycopg2.connect(dsn(), connect_timeout=10)) as cnx, cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params or ())
             filas = [dict(f) for f in cur.fetchall()]
         return filas
@@ -80,7 +81,7 @@ def consultar(sql: str, params: tuple | dict | None = None) -> list[dict]:
     except ImportError as e:
         raise HTTPException(status_code=503, detail="Falta psycopg2 en el servidor.") from e
     try:
-        with psycopg2.connect(dsn(), connect_timeout=10) as cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
+        with closing(psycopg2.connect(dsn(), connect_timeout=10)) as cnx, cnx, cnx.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params or ())
             return [dict(f) for f in cur.fetchall()]
     except HTTPException:

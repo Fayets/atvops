@@ -735,6 +735,22 @@ def crear_lead_desde_calendario(evento_id: str, usuario: dict) -> int:
     return nuevo_id
 
 
+def _lista_despues_de_guardar(usuario: dict, mes: str | None) -> dict:
+    """La lista que se devuelve después de guardar.
+
+    Si rearmarla falla (el calendario no contesta, el CRM tarda), el resultado ya quedó
+    guardado: se avisa que hay que recargar en vez de tirar un error que haga pensar que
+    no se guardó nada.
+    """
+    try:
+        return mis_llamadas(usuario, mes=mes)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Guardado ok pero no se pudo rearmar la lista: %s", str(e)[:200])
+        return {"generadoAt": datetime.now(AR_TZ).isoformat(), "guardado": True,
+                "detalle": "Se guardó, pero la lista no se pudo actualizar sola. Tocá Actualizar.",
+                "llamadas": [], "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA)}
+
+
 def _es_mia(lead_id: int, usuario: dict) -> None:
     filas = crm_db.consultar("SELECT closer FROM lead WHERE id = %s", (int(lead_id),))
     if not filas:
@@ -760,7 +776,7 @@ def descartar_llamada(lead_id: int | str, usuario: dict, recuperar: bool = False
     crm_db.ejecutar("UPDATE lead SET status = %s, estado = %s WHERE id = %s", (nuevo, nuevo, int(lead_id)))
     logger.info("Llamada %s marcada %s por %s", lead_id, nuevo, usuario.get("username"))
     _cache.clear()
-    return mis_llamadas(usuario, mes=mes)
+    return _lista_despues_de_guardar(usuario, mes)
 
 
 def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None) -> dict:
@@ -783,6 +799,8 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
     programa = str(datos.get("programa") or "").strip()[:120]
     if es_venta and not programa:
         raise HTTPException(status_code=400, detail="Para marcar una venta hay que elegir el programa.")
+    # El saldo ya no se pide en el formulario: si no viene, se deja el que tenga el CRM.
+    toca_saldo = "saldoUsd" in datos
     try:
         cash = round(float(datos.get("cashUsd") or 0), 2)
         saldo = round(float(datos.get("saldoUsd") or 0), 2)
@@ -792,18 +810,20 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
         raise HTTPException(status_code=400, detail="El cash y el saldo no pueden ser negativos.")
     if not es_venta:
         cash, saldo, programa = 0.0, 0.0, ""
+        toca_saldo = True  # una llamada que no es venta no deja deuda
     nota = str(datos.get("nota") or "").strip()[:2000]
     quien = (usuario.get("nombre") or usuario.get("username") or "")
 
     crm_db.ejecutar(
-        "UPDATE lead SET status = %s, estado = %s, programa_ofrecido = %s, pago = %s, debe = %s, "
+        f"UPDATE lead SET status = %s, estado = %s, programa_ofrecido = %s, pago = %s, "
+        f"{'debe = %s, ' if toca_saldo else ''}"
         "closer_report = COALESCE(NULLIF(%s, ''), closer_report), closer = COALESCE(NULLIF(closer, ''), %s) "
         "WHERE id = %s",
-        (resultado, resultado, programa, cash, saldo, nota, quien, int(lead_id)),
+        (resultado, resultado, programa, cash, *( (saldo,) if toca_saldo else () ), nota, quien, int(lead_id)),
     )
     logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
     _cache.clear()
-    return mis_llamadas(usuario, mes=mes)
+    return _lista_despues_de_guardar(usuario, mes)
 
 
 # ------------------------------------------------- reportes diarios del setter

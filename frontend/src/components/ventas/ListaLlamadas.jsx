@@ -33,7 +33,6 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
   const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
-  const [saldo, setSaldo] = useState(llamada.saldoUsd || '');
   const [nota, setNota] = useState(llamada.reporte || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -45,8 +44,9 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
     setGuardando(true);
     setError(null);
     try {
+      // El saldo no se pide: lo que quedó debiendo se ve en Cobranza, no acá.
       onGuardado(await guardarResultadoLlamada(llamada.id, {
-        resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), saldoUsd: saldo === '' ? 0 : Number(saldo), nota,
+        resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), nota,
       }, mes));
     } catch (e) {
       setError(e.message);
@@ -84,15 +84,11 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
             <span>Cash cobrado (USD)</span>
             <input type="number" inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} placeholder="0" />
           </label>
-          <label className="campo">
-            <span>Queda debiendo (USD)</span>
-            <input type="number" inputMode="decimal" value={saldo} onChange={(e) => setSaldo(e.target.value)} placeholder="0" />
-          </label>
           {precio > 0 && (
             <div className="llamada-precio dim">
               Facturación {formatValue(precio, 'usd')}
-              {cash !== '' && saldo !== '' && Number(cash) + Number(saldo) !== precio
-                ? ` · cargaste ${formatValue(Number(cash) + Number(saldo), 'usd')}`
+              {cash !== '' && Number(cash) !== precio
+                ? ` · quedan ${formatValue(Math.max(precio - Number(cash), 0), 'usd')} por cobrar`
                 : ''}
             </div>
           )}

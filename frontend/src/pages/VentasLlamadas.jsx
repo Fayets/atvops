@@ -84,7 +84,10 @@ export default function VentasLlamadas() {
               llamadas={filas}
               programas={vista?.programas ?? []}
               estados={vista?.estados ?? []}
-              onActualizado={setLocal}
+              onActualizado={(nuevo) => {
+                // El backend avisa cuando guardó pero no pudo rearmar la lista: se recarga.
+                if (nuevo?.guardado) { setLocal(null); setTick((n) => n + 1); } else setLocal(nuevo);
+              }}
               mes={mes}
             />
           </Card>

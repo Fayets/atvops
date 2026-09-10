@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from src.controllers.auth_controller import get_current_user
@@ -8,6 +10,7 @@ from src.services import reporte_semanal_services as reporte
 from src.services import ventas_services as ventas
 
 router = APIRouter()
+log = logging.getLogger("atv_ops.ventas")
 
 
 @router.get("")
@@ -98,8 +101,10 @@ def registrar_resultado(lead_id: str, user: dict = Depends(get_current_user), pa
         return ventas.registrar_resultado(lead_id, payload, user, mes=mes)
     except HTTPException as e:
         raise e
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error inesperado al guardar el resultado.")
+    except Exception as e:  # noqa: BLE001
+        # Con el motivo a la vista se puede arreglar; el mensaje genérico no decía nada.
+        log.exception("Falló guardar el resultado de la llamada %s", lead_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el resultado: {str(e)[:180]}")
 
 
 @router.post("/llamadas/{lead_id}/descartar")
@@ -110,8 +115,9 @@ def descartar_llamada(lead_id: str, user: dict = Depends(get_current_user), recu
         return ventas.descartar_llamada(lead_id, user, recuperar=recuperar, mes=mes)
     except HTTPException as e:
         raise e
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error inesperado al borrar la llamada.")
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló borrar la llamada %s", lead_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo borrar la llamada: {str(e)[:180]}")
 
 
 @router.get("/reuniones")

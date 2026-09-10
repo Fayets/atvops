@@ -13,6 +13,7 @@ Solo lectura. Se cachea 5 minutos para no pegarle a Google en cada carga de la v
 
 from __future__ import annotations
 
+from contextlib import closing
 import html
 import json
 import logging
@@ -60,7 +61,7 @@ def _filas_conexion() -> list:
             logger.info("Falta psycopg2 para leer la conexión de atv-mkt.")
             return []
         try:
-            with psycopg2.connect(CONEXION_DSN, connect_timeout=8) as cnx, cnx.cursor() as cur:
+            with closing(psycopg2.connect(CONEXION_DSN, connect_timeout=8)) as cnx, cnx, cnx.cursor() as cur:
                 cur.execute(sql)
                 return cur.fetchall()
         except Exception as e:  # noqa: BLE001

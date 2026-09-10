@@ -7,9 +7,9 @@ const fecha = (iso) =>
  * Cargar o corregir el resultado de una reunión sin salir del calendario.
  * Es el mismo formulario de la lista de llamadas, así el closer no aprende dos cosas.
  * @param {{ reunion: object, estado: object, programas: object[], estados: string[],
- *           onGuardado: () => void, onCerrar: () => void }} props
+ *           onGuardado: () => void, onCerrar: () => void, mes?: string }} props
  */
-export default function EditorReunion({ reunion, estado, programas, estados, onGuardado, onCerrar }) {
+export default function EditorReunion({ reunion, estado, programas, estados, onGuardado, onCerrar, mes }) {
   const llamada = {
     id: estado.id,
     prospecto: estado.prospecto || reunion.prospecto,
@@ -45,6 +45,7 @@ export default function EditorReunion({ reunion, estado, programas, estados, onG
           estados={estados}
           onGuardado={() => { onGuardado(); onCerrar(); }}
           onCerrar={onCerrar}
+          mes={mes}
         />
       </div>
     </div>
