@@ -21,6 +21,7 @@ import unicodedata
 from datetime import date, datetime, time, timedelta, timezone
 
 from decouple import config
+from fastapi import HTTPException
 
 from src.services import crm_db
 from src.services.transcripts_services import AR_TZ
