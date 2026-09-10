@@ -5,10 +5,11 @@ import { guardarResultadoLlamada } from '../../data/api.js';
 
 const VENTA = ['Cerrado', 'Seña'];
 const TONO = {
-  cierre: 'ok', show: 'plain', no_show: 'alert', sin_reportar: 'warn', agendado: 'off',
+  cierre: 'ok', show: 'plain', no_show: 'alert', sin_reportar: 'warn', agendado: 'off', descartada: 'off',
 };
 const LABEL = {
-  cierre: 'venta', show: 'reportada', no_show: 'no show', sin_reportar: 'falta cargar', agendado: 'agendada',
+  cierre: 'venta', show: 'reportada', no_show: 'no show', sin_reportar: 'falta cargar',
+  agendado: 'agendada', descartada: 'descartada',
 };
 
 const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });

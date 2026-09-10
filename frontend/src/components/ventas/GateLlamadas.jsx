@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import LlamadasPendientes from './LlamadasPendientes.jsx';
 import { getMisLlamadas, login } from '../../data/api.js';
+import { GATE_KEY as CLAVE_SALIDA } from '../../lib/auth.js';
 import { useRol } from '../../lib/RolContext.jsx';
-
-const CLAVE_SALIDA = 'atv-ops:gate-liberado';
 const ROLES_SALIDA = ['admin', 'founder', 'operaciones'];
 
 /** Salida discreta: un admin, founder u ops pone su clave y libera la pantalla. */
-function SalidaAdmin({ onLiberar }) {
+function SalidaAdmin({ para, onLiberar }) {
   const [abierto, setAbierto] = useState(false);
   const [usuario, setUsuario] = useState('');
   const [clave, setClave] = useState('');
@@ -26,7 +25,8 @@ function SalidaAdmin({ onLiberar }) {
         return;
       }
       try {
-        sessionStorage.setItem(CLAVE_SALIDA, r.user.username);
+        // Vale solo para este usuario y esta pestaña: al salir o cambiar de usuario se pierde.
+        sessionStorage.setItem(CLAVE_SALIDA, JSON.stringify({ admin: r.user.username, para }));
       } catch {
         /* sin sessionStorage: libera igual por esta vez */
       }
@@ -83,12 +83,14 @@ function SalidaAdmin({ onLiberar }) {
  * el resultado de todas, ven esta pantalla. Cada tarjeta desaparece al completarla.
  */
 export default function GateLlamadas() {
-  const { rol } = useRol();
+  const { rol, user } = useRol();
+  const yo = user?.username ?? null;
   const [data, setData] = useState(null);
   const [restantes, setRestantes] = useState(null);
   const [liberado, setLiberado] = useState(() => {
     try {
-      return sessionStorage.getItem(CLAVE_SALIDA);
+      const guardado = JSON.parse(sessionStorage.getItem(CLAVE_SALIDA) ?? 'null');
+      return guardado?.para && guardado.para === yo ? guardado.admin : null;
     } catch {
       return null;
     }
@@ -107,14 +109,22 @@ export default function GateLlamadas() {
     return () => { vivo = false; };
   }, [rol]);
 
-  if (rol !== 'closer' || liberado || !data || !restantes?.length) return null;
+  const bloquea = rol === 'closer' && !liberado && Boolean(data) && Boolean(restantes?.length);
+
+  // Mientras bloquea, la app de atrás no scrollea: si no, quedan dos barras.
+  useEffect(() => {
+    document.body.classList.toggle('gate-abierto', bloquea);
+    return () => document.body.classList.remove('gate-abierto');
+  }, [bloquea]);
+
+  if (!bloquea) return null;
 
   const cargadas = (data.llamadas ?? []).filter((l) => l.estado === 'sin_reportar').length - restantes.length;
 
   return (
     <div className="gate-llamadas">
       <div className="gate-caja">
-        <SalidaAdmin onLiberar={setLiberado} />
+        <SalidaAdmin para={yo} onLiberar={setLiberado} />
         <header>
           <h1>Cargá tus llamadas</h1>
           <p>

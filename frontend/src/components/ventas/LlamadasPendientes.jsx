@@ -20,6 +20,12 @@ const COMO_TERMINO = [
   { id: 'Descalificado', label: 'No calificaba', ayuda: 'No es para nosotros' },
 ];
 
+/** Si compró: pagó el programa entero o dejó una seña. */
+const COMO_PAGO = [
+  { id: 'Cerrado', label: 'Pagó todo', ayuda: 'No queda saldo' },
+  { id: 'Seña', label: 'Dejó seña', ayuda: 'Paga el resto después' },
+];
+
 /**
  * Una llamada sin cargar. Se resuelve con dos preguntas simples y, si hubo venta,
  * el programa y la plata. Al guardar, la tarjeta desaparece.
@@ -28,8 +34,8 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
   const [paso, setPaso] = useState('');
   const [final, setFinal] = useState('');
   const [programa, setPrograma] = useState('');
+  const [comoPago, setComoPago] = useState('');
   const [cash, setCash] = useState('');
-  const [saldo, setSaldo] = useState('');
   const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -37,18 +43,44 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
   const vino = paso === 'vino';
   const compro = vino && final === 'compro';
   const precio = programas.find((p) => p.nombre === programa)?.precioUsd ?? 0;
-  const debe = saldo === '' ? 0 : Number(saldo);
-  // El equipo llama "seña" a la venta que todavía debe plata.
-  const resultado = compro ? (debe > 0 ? 'Seña' : 'Cerrado') : (vino ? final : paso);
-  const listo = Boolean(resultado) && (!compro || (programa && cash !== ''));
+  const pagado = cash === '' ? 0 : Number(cash);
+  const debe = Math.max(0, precio - pagado);
+  const resultado = compro ? comoPago : (vino ? final : paso);
+  const listo = Boolean(resultado) && (!compro || (programa && comoPago && cash !== ''));
 
   const elegirPaso = (id) => {
     setPaso(id);
     setFinal('');
     setPrograma('');
+    setComoPago('');
     setCash('');
-    setSaldo('');
   };
+
+  const elegirPrograma = (nombre) => {
+    setPrograma(nombre);
+    const p = programas.find((x) => x.nombre === nombre);
+    if (comoPago === 'Cerrado' && p) setCash(String(p.precioUsd));
+  };
+
+  const elegirPago = (id) => {
+    setComoPago(id);
+    // Si pagó todo, el cash es el precio del programa; si dejó seña, lo carga a mano.
+    setCash(id === 'Cerrado' && precio ? String(precio) : '');
+  };
+
+  const enviar = async (payload) => {
+    setGuardando(true);
+    setError(null);
+    try {
+      onGuardado(await guardarResultadoLlamada(llamada.id, payload), llamada.id);
+    } catch (e) {
+      setError(e.message);
+      setGuardando(false);
+    }
+  };
+
+  /** Llamadas internas, duplicadas o cargadas por error: quedan fuera de las métricas. */
+  const descartar = () => enviar({ resultado: 'Descartada', programa: '', cashUsd: 0, saldoUsd: 0, nota });
 
   const guardar = async () => {
     setGuardando(true);
@@ -58,7 +90,7 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
         await guardarResultadoLlamada(llamada.id, {
           resultado,
           programa: compro ? programa : '',
-          cashUsd: compro && cash !== '' ? Number(cash) : 0,
+          cashUsd: compro ? pagado : 0,
           saldoUsd: compro ? debe : 0,
           nota,
         }),
@@ -122,29 +154,38 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
           <div className="pendiente-pregunta">¿Qué compró y cuánto dejó?</div>
           <label className="campo">
             <span>Programa</span>
-            <select value={programa} onChange={(e) => setPrograma(e.target.value)}>
+            <select value={programa} onChange={(e) => elegirPrograma(e.target.value)}>
               <option value="">Elegí el programa</option>
               {programas.map((p) => (
                 <option key={p.id} value={p.nombre}>{p.nombre} · {formatValue(p.precioUsd, 'usd')}</option>
               ))}
             </select>
           </label>
-          <div className="pendiente-plata">
+          <div className="pendiente-opciones">
+            {COMO_PAGO.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                className={`opcion${comoPago === o.id ? ' elegida' : ''}`}
+                onClick={() => elegirPago(o.id)}
+              >
+                <span className="opcion-label">{o.label}</span>
+                <span className="opcion-ayuda">{o.ayuda}</span>
+              </button>
+            ))}
+          </div>
+
+          {comoPago && (
             <label className="campo">
-              <span>Pagó ahora</span>
+              <span>{comoPago === 'Seña' ? 'Cuánto dejó de seña' : 'Cuánto pagó'}</span>
               <input type="number" inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} placeholder="0" />
             </label>
-            <label className="campo">
-              <span>Queda debiendo</span>
-              <input type="number" inputMode="decimal" value={saldo} onChange={(e) => setSaldo(e.target.value)} placeholder="0" />
-            </label>
-          </div>
-          {precio > 0 && (
+          )}
+
+          {precio > 0 && comoPago && (
             <div className="pendiente-cuenta">
-              Facturación {formatValue(precio, 'usd')} · se guarda como <strong>{resultado}</strong>
-              {cash !== '' && Number(cash) + debe !== precio
-                ? ` · ojo: cargaste ${formatValue(Number(cash) + debe, 'usd')}`
-                : ''}
+              Facturación {formatValue(precio, 'usd')}
+              {debe > 0 ? ` · queda debiendo ${formatValue(debe, 'usd')}` : ' · sin saldo'}
             </div>
           )}
         </div>
@@ -159,6 +200,10 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
 
       <button className="btn primary pendiente-guardar" onClick={guardar} disabled={guardando || !listo}>
         {guardando ? 'Guardando…' : 'Guardar y seguir'}
+      </button>
+
+      <button type="button" className="pendiente-descartar" onClick={descartar} disabled={guardando}>
+        Esta llamada no corresponde
       </button>
     </article>
   );

@@ -10,7 +10,8 @@ const pct = (v) => (v == null ? '—' : `${v}%`);
 const fecha = (iso) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 
 const ESTADO_TEXTO = {
-  cierre: 'venta', show: 'con show', no_show: 'no show', sin_reportar: 'sin cargar', agendado: 'por venir',
+  cierre: 'venta', show: 'con show', no_show: 'no show', sin_reportar: 'sin cargar',
+  agendado: 'por venir', descartada: 'descartada',
 };
 
 function Kpi({ label, valor, nota, tono, onVer }) {
@@ -42,11 +43,11 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, onCerrar }) {
         ) : (
           <div className="detalle-lista">
             {llamadas.map((l) => (
-              <div key={l.id} className="detalle-fila">
+              <div key={l.id} className={`detalle-fila${columna ? '' : ' sin-valor'}`}>
                 <span className="num dim">{fecha(l.fechaAt)}</span>
                 <span className="strong">{l.prospecto}</span>
                 <span className="dim">{ESTADO_TEXTO[l.estado] ?? l.estado}</span>
-                <span className="num">{columna(l)}</span>
+                {columna && <span className="num">{columna(l)}</span>}
               </div>
             ))}
           </div>
@@ -101,7 +102,7 @@ export default function MiDiaCloser({ data }) {
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? 0}
           nota={`${mes.porVenir ?? 0} todavía por venir`}
-          onVer={ver('Agendas del mes', 'Todas las llamadas con fecha en este mes.', delMes, (l) => ESTADO_TEXTO[l.estado] ?? '')} />
+          onVer={ver('Agendas del mes', 'Todas las llamadas con fecha en este mes.', delMes, (l) => l.origen || l.setter || '')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"
@@ -116,7 +117,7 @@ export default function MiDiaCloser({ data }) {
 
       <div className="kpi-grid">
         <Kpi label="Show rate" valor={pct(mes.showRate)} nota={`${mes.shows ?? 0} shows`}
-          onVer={ver('Show rate', 'Las que se presentaron, sobre las que se presentaron más las que no.', shows, (l) => ESTADO_TEXTO[l.estado] ?? '')} />
+          onVer={ver('Show rate', 'Las que se presentaron, sobre las que se presentaron más las que no.', shows, (l) => l.resultado || '')} />
         <Kpi label="No show" valor={pct(mes.noShowRate)} tono={mes.noShows ? 'var(--warn)' : undefined}
           nota={`${mes.noShows ?? 0} llamadas caídas`}
           onVer={ver('No show', 'Las que no se presentaron o se cancelaron.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '')} />

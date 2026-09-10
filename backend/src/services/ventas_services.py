@@ -35,6 +35,8 @@ _lock = threading.Lock()
 RESULTADO_SQL = "lower(trim(coalesce(nullif(l.estado, ''), nullif(l.status, ''), '')))"
 CIERRE = ("cerrado", "seña", "sena")
 NO_SHOW = ("no show", "cancelada", "cancelado")
+# Llamadas que no son de ventas (internas, duplicadas, cargadas por error): no cuentan para nada.
+DESCARTE = ("descartada", "no corresponde")
 CON_RESULTADO = CIERRE + ("seguimiento", "descalificado", "re-agenda", "reagenda")
 
 
@@ -45,6 +47,8 @@ def _norm(t: str | None) -> str:
 
 def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime) -> str:
     r = _norm(resultado)
+    if r in [_norm(x) for x in DESCARTE]:
+        return "descartada"
     if r in [_norm(x) for x in NO_SHOW]:
         return "no_show"
     if r in [_norm(x) for x in CIERRE]:
@@ -101,6 +105,8 @@ def _num(v) -> float:
 
 
 def _bloque(leads: list[dict], ahora: datetime) -> dict:
+    # Las descartadas quedan afuera de toda métrica.
+    leads = [l for l in leads if _clasificar(l["resultado"], l["calificacion"], l["call"], ahora) != "descartada"]
     clases = [_clasificar(l["resultado"], l["calificacion"], l["call"], ahora) for l in leads]
     cierres = [l for l, c in zip(leads, clases) if c == "cierre"]
     shows = sum(1 for c in clases if c in ("show", "cierre"))
@@ -317,7 +323,7 @@ def estado() -> dict:
 
 # ------------------------------------------------- programas y cierres
 
-ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No show", "Descalificado", "Cancelada", "Re-agenda", "Agendado")
+ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No show", "Descalificado", "Cancelada", "Re-agenda", "Agendado", "Descartada")
 ESTADOS_VENTA = ("Cerrado", "Seña")
 ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
 
@@ -426,7 +432,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
 
     llamadas = [_fila(l) for l in filas]
     inicio_mes = hoy.replace(day=1)
-    del_mes = [x for x in llamadas if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes]
+    del_mes = [x for x in llamadas
+               if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes and x["estado"] != "descartada"]
     ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),

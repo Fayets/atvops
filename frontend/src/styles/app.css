@@ -5125,11 +5125,12 @@ button.lista-item:hover { background: var(--surface-2); }
 .programas-tabla { display: grid; gap: 8px; }
 .programa-fila { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: var(--space-3); align-items: center; }
 .pendientes-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-4); }
-.pendiente-card { display: grid; gap: var(--space-4); align-content: start; padding: var(--space-4); border: 1px solid var(--border-soft); border-radius: var(--radius-md, 10px); background: var(--surface-2); }
+.pendiente-card { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--border-soft); border-radius: var(--radius-md, 10px); background: var(--surface-2); }
 .pendiente-card.guardando { opacity: 0.5; }
-.pendiente-card-cab h3 { margin: 0 0 2px; font-size: 15px; }
+.pendiente-card-cab h3 { margin: 0 0 2px; font-size: 15px; line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pendiente-card-cab .dim { font-size: 12px; text-transform: none; }
 .pendiente-paso { display: grid; gap: 8px; }
+.pendiente-card > .campo textarea { resize: vertical; }
 .pendiente-pregunta { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
 .pendiente-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .opcion { display: grid; gap: 1px; text-align: left; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); cursor: pointer; }
@@ -5140,7 +5141,7 @@ button.lista-item:hover { background: var(--surface-2); }
 .pendiente-plata { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .pendiente-cuenta { font-size: 11.5px; color: var(--text-3); }
 .pendiente-error { font-size: 12px; color: var(--brand-hi); }
-.pendiente-guardar { width: 100%; justify-content: center; }
+.pendiente-guardar { width: 100%; justify-content: center; margin-top: auto; }
 .pendiente-card .campo select, .pendiente-card .campo input, .pendiente-card .campo textarea { background: var(--surface); }
 .gate-llamadas { position: fixed; inset: 0; z-index: 300; background: var(--bg, #0b0b0d); overflow-y: auto; padding: var(--space-6) var(--space-5); }
 .gate-caja { max-width: 1100px; margin: 0 auto; display: grid; gap: var(--space-5); }
@@ -5165,3 +5166,8 @@ button.lista-item:hover { background: var(--surface-2); }
 .detalle-fila { display: grid; grid-template-columns: 54px minmax(0, 1fr) 84px auto; gap: var(--space-3); align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
 .detalle-fila:last-child { border-bottom: none; }
 .detalle-metrica footer { font-size: 11.5px; }
+.detalle-fila.sin-valor { grid-template-columns: 54px minmax(0, 1fr) 84px; }
+.pendiente-descartar { border: none; background: none; color: var(--text-3); font-size: 11.5px; text-decoration: underline; cursor: pointer; padding: 0; justify-self: center; }
+.pendiente-descartar:hover { color: var(--brand-hi); }
+body.gate-abierto { overflow: hidden; }
+body.gate-abierto .shell { display: none; }

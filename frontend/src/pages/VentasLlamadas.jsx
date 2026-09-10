@@ -15,6 +15,7 @@ const FILTROS = [
   { value: 'show', label: 'Con show' },
   { value: 'no_show', label: 'No show' },
   { value: 'agendado', label: 'Por venir' },
+  { value: 'descartada', label: 'Descartadas' },
 ];
 
 /** Historial de llamadas del closer, con el resultado que cargó en cada una. */
@@ -30,7 +31,7 @@ export default function VentasLlamadas() {
     const todas = vista?.llamadas ?? [];
     const q = busqueda.trim().toLowerCase();
     return todas
-      .filter((l) => (filtro === 'todas' ? true : l.estado === filtro))
+      .filter((l) => (filtro === 'todas' ? l.estado !== 'descartada' : l.estado === filtro))
       .filter((l) => (q ? l.prospecto.toLowerCase().includes(q) : true));
   }, [vista, filtro, busqueda]);
 
