@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Archivo from './Archivo.jsx';
 import Markdown from '../../lib/markdown.jsx';
 
 /**
@@ -14,6 +15,9 @@ import Markdown from '../../lib/markdown.jsx';
 
 const LIMITE_LINEAS = 12;
 const LINEAS_VISIBLES = 8;
+// A partir de acá ya no es una respuesta, es un documento: se ofrece como archivo y se
+// muestra plegado. Leer 40 líneas dentro de una burbuja no lo lee nadie.
+const LINEAS_DOCUMENTO = 40;
 
 function Copiar({ texto, etiqueta = 'Copiar' }) {
   const [copiado, setCopiado] = useState(false);
@@ -51,9 +55,11 @@ export default function Mensaje({ turno, onReintentar, children }) {
   const largo = lineas.length > LIMITE_LINEAS;
   const visible = largo && !abierto ? lineas.slice(0, LINEAS_VISIBLES).join('\n') : texto;
   const esUsuario = turno.rol === 'usuario';
+  const esDocumento = !esUsuario && lineas.length > LINEAS_DOCUMENTO;
 
   return (
     <div className={`burbuja ${turno.rol}`}>
+      {esDocumento && <Archivo texto={texto} />}
       <div className={`burbuja-texto${largo && !abierto ? ' recortada' : ''}`}>
         {esUsuario ? visible : <Markdown texto={visible} />}
       </div>
