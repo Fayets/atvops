@@ -398,8 +398,27 @@ export function calcularDiagnostico(decreto, real, ctx) {
 const STORAGE_KEY = 'atv-ops:decretos-por-mes';
 const LEGACY_KEY = 'atv-ops:decreto-metas';
 
+/**
+ * Los decretos que mandan: los que decretó dirección, iguales para todo el equipo.
+ *
+ * Viven en el servidor. Acá queda una copia en memoria porque media vista los lee de
+ * forma sincrónica; `cargarDecretos()` la llena al arrancar y después de cada cambio. Lo
+ * que haya en localStorage es de la época en que cada uno tenía los suyos: se usa solo
+ * hasta que llega la respuesta del servidor.
+ */
+let _delServidor = null;
+
+export function ponerDecretos(map) {
+  _delServidor = map && typeof map === 'object' ? map : {};
+}
+
+export function hayDecretosDelServidor() {
+  return _delServidor !== null;
+}
+
 /** @returns {Record<string, DecretoMes>} */
 export function leerDecretos() {
+  if (_delServidor !== null) return _delServidor;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {

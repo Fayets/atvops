@@ -7,6 +7,7 @@ import {
   validarDecreto,
 } from '../../lib/metasMes.js';
 import { formatFecha } from '../../lib/format.js';
+import { guardarDecretoEnServidor } from '../../data/api.js';
 
 const VACIO = {
   chats: '',
@@ -68,7 +69,7 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
     setOk('');
   }
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     const decreto = {
       mes,
@@ -93,8 +94,10 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
       return;
     }
     try {
-      const saved = guardarDecreto(decreto, { forzar: editable });
-      setOk(`Decreto de ${nombreMes} guardado.`);
+      // Se guarda en el servidor: la meta es del equipo, no de este navegador.
+      const saved = await guardarDecretoEnServidor(decreto.mes, decreto);
+      guardarDecreto(decreto, { forzar: editable });
+      setOk(`Decreto de ${nombreMes} guardado para todo el equipo.`);
       onGuardado?.(saved);
     } catch (err) {
       setError(err.message || 'No se pudo guardar.');

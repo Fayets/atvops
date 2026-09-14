@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { getMe } from '../../data/api.js';
+import { getDecretos, getMe } from '../../data/api.js';
 import { clearSession, getStoredUser, getToken, saveSession } from '../../lib/auth.js';
 
 /**
@@ -22,6 +22,9 @@ export default function RequireAuth() {
         const user = await getMe();
         if (cancelled) return;
         saveSession({ token, user });
+        // Las metas son del equipo: se traen con la sesión para que todas las vistas las
+        // lean igual, sin importar en qué navegador se cargaron.
+        getDecretos().catch(() => {});
         setReady(true);
       } catch {
         if (cancelled) return;

@@ -288,6 +288,23 @@ class ReunionCrm(db.Entity):
     actualizado_at = Optional(datetime)
 
 
+class DecretoMes(db.Entity):
+    """Las metas del mes, decretadas por dirección y válidas para todo el equipo.
+
+    Vivían en el navegador de cada uno, así que lo que cargaba Franco no lo veía nadie: el
+    closer y el setter miraban sus números contra metas en cero. Una meta que cada uno ve
+    distinta no es una meta.
+    """
+
+    _table_ = _tabla("decretos", "DecretoMes")
+
+    id = PrimaryKey(int, auto=True)
+    mes = Required(str, unique=True)          # YYYY-MM
+    valores = Required(str, default="{}")     # JSON con el decreto entero
+    actualizado_por = Optional(str)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+
+
 class MiembroEquipo(db.Entity):
     """Quién vende: closers y setters, en la base de ATV Ops.
 

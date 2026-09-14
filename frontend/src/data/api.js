@@ -27,6 +27,7 @@ import {
   decretoPlantilla,
   leerDecretoGuardado,
   tasasImplicitas,
+  ponerDecretos,
 } from '../lib/metasMes.js';
 import { contextoDeMes } from '../lib/mes.js';
 import {
@@ -797,6 +798,23 @@ export async function getInstagramPropio(mes) {
 /** Trae ahora lo último de Instagram, sin esperar la pasada de cada tres horas. */
 export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });
+}
+
+/** Los decretos de todos los meses, como los dejó dirección. */
+export async function getDecretos() {
+  const r = await pedir('/api/ventas/metas');
+  ponerDecretos(r?.decretos ?? {});
+  return r?.decretos ?? {};
+}
+
+/** Decreta las metas de un mes. Valen para todo el equipo. */
+export async function guardarDecretoEnServidor(mes, decreto) {
+  const guardado = await pedir(`/api/ventas/metas/${mes}`, {
+    method: 'PUT',
+    body: JSON.stringify(decreto),
+  });
+  await getDecretos();
+  return guardado;
 }
 
 /** El embudo de setting del mes: chats, pitches, agendas y shows. */

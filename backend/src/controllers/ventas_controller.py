@@ -7,6 +7,7 @@ from src.services import cartera_services as cartera
 from src.services import instagram_services as instagram
 from src.services import youtube_services as youtube
 from src.services import conversaciones_services as conversaciones
+from src.services import metas_services as metas
 from src.services import marketing_services as marketing
 from src.services import onboarding_services as onboarding
 from src.services import reporte_semanal_services as reporte
@@ -154,6 +155,28 @@ def instagram_contenido(_user: dict = Depends(get_current_user), mes: str | None
         raise HTTPException(status_code=500, detail=f"No se pudo leer Instagram: {str(e)[:180]}")
 
 
+@router.get("/metas")
+def metas_listar(_user: dict = Depends(get_current_user)):
+    """Los decretos de todos los meses. Valen para el equipo entero, así que los ve todo el equipo."""
+    try:
+        return {"decretos": metas.listar()}
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló leer las metas")
+        raise HTTPException(status_code=500, detail=f"No se pudieron leer las metas: {str(e)[:180]}")
+
+
+@router.put("/metas/{mes}")
+def metas_guardar(mes: str, user: dict = Depends(get_current_user), payload: dict = Body(...)):
+    """Decreta las metas de un mes. Solo dirección."""
+    try:
+        return metas.guardar(mes, payload, user)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló guardar las metas")
+        raise HTTPException(status_code=500, detail=f"No se pudieron guardar: {str(e)[:180]}")
+
+
 @router.get("/setting")
 def setting_embudo(_user: dict = Depends(solo_interno), mes: str | None = None):
     """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso."""
@@ -166,17 +189,21 @@ def setting_embudo(_user: dict = Depends(solo_interno), mes: str | None = None):
         inicio = _date(anio, m, 1)
         fin = _date(anio + (m == 12), (m % 12) + 1, 1)
         # Las dos últimas etapas viven en ventas: son reuniones, no conversaciones.
-        completo = ventas.resumen(mes)
-        v = completo.get("actual", {})
-        # Las reuniones del mes, para poder abrir las dos últimas etapas y ver quiénes son.
-        reuniones = ventas.reuniones_del_mes(mes)
+        v = ventas.resumen(mes).get("actual", {})
+        # Cada etapa, de donde de verdad sale: el pitch lo reporta quien lo manda, la
+        # agenda es un Calendly completado y el show es la reunión que ocurrió.
+        pitches = ventas.pitches_del_reporte(mes)
+        agendas = ventas.agendas_del_calendario(mes)
+        shows = ventas.reuniones_del_mes(mes).get("shows", [])
         return {"mes": mes,
                 # El show rate sale de ventas: shows sobre las que ya pasaron, no sobre
                 # todas las agendas del mes. Dividir por las futuras da un rojo falso.
                 "showRate": v.get("showRate"),
-                **conversaciones.embudo(inicio, fin,
-                                        agendas=v.get("agendados", 0), shows=v.get("shows", 0),
-                                        detalle_reuniones=reuniones)}
+                **conversaciones.embudo(
+                    inicio, fin,
+                    pitches=sum(p["cuantos"] for p in pitches),
+                    agendas=len(agendas), shows=len(shows),
+                    detalle_reuniones={"pitches": pitches, "agendas": agendas, "shows": shows})}
     except HTTPException as e:
         raise e
     except Exception as e:  # noqa: BLE001
