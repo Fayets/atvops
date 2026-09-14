@@ -52,11 +52,20 @@ function Etapa({ label, valor, meta }) {
 
 /** Lo que convierte de una etapa a la siguiente, entre las dos. */
 function Paso({ conversion, benchmark }) {
-  const zona = zonaDe(conversion, benchmark);
+  // Más del 100% no es un récord: es que las dos etapas no están contando lo mismo —por
+  // ejemplo agendas que entraron sin pitch cargado—. Darle semáforo verde sería mentir.
+  const incoherente = conversion != null && conversion > 100;
+  const zona = incoherente ? null : zonaDe(conversion, benchmark);
+  const titulo = incoherente
+    ? 'Hay más en esta etapa que en la anterior: las dos no están contando los mismos leads.'
+    : `Rango sano: ${benchmark.texto}`;
   return (
-    <div className="embudo-paso" title={`Rango sano: ${benchmark.texto}`}>
-      <span className={`embudo-pct num zona-${zona}`}>{conversion == null ? '—' : `${conversion}%`}</span>
+    <div className="embudo-paso" title={titulo}>
+      <span className={`embudo-pct num${zona ? ` zona-${zona}` : ''}`}>
+        {conversion == null ? '—' : `${conversion}%`}
+      </span>
       {zona && <Pill tone={zona} dot>{ETIQUETA[zona]}</Pill>}
+      {incoherente && <span className="dim embudo-aviso">no comparable</span>}
     </div>
   );
 }

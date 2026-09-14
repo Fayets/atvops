@@ -36,7 +36,7 @@ EVENTOS = ("conversacion", "calendly", "respuesta")
 # De dónde entró el lead. El canal importa porque un DM de Instagram y un WhatsApp de la
 # landing no se responden igual ni convierten igual.
 CANALES = {"instagram": "Instagram", "manychat": "Instagram", "whatsapp": "WhatsApp",
-           "manual": "Cargado a mano"}
+           "hibrido": "Híbrido", "manual": "Cargado a mano"}
 
 
 _CALENDLY = re.compile(r"calendly\.com", re.I)

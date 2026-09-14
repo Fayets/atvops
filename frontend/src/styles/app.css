@@ -5525,6 +5525,7 @@ body.gate-abierto .shell { display: none; }
   padding: 0 var(--space-2); }
 .embudo-pct { font-size: 15px; font-weight: 600; }
 .embudo-paso::before { content: "→"; color: var(--text-3); font-size: 14px; }
+.embudo-aviso { font-size: 10.5px; text-align: center; max-width: 72px; line-height: 1.2; }
 .zona-ok { color: var(--ok); }
 .zona-warn { color: var(--warn); }
 .zona-alert { color: var(--brand-hi); }
