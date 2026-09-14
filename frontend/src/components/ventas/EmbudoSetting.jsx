@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import Card from '../ui/Card.jsx';
-import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
 
 /**
@@ -15,6 +14,8 @@ import { formatValue } from '../../lib/format.js';
  */
 
 const n = (v, f = 'count') => formatValue(v ?? 0, f);
+const fecha = (iso) =>
+  (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : '—');
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
 
 /** Los rangos sanos de cada paso. Fuera de rango no es un adorno: es dónde mirar. */
@@ -31,13 +32,13 @@ const zonaDe = (valor, b) => {
   return 'alert';
 };
 
-const ETIQUETA = { ok: 'en rango', warn: 'precaución', alert: 'problema' };
-
 /** Una etapa: el número y, si hay meta, cuánto lleva de ella. */
-function Etapa({ label, valor, meta, nota }) {
+function Etapa({ label, valor, meta, nota, onVer }) {
   const avance = meta ? Math.min(Math.round((valor / meta) * 100), 999) : null;
   return (
-    <article className="etapa">
+    <article className={`etapa${onVer ? ' clickable' : ''}`} onClick={onVer}
+      role={onVer ? 'button' : undefined} tabIndex={onVer ? 0 : undefined}
+      onKeyDown={onVer ? (e) => (e.key === 'Enter' || e.key === ' ') && onVer() : undefined}>
       <span className="etapa-label">{label}</span>
       <span className="etapa-valor num">{n(valor)}</span>
       {nota && <span className="etapa-meta dim">{nota}</span>}
@@ -47,7 +48,40 @@ function Etapa({ label, valor, meta, nota }) {
           <span className="barra"><span style={{ width: `${Math.min(avance, 100)}%` }} /></span>
         </>
       ) : <span className="etapa-meta dim">sin meta</span>}
+      {onVer && <span className="etapa-ver">ver detalle</span>}
     </article>
+  );
+}
+
+/** Las filas que componen una etapa. */
+function Detalle({ titulo, filas, onCerrar }) {
+  return (
+    <div className="modal-backdrop" onClick={onCerrar} role="presentation">
+      <div className="modal-card detalle-metrica" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
+        <header>
+          <div><h3>{titulo}</h3></div>
+          <button type="button" className="btn ghost" onClick={onCerrar}>Cerrar</button>
+        </header>
+        {filas.length === 0 ? (
+          <div className="empty">Sin filas para esta etapa.</div>
+        ) : (
+          <div className="detalle-lista">
+            <div className="detalle-fila cabecera">
+              <span>Fecha</span><span>Quién</span><span /><span>Dato</span>
+            </div>
+            {filas.map((f, i) => (
+              <div key={`${f.cuando}-${f.quien}-${i}`} className="detalle-fila">
+                <span className="num dim">{fecha(f.cuando)}</span>
+                <span className="strong">{f.quien}</span>
+                <span />
+                <span className="valor">{f.dato}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <footer className="dim">{filas.length} {filas.length === 1 ? 'fila' : 'filas'} · base de ATV Ops</footer>
+      </div>
+    </div>
   );
 }
 
@@ -62,11 +96,9 @@ function Paso({ conversion, benchmark }) {
     : `Rango sano: ${benchmark.texto}`;
   return (
     <div className="embudo-paso" title={titulo}>
-      <span className={`embudo-pct num${zona ? ` zona-${zona}` : ''}`}>
+      <span className={`embudo-pct num${zona ? ` zona-${zona}` : ''}${incoherente ? ' dim' : ''}`}>
         {conversion == null ? '—' : `${conversion}%`}
       </span>
-      {zona && <Pill tone={zona} dot>{ETIQUETA[zona]}</Pill>}
-      {incoherente && <span className="dim embudo-aviso">no comparable</span>}
     </div>
   );
 }
@@ -79,6 +111,7 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
   const [prospecto, setProspecto] = useState('');
   const [canal, setCanal] = useState('whatsapp');
   const [guardando, setGuardando] = useState(false);
+  const [detalle, setDetalle] = useState(null);
 
   const e = embudo ?? {};
   const metaChats = decreto.chats ?? 0;
@@ -88,6 +121,9 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
   const metaShows = metaAgendas && decreto.showUpRate
     ? Math.round((metaAgendas * decreto.showUpRate) / 100)
     : 0;
+
+  const abrir = (titulo, clave) => () =>
+    setDetalle({ titulo, filas: e.detalle?.[clave] ?? [] });
 
   const marcar = async (ev) => {
     ev.preventDefault();
@@ -139,19 +175,20 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
 
         <div className="embudo">
           <Etapa label="Chats" valor={e.chats} meta={metaChats}
-            nota={e.chatsFuente === 'historias' ? 'respuestas a historias' : ''} />
+            nota={e.chatsFuente === 'historias' ? 'respuestas a historias' : ''}
+            onVer={abrir('Chats', 'chats')} />
           <Paso conversion={pct(e.pitches, e.chats)} benchmark={BENCHMARKS.pitches} />
-          <Etapa label="Pitches" valor={e.pitches} meta={metaPitches} />
+          <Etapa label="Pitches" valor={e.pitches} meta={metaPitches} onVer={abrir('Pitches', 'pitches')} />
           <Paso conversion={pct(e.agendas, e.pitches)} benchmark={BENCHMARKS.agendas} />
-          <Etapa label="Agendas" valor={e.agendas} meta={metaAgendas} />
+          <Etapa label="Agendas" valor={e.agendas} meta={metaAgendas} onVer={abrir('Agendas', 'agendas')} />
           <Paso conversion={e.showRate ?? pct(e.shows, e.agendas)} benchmark={BENCHMARKS.shows} />
-          <Etapa label="Shows" valor={e.shows} meta={metaShows} />
+          <Etapa label="Shows" valor={e.shows} meta={metaShows} onVer={abrir('Shows', 'shows')} />
         </div>
       </Card>
 
       <Card
         title="Leads entrantes por canal"
-        sub={e.porCanal?.length ? 'De dónde entró cada conversación del mes' : 'Todavía sin conversaciones este mes'}
+        sub={e.porCanal?.length ? '' : 'Todavía sin conversaciones este mes'}
         flush
         foot="Instagram entra por respuestas a historias y reels. WhatsApp, por el opt-in de la landing."
       >
@@ -178,6 +215,8 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
           </div>
         )}
       </Card>
+
+      {detalle && <Detalle {...detalle} onCerrar={() => setDetalle(null)} />}
     </>
   );
 }

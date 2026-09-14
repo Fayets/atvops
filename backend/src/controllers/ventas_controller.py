@@ -166,13 +166,17 @@ def setting_embudo(_user: dict = Depends(solo_interno), mes: str | None = None):
         inicio = _date(anio, m, 1)
         fin = _date(anio + (m == 12), (m % 12) + 1, 1)
         # Las dos últimas etapas viven en ventas: son reuniones, no conversaciones.
-        v = ventas.resumen(mes).get("actual", {})
+        completo = ventas.resumen(mes)
+        v = completo.get("actual", {})
+        # Las reuniones del mes, para poder abrir las dos últimas etapas y ver quiénes son.
+        reuniones = ventas.reuniones_del_mes(mes)
         return {"mes": mes,
                 # El show rate sale de ventas: shows sobre las que ya pasaron, no sobre
                 # todas las agendas del mes. Dividir por las futuras da un rojo falso.
                 "showRate": v.get("showRate"),
                 **conversaciones.embudo(inicio, fin,
-                                        agendas=v.get("agendados", 0), shows=v.get("shows", 0))}
+                                        agendas=v.get("agendados", 0), shows=v.get("shows", 0),
+                                        detalle_reuniones=reuniones)}
     except HTTPException as e:
         raise e
     except Exception as e:  # noqa: BLE001

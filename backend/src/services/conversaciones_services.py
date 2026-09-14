@@ -140,7 +140,7 @@ def marcar_pitch(datos: dict, usuario: dict) -> dict:
         return {"ok": True, "id": fila.id, "canal": _canal(canal)}
 
 
-def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
+def embudo(desde, hasta, agendas: int = 0, shows: int = 0, detalle_reuniones: dict | None = None) -> dict:
     """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso.
 
     Las dos primeras etapas salen de las conversaciones que ATV Ops registra; las dos
@@ -170,12 +170,13 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
     # mismas respuestas entran como conversación y esta fuente deja de usarse: si no, el
     # mismo mensaje se contaría dos veces.
     respuestas_historias = 0
+    secuencias_del_periodo: list[dict] = []
     if not chats:
         try:
             from src.services import instagram_services
 
-            secuencias = instagram_services.contenido(desde, hasta).get("secuencias", [])
-            respuestas_historias = sum(s.get("respuestas") or 0 for s in secuencias)
+            secuencias_del_periodo = instagram_services.contenido(desde, hasta).get("secuencias", [])
+            respuestas_historias = sum(s.get("respuestas") or 0 for s in secuencias_del_periodo)
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudieron leer las respuestas a historias: %s", str(e)[:160])
 
@@ -190,7 +191,21 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
         d = por_canal.setdefault("Instagram", {"canal": "Instagram", "chats": 0, "pitches": 0})
         d["chats"] += respuestas_historias
 
+    # De dónde sale cada etapa, para poder abrirla y ver las filas que la componen.
+    detalle = {
+        "chats": ([{"cuando": c.at.date().isoformat(), "quien": c.nombre or c.ig_usuario or "Sin nombre",
+                    "dato": _canal(c.fuente)} for c in sorted(chats, key=lambda x: x.at, reverse=True)]
+                  or [{"cuando": s["fecha"], "quien": f"Secuencia de {s['piezas']} historias",
+                       "dato": f"{s.get('respuestas') or 0} respuestas"}
+                      for s in secuencias_del_periodo]),
+        "pitches": [{"cuando": c.at.date().isoformat(), "quien": c.nombre or c.ig_usuario or "Sin nombre",
+                     "dato": _canal(c.fuente)}
+                    for c in sorted(pitches, key=lambda x: x.at, reverse=True)],
+        **(detalle_reuniones or {}),
+    }
+
     return {
+        "detalle": detalle,
         "chats": len(chats) or respuestas_historias,
         "chatsFuente": "conversaciones" if chats else ("historias" if respuestas_historias else ""),
         "pitches": len(pitches),

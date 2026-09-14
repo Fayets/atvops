@@ -1628,6 +1628,34 @@ def guardar_reporte(fecha: str, datos: dict, usuario: dict, rol: str = "setter")
     return mis_reportes(usuario, dia.strftime("%Y-%m"), rol)
 
 
+def reuniones_del_mes(mes: str) -> dict:
+    """Las agendas y los shows del mes, listados. Es lo que hay detrás de esas dos etapas."""
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    anio, m = int(mes[:4]), int(mes[5:7])
+    desde = date(anio, m, 1)
+    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+    try:
+        filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron listar las reuniones del mes: %s", str(e)[:160])
+        return {"agendas": [], "shows": []}
+
+    agendas, shows = [], []
+    for l in sorted(filas, key=lambda f: f["call"], reverse=True):
+        clase = _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
+                            l.get("soloCalendario", False), l.get("duplicada", False),
+                            l.get("reprogramada", False))
+        if clase in ("descartada", "duplicada", "reprogramada"):
+            continue
+        fila = {"cuando": l["call"].date().isoformat(),
+                "quien": (l["nombre"] or "").strip() or "Sin nombre",
+                "dato": _persona(l["closer"], "closer")}
+        agendas.append(fila)
+        if clase in ("show", "cierre"):
+            shows.append({**fila, "dato": (l["resultado"] or "").strip() or _persona(l["closer"], "closer")})
+    return {"agendas": agendas, "shows": shows}
+
+
 def mi_setting(usuario: dict, mes: str | None = None) -> dict:
     """Lo que hizo el setter: sus números de hoy y del mes, y las llamadas que agendó."""
     hoy = datetime.now(AR_TZ).date()
