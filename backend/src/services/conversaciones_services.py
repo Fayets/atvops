@@ -164,6 +164,21 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
     chats = [c for c in filas if c.evento == "conversacion"]
     pitches = [c for c in filas if c.evento == "calendly"]
 
+    # Los chats que todavía no avisa ningún webhook salen de las respuestas a historias:
+    # alguien que contesta una historia abrió una conversación por mensaje directo, y eso
+    # Instagram ya lo cuenta pieza por pieza. Cuando el webhook empiece a llegar, esas
+    # mismas respuestas entran como conversación y esta fuente deja de usarse: si no, el
+    # mismo mensaje se contaría dos veces.
+    respuestas_historias = 0
+    if not chats:
+        try:
+            from src.services import instagram_services
+
+            secuencias = instagram_services.contenido(desde, hasta).get("secuencias", [])
+            respuestas_historias = sum(s.get("respuestas") or 0 for s in secuencias)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("No se pudieron leer las respuestas a historias: %s", str(e)[:160])
+
     por_canal: dict[str, dict] = {}
     for c in chats:
         d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
@@ -171,16 +186,20 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
     for c in pitches:
         d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
         d["pitches"] += 1
+    if respuestas_historias:
+        d = por_canal.setdefault("Instagram", {"canal": "Instagram", "chats": 0, "pitches": 0})
+        d["chats"] += respuestas_historias
 
     return {
-        "chats": len(chats),
+        "chats": len(chats) or respuestas_historias,
+        "chatsFuente": "conversaciones" if chats else ("historias" if respuestas_historias else ""),
         "pitches": len(pitches),
         "agendas": agendas,
         "shows": shows,
         "porCanal": sorted(por_canal.values(), key=lambda x: -x["chats"]),
         # Sin un solo aviso todavía no hay embudo: el tablero lo dice en vez de poner ceros
         # que parecen un mes malo.
-        "conectado": bool(todas),
+        "conectado": bool(todas) or bool(respuestas_historias),
     }
 
 

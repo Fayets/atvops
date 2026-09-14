@@ -34,12 +34,13 @@ const zonaDe = (valor, b) => {
 const ETIQUETA = { ok: 'en rango', warn: 'precaución', alert: 'problema' };
 
 /** Una etapa: el número y, si hay meta, cuánto lleva de ella. */
-function Etapa({ label, valor, meta }) {
+function Etapa({ label, valor, meta, nota }) {
   const avance = meta ? Math.min(Math.round((valor / meta) * 100), 999) : null;
   return (
     <article className="etapa">
       <span className="etapa-label">{label}</span>
       <span className="etapa-valor num">{n(valor)}</span>
+      {nota && <span className="etapa-meta dim">{nota}</span>}
       {meta > 0 ? (
         <>
           <span className="etapa-meta dim">{`${avance}% de ${n(meta)}`}</span>
@@ -111,8 +112,10 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
           </button>
         )}
         foot={e.conectado === false
-          ? 'Chats y pitches todavía no tienen fuente conectada: llegan del webhook de Instagram y de ManyChat. Agendas y shows sí salen de la base de ATV Ops.'
-          : 'Chats y pitches salen de las conversaciones; agendas y shows, de las reuniones.'}
+          ? 'Chats y pitches todavía no tienen fuente conectada. Agendas y shows sí salen de la base de ATV Ops.'
+          : e.chatsFuente === 'historias'
+            ? 'Los chats son las respuestas a las historias del mes: alguien que contesta una historia abrió una conversación. Cuando el webhook de Instagram esté conectado, pasan a contarse uno por uno.'
+            : 'Chats y pitches salen de las conversaciones; agendas y shows, de las reuniones.'}
       >
         {marcando && (
           <form className="pitch-form" onSubmit={marcar}>
@@ -135,7 +138,8 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
         )}
 
         <div className="embudo">
-          <Etapa label="Chats" valor={e.chats} meta={metaChats} />
+          <Etapa label="Chats" valor={e.chats} meta={metaChats}
+            nota={e.chatsFuente === 'historias' ? 'respuestas a historias' : ''} />
           <Paso conversion={pct(e.pitches, e.chats)} benchmark={BENCHMARKS.pitches} />
           <Etapa label="Pitches" valor={e.pitches} meta={metaPitches} />
           <Paso conversion={pct(e.agendas, e.pitches)} benchmark={BENCHMARKS.agendas} />
