@@ -1,12 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { getStoredUser } from './auth.js';
-import {
-  getRolPreview,
-  homeParaRol,
-  normalizarRol,
-  rolEfectivo as calcularRolEfectivo,
-  setRolPreview as persistPreview,
-} from './roles.js';
+import { getRolPreview, homeParaRol, normalizarRol, rolDeVista, rolEfectivo as calcularRolEfectivo, setRolPreview as persistPreview } from './roles.js';
 
 const RolContext = createContext(null);
 
@@ -25,7 +19,7 @@ export function RolProvider({ children }) {
       rolReal,
       preview,
       rol,
-      puedePreview: rolReal === 'admin' || rolReal === 'founder',
+      puedePreview: rolReal === 'admin' || rolDeVista(rolReal) === 'founder',
       setPreview(next) {
         const real = normalizarRol(getStoredUser()?.rol);
         if (!next || next === real) persistPreview(null);

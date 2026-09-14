@@ -5,7 +5,7 @@
  * ventas → dueño del área de ventas
  * marketing → embudo TOFU + decreto
  * csm → customer success: clientes y fulfillment
- * operaciones → fulfillment + cobranza + calendario
+ * operaciones → lo mismo que founder: visión completa
  * founder → casi todo (visión)
  * admin → todo + configuración
  */
@@ -32,7 +32,7 @@ export const ROLES = {
   operaciones: {
     id: 'operaciones',
     label: 'Operaciones',
-    descripcion: 'Fulfillment, cobranza y salud de la cartera.',
+    descripcion: 'Visión completa del tablero, igual que founder.',
   },
   ventas: {
     id: 'ventas',
@@ -68,17 +68,10 @@ export const RUTAS_POR_ROL = {
   closer: ['/calendario', '/ventas', '/metas'],
   setter: ['/calendario', '/ventas', '/metas'],
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
-  operaciones: [
-    '/',
-    '/reporte',
-    '/asistente',
-    '/calendario',
-    '/fulfillment',
-    '/ventas',
-    '/metas',
-    '/cobranza',
-    '/ideas',
-  ],
+  // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
+  // como respaldo si alguien resuelve el rol sin pasar por ahí.
+  operaciones: ['/', '/reporte', '/asistente', '/calendario', '/fulfillment', '/marketing',
+                '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas'],
   ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
   marketing: ['/', '/marketing', '/metas', '/ideas'],
@@ -118,7 +111,7 @@ export const HOME_POR_ROL = {
   closer: '/ventas/mi-dia',
   setter: '/ventas/mi-progreso',
   csm: '/fulfillment',
-  operaciones: '/fulfillment',
+  operaciones: '/',
   ventas: '/ventas',
   marketing: '/marketing',
   founder: '/',
@@ -126,6 +119,18 @@ export const HOME_POR_ROL = {
 };
 
 const OVERRIDE_KEY = 'atv-ops-rol-preview';
+
+/**
+ * Con qué permisos mira este rol.
+ *
+ * Operaciones ve lo mismo que founder. En vez de repetir su lista de rutas y de sumarlo a
+ * mano a cada ítem del menú —que es como se desincronizaron— se traduce acá: cualquier
+ * permiso que se le dé a founder lo hereda operaciones sin tocar nada más.
+ */
+export function rolDeVista(rol) {
+  const r = normalizarRol(rol);
+  return r === 'operaciones' ? 'founder' : r;
+}
 
 /** @param {string | null | undefined} rol */
 export function normalizarRol(rol) {
@@ -158,7 +163,7 @@ export function setRolPreview(rol) {
  */
 export function rolEfectivo(user) {
   const base = normalizarRol(user?.rol);
-  if (base === 'admin' || base === 'founder') {
+  if (base === 'admin' || rolDeVista(base) === 'founder') {
     const preview = getRolPreview();
     if (preview) return preview;
   }
@@ -170,7 +175,7 @@ export function rolEfectivo(user) {
  * @param {Rol} rol
  */
 export function puedeVerRuta(pathname, rol) {
-  const permitidas = RUTAS_POR_ROL[rol] ?? RUTAS_POR_ROL.operaciones;
+  const permitidas = RUTAS_POR_ROL[rolDeVista(rol)] ?? RUTAS_POR_ROL.operaciones;
   return permitidas.some((p) => {
     if (p === '/') return pathname === '/';
     return pathname === p || pathname.startsWith(`${p}/`);
@@ -183,6 +188,7 @@ export function puedeVerRuta(pathname, rol) {
  * @param {Rol} rol
  */
 export function filtrarNav(nav, rol) {
+  rol = rolDeVista(rol);
   return nav
     .map((item) => {
       if (!puedeVerRuta(item.to, rol) && item.to !== '/') return null;
@@ -214,7 +220,7 @@ export function filtrarNav(nav, rol) {
 }
 
 export function homeParaRol(rol) {
-  return HOME_POR_ROL[normalizarRol(rol)] ?? '/';
+  return HOME_POR_ROL[rolDeVista(rol)] ?? '/';
 }
 
 /** Solo admin y operaciones (ops) pueden editar el decreto de metas. */
@@ -231,18 +237,18 @@ export function puedeVerVentasOps(rol) {
 
 /** Quién ve Operativa / Performance del Director de Ventas. */
 export function puedeVerVentasDirector(rol) {
-  const r = normalizarRol(rol);
+  const r = rolDeVista(rol);
   return r === 'ventas' || r === 'admin' || r === 'founder';
 }
 
 /** Quién ve el dashboard personal del Closer. */
 export function puedeVerVentasCloser(rol) {
-  const r = normalizarRol(rol);
+  const r = rolDeVista(rol);
   return r === 'closer' || r === 'admin' || r === 'founder';
 }
 
 /** Quién ve vistas del Setter (progreso diario / reporte). */
 export function puedeVerVentasSetter(rol) {
-  const r = normalizarRol(rol);
+  const r = rolDeVista(rol);
   return r === 'setter' || r === 'admin' || r === 'founder';
 }
