@@ -1322,13 +1322,14 @@ def ocultar_evento(evento_id: str, datos: dict, usuario: dict, mostrar: bool = F
 
 def eventos_ocultos() -> dict[str, bool]:
     """Qué reuniones del calendario están ocultas."""
-    from pony.orm import db_session, select
+    from pony.orm import db_session
 
     from src.models import ReunionCrm
 
     try:
         with db_session:
-            return {r.evento_id: True for r in select(r for r in ReunionCrm if not r.es_venta and r.descartada)}
+            return {r.evento_id: True for r in list(ReunionCrm.select())
+                    if not r.es_venta and r.descartada}
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las reuniones ocultas: %s", str(e)[:160])
         return {}
@@ -1626,6 +1627,61 @@ def guardar_reporte(fecha: str, datos: dict, usuario: dict, rol: str = "setter")
     logger.info("Reporte %s de %s (%s) guardado por %s", dia, miembro["nombre"], rol, usuario.get("username"))
     _cache.clear()
     return mis_reportes(usuario, dia.strftime("%Y-%m"), rol)
+
+
+def agendas_del_calendario(mes: str) -> list[dict]:
+    """Las reuniones que hay en el calendario de Google ese mes.
+
+    La agenda es lo que quedó agendado, y eso vive en el calendario: no en el CRM, que
+    solo tiene las que además quedaron cargadas como lead. Se sacan las que se marcaron
+    como que no son llamadas de venta —un 1a1, una weekly— porque nunca fueron agendas.
+    """
+    from src.services import gcal_services
+
+    anio, m = int(mes[:4]), int(mes[5:7])
+    desde = date(anio, m, 1)
+    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+    try:
+        dias = gcal_services.agenda(desde_iso=desde.isoformat(), hasta_iso=hasta.isoformat()).get("dias", [])
+        ocultos = set(eventos_ocultos())
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo leer el calendario del mes: %s", str(e)[:160])
+        return []
+
+    salida = []
+    for d in dias:
+        for ev in d.get("eventos", []):
+            tipo = (ev.get("tipo") or "").strip()
+            # Una agenda es un Calendly completado: el evento trae el tipo de reunión que
+            # la persona eligió. Lo que está en el calendario sin eso es una reunión que
+            # alguien puso a mano —un 1a1, una weekly— y nunca fue una agenda.
+            if not tipo or ev.get("id") in ocultos:
+                continue
+            prospecto, _ = gcal_services._prospecto(ev.get("titulo") or "")
+            salida.append({"cuando": d["fecha"],
+                           "quien": prospecto or (ev.get("titulo") or "Sin título"),
+                           "dato": tipo})
+    return sorted(salida, key=lambda x: x["cuando"], reverse=True)
+
+
+def pitches_del_reporte(mes: str) -> list[dict]:
+    """Los links de agenda que el setter reportó, día por día.
+
+    El pitch lo cuenta quien lo manda: sale del reporte diario y de ningún otro lado.
+    """
+    anio, m = int(mes[:4]), int(mes[5:7])
+    desde = date(anio, m, 1)
+    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+    salida = []
+    for r in _reportes_propios("setter", desde):
+        if not (desde <= r["fecha"] < hasta):
+            continue
+        cuantos = int(_num(r.get("links_enviados")))
+        if cuantos:
+            salida.append({"cuando": r["fecha"].isoformat(), "quien": r["nombre"],
+                           "dato": f"{cuantos} {'link' if cuantos == 1 else 'links'}",
+                           "cuantos": cuantos})
+    return sorted(salida, key=lambda x: x["cuando"], reverse=True)
 
 
 def reuniones_del_mes(mes: str) -> dict:

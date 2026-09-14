@@ -72,7 +72,10 @@ function Detalle({ titulo, filas, onCerrar }) {
             {filas.map((f, i) => (
               <div key={`${f.cuando}-${f.quien}-${i}`} className="detalle-fila">
                 <span className="num dim">{fecha(f.cuando)}</span>
-                <span className="strong">{f.quien}</span>
+                <span className="strong detalle-quien">
+                  {f.foto && <img className="detalle-foto" src={f.foto} alt="" loading="lazy" />}
+                  {f.quien}
+                </span>
                 <span />
                 <span className="valor">{f.dato}</span>
               </div>

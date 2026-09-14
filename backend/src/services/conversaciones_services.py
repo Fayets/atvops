@@ -140,7 +140,8 @@ def marcar_pitch(datos: dict, usuario: dict) -> dict:
         return {"ok": True, "id": fila.id, "canal": _canal(canal)}
 
 
-def embudo(desde, hasta, agendas: int = 0, shows: int = 0, detalle_reuniones: dict | None = None) -> dict:
+def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
+           detalle_reuniones: dict | None = None) -> dict:
     """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso.
 
     Las dos primeras etapas salen de las conversaciones que ATV Ops registra; las dos
@@ -162,7 +163,6 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0, detalle_reuniones: di
         filas, todas = [], []
 
     chats = [c for c in filas if c.evento == "conversacion"]
-    pitches = [c for c in filas if c.evento == "calendly"]
 
     # Los chats que todavía no avisa ningún webhook salen de las respuestas a historias:
     # alguien que contesta una historia abrió una conversación por mensaje directo, y eso
@@ -184,9 +184,6 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0, detalle_reuniones: di
     for c in chats:
         d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
         d["chats"] += 1
-    for c in pitches:
-        d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
-        d["pitches"] += 1
     if respuestas_historias:
         d = por_canal.setdefault("Instagram", {"canal": "Instagram", "chats": 0, "pitches": 0})
         d["chats"] += respuestas_historias
@@ -196,11 +193,10 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0, detalle_reuniones: di
         "chats": ([{"cuando": c.at.date().isoformat(), "quien": c.nombre or c.ig_usuario or "Sin nombre",
                     "dato": _canal(c.fuente)} for c in sorted(chats, key=lambda x: x.at, reverse=True)]
                   or [{"cuando": s["fecha"], "quien": f"Secuencia de {s['piezas']} historias",
-                       "dato": f"{s.get('respuestas') or 0} respuestas"}
+                       "dato": f"{s.get('respuestas') or 0} respuestas",
+                       # La miniatura de la primera pieza: con verla se reconoce cuál fue.
+                       "foto": (s.get("historias") or [{}])[0].get("thumbnail")}
                       for s in secuencias_del_periodo]),
-        "pitches": [{"cuando": c.at.date().isoformat(), "quien": c.nombre or c.ig_usuario or "Sin nombre",
-                     "dato": _canal(c.fuente)}
-                    for c in sorted(pitches, key=lambda x: x.at, reverse=True)],
         **(detalle_reuniones or {}),
     }
 
@@ -208,7 +204,7 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0, detalle_reuniones: di
         "detalle": detalle,
         "chats": len(chats) or respuestas_historias,
         "chatsFuente": "conversaciones" if chats else ("historias" if respuestas_historias else ""),
-        "pitches": len(pitches),
+        "pitches": pitches,
         "agendas": agendas,
         "shows": shows,
         "porCanal": sorted(por_canal.values(), key=lambda x: -x["chats"]),

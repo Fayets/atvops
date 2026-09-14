@@ -5540,3 +5540,8 @@ body.gate-abierto .shell { display: none; }
 .pitch-form input { flex: 1 1 200px; }
 .pitch-form select { flex: 0 0 auto; }
 
+
+/* La miniatura de la secuencia en el detalle de chats: con verla se reconoce cuál fue. */
+.detalle-quien { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.detalle-foto { width: 26px; height: 36px; object-fit: cover; border-radius: 4px; flex: 0 0 auto;
+  border: 1px solid var(--border-soft); }
