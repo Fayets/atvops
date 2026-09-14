@@ -1,8 +1,5 @@
-import { Link } from 'react-router-dom';
 import MarketingOps from '../components/marketing/MarketingOps.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
-import SourceTag from '../components/ui/SourceTag.jsx';
 import {
   getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getVentasReal, getYouTubePropio,
 } from '../data/api.js';
@@ -16,7 +13,7 @@ import { useResource } from '../lib/hooks.js';
  * está en las subvistas. Acá va lo que sirve para decidir.
  */
 export default function MarketingOpsPage() {
-  const { mes, nombreMes } = useMes();
+  const { mes } = useMes();
   const metas = useResource(() => getMetasMes(mes), [mes]);
   const ventas = useResource(() => getVentasReal(mes), [mes]);
   const ig = useResource(() => getInstagramPropio(mes), [mes]);
@@ -31,18 +28,6 @@ export default function MarketingOpsPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Marketing · operaciones"
-        title={`${nombreMes} · adónde termina`}
-        desc="Cómo viene el mes y qué haría falta para llegar. El detalle del contenido lo lleva marketing."
-        actions={
-          <>
-            <SourceTag sourceId="ventas_ops" updatedAt={ventas.data?.generadoAt} />
-            <Link className="btn" to="/marketing/calendario">Ver el contenido →</Link>
-          </>
-        }
-      />
-
       {cargando ? (
         <>
           <SkeletonKpis n={4} />
