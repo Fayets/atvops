@@ -799,6 +799,19 @@ export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });
 }
 
+/** El embudo de setting del mes: chats, pitches, agendas y shows. */
+export async function getEmbudoSetting(mes) {
+  return pedir(`/api/ventas/setting${mes ? `?mes=${mes}` : ''}`);
+}
+
+/** El setter marca que mandó el link de agenda por un canal que no se lee solo. */
+export async function marcarPitch(datos) {
+  return pedir('/api/ventas/setting/pitch', {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  });
+}
+
 /** Las conversaciones que abrió Instagram y los Calendly enviados, de la base propia. */
 export async function getConversaciones(mes) {
   return pedir(`/api/ventas/conversaciones${mes ? `?mes=${mes}` : ''}`);

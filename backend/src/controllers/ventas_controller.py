@@ -154,6 +154,44 @@ def instagram_contenido(_user: dict = Depends(get_current_user), mes: str | None
         raise HTTPException(status_code=500, detail=f"No se pudo leer Instagram: {str(e)[:180]}")
 
 
+@router.get("/setting")
+def setting_embudo(_user: dict = Depends(solo_interno), mes: str | None = None):
+    """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso."""
+    from datetime import date as _date
+
+    try:
+        hoy = _date.today()
+        mes = mes or hoy.strftime("%Y-%m")
+        anio, m = int(mes[:4]), int(mes[5:7])
+        inicio = _date(anio, m, 1)
+        fin = _date(anio + (m == 12), (m % 12) + 1, 1)
+        # Las dos últimas etapas viven en ventas: son reuniones, no conversaciones.
+        v = ventas.resumen(mes).get("actual", {})
+        return {"mes": mes,
+                # El show rate sale de ventas: shows sobre las que ya pasaron, no sobre
+                # todas las agendas del mes. Dividir por las futuras da un rojo falso.
+                "showRate": v.get("showRate"),
+                **conversaciones.embudo(inicio, fin,
+                                        agendas=v.get("agendados", 0), shows=v.get("shows", 0))}
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló leer el embudo de setting")
+        raise HTTPException(status_code=500, detail=f"No se pudo leer el embudo: {str(e)[:180]}")
+
+
+@router.post("/setting/pitch")
+def setting_pitch(user: dict = Depends(solo_interno), payload: dict = Body(...)):
+    """El setter marca que mandó el link de agenda por un canal que no se lee solo."""
+    if user.get("rol") not in ventas.ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede marcar pitches.")
+    try:
+        return conversaciones.marcar_pitch(payload, user)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló marcar el pitch")
+        raise HTTPException(status_code=500, detail=f"No se pudo marcar: {str(e)[:180]}")
+
+
 @router.get("/conversaciones")
 def conversaciones_del_mes(_user: dict = Depends(get_current_user), mes: str | None = None):
     """Las conversaciones que abrió Instagram y los Calendly que se mandaron, del mes."""

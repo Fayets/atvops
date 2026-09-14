@@ -32,7 +32,18 @@ logger = logging.getLogger("atv_ops.conversaciones")
 VENTANA_REPETIDO = timedelta(minutes=10)
 
 EVENTOS = ("conversacion", "calendly", "respuesta")
+
+# De dónde entró el lead. El canal importa porque un DM de Instagram y un WhatsApp de la
+# landing no se responden igual ni convierten igual.
+CANALES = {"instagram": "Instagram", "manychat": "Instagram", "whatsapp": "WhatsApp",
+           "manual": "Cargado a mano"}
+
+
 _CALENDLY = re.compile(r"calendly\.com", re.I)
+
+
+def _canal(fuente: str) -> str:
+    return CANALES.get((fuente or "").lower(), "Otro")
 
 
 class WebhookNoAutorizado(Exception):
@@ -102,6 +113,99 @@ def registrar(payload: dict, token_recibido: str = "") -> dict:
                        keyword=keyword[:120], content_url=_limpiar(payload.get("content_url"))[:500],
                        contacto_id=contacto[:120], payload=json.dumps(payload, ensure_ascii=False)[:2000])
     return {"ok": True, "evento": evento, "guardado": True}
+
+
+def marcar_pitch(datos: dict, usuario: dict) -> dict:
+    """El setter avisa que mandó el link de agenda por fuera de Instagram.
+
+    Lo que sale por Instagram se detecta solo leyendo el mensaje. Lo que se manda por
+    WhatsApp o por audio no deja rastro que el sistema pueda leer, y el pitch es el número
+    que define el mes del setter: si depende de que alguien lo cargue después, no se carga.
+    """
+    from pony.orm import db_session
+
+    from src.models import ConversacionIg
+
+    persona = str(datos.get("prospecto") or "").strip()
+    canal = str(datos.get("canal") or "whatsapp").strip().lower()
+    if canal not in CANALES:
+        canal = "manual"
+    with db_session:
+        fila = ConversacionIg(evento="calendly", at=datetime.utcnow(),
+                              ig_usuario=persona[:120], nombre=persona[:160] or "Sin nombre",
+                              keyword="", content_url="", contacto_id="", fuente=canal,
+                              payload=json.dumps({"por": usuario.get("username", ""),
+                                                  "nota": str(datos.get("nota") or "")[:300]},
+                                                 ensure_ascii=False))
+        return {"ok": True, "id": fila.id, "canal": _canal(canal)}
+
+
+def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
+    """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso.
+
+    Las dos primeras etapas salen de las conversaciones que ATV Ops registra; las dos
+    últimas se pasan desde ventas, que es donde viven las reuniones. Un pitch es el link de
+    agenda enviado: acá el pitch y la aplicación son la misma acción, no dos.
+    """
+    from pony.orm import db_session
+
+    from src.models import ConversacionIg
+
+    inicio = datetime.combine(desde, datetime.min.time())
+    fin = datetime.combine(hasta, datetime.min.time())
+    try:
+        with db_session:
+            filas = [c for c in list(ConversacionIg.select()) if inicio <= c.at < fin]
+            todas = list(ConversacionIg.select())
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo leer el embudo: %s", str(e)[:160])
+        filas, todas = [], []
+
+    chats = [c for c in filas if c.evento == "conversacion"]
+    pitches = [c for c in filas if c.evento == "calendly"]
+
+    por_canal: dict[str, dict] = {}
+    for c in chats:
+        d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
+        d["chats"] += 1
+    for c in pitches:
+        d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
+        d["pitches"] += 1
+
+    # Tiempo de respuesta: del primer mensaje del lead a la primera respuesta del equipo.
+    # Se mira contra todo el histórico porque una conversación de fin de mes puede
+    # contestarse al día siguiente.
+    primeras = {c.contacto_id: c.at for c in todas if c.evento == "conversacion" and c.contacto_id}
+    minutos: dict[str, list[float]] = {}
+    for c in todas:
+        if c.evento != "respuesta" or not c.contacto_id:
+            continue
+        abrio = primeras.get(c.contacto_id)
+        if not abrio or not (inicio <= abrio < fin) or c.at < abrio:
+            continue
+        minutos.setdefault(_canal(c.fuente), []).append((c.at - abrio).total_seconds() / 60)
+
+    def _promedio(lista):
+        return round(sum(lista) / len(lista), 1) if lista else None
+
+    todos = [m for lista in minutos.values() for m in lista]
+    return {
+        "chats": len(chats),
+        "pitches": len(pitches),
+        "agendas": agendas,
+        "shows": shows,
+        "porCanal": sorted(por_canal.values(), key=lambda x: -x["chats"]),
+        "respuesta": {
+            "minutos": _promedio(todos),
+            "medidas": len(todos),
+            "porCanal": sorted(
+                [{"canal": k, "minutos": _promedio(v), "medidas": len(v)} for k, v in minutos.items()],
+                key=lambda x: -x["medidas"]),
+        },
+        # Sin un solo aviso todavía no hay embudo: el tablero lo dice en vez de poner ceros
+        # que parecen un mes malo.
+        "conectado": bool(todas),
+    }
 
 
 def resumen(desde, hasta) -> dict:

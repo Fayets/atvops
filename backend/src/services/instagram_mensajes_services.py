@@ -86,10 +86,10 @@ def _quien_es(igsid: str) -> tuple[str, str]:
         return "", ""
 
 
-def _ya_escribio(igsid: str) -> bool:
+def _tiene(igsid: str, evento: str) -> bool:
     from src.models import ConversacionIg
 
-    return any(c.contacto_id == igsid and c.evento == "conversacion"
+    return any(c.contacto_id == igsid and c.evento == evento
                for c in list(ConversacionIg.select()))
 
 
@@ -115,7 +115,7 @@ def procesar(cuerpo: dict) -> dict:
     from pony.orm import db_session
 
     cuenta = str(_credenciales().get("instagram_user_id") or "").strip()
-    conversaciones = calendlys = 0
+    conversaciones = calendlys = respuestas = 0
 
     with db_session:
         for entrada in (cuerpo.get("entry") or []):
@@ -134,14 +134,21 @@ def procesar(cuerpo: dict) -> dict:
                     if _CALENDLY.search(texto):
                         _guardar("calendly", receptor, cuando, m)
                         calendlys += 1
+                    # La primera respuesta al lead: con eso y el primer mensaje de él sale
+                    # el tiempo de respuesta, que es lo que decide si la conversación
+                    # sigue viva. Se anota una sola vez por persona.
+                    elif receptor and _tiene(receptor, "conversacion") and not _tiene(receptor, "respuesta"):
+                        _guardar("respuesta", receptor, cuando, m)
+                        respuestas += 1
                     continue
 
                 # De la persona: solo el primero abre una conversación.
-                if emisor and not _ya_escribio(emisor):
+                if emisor and not _tiene(emisor, "conversacion"):
                     _guardar("conversacion", emisor, cuando, m)
                     conversaciones += 1
 
-    if conversaciones or calendlys:
-        logger.info("Instagram: %s conversaciones nuevas, %s Calendly enviados",
-                    conversaciones, calendlys)
-    return {"ok": True, "conversaciones": conversaciones, "calendlys": calendlys}
+    if conversaciones or calendlys or respuestas:
+        logger.info("Instagram: %s conversaciones nuevas, %s Calendly enviados, %s respuestas",
+                    conversaciones, calendlys, respuestas)
+    return {"ok": True, "conversaciones": conversaciones, "calendlys": calendlys,
+            "respuestas": respuestas}

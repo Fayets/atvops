@@ -115,7 +115,9 @@ export function cuotasSetterDesdeProyeccion(mes, opts = {}) {
       metaCalendlys: m.calendlys,
       metaAgendas: m.agendas,
     },
-    headcount: n,
+    // La meta del setter no se reparte: Cris es el único, así que lleva la del equipo
+    // entera. Acá quedaba la variable del reparto que se sacó, y rompía toda la vista.
+    headcount: 1,
     diasLaborales: diasLab,
   };
 }
