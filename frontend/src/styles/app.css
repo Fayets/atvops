@@ -5535,8 +5535,3 @@ body.gate-abierto .shell { display: none; }
 .pitch-form input { flex: 1 1 200px; }
 .pitch-form select { flex: 0 0 auto; }
 
-.resp-canales { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-4); }
-.resp-canal { display: grid; gap: 3px; padding: var(--space-4); background: var(--surface);
-  border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
-.resp-cab { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.resp-valor { font-size: 26px; font-weight: 600; line-height: 1.15; }

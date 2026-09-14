@@ -172,36 +172,12 @@ def embudo(desde, hasta, agendas: int = 0, shows: int = 0) -> dict:
         d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
         d["pitches"] += 1
 
-    # Tiempo de respuesta: del primer mensaje del lead a la primera respuesta del equipo.
-    # Se mira contra todo el histórico porque una conversación de fin de mes puede
-    # contestarse al día siguiente.
-    primeras = {c.contacto_id: c.at for c in todas if c.evento == "conversacion" and c.contacto_id}
-    minutos: dict[str, list[float]] = {}
-    for c in todas:
-        if c.evento != "respuesta" or not c.contacto_id:
-            continue
-        abrio = primeras.get(c.contacto_id)
-        if not abrio or not (inicio <= abrio < fin) or c.at < abrio:
-            continue
-        minutos.setdefault(_canal(c.fuente), []).append((c.at - abrio).total_seconds() / 60)
-
-    def _promedio(lista):
-        return round(sum(lista) / len(lista), 1) if lista else None
-
-    todos = [m for lista in minutos.values() for m in lista]
     return {
         "chats": len(chats),
         "pitches": len(pitches),
         "agendas": agendas,
         "shows": shows,
         "porCanal": sorted(por_canal.values(), key=lambda x: -x["chats"]),
-        "respuesta": {
-            "minutos": _promedio(todos),
-            "medidas": len(todos),
-            "porCanal": sorted(
-                [{"canal": k, "minutos": _promedio(v), "medidas": len(v)} for k, v in minutos.items()],
-                key=lambda x: -x["medidas"]),
-        },
         # Sin un solo aviso todavía no hay embudo: el tablero lo dice en vez de poner ceros
         # que parecen un mes malo.
         "conectado": bool(todas),

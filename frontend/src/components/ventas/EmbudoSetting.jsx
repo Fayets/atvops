@@ -61,24 +61,6 @@ function Paso({ conversion, benchmark }) {
   );
 }
 
-/** El tiempo hasta la primera respuesta: lo que decide si la conversación sigue viva. */
-function Respuesta({ minutos, medidas, canal }) {
-  const zona = minutos == null ? null : minutos < 5 ? 'ok' : minutos <= 30 ? 'warn' : 'alert';
-  const texto = minutos == null
-    ? '—'
-    : minutos < 60 ? `${minutos} min` : `${Math.round(minutos / 6) / 10} h`;
-  return (
-    <div className="resp-canal">
-      <div className="resp-cab">
-        <span className="strong">{canal}</span>
-        {zona && <Pill tone={zona} dot>{zona === 'ok' ? 'rápido' : zona === 'warn' ? 'lento' : 'muy lento'}</Pill>}
-      </div>
-      <div className={`resp-valor num zona-${zona}`}>{texto}</div>
-      <div className="dim">{medidas ? `${n(medidas)} ${medidas === 1 ? 'conversación medida' : 'conversaciones medidas'}` : 'sin datos'}</div>
-    </div>
-  );
-}
-
 /**
  * @param {{ embudo: object, decreto: object, onPitch?: (datos: object) => Promise<void> }} props
  */
@@ -152,26 +134,6 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
           <Paso conversion={e.showRate ?? pct(e.shows, e.agendas)} benchmark={BENCHMARKS.shows} />
           <Etapa label="Shows" valor={e.shows} meta={metaShows} />
         </div>
-      </Card>
-
-      <Card
-        title="Tiempo de respuesta"
-        sub="Del primer mensaje del lead a la primera respuesta del equipo"
-        foot="Verde menos de 5 minutos, amarillo hasta 30, rojo por encima."
-      >
-        {!e.respuesta?.medidas ? (
-          <div className="empty">
-            Todavía no hay conversaciones medidas. El tiempo sale de los mensajes que avisa
-            Instagram: se empieza a medir cuando el webhook esté conectado.
-          </div>
-        ) : (
-          <div className="resp-canales">
-            <Respuesta canal="Todos los canales" minutos={e.respuesta.minutos} medidas={e.respuesta.medidas} />
-            {(e.respuesta.porCanal ?? []).map((c) => (
-              <Respuesta key={c.canal} canal={c.canal} minutos={c.minutos} medidas={c.medidas} />
-            ))}
-          </div>
-        )}
       </Card>
 
       <Card
