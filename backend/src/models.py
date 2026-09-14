@@ -288,6 +288,28 @@ class ReunionCrm(db.Entity):
     actualizado_at = Optional(datetime)
 
 
+class MiembroEquipo(db.Entity):
+    """Quién vende: closers y setters, en la base de ATV Ops.
+
+    Reemplaza al `teammember` del CRM viejo, que tiene marcados como activos a gente que
+    ya no trabaja acá y cuentas de prueba.
+
+    `alias` existe por un problema real: el mismo closer aparece en el histórico como
+    "Nick Xanderz", "Nick Xanders" y "Nick", y sin juntarlos sus números salen partidos en
+    tres. Son las grafías con las que se lo escribió, separadas por coma.
+    """
+
+    _table_ = _tabla("equipo", "MiembroEquipo")
+
+    id = PrimaryKey(int, auto=True)
+    nombre = Required(str, unique=True)
+    rol = Required(str, index=True)           # closer | setter
+    activo = Required(bool, default=True)
+    alias = Optional(str)
+    username = Optional(str)                  # su usuario de ATV Ops, si tiene
+    creado_at = Required(datetime, default=datetime.utcnow)
+
+
 class Programa(db.Entity):
     """El catálogo de programas con su precio. Vive acá: el precio lo fija ops en ATV Ops
     y no tiene por qué depender del CRM viejo."""
@@ -354,6 +376,7 @@ class PublicacionIg(db.Entity):
     permalink = Optional(str)
     caption = Optional(str)
     thumbnail = Optional(str)
+    keyword = Optional(str, index=True)       # la palabra que dispara el bot
     metricas = Required(str, default="{}")    # JSON: views, reach, replies, saved…
     visto_at = Required(datetime, default=datetime.utcnow)   # cuándo se trajo
     actualizado_at = Required(datetime, default=datetime.utcnow)

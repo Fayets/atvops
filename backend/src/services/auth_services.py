@@ -218,12 +218,67 @@ def ensure_reunion_crm_columns() -> None:
         con.close()
 
 
+def _columnas_publicaciones_ig() -> None:
+    """La palabra clave del reel pasa a vivir acá: antes salía del `reelcontent` de atv-mkt."""
+    _agregar_columnas("publicaciones_ig", "PublicacionIg", [("keyword", "TEXT")])
+
+
+def _agregar_columnas(tabla_pg: str, tabla_sqlite: str, columnas: list[tuple[str, str]]) -> None:
+    from src.db import DB_SCHEMA, ES_POSTGRES
+
+    if ES_POSTGRES:
+        import psycopg2
+
+        from src.db import _postgres_kwargs
+
+        kw = _postgres_kwargs()
+        conn = psycopg2.connect(
+            user=kw["user"], password=kw["password"], host=kw["host"], port=kw["port"],
+            dbname=kw["database"], **({"sslmode": kw["sslmode"]} if "sslmode" in kw else {}),
+        )
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM information_schema.tables WHERE table_schema=%s AND table_name=%s",
+                    (DB_SCHEMA, tabla_pg),
+                )
+                if cur.fetchone() is None:
+                    return
+                for nombre, tipo in columnas:
+                    cur.execute(f'ALTER TABLE "{DB_SCHEMA}".{tabla_pg} ADD COLUMN IF NOT EXISTS {nombre} {tipo}')
+        finally:
+            conn.close()
+        return
+
+    import sqlite3
+
+    filename = config("DB_FILENAME", default="data/atv_ops.db")
+    if filename in {":memory:", ":sharedmemory:"}:
+        return
+    path = Path(filename)
+    if not path.exists():
+        return
+    con = sqlite3.connect(path)
+    try:
+        tablas = {f[0] for f in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if tabla_sqlite not in tablas:
+            return
+        tiene = {f[1] for f in con.execute(f'PRAGMA table_info("{tabla_sqlite}")')}
+        for nombre, tipo in columnas:
+            if nombre not in tiene:
+                con.execute(f'ALTER TABLE "{tabla_sqlite}" ADD COLUMN {nombre} {tipo}')
+        con.commit()
+    finally:
+        con.close()
+
+
 def ensure_conversacion_columns() -> None:
     """La tabla de conversaciones nació contando solo los avisos de ManyChat. Ahora también
     entran los de Instagram, así que cada fila dice de dónde salió."""
     from src.db import DB_SCHEMA, ES_POSTGRES
 
     columnas = [("fuente", "TEXT")]
+    _columnas_publicaciones_ig()
     if ES_POSTGRES:
         import psycopg2
 

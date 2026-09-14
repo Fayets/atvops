@@ -130,28 +130,24 @@ def _bloque_marketing(desde: date, hasta: date) -> dict:
         return {"conversaciones": 0, "linksEnviados": 0, "agendas": 0, "seguimientos": 0,
                 "reels": 0, "reproducciones": 0, "historias": 0, "chatsHistorias": 0,
                 "videos": 0, "vistas": 0, "porSetter": [], "publicaciones": []}
-    setting = crm_db.consultar(
-        "SELECT m.nombre, coalesce(sum(r.conversaciones),0) c, coalesce(sum(r.links_enviados),0) l, "
-        "coalesce(sum(r.agendas),0) a, coalesce(sum(r.seguimientos),0) s, count(*) dias "
-        "FROM setter_report r JOIN teammember m ON m.id = r.member_id "
-        "WHERE r.fecha >= %s AND r.fecha < %s GROUP BY m.nombre ORDER BY 2 DESC",
-        (desde, hasta),
-    )
-    reels = crm_db.consultar(
-        "SELECT title, permalink, fecha_publicacion, plays, reach, likes, comentarios, guardados "
-        "FROM reelcontent WHERE fecha_publicacion >= %s AND fecha_publicacion < %s ORDER BY plays DESC",
-        (desde, hasta),
-    )
-    historias = crm_db.consultar(
-        "SELECT sequence_date, title, angulo, cta, chats FROM storysequence "
-        "WHERE sequence_date >= %s AND sequence_date < %s ORDER BY sequence_date",
-        (desde, hasta),
-    )
-    videos = crm_db.consultar(
-        "SELECT title, url, published_at, views FROM youtubecontent "
-        "WHERE published_at >= %s AND published_at < %s ORDER BY views DESC",
-        (desde, hasta),
-    )
+    # Todo esto sale de la base de ATV Ops: reportes propios y contenido sincronizado con
+    # las credenciales propias. El CRM de atv-mkt ya no se consulta.
+    from src.services import marketing_services, ventas_services
+
+    por_persona: dict[str, dict] = {}
+    for r in ventas_services._reportes_propios("setter", desde):
+        if not (desde <= r["fecha"] < hasta):
+            continue
+        d = por_persona.setdefault(r["nombre"], {"nombre": r["nombre"], "c": 0, "l": 0,
+                                                 "a": 0, "s": 0, "dias": 0})
+        d["c"] += _num(r.get("conversaciones"))
+        d["l"] += _num(r.get("links_enviados"))
+        d["a"] += _num(r.get("agendas"))
+        d["s"] += _num(r.get("seguimientos"))
+        d["dias"] += 1
+    setting = sorted(por_persona.values(), key=lambda x: -x["c"])
+    reels, videos, historias = marketing_services._contenido_propio(desde, hasta)
+
     return {
         "conversaciones": int(sum(_num(s["c"]) for s in setting)),
         "linksEnviados": int(sum(_num(s["l"]) for s in setting)),

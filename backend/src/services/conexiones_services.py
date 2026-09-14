@@ -54,8 +54,15 @@ def _de_atv_mkt() -> dict[str, dict]:
     return salida
 
 
-def sembrar(refrescar: bool = False, quien: str = "migración") -> list[str]:
-    """Copia a ATV Ops las credenciales que todavía no tenga. Devuelve las que copió."""
+def sembrar(refrescar: bool = False, quien: str = "migración", desde_mkt: bool = False) -> list[str]:
+    """Copia a ATV Ops las credenciales que todavía no tenga. Devuelve las que copió.
+
+    La copia ya se hizo: las cinco credenciales viven en ATV Ops y se editan desde acá. Por
+    eso no vuelve a mirar atv-mkt salvo que se le pida a propósito —`desde_mkt=True`, desde
+    un script—; si no, cada credencial que falte reabriría una conexión a ese sistema.
+    """
+    if not desde_mkt:
+        return []
     from pony.orm import db_session
 
     from src.models import ConexionApi

@@ -26,6 +26,8 @@ from fastapi import HTTPException
 from src.services import crm_db
 from src.services.transcripts_services import AR_TZ
 
+from src.services import equipo_services
+
 logger = logging.getLogger("atv_ops.ventas")
 
 CACHE_SEGUNDOS = int(config("VENTAS_CACHE_SEGUNDOS", default=300))
@@ -176,7 +178,7 @@ def _referencias(evento_ids: list[str]) -> dict[str, int]:
 
     with db_session:
         return {r.evento_id: r.lead_id
-                for r in select(r for r in ReunionCrm if r.evento_id in evento_ids)}
+                for r in list(ReunionCrm.select()) if r.evento_id in evento_ids}
 
 
 def _guardar_propio(lead_id: int, evento_id: str, prospecto: str, quien: str, **campos) -> None:
@@ -239,8 +241,8 @@ def _propias(evento_ids: list[str], lead_ids: list[int]) -> dict:
         return salida
     try:
         with db_session:
-            filas = list(select(r for r in ReunionCrm
-                                if r.evento_id in evento_ids or r.lead_id in lead_ids))
+            filas = [r for r in list(ReunionCrm.select())
+                     if r.evento_id in evento_ids or r.lead_id in lead_ids]
             for r in filas:
                 dato = {
                     "resultado": (r.resultado or "").strip(),
@@ -303,10 +305,10 @@ def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
 
     try:
         with db_session:
-            filas = list(select(r for r in ReunionCrm
-                                if r.lead_id == 0 and r.es_venta and r.inicio_at is not None
-                                and r.inicio_at >= datetime.combine(desde, time.min)
-                                and r.inicio_at < datetime.combine(hasta, time.min)))
+            filas = [r for r in list(ReunionCrm.select())
+                     if r.lead_id == 0 and r.es_venta and r.inicio_at is not None
+                     and datetime.combine(desde, time.min) <= r.inicio_at
+                     < datetime.combine(hasta, time.min)]
             return [{
                 "id": f"ops:{r.id}", "nombre": r.prospecto or "Sin nombre", "email": "",
                 "telefono": "", "ig": "", "origen": "Cargada en ATV Ops",
@@ -528,7 +530,7 @@ def _gente_del_rol(rol: str) -> list[str]:
 
         with db_session:
             return sorted((u.nombre or u.username).strip()
-                          for u in select(u for u in Usuario if u.rol == rol))
+                          for u in list(Usuario.select()) if u.rol == rol)
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el equipo de %s: %s", rol, str(e)[:160])
         return []
@@ -539,21 +541,25 @@ def _cuantos_del_rol(rol: str) -> int:
 
 
 def _equipo() -> list[dict]:
-    return crm_db.consultar("SELECT id, nombre, rol, activo FROM teammember WHERE activo ORDER BY rol, nombre")
+    """El equipo sale de la base de ATV Ops, no del teammember del CRM viejo."""
+    return equipo_services.listar()
 
 
 def _reportes_propios(rol: str, desde: date) -> list[dict]:
     """Los reportes diarios que se cargan en ATV Ops, con la forma que tenían los del CRM."""
     import json as _json
 
-    from pony.orm import db_session, desc, select
+    from pony.orm import db_session
 
     from src.models import ReporteDia
 
     try:
         with db_session:
-            filas = list(select(r for r in ReporteDia if r.rol == rol and r.fecha >= desde)
-                         .order_by(lambda r: desc(r.fecha)))
+            # El `select` de generador se rompe con el Pony de esta versión de Python
+            # según desde dónde se lo llame: la lista sale de la entidad y se filtra acá.
+            filas = sorted([r for r in list(ReporteDia.select())
+                            if r.rol == rol and r.fecha >= desde],
+                           key=lambda r: r.fecha, reverse=True)
             salida = []
             for r in filas:
                 try:
@@ -574,17 +580,8 @@ def _reportes(tabla: str, desde: date, limite: int = 400) -> list[dict]:
         "closer_report": "r.llamadas_agendadas, r.shows, r.cierres, r.calificados, r.descalificados, r.ingreso, r.seguimiento, r.notas",
         "setter_report": "r.conversaciones, r.agendas, r.links_enviados, r.leads_nuevos, r.seguimientos, r.outbounds, r.notas",
     }[tabla]
-    viejos = crm_db.consultar(
-        f"SELECT r.id, r.fecha, r.created_at, m.nombre, m.rol, {campos} "
-        f"FROM {tabla} r JOIN teammember m ON m.id = r.member_id "
-        f"WHERE r.fecha >= %s ORDER BY r.fecha DESC LIMIT {limite}",
-        (desde,),
-    )
-    # Los nuevos se cargan en ATV Ops; los del CRM viejo quedan como histórico.
-    rol = tabla.replace("_report", "")
-    propios = _reportes_propios(rol, desde)
-    ya = {(r["nombre"], r["fecha"]) for r in propios}
-    return propios + [f for f in viejos if (f["nombre"], f["fecha"]) not in ya]
+    _ = campos, limite   # el CRM viejo ya no se consulta: los campos quedan documentados arriba
+    return _reportes_propios(tabla.replace("_report", ""), desde)
 
 
 def _num(v) -> float:
@@ -761,7 +758,7 @@ def _nombres_canonicos() -> dict[str, str]:
         vistos = [f["nombre"] for f in crm_db.consultar(
             "SELECT DISTINCT closer AS nombre FROM lead WHERE coalesce(closer, '') <> '' "
             "UNION SELECT DISTINCT setter FROM lead WHERE coalesce(setter, '') <> ''")]
-        equipo = [m["nombre"] for m in crm_db.consultar("SELECT nombre FROM teammember WHERE activo")]
+        equipo = equipo_services.nombres()
         por_pila: dict[str, str] = {}
         for n in sorted(vistos, key=len, reverse=True):  # el más largo primero
             pila = (_norm(n).split() or [""])[0]
@@ -1000,10 +997,10 @@ def _sembrar_programas() -> None:
     from src.models import Programa
 
     with db_session:
-        if select(p for p in Programa).count():
+        if Programa.select().count():
             return
         try:
-            filas = crm_db.consultar("SELECT name, price_usd, sort_order FROM offered_program ORDER BY sort_order, name")
+            filas = []  # los programas ya viven en ATV Ops; el CRM viejo no se consulta más
         except Exception:  # noqa: BLE001
             return
         for f in filas:
@@ -1026,7 +1023,8 @@ def programas() -> list[dict]:
         _sembrar_programas()
         with db_session:
             return [{"id": p.id, "nombre": p.nombre, "precioUsd": p.precio_usd, "orden": p.orden}
-                    for p in select(p for p in Programa if p.activo).order_by(lambda p: (p.orden, p.nombre))]
+                    for p in sorted([p for p in list(Programa.select()) if p.activo],
+                                    key=lambda p: (p.orden, p.nombre))]
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el catálogo de programas: %s", str(e)[:160])
         return []
@@ -1089,8 +1087,8 @@ def _nombres_crm(usuario: dict) -> list[str]:
     primero = base.split()[0]
     nombres = [f["closer"] for f in crm_db.consultar("SELECT DISTINCT closer FROM lead WHERE closer <> ''")
                if _norm(f["closer"]).split()[:1] == [primero]]
-    nombres += [m["nombre"] for m in crm_db.consultar("SELECT nombre FROM teammember WHERE activo")
-                if _norm(m["nombre"]).split()[:1] == [primero]]
+    nombres += [n for n in equipo_services.todas_las_grafias()
+                if _norm(n).split()[:1] == [primero]]
     return sorted(set(nombres)) or [usuario.get("nombre") or usuario.get("username") or ""]
 
 
@@ -1494,32 +1492,23 @@ ETIQUETAS_REPORTE = {
 
 
 def _miembro(usuario: dict, rol: str, crear: bool = True) -> dict | None:
-    """El teammember del CRM que corresponde a este usuario, por su nombre de pila.
+    """Quién del equipo es este usuario, buscando por nombre de pila.
 
-    Si el usuario es de ATV Ops y todavía no existe en el CRM, se crea: el equipo se
-    administra desde acá y el CRM viejo se va quedando como espejo mientras dure.
+    El equipo vive en ATV Ops. `crear` ya no da de alta a nadie: se conserva el parámetro
+    porque lo pasan quienes llaman, y dar de alta a alguien desde un formulario de reporte
+    es cómo se llenó de gente de prueba el CRM viejo.
     """
     base = _norm(usuario.get("nombre") or usuario.get("username") or "")
     if not base:
         return None
     primero = base.split()[0]
-    miembros = crm_db.consultar("SELECT id, user_id, nombre, rol FROM teammember WHERE activo ORDER BY id")
-    for m in miembros:
-        if m["rol"] == rol and _norm(m["nombre"]).split()[:1] == [primero]:
-            return m
-    # Solo se da de alta a la persona real, no a un admin mirando la vista de otro rol.
-    if not crear or (usuario.get("rol") or "") != rol:
-        return None
-    nombre = (usuario.get("nombre") or usuario.get("username") or "").strip()[:120]
-    if not nombre:
-        return None
-    # No se da de alta a nadie en el CRM viejo: el equipo son los usuarios de ATV Ops.
-    logger.info("%s carga reportes como %s sin estar en el equipo del CRM viejo", nombre, rol)
-    creado = crm_db.consultar(
-        "SELECT id, user_id, nombre, rol FROM teammember WHERE nombre = %s AND rol = %s ORDER BY id DESC LIMIT 1",
-        (nombre, rol),
-    )
-    return creado[0] if creado else None
+    for m in equipo_services.listar(rol):
+        if _norm(m["nombre"]).split()[:1] == [primero] or (m["username"] and m["username"] == usuario.get("username")):
+            return {"id": m["id"], "user_id": None, "nombre": m["nombre"], "rol": m["rol"]}
+    if crear and (usuario.get("rol") or "") == rol:
+        logger.info("%s carga reportes como %s sin estar en el equipo: se agrega desde Sistemas",
+                    usuario.get("username") or base, rol)
+    return None
 
 
 def mis_reportes(usuario: dict, mes: str | None = None, rol: str = "setter") -> dict:

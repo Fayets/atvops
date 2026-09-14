@@ -55,6 +55,64 @@ def _vacio(mes: str, detalle: str) -> dict:
     }
 
 
+def _contenido_propio(inicio: date, fin: date) -> tuple[list, list, list]:
+    """Reels, videos e historias de la base de ATV Ops, con las claves que espera la vista.
+
+    Antes salían de `reelcontent`, `youtubecontent` y `storysequence` de atv-mkt. Hoy el
+    contenido lo sincroniza ATV Ops con sus propias credenciales: esto solo traduce los
+    nombres de los campos para no tocar todo lo que los consume.
+    """
+    from datetime import datetime as _dt
+
+    from src.services import instagram_services, youtube_services
+
+    def _cuando(iso):
+        """Lo que sigue espera fechas, no textos: el CRM las devolvía ya convertidas."""
+        try:
+            return _dt.fromisoformat(iso) if iso else None
+        except (TypeError, ValueError):
+            return None
+
+    ig = instagram_services.contenido(inicio, fin)
+    yt = youtube_services.contenido(inicio, fin)
+    reels = [{
+        "title": r.get("titulo"), "permalink": r.get("url"), "fecha_publicacion": _cuando(r.get("fecha")),
+        "plays": r.get("views", 0), "reach": r.get("reach", 0), "likes": r.get("likes", 0),
+        "comentarios": r.get("comments", 0), "shares": r.get("shares", 0),
+        "guardados": r.get("saved", 0), "keyword": r.get("keyword", ""), "chats_manuales": 0,
+    } for r in ig.get("reels", [])]
+    videos = [{
+        "title": v.get("titulo"), "url": v.get("url"), "published_at": _cuando(v.get("fecha")),
+        "views": v.get("vistas", 0), "likes": v.get("likes", 0),
+        "comments_count": v.get("comentarios", 0),
+        # CTR, impresiones y chats solo salen de YouTube Studio: no se inventan.
+        "impressions": 0, "ctr": None, "chats": 0, "thumbnail_url": v.get("thumbnail"),
+    } for v in yt.get("videos", [])]
+    historias = [{
+        "sequence_date": _cuando(s.get("fecha")), "title": f"{s.get('piezas', 0)} historias",
+        "dolor": "", "angulo": "", "cta": "", "cash": 0,
+        "chats": s.get("respuestas", 0), "has_cta": False,
+    } for s in ig.get("secuencias", [])]
+    return reels, videos, historias
+
+
+def _setting_propio(inicio: date, fin: date) -> list[dict]:
+    """Los reportes diarios del setter, de la base de ATV Ops."""
+    from src.services import ventas_services
+
+    por_persona: dict[str, dict] = {}
+    for r in ventas_services._reportes_propios("setter", inicio):
+        if not (inicio <= r["fecha"] < fin):
+            continue
+        d = por_persona.setdefault(r["nombre"], {"nombre": r["nombre"], "conversaciones": 0,
+                                                 "links_enviados": 0, "agendas": 0, "reportes": 0})
+        d["conversaciones"] += _num(r.get("conversaciones"))
+        d["links_enviados"] += _num(r.get("links_enviados"))
+        d["agendas"] += _num(r.get("agendas"))
+        d["reportes"] += 1
+    return sorted(por_persona.values(), key=lambda x: -x["conversaciones"])
+
+
 def _conversaciones_del_bot(inicio: date, fin: date) -> dict:
     """Las conversaciones que se abrieron solas en Instagram, por contenido.
 
@@ -105,28 +163,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "FROM ads_campaign WHERE period_start < %s AND period_end >= %s ORDER BY spend DESC",
             (fin, inicio),
         )
-        reels = crm_db.consultar(
-            "SELECT title, permalink, fecha_publicacion, plays, reach, likes, comentarios, shares, guardados, keyword, chats_manuales "
-            "FROM reelcontent WHERE fecha_publicacion >= %s AND fecha_publicacion < %s ORDER BY plays DESC",
-            (inicio, fin),
-        )
-        videos = crm_db.consultar(
-            "SELECT title, url, published_at, views, likes, comments_count, impressions, ctr, chats, thumbnail_url "
-            "FROM youtubecontent WHERE published_at >= %s AND published_at < %s ORDER BY views DESC",
-            (inicio, fin),
-        )
-        historias = crm_db.consultar(
-            "SELECT sequence_date, title, dolor, angulo, cta, cash, chats, has_cta "
-            "FROM storysequence WHERE sequence_date >= %s AND sequence_date < %s ORDER BY sequence_date DESC",
-            (inicio, fin),
-        )
-        setting = crm_db.consultar(
-            "SELECT m.nombre, sum(r.conversaciones) conversaciones, sum(r.links_enviados) links_enviados, "
-            "sum(r.agendas) agendas, count(*) reportes "
-            "FROM setter_report r JOIN teammember m ON m.id = r.member_id "
-            "WHERE r.fecha >= %s AND r.fecha < %s GROUP BY m.nombre ORDER BY 2 DESC",
-            (inicio, fin),
-        )
+        reels, videos, historias = _contenido_propio(inicio, fin)
+        setting = _setting_propio(inicio, fin)
         bot = _conversaciones_del_bot(inicio, fin)
     except Exception as e:  # noqa: BLE001
         logger.warning("Marketing: %s", str(e)[:200])

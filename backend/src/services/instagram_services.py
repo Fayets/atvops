@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import urllib.error
 import urllib.parse
@@ -120,6 +121,27 @@ def _bajar_foto(url: str, ig_id: str) -> str:
         return ""
 
 
+# "Comentá DOCUMENTO", "escribime GUIA": la palabra que dispara el bot va en mayúsculas
+# dentro del propio caption. Leerla de ahí es lo que evita cargarla a mano reel por reel.
+# El verbo va sin distinguir mayúsculas; la palabra clave, no: es la que está gritada.
+# Por eso el flag va acotado al verbo y no a toda la expresión —si no, el hueco del medio
+# también dejaría de distinguir y no encontraría dónde empieza la palabra.
+_PIDE_PALABRA = re.compile(
+    r"(?i:coment[aá]\w*|escrib[ií]\w*|mand[aá]\w*|pon[ée]\w*|dej[aá]\w*)"
+    r"[^A-ZÁÉÍÓÚÑ\n]{0,24}"
+    r"\b([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9_-]{2,24})\b")
+
+
+def palabra_clave(caption: str) -> str:
+    """La palabra que el reel le pide comentar a la gente. Vacío si no se reconoce."""
+    m = _PIDE_PALABRA.search(str(caption or ""))
+    if not m:
+        return ""
+    palabra = m.group(1).strip()
+    # Una palabra en mayúsculas que es parte de la frase no es una llamada a la acción.
+    return "" if palabra.lower() in {"dm", "mp", "link", "aca", "acá", "abajo"} else palabra.lower()
+
+
 def _fecha(iso: str | None) -> datetime | None:
     if not iso:
         return None
@@ -147,6 +169,7 @@ def _guardar(tipo: str, item: dict, metricas: dict) -> bool:
             PublicacionIg(ig_id=item["id"], tipo=tipo, publicado_at=cuando,
                           permalink=(item.get("permalink") or "")[:500],
                           caption=(item.get("caption") or "")[:2000],
+                          keyword=palabra_clave(item.get("caption"))[:120],
                           thumbnail=_bajar_foto(origen_foto, item["id"]),
                           metricas=json.dumps(metricas), visto_at=ahora, actualizado_at=ahora)
             return True
@@ -156,6 +179,9 @@ def _guardar(tipo: str, item: dict, metricas: dict) -> bool:
             fila.permalink = item["permalink"][:500]
         if item.get("caption"):
             fila.caption = item["caption"][:2000]
+            # Si alguien la corrigió a mano, se respeta: solo se completa lo que falta.
+            if not (fila.keyword or "").strip():
+                fila.keyword = palabra_clave(item["caption"])[:120]
         # Se rebaja mientras no sea un archivo propio: antes se guardaba el enlace de
         # Instagram, que vence, y las filas viejas quedaron apuntando a la nada.
         if not str(fila.thumbnail or "").startswith("/uploads/"):
@@ -216,20 +242,24 @@ def contenido(desde, hasta) -> dict:
     Una secuencia es lo que se publicó en un día: así se mira entera, aunque las
     historias ya no existan en Instagram.
     """
-    from pony.orm import db_session, select
+    from pony.orm import db_session
 
     from src.models import PublicacionIg
 
     try:
         with db_session:
-            filas = list(select(p for p in PublicacionIg
-                                if p.publicado_at >= datetime.combine(desde, datetime.min.time())
-                                and p.publicado_at < datetime.combine(hasta, datetime.min.time()))
-                         .order_by(lambda p: p.publicado_at))
+            # Con el Pony de esta versión de Python, el `select` de generador se rompe
+            # según desde dónde se lo llame: la lista sale de la entidad y se filtra acá.
+            inicio = datetime.combine(desde, datetime.min.time())
+            fin = datetime.combine(hasta, datetime.min.time())
+            filas = sorted([p for p in list(PublicacionIg.select())
+                            if inicio <= p.publicado_at < fin],
+                           key=lambda p: p.publicado_at)
             reels, historias = [], []
             for f in filas:
                 m = _metricas(f)
                 item = {"id": f.ig_id, "fecha": f.publicado_at.isoformat(), "url": f.permalink or None,
+                        "keyword": (f.keyword or "").strip(),
                         "titulo": (f.caption or "").strip().split("\n")[0][:120] or "(sin caption)",
                         "thumbnail": f.thumbnail or None, **m}
                 (reels if f.tipo == "reel" else historias).append(item)
@@ -286,13 +316,14 @@ def estado() -> dict:
     cred = _credenciales()
     if cred is None:
         return {"conectado": False, "detalle": "Falta la conexión de Instagram en ATV Ops."}
-    from pony.orm import db_session, select
+    from pony.orm import db_session
 
     from src.models import PublicacionIg
 
     with db_session:
-        total = select(p for p in PublicacionIg).count()
-        ultima = select(p.actualizado_at for p in PublicacionIg).max()
+        todas = list(PublicacionIg.select())
+        total = len(todas)
+        ultima = max((p.actualizado_at for p in todas), default=None)
     with _lock:
         ultima_pasada = dict(_ultima)
     return {"conectado": True, "publicaciones": total,
