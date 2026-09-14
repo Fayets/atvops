@@ -779,10 +779,22 @@ def _nombres_canonicos() -> dict[str, str]:
     return mapa
 
 
-def _persona(nombre: str | None) -> str:
+def _unico_del_rol(rol: str) -> str:
+    """Si hay una sola persona en ese rol, es esa. Si hay más, no se adivina."""
+    gente = equipo_services.listar(rol)
+    return gente[0]["nombre"] if len(gente) == 1 else ""
+
+
+def _persona(nombre: str | None, rol: str = "") -> str:
+    """El nombre canónico de quien esté escrito ahí.
+
+    Las agendas del CRM vienen casi todas sin setter cargado, y dejarlas en "Sin asignar"
+    deja el área entera en cero. Con un solo setter no hay ambigüedad: son de él. Cuando
+    entre un segundo, la regla se apaga sola y hay que cargarlo.
+    """
     n = (nombre or "").strip()
     if not n:
-        return "Sin asignar"
+        return _unico_del_rol(rol) or "Sin asignar" if rol else "Sin asignar"
     return _nombres_canonicos().get(_norm(n), n)
 
 
@@ -824,7 +836,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     def _agrupar(campo: str) -> list[dict]:
         grupos: dict[str, list[dict]] = {}
         for l in del_mes:
-            grupos.setdefault(_persona(l[campo]), []).append(l)
+            grupos.setdefault(_persona(l[campo], campo), []).append(l)
         salida = [{"nombre": k, **_bloque(v, ahora)} for k, v in grupos.items()]
         return sorted(salida, key=lambda x: (-x["cashUsd"], -x["cierres"]))
 
@@ -880,7 +892,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "id": l["id"], "prospecto": (l["nombre"] or "").strip() or "Sin nombre",
             "email": l["email"] or "", "telefono": l["telefono"] or "", "instagram": (l["ig"] or "").lstrip("@"),
             "fechaAt": l["call"].isoformat() if l["call"] else None,
-            "closer": _persona(l["closer"]), "setter": _persona(l["setter"]),
+            "closer": _persona(l["closer"], "closer"), "setter": _persona(l["setter"], "setter"),
             "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
             "agendoEn": l["agendo_en"] or "", "oferta": (l["programa_ofrecido"] or "").strip(),
             "facturacion": (l["ingresos_rango"] or "").strip(),
@@ -1524,13 +1536,24 @@ def mis_reportes(usuario: dict, mes: str | None = None, rol: str = "setter") -> 
         return {"mes": mes, "miembro": None, "campos": [], "dias": [],
                 "detalle": "Todavía no estás dado de alta como parte del equipo. Avisale a Franco."}
 
-    tabla = f"{rol}_report"
-    filas = crm_db.consultar(
-        f"SELECT id, fecha, notas, {', '.join(campos)} FROM {tabla} "
-        f"WHERE member_id = %s AND fecha >= %s AND fecha < %s ORDER BY fecha",
-        (miembro["id"], inicio, fin),
-    )
-    por_fecha = {f["fecha"]: f for f in filas}
+    # El reporte se guarda en ATV Ops, así que también se lee de ahí. Leerlo del CRM viejo
+    # por `member_id` era lo que hacía que cargar un día no cambiara nada en la pantalla.
+    import json as _json
+
+    from pony.orm import db_session
+
+    from src.models import ReporteDia
+
+    with db_session:
+        propios = [r for r in list(ReporteDia.select())
+                   if r.rol == rol and r.persona == miembro["nombre"] and inicio <= r.fecha < fin]
+        por_fecha = {}
+        for r in propios:
+            try:
+                valores = _json.loads(r.valores or "{}")
+            except ValueError:
+                valores = {}
+            por_fecha[r.fecha] = {**{c: valores.get(c, 0) for c in campos}, "notas": r.nota or ""}
 
     dias = []
     d = inicio
