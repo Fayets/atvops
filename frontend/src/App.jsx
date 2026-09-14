@@ -22,6 +22,7 @@ import VentasLlamadas from './pages/VentasLlamadas.jsx';
 import VentasOperativaPage from './pages/VentasOperativa.jsx';
 import VentasOps from './pages/VentasOps.jsx';
 import VentasPerformancePage from './pages/VentasPerformance.jsx';
+import Setting from './pages/Setting.jsx';
 import VentasSetter from './pages/VentasSetter.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
@@ -156,6 +157,7 @@ export default function App() {
               <Route path="mi-dia" element={<VentasMiDiaRoute />} />
               <Route path="llamadas" element={<VentasLlamadas />} />
               <Route path="mi-progreso" element={<VentasMiProgresoRoute />} />
+              <Route path="setting" element={<Setting />} />
               <Route path="performance" element={<VentasPerformanceRoute />} />
               <Route path="ops" element={<VentasOps />} />
             </Route>

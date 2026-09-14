@@ -33,30 +33,31 @@ const zonaDe = (valor, b) => {
 
 const ETIQUETA = { ok: 'en rango', warn: 'precaución', alert: 'problema' };
 
-/** Una etapa de la cascada: cuánto hay, cuánto convierte y cuánto falta para la meta. */
-function Etapa({ label, valor, meta, conversion, desde, benchmark }) {
-  const zona = zonaDe(conversion, benchmark);
+/** Una etapa: el número y, si hay meta, cuánto lleva de ella. */
+function Etapa({ label, valor, meta }) {
   const avance = meta ? Math.min(Math.round((valor / meta) * 100), 999) : null;
   return (
     <article className="etapa">
-      <div className="etapa-cab">
-        <span className="etapa-label">{label}</span>
-        {zona && <Pill tone={zona} dot>{ETIQUETA[zona]}</Pill>}
-      </div>
-      <div className="etapa-valor num">{n(valor)}</div>
-      {conversion != null && (
-        <div className={`etapa-conv num zona-${zona}`}>
-          {conversion}% <span className="dim">de {desde}</span>
-        </div>
-      )}
-      {benchmark && <div className="etapa-bench dim">{benchmark.texto}</div>}
-      <div className="etapa-meta dim">
-        {meta ? `meta ${n(meta)} · ${avance}%` : 'sin meta cargada'}
-      </div>
-      {meta > 0 && (
-        <div className="barra"><span style={{ width: `${Math.min(avance, 100)}%` }} /></div>
-      )}
+      <span className="etapa-label">{label}</span>
+      <span className="etapa-valor num">{n(valor)}</span>
+      {meta > 0 ? (
+        <>
+          <span className="etapa-meta dim">{`${avance}% de ${n(meta)}`}</span>
+          <span className="barra"><span style={{ width: `${Math.min(avance, 100)}%` }} /></span>
+        </>
+      ) : <span className="etapa-meta dim">sin meta</span>}
     </article>
+  );
+}
+
+/** Lo que convierte de una etapa a la siguiente, entre las dos. */
+function Paso({ conversion, benchmark }) {
+  const zona = zonaDe(conversion, benchmark);
+  return (
+    <div className="embudo-paso" title={`Rango sano: ${benchmark.texto}`}>
+      <span className={`embudo-pct num zona-${zona}`}>{conversion == null ? '—' : `${conversion}%`}</span>
+      {zona && <Pill tone={zona} dot>{ETIQUETA[zona]}</Pill>}
+    </div>
   );
 }
 
@@ -144,13 +145,12 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
 
         <div className="embudo">
           <Etapa label="Chats" valor={e.chats} meta={metaChats} />
-          <Etapa label="Pitches" valor={e.pitches} meta={metaPitches}
-            conversion={pct(e.pitches, e.chats)} desde="los chats" benchmark={BENCHMARKS.pitches} />
-          <Etapa label="Agendas" valor={e.agendas} meta={metaAgendas}
-            conversion={pct(e.agendas, e.pitches)} desde="los pitches" benchmark={BENCHMARKS.agendas} />
-          <Etapa label="Shows" valor={e.shows} meta={metaShows}
-            conversion={e.showRate ?? pct(e.shows, e.agendas)}
-            desde="las que ya pasaron" benchmark={BENCHMARKS.shows} />
+          <Paso conversion={pct(e.pitches, e.chats)} benchmark={BENCHMARKS.pitches} />
+          <Etapa label="Pitches" valor={e.pitches} meta={metaPitches} />
+          <Paso conversion={pct(e.agendas, e.pitches)} benchmark={BENCHMARKS.agendas} />
+          <Etapa label="Agendas" valor={e.agendas} meta={metaAgendas} />
+          <Paso conversion={e.showRate ?? pct(e.shows, e.agendas)} benchmark={BENCHMARKS.shows} />
+          <Etapa label="Shows" valor={e.shows} meta={metaShows} />
         </div>
       </Card>
 
