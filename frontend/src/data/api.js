@@ -2081,7 +2081,58 @@ export const API_BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:8010'
  * @param {string} path
  * @returns {Promise<any>}
  */
+/**
+ * Lo que ya se pidió, para no volver a pedirlo.
+ *
+ * Volver atrás desmonta y vuelve a montar la vista, y sin esto cada regreso disparaba de
+ * nuevo todas las consultas: el resumen de ventas tarda cuatro segundos, así que la
+ * pantalla se quedaba clavada en el esqueleto como si se hubiera colgado. Además varias
+ * tarjetas de la misma pantalla piden el mismo endpoint a la vez.
+ *
+ * `_enVuelo` junta los pedidos simultáneos en uno solo. `_cache` guarda la respuesta unos
+ * segundos, que es el tiempo en el que uno navega y vuelve.
+ */
+const _enVuelo = new Map();
+const _cache = new Map();
+const CACHE_MS = 60_000;
+
+/** Al escribir algo, lo leído deja de valer. */
+export function invalidarCache() {
+  _cache.clear();
+}
+
+/** El botón "Actualizar" manda `refrescar=true`: es el mismo recurso, traído a la fuerza. */
+const esRefresco = (path) => /[?&]refrescar=true/.test(path);
+const claveDe = (path) => path.replace(/([?&])refrescar=true&?/, '$1').replace(/[?&]$/, '');
+
 async function pedir(path, options = {}) {
+  const metodo = (options.method ?? 'GET').toUpperCase();
+  if (metodo === 'GET') {
+    const clave = claveDe(path);
+    // Un refresco no lee del caché pero sí lo pisa: si guardara aparte, al volver atrás
+    // se vería otra vez lo viejo justo después de haber pedido lo nuevo.
+    if (!esRefresco(path)) {
+      const guardado = _cache.get(clave);
+      if (guardado && Date.now() - guardado.at < CACHE_MS) return guardado.data;
+      const enVuelo = _enVuelo.get(clave);
+      if (enVuelo) return enVuelo;
+    }
+    const promesa = pedirDeVerdad(path, options)
+      .then((data) => {
+        _cache.set(clave, { at: Date.now(), data });
+        return data;
+      })
+      .finally(() => _enVuelo.delete(clave));
+    if (!esRefresco(path)) _enVuelo.set(clave, promesa);
+    return promesa;
+  }
+  // Escribir invalida lo leído: si no, la vista muestra lo de antes del guardado.
+  const r = await pedirDeVerdad(path, options);
+  invalidarCache();
+  return r;
+}
+
+async function pedirDeVerdad(path, options = {}) {
   const token = getToken();
   let respuesta;
   try {
