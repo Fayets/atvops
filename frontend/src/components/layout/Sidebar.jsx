@@ -16,16 +16,15 @@ const NAV = [
     grupo: 'Áreas',
     // El día a día de fulfillment es de Mauri. Ops y dirección solo necesitan la lectura
     // para decidir: expansión, riesgo, vencimientos y calidad.
+    // Cuatro vistas, no ocho. Activación, Engagement y Retención mostraban los mismos
+    // clientes recortados distinto: ahora es una tabla con filtros. Chats en vivo vive
+    // dentro de la ficha del cliente, que es donde se lo necesita.
     sub: [
       { to: '/fulfillment/ops', label: 'Salud de cartera', roles: ['admin', 'operaciones', 'founder'] },
       { to: '/fulfillment', label: 'Resumen', end: true, roles: ['csm'] },
+      { to: '/fulfillment/diagnostico', label: 'Diagnóstico', roles: ['csm', 'operaciones', 'admin', 'founder'] },
       { to: '/fulfillment/pendientes', label: 'Updates', roles: ['csm'] },
-      { to: '/fulfillment/clientes', label: 'Clientes', roles: ['csm', 'operaciones', 'admin', 'founder'] },
-      { to: '/fulfillment/activacion', label: 'Activación', roles: ['csm'] },
-      { to: '/fulfillment/engagement', label: 'Engagement', roles: ['csm'] },
-      { to: '/fulfillment/retencion', label: 'Retención y riesgo', roles: ['csm'] },
       { to: '/fulfillment/outcomes', label: 'Resultados', roles: ['csm'] },
-      { to: '/fulfillment/chats', label: 'Chats en vivo', roles: ['csm'] },
     ],
   },
   {

@@ -29,6 +29,7 @@ import Chats from './pages/fulfillment/Chats.jsx';
 import Pendientes from './pages/fulfillment/Pendientes.jsx';
 import ClienteDetalle from './pages/fulfillment/ClienteDetalle.jsx';
 import Clientes from './pages/fulfillment/Clientes.jsx';
+import Diagnostico from './pages/fulfillment/Diagnostico.jsx';
 import Engagement from './pages/fulfillment/Engagement.jsx';
 import Outcomes from './pages/fulfillment/Outcomes.jsx';
 import FulfillmentOps from './pages/fulfillment/FulfillmentOps.jsx';
@@ -132,12 +133,15 @@ export default function App() {
             <Route path="fulfillment">
               <Route index element={<FulfillmentIndex />} />
               <Route path="ops" element={<FulfillmentOps />} />
-              <Route path="clientes" element={<Clientes />} />
+              <Route path="diagnostico" element={<Diagnostico />} />
               <Route path="clientes/:clienteId" element={<ClienteDetalle />} />
-              <Route path="activacion" element={<Activacion />} />
-              <Route path="onboarding" element={<Navigate to="/fulfillment/activacion" replace />} />
-              <Route path="engagement" element={<Engagement />} />
-              <Route path="retencion" element={<Retencion />} />
+              {/* Las vistas viejas siguen respondiendo: un link guardado no tiene por qué
+                  romperse porque consolidamos la navegación. */}
+              <Route path="clientes" element={<Navigate to="/fulfillment/diagnostico" replace />} />
+              <Route path="activacion" element={<Navigate to="/fulfillment/diagnostico" replace />} />
+              <Route path="onboarding" element={<Navigate to="/fulfillment/diagnostico" replace />} />
+              <Route path="engagement" element={<Navigate to="/fulfillment/diagnostico" replace />} />
+              <Route path="retencion" element={<Navigate to="/fulfillment/diagnostico" replace />} />
               <Route path="outcomes" element={<Outcomes />} />
               <Route path="pendientes" element={<Pendientes />} />
               <Route path="chats" element={<Chats />} />
