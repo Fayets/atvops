@@ -84,7 +84,8 @@ export default function Diagnostico() {
           title={`${clientes.length} ${clientes.length === 1 ? 'cliente' : 'clientes'}`}
           sub={filtro === 'todos' && programa === 'todos' && !busqueda ? '' : 'con los filtros puestos'}
           flush
-          actions={
+        >
+          <div className="diag-filtros">
             <input
               className="diag-busca"
               value={busqueda}
@@ -92,9 +93,12 @@ export default function Diagnostico() {
               placeholder="Buscar cliente o canal"
               aria-label="Buscar"
             />
-          }
-        >
-          <div className="diag-filtros">
+            <select className="diag-select" value={programa}
+              onChange={(e) => setPrograma(e.target.value)} aria-label="Programa">
+              <option value="todos">Todos los programas</option>
+              {programas.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <span className="diag-sep" aria-hidden="true" />
             {FILTROS.map((f) => {
               const cuantos = (Array.isArray(data) ? data : (data?.clientes ?? [])).filter(f.filtra).length;
               return (
@@ -105,10 +109,6 @@ export default function Diagnostico() {
                 </button>
               );
             })}
-            <select value={programa} onChange={(e) => setPrograma(e.target.value)} aria-label="Programa">
-              <option value="todos">Todos los programas</option>
-              {programas.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
           </div>
 
           {clientes.length === 0 ? (
