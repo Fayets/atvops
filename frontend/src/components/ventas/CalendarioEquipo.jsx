@@ -39,10 +39,12 @@ function parseAt(iso) {
  *           actualizando?: boolean, onActualizar?: () => void,
  *           onRango?: (desde: string, hasta: string) => void,
  *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void,
- *           onOcultar?: (l: object) => void, ocultos?: Record<string, boolean> }} props
+ *           onOcultar?: (l: object) => void, ocultos?: Record<string, boolean>,
+ *           numerosAgenda?: Record<string, number> }} props
  */
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
-                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos }) {
+                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos,
+                                           numerosAgenda: numerosAgendaProp }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -95,8 +97,11 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     return e.estado === 'sin_crm' ? ' sin-crm' : '';
   };
 
-  // Número de agenda del mes: correlativo desde el día 1, sin descartadas.
+  // Número de agenda del mes: misma regla que el KPI (sin descartadas; reprogramadas sí cuentan).
+  // Si el padre pasa `numerosAgenda` (p. ej. desde mis llamadas del closer), se usa eso
+  // para que el chip y el KPI digan exactamente el mismo correlativo.
   const numeroAgenda = useMemo(() => {
+    if (numerosAgendaProp) return numerosAgendaProp;
     /** @type {Record<string, object[]>} */
     const porMes = {};
     for (const l of llamados ?? []) {
@@ -114,7 +119,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       lista.forEach((l, i) => { map[l.id] = i + 1; });
     }
     return map;
-  }, [llamados, ocultos, estados]);
+  }, [llamados, ocultos, estados, numerosAgendaProp]);
   // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
   // para no dispararse también cuando en realidad fue doble click.
   const clickPendiente = useRef(null);
@@ -258,11 +263,13 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                           onDoubleClick={() => abrirEditor(l)}
                           title={estadoDe(l)?.estado === 'descartada'
                             ? 'Descartada · no cuenta para las agendas. Doble click para recuperarla'
-                            : (estadoDe(l)?.resultado
+                            : (estadoDe(l)?.estado === 'reprogramada'
+                              ? 'Reprogramada el mismo día · cuenta en agendas, no en no-show'
+                              : (estadoDe(l)?.resultado
                               ? `${estadoDe(l).resultado} · doble click para cambiarlo`
                               : (estadoDe(l)
                                 ? 'Doble click para cargar el resultado'
-                                : 'No es una llamada de venta · doble click para sacarla del calendario'))}
+                                : 'No es una llamada de venta · doble click para sacarla del calendario')))}
                         >
                           <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
                           {n != null && (
@@ -272,7 +279,9 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                           <span className="meta">
                             {estadoDe(l)?.estado === 'descartada'
                               ? 'descartada · no cuenta'
-                              : (estadoDe(l)?.resultado || `${l.oferta}${l.facturacion ? ` · ${l.facturacion}` : ''}`)}
+                              : (estadoDe(l)?.estado === 'reprogramada'
+                                ? 'reprogramada'
+                                : (estadoDe(l)?.resultado || `${l.oferta}${l.facturacion ? ` · ${l.facturacion}` : ''}`))}
                           </span>
                         </button>
                         );

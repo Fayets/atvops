@@ -478,13 +478,15 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "fechaAt": f["call"].isoformat(),
             "resultado": "" if f["call"] > ahora else (f.get("resultado") or "").strip(),
             "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
-                                  f.get("soloCalendario", False), f.get("duplicada", False)),
+                                  f.get("soloCalendario", False), f.get("duplicada", False),
+                                  f.get("reprogramada", False)),
             "closer": f.get("closer") or "", "setter": f.get("setter") or "",
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
             "cashUsd": _num(f.get("pago")), "saldoUsd": _num(f.get("debe")),
             "reporte": (f.get("closer_report") or "").strip(),
             "segunda": bool(f.get("segunda")),
+            "reprogramada": bool(f.get("reprogramada")),
         }
     # Las cargadas a mano no tienen evento de Google: el calendario las dibuja con esto.
     manuales = []
@@ -498,12 +500,15 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "prospecto": (f.get("nombre") or "").strip(),
             "fechaAt": f["call"].isoformat(),
             "resultado": "" if f["call"] > ahora else (f.get("resultado") or "").strip(),
-            "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora),
+            "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
+                                  f.get("soloCalendario", False), f.get("duplicada", False),
+                                  f.get("reprogramada", False)),
             "closer": f.get("closer") or "", "setter": f.get("setter") or "",
             "programa": (f.get("programa_ofrecido") or "").strip(),
             "facturacionUsd": precios.get(_norm((f.get("programa_ofrecido") or "")), 0.0),
             "cashUsd": _num(f.get("pago")), "saldoUsd": _num(f.get("debe")),
             "reporte": (f.get("closer_report") or "").strip(), "segunda": False,
+            "reprogramada": bool(f.get("reprogramada")),
         }
         por_evento[dato["eventoId"]] = dato
         manuales.append({**dato, "manual": True})
@@ -1165,9 +1170,11 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     # Las duplicadas del CRM no se muestran: sería pedirle al closer que cargue dos veces.
     llamadas = [f for f in (_fila(l) for l in filas) if f["estado"] != "duplicada"]
     inicio_mes = hoy.replace(day=1)
+    # Cuentan todas menos las descartadas a mano. Las reprogramadas (caída + rehecha el
+    # mismo día) entran al total y se muestran aparte en el detalle del KPI.
     del_mes = [x for x in llamadas
                if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes
-               and x["estado"] not in ("descartada", "reprogramada")]
+               and x["estado"] != "descartada"]
     ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
@@ -1187,22 +1194,26 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     aparte y no sube el close rate. Lo único que queda afuera de la agenda es lo que se
     descarta a mano: el resto de las reuniones cuentan, sean primera o quinta.
     """
-    shows = sum(1 for x in del_mes if x["estado"] in ("show", "cierre"))
-    no_shows = sum(1 for x in del_mes if x["estado"] == "no_show")
+    # Show / no-show no miran las reprogramadas: esa caída se recuperó el mismo día.
+    medibles = [x for x in del_mes if x["estado"] != "reprogramada"]
+    shows = sum(1 for x in medibles if x["estado"] in ("show", "cierre"))
+    no_shows = sum(1 for x in medibles if x["estado"] == "no_show")
     seguimientos = sum(1 for x in del_mes if x.get("seguimiento"))
+    reprogramadas = sum(1 for x in del_mes if x["estado"] == "reprogramada")
     evaluables = shows + no_shows
     cerradas = [x for x in ventas if _norm(x["resultado"]) == _norm("Cerrado")]
     senas = [x for x in ventas if x not in cerradas]
     cash = round(sum(x["cashUsd"] for x in ventas), 2)
     facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
     return {
-        # Toda reunión del mes es una agenda. La segunda vuelta con el mismo prospecto
-        # también se agenda, también hay que ir: se cuenta aparte, no se descuenta.
+        # Toda reunión del mes es una agenda (incluida la reprogramada). Solo queda
+        # afuera la descartada a mano.
         "agendadas": len(del_mes),
+        "reprogramadas": reprogramadas,
         "seguimientos": seguimientos,
         "reuniones": len(del_mes),
-        "porVenir": sum(1 for x in del_mes if x["estado"] == "agendado" and not x["pasada"]),
-        "sinReportar": sum(1 for x in del_mes if x["estado"] == "sin_reportar"),
+        "porVenir": sum(1 for x in medibles if x["estado"] == "agendado" and not x["pasada"]),
+        "sinReportar": sum(1 for x in medibles if x["estado"] == "sin_reportar"),
         "shows": shows,
         "noShows": no_shows,
         "cierres": len(cerradas),

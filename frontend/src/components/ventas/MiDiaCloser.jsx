@@ -67,7 +67,7 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, encabezado, on
 }
 
 /** El mismo calendario de Google que ve el director de ventas. */
-function CalendarioReal({ onCambio }) {
+function CalendarioReal({ onCambio, numerosAgenda }) {
   const [detalle, setDetalle] = useState(null);
   const [tick, setTick] = useState(0);
   // El rango lo manda el calendario según la semana o el mes que esté mostrando.
@@ -115,6 +115,7 @@ function CalendarioReal({ onCambio }) {
         onRango={onRango}
         estados={reuniones?.porEvento}
         ocultos={reuniones?.ocultos}
+        numerosAgenda={numerosAgenda}
         onEditar={(reunion, estado) => setEditando({ reunion, estado })}
         onAgregar={() => setAgregando(true)}
         onOcultar={async (l) => {
@@ -156,9 +157,9 @@ export default function MiDiaCloser({ data, onCambio }) {
   const { mes = {}, llamadas = [] } = data ?? {};
   const [detalle, setDetalle] = useState(null);
 
-  // Afuera de todo, igual que en el backend: la descartada porque la sacaste a mano, y la
-  // que se cayó y se rehízo el mismo día porque no es una reunión distinta.
-  const FUERA = ['descartada', 'reprogramada'];
+  // Afuera solo las descartadas a mano. Las reprogramadas cuentan en el total
+  // y se muestran como detalle debajo del KPI.
+  const FUERA = ['descartada'];
   const delMes = useMemo(() => {
     const inicio = new Date();
     inicio.setDate(1);
@@ -166,18 +167,46 @@ export default function MiDiaCloser({ data, onCambio }) {
     return llamadas.filter((l) => new Date(l.fechaAt) >= inicio && !FUERA.includes(l.estado));
   }, [llamadas]);
 
+  const reprogramadasMes = useMemo(
+    () => delMes.filter((l) => l.estado === 'reprogramada'),
+    [delMes],
+  );
+
+  // Mismo correlativo que "Agendas del mes": el chip de la semana y el KPI hablan igual.
+  const numerosAgenda = useMemo(() => {
+    const ordenados = [...delMes].sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
+    /** @type {Record<string, number>} */
+    const map = {};
+    ordenados.forEach((l, i) => {
+      const n = i + 1;
+      if (l.eventoId) map[l.eventoId] = n;
+      if (l.id != null) {
+        map[String(l.id)] = n;
+        map[`manual:${l.id}`] = n;
+      }
+    });
+    return map;
+  }, [delMes]);
+
   const ventas = delMes.filter((l) => l.estado === 'cierre');
   const shows = delMes.filter((l) => l.estado === 'show' || l.estado === 'cierre');
   const dinero = (l) => formatValue(l.cashUsd ?? 0, 'usd');
   const ver = (titulo, explicacion, lista, columna, encabezado) => () =>
     setDetalle({ titulo, explicacion, llamadas: lista, columna, encabezado });
 
+  const nReprog = mes.reprogramadas ?? reprogramadasMes.length;
+  const notaAgendas = [
+    nReprog > 0 ? `${nReprog} reprogramadas` : null,
+    mes.porVenir ? `${mes.porVenir} por venir` : null,
+    mes.seguimientos ? `${mes.seguimientos} son segunda reunión` : null,
+  ].filter(Boolean).join(' · ');
+
   return (
     <div className="mi-dia">
       <div className="kpi-grid">
-        <Kpi label="Agendas del mes" valor={mes.agendadas ?? 0}
-          nota={`${mes.porVenir ?? 0} por venir${mes.seguimientos ? ` · ${mes.seguimientos} son segunda reunión` : ''}`}
-          onVer={ver('Agendas del mes', 'Todas las reuniones del mes. Solo quedan afuera las que descartaste a mano.', delMes, (l) => l.origen || l.setter || '', 'Origen')} />
+        <Kpi label="Agendas del mes" valor={mes.agendadas ?? delMes.length}
+          nota={notaAgendas || 'todas las del mes'}
+          onVer={ver('Agendas del mes', 'Todas las reuniones del mes. Solo quedan afuera las descartadas a mano.', delMes, (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.origen || l.setter || '')), 'Detalle')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"
@@ -206,7 +235,7 @@ export default function MiDiaCloser({ data, onCambio }) {
           onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'), 'Facturación')} />
       </div>
 
-      <CalendarioReal onCambio={onCambio} />
+      <CalendarioReal onCambio={onCambio} numerosAgenda={numerosAgenda} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 
