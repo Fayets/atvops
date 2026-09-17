@@ -94,6 +94,27 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     if (e.resultado) return ' cargada';
     return e.estado === 'sin_crm' ? ' sin-crm' : '';
   };
+
+  // Número de agenda del mes: correlativo desde el día 1, sin descartadas.
+  const numeroAgenda = useMemo(() => {
+    /** @type {Record<string, object[]>} */
+    const porMes = {};
+    for (const l of llamados ?? []) {
+      if (ocultos?.[l.id]) continue;
+      if (estados?.[l.id]?.estado === 'descartada') continue;
+      const d = parseAt(l.fechaAt);
+      const mk = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!porMes[mk]) porMes[mk] = [];
+      porMes[mk].push(l);
+    }
+    /** @type {Record<string, number>} */
+    const map = {};
+    for (const lista of Object.values(porMes)) {
+      lista.sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
+      lista.forEach((l, i) => { map[l.id] = i + 1; });
+    }
+    return map;
+  }, [llamados, ocultos, estados]);
   // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
   // para no dispararse también cuando en realidad fue doble click.
   const clickPendiente = useRef(null);
@@ -121,10 +142,12 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     else onOcultar?.(l);
   };
 
-  // El rango visible, en fecha local, para pedirle al backend exactamente esos días.
+  // Pedimos desde el 1° del mes más temprano visible: el contador de agendas
+  // es del mes entero, no solo de la semana en pantalla.
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const visibles = modo === 'semana' ? semana : mes;
-  const desde = iso(visibles[0]);
+  const inicioMesVisible = new Date(visibles[0].getFullYear(), visibles[0].getMonth(), 1);
+  const desde = iso(inicioMesVisible);
   const hasta = iso(visibles[visibles.length - 1]);
   useEffect(() => {
     onRango?.(desde, hasta);
@@ -224,7 +247,9 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                     {items.length === 0 ? (
                       <div className="dim" style={{ fontSize: 11 }}>Sin llamadas</div>
                     ) : (
-                      items.map((l, i) => (
+                      items.map((l) => {
+                        const n = numeroAgenda[l.id];
+                        return (
                         <button
                           key={l.id}
                           type="button"
@@ -240,7 +265,9 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                                 : 'No es una llamada de venta · doble click para sacarla del calendario'))}
                         >
                           <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
-                          <span className="num-agenda" aria-label={`Agenda ${i + 1} del día`}>{i + 1}</span>
+                          {n != null && (
+                            <span className="num-agenda" aria-label={`Agenda ${n} del mes`}>{n}</span>
+                          )}
                           <span className="who">{l.prospecto}</span>
                           <span className="meta">
                             {estadoDe(l)?.estado === 'descartada'
@@ -248,7 +275,8 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                               : (estadoDe(l)?.resultado || `${l.oferta}${l.facturacion ? ` · ${l.facturacion}` : ''}`)}
                           </span>
                         </button>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -271,19 +299,22 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                   className={`ventas-cal-mes-celda${fuera ? ' fuera' : ''}${mismaFecha(d, ancla) ? ' hoy' : ''}`}
                 >
                   <div className="num-dia">{d.getDate()}</div>
-                  {items.slice(0, 3).map((l, i) => (
+                  {items.slice(0, 3).map((l) => {
+                    const n = numeroAgenda[l.id];
+                    return (
                     <button
                       key={l.id}
                       type="button"
                       className={`ventas-cal-ev mini estado-${l.estado}${clasesDe(l)}`}
                       onClick={() => alClick(l)}
                       onDoubleClick={() => abrirEditor(l)}
-                      title={`#${i + 1} · ${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
+                      title={`${n != null ? `#${n} · ` : ''}${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
                     >
-                      <span className="num-agenda">{i + 1}</span>
+                      {n != null && <span className="num-agenda">{n}</span>}
                       {l.prospecto.split(' ')[0]}
                     </button>
-                  ))}
+                    );
+                  })}
                   {items.length > 3 && <div className="dim" style={{ fontSize: 10 }}>+{items.length - 3}</div>}
                 </div>
               );
