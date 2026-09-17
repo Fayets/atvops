@@ -17,7 +17,7 @@ export const ROLES = {
   closer: {
     id: 'closer',
     label: 'Closer',
-    descripcion: 'Cierra llamados. Ve Ventas (llamados/cash) y calendario.',
+    descripcion: 'Cierra llamados. Ve Ventas (llamados/cash) y metas.',
   },
   setter: {
     id: 'setter',
@@ -65,7 +65,7 @@ export const ROL_LIST = Object.keys(ROLES);
  * @type {Record<Rol, string[]>}
  */
 export const RUTAS_POR_ROL = {
-  closer: ['/calendario', '/ventas', '/metas'],
+  closer: ['/ventas', '/metas'],
   setter: ['/calendario', '/ventas', '/metas'],
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá

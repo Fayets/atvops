@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CalendarioEquipo from './CalendarioEquipo.jsx';
 import EditorReunion from './EditorReunion.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
@@ -7,6 +7,7 @@ import Card from '../ui/Card.jsx';
 import { formatValue } from '../../lib/format.js';
 import { getEstadoReuniones, getLlamadosAgenda, ocultarReunion } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
+import { alActualizarLlamadas } from '../../lib/llamadasSync.js';
 
 const pct = (v) => (v == null ? '—' : `${v}%`);
 const fecha = (iso) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
@@ -67,22 +68,26 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, encabezado, on
 }
 
 /** El mismo calendario de Google que ve el director de ventas. */
-function CalendarioReal({ onCambio, numerosAgenda }) {
+function CalendarioReal({ onCambio, numerosAgenda, syncKey = 0 }) {
   const [detalle, setDetalle] = useState(null);
   const [tick, setTick] = useState(0);
   // El rango lo manda el calendario según la semana o el mes que esté mostrando.
   const [rango, setRango] = useState(null);
+  // syncKey: KPIs de Mi día se refrescaron (p. ej. tras el gate) → repintar estados.
+  const version = tick + syncKey;
   const { data, loading, error } = useResource(
-    () => getLlamadosAgenda({ dias: 21, diasAtras: 7, refrescar: tick > 0, ...(rango ?? {}) }),
-    [tick, rango?.desde, rango?.hasta],
+    () => getLlamadosAgenda({ dias: 21, diasAtras: 7, refrescar: version > 0, ...(rango ?? {}) }),
+    [version, rango?.desde, rango?.hasta],
   );
   const onRango = useCallback((desde, hasta) => setRango({ desde, hasta }), []);
   const [editando, setEditando] = useState(null);
   const [agregando, setAgregando] = useState(false);
   const { data: reuniones } = useResource(
     () => (rango ? getEstadoReuniones(rango) : Promise.resolve(null)),
-    [tick, rango?.desde, rango?.hasta],
+    [version, rango?.desde, rango?.hasta],
   );
+
+  useEffect(() => alActualizarLlamadas(() => setTick((t) => t + 1)), []);
 
   // Las reuniones cargadas a mano no están en Google: se suman para que el calendario las dibuje.
   const llamadosConManuales = [
@@ -153,7 +158,7 @@ function CalendarioReal({ onCambio, numerosAgenda }) {
 }
 
 /** Mi día: los números del mes del closer y el calendario del equipo. */
-export default function MiDiaCloser({ data, onCambio }) {
+export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
   const { mes = {}, llamadas = [] } = data ?? {};
   const [detalle, setDetalle] = useState(null);
 
@@ -235,7 +240,7 @@ export default function MiDiaCloser({ data, onCambio }) {
           onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'), 'Facturación')} />
       </div>
 
-      <CalendarioReal onCambio={onCambio} numerosAgenda={numerosAgenda} />
+      <CalendarioReal onCambio={onCambio} numerosAgenda={numerosAgenda} syncKey={syncKey} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 

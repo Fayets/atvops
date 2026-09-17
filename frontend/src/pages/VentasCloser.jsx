@@ -1,10 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import MiDiaCloser from '../components/ventas/MiDiaCloser.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
 import { getMisLlamadas } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
+import { alActualizarLlamadas } from '../lib/llamadasSync.js';
 
 /** Mi día: las llamadas del closer, para cargar el resultado de cada una. */
 export default function VentasCloser() {
@@ -14,6 +15,10 @@ export default function VentasCloser() {
   const vista = local ?? data;
   // Cargar un resultado o agregar una reunión tiene que mover los números de arriba.
   const refrescar = useCallback(() => { setLocal(null); setTick((t) => t + 1); }, []);
+
+  // Si el closer cargó pendientes en el gate, el calendario de atrás tiene que
+  // repintarse sin esperar un F5.
+  useEffect(() => alActualizarLlamadas(refrescar), [refrescar]);
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
@@ -43,7 +48,7 @@ export default function VentasCloser() {
           No encontramos llamadas a tu nombre en el CRM. Pedile a Franco que revise cómo figurás como closer.
         </div>
       ) : (
-        <MiDiaCloser data={vista} onCambio={refrescar} />
+        <MiDiaCloser data={vista} onCambio={refrescar} syncKey={tick} />
       )}
     </div>
   );

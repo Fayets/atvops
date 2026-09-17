@@ -3,6 +3,7 @@ import LlamadasPendientes from './LlamadasPendientes.jsx';
 import { getMisLlamadas, login } from '../../data/api.js';
 import { mesId } from '../../lib/format.js';
 import { GATE_KEY as CLAVE_SALIDA } from '../../lib/auth.js';
+import { avisarLlamadasActualizadas } from '../../lib/llamadasSync.js';
 import { useRol } from '../../lib/RolContext.jsx';
 const ROLES_SALIDA = ['admin', 'founder', 'operaciones'];
 
@@ -144,6 +145,8 @@ export default function GateLlamadas() {
           onGuardado={(nuevo, id) => {
             setData(nuevo);
             setRestantes((prev) => prev.filter((l) => l.id !== id));
+            // Mi día y el calendario ya pueden estar montados detrás: que se enteren.
+            avisarLlamadasActualizadas();
           }}
         />
       </div>
