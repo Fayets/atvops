@@ -9,6 +9,7 @@ import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
 import Home from './pages/Home.jsx';
 import HomeMarketingPage from './pages/HomeMarketingPage.jsx';
+import HomeVentasPage from './pages/HomeVentasPage.jsx';
 import ContenidoPage from './pages/marketing/ContenidoPage.jsx';
 import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
@@ -107,6 +108,8 @@ function HomeIndex() {
   }
   // El director de marketing ve cómo viene su mes, no el cuadro de mando de operaciones.
   if (rol === 'marketing') return <HomeMarketingPage />;
+  // El director de ventas ve cash + métricas por calidad de lead.
+  if (rol === 'ventas') return <HomeVentasPage />;
   return <Home />;
 }
 

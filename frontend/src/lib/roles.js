@@ -112,7 +112,7 @@ export const HOME_POR_ROL = {
   setter: '/ventas/mi-progreso',
   csm: '/fulfillment',
   operaciones: '/',
-  ventas: '/ventas',
+  ventas: '/',
   marketing: '/marketing',
   founder: '/',
   admin: '/',

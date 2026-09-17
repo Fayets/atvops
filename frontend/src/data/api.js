@@ -8,6 +8,7 @@
  *   getVentas()       → GET /api/ventas (base de ATV Ops: llamadas, cierres, cash)
  *   getMisLlamadas()  → GET /api/ventas/mis-llamadas (las llamadas del closer)
  *   getSetterDashboard() → GET /api/ventas/mi-setting (reportes diarios del setter)
+ *   getVentasDirectorHome() → CRM general + -- en segmentos sin fuente (calif./descalif.)
  *   getMarketing()    → GET /api/ventas/marketing (Ads, reels, YouTube, historias, setting)
  *   getCobranza()     → GET /api/ventas/cobranza (cuotas del esquema clients)
  *   getFulfillmentOps() → GET /api/ventas/cartera-ops (altas, bajas, vencimientos)
@@ -2378,6 +2379,87 @@ export async function getResumenEventos() {
 /** Tira el borrador de la última ronda sin aplicarlo. */
 export async function descartarBorrador() {
   return pedir('/api/pendientes/borrador', { method: 'DELETE' });
+}
+
+/**
+ * Home del Director de Ventas: cash collected + métricas por segmento.
+ * General sale del CRM (`/api/ventas`). Calificadas / descalificadas
+ * y periodos distintos de mes quedan en null (UI muestra --) hasta tener fuente.
+ */
+export async function getVentasDirectorHome(mes) {
+  const {
+    VENTAS_DIRECTOR_PERIODOS,
+    segmentoGeneralDesdeBloque,
+    segmentosPendientes,
+  } = await import('./mock/ventasDirector.js');
+
+  const [real, programasRes] = await Promise.all([
+    getVentasReal(mes),
+    getProgramas().catch(() => ({ programas: [] })),
+  ]);
+
+  const listaProgramas = Array.isArray(programasRes)
+    ? programasRes
+    : (programasRes?.programas ?? []);
+
+  const programas = [
+    { value: 'todos', label: 'Todos' },
+    ...listaProgramas.map((p) => ({
+      value: String(p.id ?? p.slug ?? p.nombre ?? '').toLowerCase().replace(/\s+/g, '_'),
+      label: p.nombre ?? p.label ?? String(p.id),
+    })).filter((p) => p.value && p.value !== 'todos'),
+  ];
+
+  const closers = [
+    { value: 'todos', label: 'Todos' },
+    ...(real.porCloser ?? []).map((c) => ({
+      value: c.nombre,
+      label: c.nombre,
+    })),
+  ];
+
+  const general = segmentoGeneralDesdeBloque(real.actual);
+  const pendientes = segmentosPendientes();
+  const segmentosMes = [general, ...pendientes];
+
+  const segmentosPorCloser = {};
+  const cashPorCloser = {};
+  for (const c of real.porCloser ?? []) {
+    segmentosPorCloser[c.nombre] = [
+      segmentoGeneralDesdeBloque(c),
+      ...segmentosPendientes(),
+    ];
+    cashPorCloser[c.nombre] = c.cashUsd ?? 0;
+  }
+
+  return {
+    contexto: {
+      mes: real.mes,
+      syncAt: real.generadoAt,
+    },
+    filtros: {
+      periodos: VENTAS_DIRECTOR_PERIODOS,
+      programas,
+      closers,
+    },
+    cashPorPeriodo: {
+      hoy: null,
+      semana: null,
+      mes: real.actual?.cashUsd ?? null,
+      anio: null,
+      rango: null,
+    },
+    cashPorCloser,
+    segmentosPorPeriodo: {
+      // Solo el mes tiene fuente en el CRM hoy.
+      mes: segmentosMes,
+    },
+    segmentosPorCloser,
+    segmentosVacios: [
+      segmentoGeneralDesdeBloque(null),
+      ...segmentosPendientes(),
+    ],
+  };
 }
 
 /** Progreso de la ronda en curso (o de la última). */

@@ -224,7 +224,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                     {items.length === 0 ? (
                       <div className="dim" style={{ fontSize: 11 }}>Sin llamadas</div>
                     ) : (
-                      items.map((l) => (
+                      items.map((l, i) => (
                         <button
                           key={l.id}
                           type="button"
@@ -240,6 +240,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                                 : 'No es una llamada de venta · doble click para sacarla del calendario'))}
                         >
                           <span className="hora">{l.todoElDia ? 'día' : formatFechaHora(l.fechaAt).split(', ')[1]}</span>
+                          <span className="num-agenda" aria-label={`Agenda ${i + 1} del día`}>{i + 1}</span>
                           <span className="who">{l.prospecto}</span>
                           <span className="meta">
                             {estadoDe(l)?.estado === 'descartada'
@@ -270,15 +271,16 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                   className={`ventas-cal-mes-celda${fuera ? ' fuera' : ''}${mismaFecha(d, ancla) ? ' hoy' : ''}`}
                 >
                   <div className="num-dia">{d.getDate()}</div>
-                  {items.slice(0, 3).map((l) => (
+                  {items.slice(0, 3).map((l, i) => (
                     <button
                       key={l.id}
                       type="button"
                       className={`ventas-cal-ev mini estado-${l.estado}${clasesDe(l)}`}
                       onClick={() => alClick(l)}
                       onDoubleClick={() => abrirEditor(l)}
-                      title={`${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
+                      title={`#${i + 1} · ${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
                     >
+                      <span className="num-agenda">{i + 1}</span>
                       {l.prospecto.split(' ')[0]}
                     </button>
                   ))}
