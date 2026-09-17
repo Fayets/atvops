@@ -72,14 +72,14 @@ export default function Metas() {
       ];
     }
     if (esCloser && personal.data?.metaMes) {
-      const c = personal.data.metaMes.cuota;
-      const act = personal.data.kpis ?? [];
+      const c = personal.data.metaMes;
+      const act = personal.data.kpisMes ?? [];
       const v = (id) => act.find((k) => k.id === id)?.value ?? 0;
       return [
-        { id: 'llamadas', nombre: 'Llamadas', meta: c.llamadas, actual: v('llamadas') },
-        { id: 'shows', nombre: 'Shows', meta: c.shows, actual: v('shows') },
-        { id: 'cierres', nombre: 'Cierres', meta: c.cierres, actual: v('cierres') },
-        { id: 'cash', nombre: 'Cash', meta: c.cashUsd, actual: v('cash'), format: 'usd' },
+        { id: 'agendas', nombre: 'Agendas', meta: c.agendadas ?? 0, actual: v('agendadas_mes') },
+        { id: 'shows', nombre: 'Shows', meta: c.shows ?? 0, actual: v('shows_mes') },
+        { id: 'cierres', nombre: 'Cierres', meta: c.cierres ?? 0, actual: v('cierres_mes') },
+        { id: 'cash', nombre: 'Cash', meta: c.cashUsd ?? 0, actual: v('cash_mes'), format: 'usd' },
       ];
     }
     return null;
@@ -92,8 +92,8 @@ export default function Metas() {
     const d = ventas.data;
     if (!d) return [];
     const bloques = [];
-    const miNombre = (personal.data?.closer || personal.data?.setter
-      || personal.data?.perfil?.nombre || user?.nombre || user?.username || '').trim();
+    const miNombre = (personal.data?.perfil?.nombre || personal.data?.closer || personal.data?.setter
+      || user?.nombre || user?.username || '').trim();
     const soloMio = (lista, deMiRol) => {
       // El closer o setter ve su fila; quien mira todo el área las ve todas.
       if (puedeVerVentasDirector(rol) || puedeEditar) return lista;
