@@ -4,7 +4,7 @@ El registro de pitches del setter y lo que sale de él.
 Es lo que Cris llevaba en SetSystem, adentro de ATV Ops. Cada fila es un link de agenda
 enviado; de ahí se desprende todo lo demás: si agendó, si vino, si cerró, cuánto entró.
 
-Las cuentas viven en funciones puras sobre diccionarios (`_metricas_de`, `_semanas_de`)
+Las cuentas viven en funciones puras sobre diccionarios (`_bloque`, `_semanas_de`)
 para que se puedan probar sin base y para que las use cualquier vista.
 """
 
@@ -24,8 +24,10 @@ PITCH_ESTADOS = ("pendiente", "booked", "ghosted", "denied")
 LLAMADA_ESTADOS = ("scheduled", "showed", "no_show", "cancelled", "deposit", "closed")
 # Lo que cuenta como show: vino a la llamada, haya cerrado o no.
 SHOW = {"showed", "deposit", "closed"}
-# Lo que ya se resolvió: la llamada pasó y se sabe qué fue.
-RESUELTOS = SHOW | {"no_show", "cancelled"}
+# No vino: da igual si avisó antes o no apareció, la llamada no pasó.
+NO_VINO = {"no_show", "cancelled"}
+# Lo que ya se resolvió: se sabe si vino o no.
+RESUELTOS = SHOW | NO_VINO
 
 # Los rangos sanos de cada paso. Son los mismos que usa la vista de Setting de ops.
 RANGOS = {
@@ -75,15 +77,12 @@ def _derivados(p: dict, hoy: date) -> dict:
     """Lo que la pantalla necesita saber de cada pitch sin volver a calcularlo."""
     cuando = fecha_llamada(p)
     estado = p.get("llamadaEstado")
-    agendado = p.get("pitchEstado") == "booked"
-    ocurrida = agendado and cuando is not None and cuando <= hoy
-    por_ocurrir = agendado and (estado in (None, "", "scheduled")) and cuando is not None and cuando > hoy
     return {
         **p,
         "fechaLlamada": cuando.isoformat() if cuando else None,
-        "porOcurrir": bool(por_ocurrir),
-        # Pasó la fecha y nadie dijo qué fue: eso es lo que hay que resolver.
-        "sinResolver": bool(ocurrida and estado not in RESUELTOS),
+        # Agendada y sin resultado: no falló nada todavía, esté la fecha adelante o atrás.
+        "sinResolver": _sin_resolver(p),
+        "vencida": bool(_sin_resolver(p) and cuando is not None and cuando < hoy),
         "show": estado in SHOW,
     }
 
@@ -119,91 +118,265 @@ def _a_dict(p) -> dict:
 
 # ------------------------------------------------------------------ cuentas puras
 
-def _en_periodo(p: dict, desde: date | None, hasta: date | None) -> bool:
-    d = _fecha(p.get("pitchAt"))
+def _en(fecha, desde: date | None, hasta: date | None) -> bool:
+    d = _fecha(fecha)
     if d is None:
         return False
-    if desde and d < desde:
-        return False
-    if hasta and d > hasta:
-        return False
-    return True
+    return (desde is None or d >= desde) and (hasta is None or d <= hasta)
 
 
-def _metricas_de(pitches: list[dict], hoy: date, desde: date | None = None,
-                 hasta: date | None = None, canal: str | None = None) -> dict:
-    """Las cuatro tasas y el embudo, sobre los pitches del período.
+def _sin_resolver(p: dict) -> bool:
+    """Agendó y todavía no se sabe qué pasó con la llamada.
 
-    El período recorta por la fecha del pitch: el embudo sigue a esos leads a donde
-    hayan llegado, aunque la llamada caiga en otro mes. Es como lo mide SetSystem y es lo
-    que hace comparable un mes con otro.
-
-    El show rate se calcula sobre las llamadas que ya pasaron. Dividir por las que están
-    por ocurrir da un rojo falso al principio de cada semana.
+    No mira la fecha a propósito: una call de ayer sin resultado cargado tampoco resolvió
+    nada, y meterla en el show rate como si hubiera fallado ensucia el número.
     """
-    filas = [p for p in pitches if _en_periodo(p, desde, hasta) and (not canal or p.get("canal") == canal)]
-    filas = [_derivados(p, hoy) for p in filas]
+    return p.get("pitchEstado") == "booked" and (p.get("llamadaEstado") or "") in ("", "scheduled")
 
-    agendas = [p for p in filas if p["pitchEstado"] == "booked"]
-    por_ocurrir = [p for p in agendas if p["porOcurrir"]]
-    ocurridas = [p for p in agendas if not p["porOcurrir"]]
-    shows = [p for p in filas if p["show"]]
-    cierres = [p for p in filas if p["llamadaEstado"] == "closed"]
-    depositos = [p for p in filas if p["llamadaEstado"] == "deposit"]
 
-    n_p, n_a, n_o, n_s, n_c = len(filas), len(agendas), len(ocurridas), len(shows), len(cierres)
-    booking, show, close, setting = _tasa(n_a, n_p), _tasa(n_s, n_o), _tasa(n_c, n_s), _tasa(n_c, n_p)
+def _bloque(leads: list[dict], calls: list[dict]) -> dict:
+    """Las cuentas de un período.
 
-    # Dónde conviene trabajar: cuántos se pierden en cada paso y cuántos cierres más
-    # saldrían si esa tasa subiera diez puntos, dejando las otras como están.
-    show_f = (n_s / n_o) if n_o else 0.0
-    close_f = (n_c / n_s) if n_s else 0.0
-    etapas = [
-        {"id": "booking", "etapa": "Pitch → Agenda", "tasa": booking, "perdidos": n_p - n_a,
-         "masDiez": round(n_p * 0.10 * show_f * close_f, 1) if n_p else 0},
-        {"id": "show", "etapa": "Agenda → Show", "tasa": show, "perdidos": n_o - n_s,
-         "masDiez": round(n_o * 0.10 * close_f, 1) if n_o else 0},
-        {"id": "close", "etapa": "Show → Cierre", "tasa": close, "perdidos": n_s - n_c,
-         "masDiez": round(n_s * 0.10, 1) if n_s else 0},
-    ]
-    for e in etapas:
-        r = RANGOS[e["id"]]
-        e["brecha"] = round(r["verde"] - e["tasa"], 1) if e["tasa"] is not None else None
-        e["zona"] = (None if e["tasa"] is None else "ok" if e["tasa"] >= r["verde"]
-                     else "warn" if e["tasa"] >= r["amarillo"] else "alert")
-    con_brecha = [e for e in etapas if e["brecha"] is not None and e["brecha"] > 0]
-    peor = max(con_brecha, key=lambda e: e["brecha"])["id"] if con_brecha else None
+    Dos conjuntos distintos y a propósito: `leads` son los pitches mandados en el período
+    y `calls` las llamadas que caían en él. El booking se juzga sobre el día que se mandó
+    el link; el show, sobre el día que era la llamada. Mezclarlos hace que una semana con
+    muchas calls arrastradas de la anterior parezca mejor de lo que fue.
+    """
+    resueltos = [p for p in leads if p.get("pitchEstado") != "pendiente"]
+    pendientes = [p for p in leads if p.get("pitchEstado") == "pendiente"]
+    booked = [p for p in leads if p.get("pitchEstado") == "booked"]
+    ghosted = [p for p in leads if p.get("pitchEstado") == "ghosted"]
+    denied = [p for p in leads if p.get("pitchEstado") == "denied"]
+    # Un ciclo completo es un pitch que ya llegó al final: o no agendó, o agendó y la
+    # llamada se resolvió. Los que tienen la call por delante todavía no fallaron nada.
+    recorridos = len(resueltos) - sum(1 for p in leads if _sin_resolver(p))
+    cierres_del_pitch = [p for p in leads if p.get("llamadaEstado") == "closed"]
+
+    llamadas_resueltas = [p for p in calls if p.get("llamadaEstado") in RESUELTOS]
+    por_ocurrir = [p for p in calls if _sin_resolver(p)]
+    shows = [p for p in calls if p.get("llamadaEstado") in SHOW]
+    no_vinieron = [p for p in calls if p.get("llamadaEstado") in NO_VINO]
+    cierres = [p for p in calls if p.get("llamadaEstado") == "closed"]
+    depositos = [p for p in calls if p.get("llamadaEstado") == "deposit"]
 
     return {
-        "pitches": n_p, "agendas": n_a, "shows": n_s, "cierres": n_c,
-        "depositos": len(depositos), "porOcurrir": len(por_ocurrir), "ocurridas": n_o,
-        "sinResolver": sum(1 for p in filas if p["sinResolver"]),
-        "booking": booking, "show": show, "close": close, "setting": setting,
-        "cashUsd": round(sum(float(p.get("cashUsd") or 0) for p in filas), 2),
-        "valorUsd": round(sum(float(p.get("valorUsd") or 0) for p in filas), 2),
-        "porCanal": {c: sum(1 for p in filas if p["canal"] == c) for c in CANALES},
-        "porOrigen": {o: sum(1 for p in filas if p["origen"] == o) for o in ORIGENES},
-        "dondeConviene": etapas, "peorEtapa": peor,
+        "pitches": len(leads), "pitchesResueltos": len(resueltos), "pitchesPendientes": len(pendientes),
+        "agendas": len(booked), "ghosted": len(ghosted), "denied": len(denied),
+        "recorridosCompletos": max(recorridos, 0), "cierresDelPitch": len(cierres_del_pitch),
+        "llamadasResueltas": len(llamadas_resueltas), "porOcurrir": len(por_ocurrir),
+        "shows": len(shows), "noShows": len(no_vinieron), "cierres": len(cierres),
+        "depositos": len(depositos),
+        "booking": _tasa(len(booked), len(resueltos)),
+        "show": _tasa(len(shows), len(llamadas_resueltas)),
+        "close": _tasa(len(cierres), len(shows)),
+        # Setting rate: de los ciclos que terminaron, cuántos terminaron en cierre.
+        "setting": _tasa(len(cierres_del_pitch), max(recorridos, 0)),
     }
+
+
+def _recorte(pitches: list[dict], desde: date | None, hasta: date | None,
+             canal: str | None = None) -> tuple[list[dict], list[dict]]:
+    filas = [p for p in pitches if not canal or p.get("canal") == canal]
+    leads = [p for p in filas if _en(p.get("pitchAt"), desde, hasta)]
+    calls = [p for p in filas if _en(p.get("fechaLlamada"), desde, hasta)]
+    return leads, calls
+
+
+# ------------------------------------------------------------------ dónde conviene trabajar
+
+MEJORA = 10  # los diez puntos que se simulan en cada etapa
+
+CONSEJOS = {
+    "booking": "El problema está en el pitch o en el follow-up: te contestan poco o no les interesa la call.",
+    "show": "Agendan pero no aparecen: falta recordatorio previo o estás agendando muy lejos.",
+    "close": "Llegan a la call pero no cierran: el problema está en la llamada misma o en la calificación del lead.",
+}
+
+
+def _donde_conviene(m: dict) -> dict | None:
+    """Qué etapa mueve más cierres si sube diez puntos.
+
+    No es la peor tasa: es la que más cierres agrega. Una etapa horrible sobre cuatro
+    leads mueve menos que una mediocre sobre cuarenta, y arreglar la primera no cambia
+    el mes.
+    """
+    show_f = (m["show"] or 0) / 100
+    close_f = (m["close"] or 0) / 100
+    r = MEJORA / 100
+    etapas = [
+        {"id": "booking", "etapa": "Pitch → Agenda", "tasa": m["booking"], "base": m["pitchesResueltos"],
+         "perdidos": m["pitchesResueltos"] - m["agendas"], "ganancia": m["pitchesResueltos"] * r * show_f * close_f},
+        {"id": "show", "etapa": "Agenda → Show", "tasa": m["show"], "base": m["llamadasResueltas"],
+         "perdidos": m["llamadasResueltas"] - m["shows"], "ganancia": m["llamadasResueltas"] * r * close_f},
+        {"id": "close", "etapa": "Show → Close", "tasa": m["close"], "base": m["shows"],
+         "perdidos": m["shows"] - m["cierres"], "ganancia": m["shows"] * r},
+    ]
+    etapas = [e for e in etapas if e["base"] > 0]
+    if not etapas:
+        return None
+    for e in etapas:
+        e["ganancia"] = round(e["ganancia"], 1)
+        e["consejo"] = CONSEJOS[e["id"]]
+        rango = RANGOS[e["id"]]
+        e["zona"] = (None if e["tasa"] is None else "ok" if e["tasa"] >= rango["verde"]
+                     else "warn" if e["tasa"] >= rango["amarillo"] else "alert")
+    ordenadas = sorted(etapas, key=lambda e: e["ganancia"], reverse=True)
+    return {"mejor": ordenadas[0]["id"], "mejora": MEJORA,
+            "etapas": sorted(etapas, key=lambda e: e["ganancia"], reverse=True)}
+
+
+# ------------------------------------------------------------------ plata, velocidad y follow ups
+
+def _dias(desde, hasta) -> int | None:
+    a, b = _fecha(desde), _fecha(hasta)
+    return (b - a).days if a and b else None
+
+
+def _promedio(valores: list) -> float | None:
+    limpios = [v for v in valores if v is not None]
+    return round(sum(limpios) / len(limpios), 1) if limpios else None
+
+
+def _cash(leads: list[dict]) -> dict:
+    """Lo vendido, lo cobrado y lo que falta.
+
+    Los cierres sin monto cargado se cuentan aparte en vez de entrar como cero: un cero
+    inventado baja el ticket promedio y hace que el mes parezca peor de lo que fue.
+    """
+    cerrados = [p for p in leads if p.get("llamadaEstado") in ("closed", "deposit")]
+    con_monto = [p for p in cerrados if (p.get("valorUsd") or 0) > 0 or (p.get("cashUsd") or 0) > 0]
+    revenue = sum(float(p.get("valorUsd") or 0) for p in con_monto)
+    cobrado = sum(float(p.get("cashUsd") or 0) for p in con_monto)
+    cierres = [p for p in con_monto if p.get("llamadaEstado") == "closed"]
+    return {
+        "revenue": round(revenue, 2), "cobrado": round(cobrado, 2),
+        "porCobrar": round(revenue - cobrado, 2),
+        "ticket": round(revenue / len(cierres), 2) if cierres else None,
+        "revenuePorPitch": round(revenue / len(leads), 2) if leads else None,
+        "sinMonto": len([p for p in cerrados if p not in con_monto]),
+        "cobros": sorted(
+            [{"id": p["id"], "prospecto": p["prospecto"], "cuando": p.get("cierreAt") or p.get("fechaLlamada"),
+              "estado": p.get("llamadaEstado"), "revenue": float(p.get("valorUsd") or 0),
+              "cobrado": float(p.get("cashUsd") or 0),
+              "falta": round(float(p.get("valorUsd") or 0) - float(p.get("cashUsd") or 0), 2)}
+             for p in con_monto],
+            key=lambda c: c["cuando"] or "", reverse=True),
+    }
+
+
+def _velocidad(leads: list[dict]) -> dict:
+    agendados = [p for p in leads if p.get("pitchEstado") == "booked"]
+    a_agenda = [_dias(p.get("pitchAt"), p.get("agendoAt")) for p in agendados]
+    a_call = [_dias(p.get("agendoAt"), p.get("fechaLlamada")) for p in agendados]
+    mismo_dia = sum(1 for d in a_agenda if d == 0)
+    return {
+        "mismoDia": _tasa(mismo_dia, len([d for d in a_agenda if d is not None])),
+        "pitchAAgenda": _promedio(a_agenda), "agendaACall": _promedio(a_call),
+    }
+
+
+def _follow_ups(leads: list[dict]) -> dict:
+    agendados = [p for p in leads if p.get("pitchEstado") == "booked"]
+    ghosteados = [p for p in leads if p.get("pitchEstado") == "ghosted"]
+    con_follow = sum(1 for p in agendados if (p.get("seguimientos") or 0) > 0)
+    return {
+        "desdeFollowUp": _tasa(con_follow, len(agendados)),
+        "promedioHastaAgendar": _promedio([p.get("seguimientos") or 0 for p in agendados]),
+        "intentosGhosteados": _promedio([p.get("seguimientos") or 0 for p in ghosteados]),
+        "ghosteados": len(ghosteados),
+    }
+
+
+# ------------------------------------------------------------------ qué tan firmes son los números
+
+def _intervalo(exitos: int, total: int, z: float = 1.96) -> list[float] | None:
+    """Intervalo de Wilson: entre qué dos valores puede estar la tasa de verdad.
+
+    Con pocos datos el intervalo se abre tanto que la tasa no dice nada, y eso es
+    exactamente lo que hay que mostrar en vez de un porcentaje que parece firme.
+    """
+    if not total:
+        return None
+    p = exitos / total
+    d = 1 + z * z / total
+    centro = (p + z * z / (2 * total)) / d
+    margen = z * ((p * (1 - p) / total + z * z / (4 * total * total)) ** 0.5) / d
+    return [round(max(0.0, (centro - margen) * 100), 1), round(min(100.0, (centro + margen) * 100), 1)]
+
+
+def _hacen_falta(p1: float, p2: float) -> int | None:
+    """Cuántos resueltos por fuente harían falta para que esa diferencia sea afirmable."""
+    dif = abs(p1 - p2)
+    if dif < 0.01:
+        return None
+    return int(-(-(2.8 ** 2 * (p1 * (1 - p1) + p2 * (1 - p2)) / (dif * dif)) // 1))
+
+
+TASAS = (("booking", "Booking Rate", "agendas", "pitchesResueltos"),
+         ("show", "Show Rate", "shows", "llamadasResueltas"),
+         ("close", "Close Rate", "cierres", "shows"))
+
+
+def _confianza(org: dict, ads: dict) -> list[dict]:
+    salida = []
+    for clave, label, num, den in TASAS:
+        a, b = _intervalo(org[num], org[den]), _intervalo(ads[num], ads[den])
+        concluyente = bool(a and b) and (a[1] < b[0] or b[1] < a[0])
+        necesarios = (_hacen_falta(org[num] / org[den], ads[num] / ads[den])
+                      if org[den] and ads[den] else None)
+        salida.append({"clave": clave, "label": label, "org": a, "ads": b,
+                       "concluyente": concluyente, "necesarios": necesarios})
+    return salida
+
+
+def _calidad(leads: list[dict]) -> dict:
+    """Las señales que distinguen un lead de una fuente del de la otra."""
+    resueltos = [p for p in leads if p.get("pitchEstado") != "pendiente"]
+    caidos = [p for p in resueltos if p.get("pitchEstado") in ("ghosted", "denied")]
+    agendados = [p for p in leads if p.get("pitchEstado") == "booked"]
+    cobrado = sum(float(p.get("cashUsd") or 0) for p in leads)
+    return {
+        "tasaCaida": _tasa(len(caidos), len(resueltos)),
+        "followUps": _promedio([p.get("seguimientos") or 0 for p in agendados]),
+        "cashPorPitch": round(cobrado / len(leads), 1) if leads else None,
+        "diasAAgendar": _promedio([_dias(p.get("pitchAt"), p.get("agendoAt")) for p in agendados]),
+    }
+
+
+def _por_fuente(pitches: list[dict], desde, hasta, canal: str | None) -> dict:
+    """La tabla de oportunidades: qué trajo cada fuente y qué hizo con eso el setter."""
+    filas = {}
+    for fuente in ORIGENES:
+        leads, calls = _recorte([p for p in pitches if p.get("origen") == fuente], desde, hasta, canal)
+        filas[fuente] = {**_bloque(leads, calls), **_calidad(leads)}
+    leads, calls = _recorte(pitches, desde, hasta, canal)
+    filas["total"] = _bloque(leads, calls)
+    filas["confianza"] = _confianza(filas["organico"], filas["ads"])
+    filas["sinFuente"] = sum(1 for p in leads if p.get("origen") not in ORIGENES)
+    return filas
+
+
+def _semanas_de(pitches: list[dict], hasta: date, cuantas: int = 6) -> list[dict]:
+    """Las últimas semanas, cada una con sus pitches y lo que convirtieron."""
+    lunes_final = _lunes(hasta)
+    salida = []
+    for i in range(cuantas - 1, -1, -1):
+        lunes = lunes_final - timedelta(weeks=i)
+        leads, calls = _recorte(pitches, lunes, lunes + timedelta(days=6))
+        m = _bloque(leads, calls)
+        salida.append({"semana": lunes.isoformat(), "etiqueta": f"{lunes.day:02d} {MESES[lunes.month - 1]}",
+                       **{k: m[k] for k in ("pitches", "agendas", "shows", "cierres",
+                                            "booking", "show", "close", "setting")}})
+    return salida
 
 
 def _lunes(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
-def _semanas_de(pitches: list[dict], hoy: date, cuantas: int = 6, canal: str | None = None) -> list[dict]:
-    """Las últimas semanas, cada una con sus pitches y lo que convirtieron."""
-    lunes_final = _lunes(hoy)
-    salida = []
-    for i in range(cuantas - 1, -1, -1):
-        lunes = lunes_final - timedelta(weeks=i)
-        m = _metricas_de(pitches, hoy, lunes, lunes + timedelta(days=6), canal)
-        salida.append({
-            "semana": lunes.isoformat(), "etiqueta": lunes.strftime("%d %b").lower(),
-            "pitches": m["pitches"], "agendas": m["agendas"], "shows": m["shows"], "cierres": m["cierres"],
-            "booking": m["booking"], "show": m["show"], "close": m["close"], "setting": m["setting"],
-        })
-    return salida
+# `strftime("%b")` sale en inglés salvo que el server tenga el locale puesto, y no se
+# puede depender de eso: la etiqueta de la semana se arma acá.
+MESES = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
 
 
 # ------------------------------------------------------------------ lectura
@@ -231,14 +404,31 @@ def listar(usuario: dict) -> list[dict]:
 
 def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
              canal: str | None = None) -> dict:
+    """Todo lo que pinta la vista de un período, en una sola respuesta.
+
+    Va junto y no en cinco endpoints porque son cinco lecturas de la misma tabla: partirlo
+    haría cinco consultas para dibujar una pantalla.
+    """
     pitches = listar(usuario)
     hoy = hoy_ar()
     canal = canal if canal in CANALES else None
+    d, h = _fecha(desde), _fecha(hasta)
+    leads, calls = _recorte(pitches, d, h, canal)
+    m = _bloque(leads, calls)
     return {
-        "hoy": hoy.isoformat(),
-        "desde": desde, "hasta": hasta, "canal": canal,
-        **_metricas_de(pitches, hoy, _fecha(desde), _fecha(hasta), canal),
-        "semanas": _semanas_de(pitches, hoy, canal=canal),
+        "hoy": hoy.isoformat(), "desde": desde, "hasta": hasta, "canal": canal,
+        **m,
+        "porCanal": {c: sum(1 for p in pitches if p.get("canal") == c and _en(p.get("pitchAt"), d, h))
+                     for c in CANALES},
+        "sinCanal": sum(1 for p in leads if p.get("canal") not in CANALES),
+        "cash": _cash(leads),
+        "velocidad": _velocidad(leads),
+        "followUps": _follow_ups(leads),
+        "dondeConviene": _donde_conviene(m),
+        "fuentes": _por_fuente(pitches, d, h, canal),
+        # La serie termina en la semana de hoy: las semanas que todavía no pasaron
+        # solo agregan filas en cero que parecen una caída.
+        "semanas": _semanas_de(pitches, min(h, hoy) if h else hoy),
         "total": len(pitches),
     }
 

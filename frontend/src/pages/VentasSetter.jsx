@@ -124,7 +124,8 @@ export default function VentasSetter() {
       />
 
       {vista === 'sets' && (
-        <Sets pitches={pitches} hoy={hoy} cargando={cargando} tick={tick} onCambiar={cambiar} onCrear={crear} onBorrar={borrar} />
+        <Sets pitches={pitches} hoy={hoy} cargando={cargando} tick={tick}
+          onCambiar={cambiar} onCrear={crear} onBorrar={borrar} />
       )}
       {vista === 'metricas' && (
         <MetricasSetting pitches={pitches} sesiones={sesiones.data?.sesiones?.length ?? 0} hoy={hoy} tick={tick} onRecargar={recargar} />

@@ -2,70 +2,22 @@ import { useEffect, useMemo, useState } from 'react';
 import Card from '../ui/Card.jsx';
 import { SkeletonBlock } from '../ui/Loading.jsx';
 import FilaPitch from './FilaPitch.jsx';
+import NuevoPitch from './NuevoPitch.jsx';
 import TasasEmbudo from './TasasEmbudo.jsx';
 import { getMetricasSetting } from '../../data/api.js';
 import {
-  CANAL_LARGO, DIAS, callsDe, etiquetaPeriodo, fechaCorta, iso, limites, lunesDe, sumarDias, trackeoDe,
+  CANAL_LARGO, callsDe, diaMes, diaSemana, etiquetaPeriodo, iso, limites, lunesDe, porDia, sumarDias, trackeoDe,
 } from '../../lib/setting.js';
 
-const MODOS = [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Este mes'], ['todo', 'Todo'], ['rango', 'Rango']];
+const MODOS = [['hoy', 'Hoy'], ['mes', 'Este mes'], ['todo', 'Todo'], ['rango', 'Rango']];
 const VISTAS_CALLS = [['hoy', 'Hoy'], ['semana', 'Semana'], ['proximas', 'Próximas'], ['todas', 'Todas']];
-
-/** El formulario de un pitch nuevo. */
-function NuevoPitch({ hoy, onCrear, onCerrar }) {
-  const [f, setF] = useState({ prospecto: '', pitchAt: hoy, canal: 'dm', origen: 'organico', pitchEstado: 'pendiente',
-    llamadaAt: '', usuarioIg: '', email: '', telefono: '' });
-  const [guardando, setGuardando] = useState(false);
-  const set = (k) => (e) => setF((v) => ({ ...v, [k]: e.target.value }));
-  const enviar = async (e) => {
-    e.preventDefault();
-    setGuardando(true);
-    try {
-      await onCrear({ ...f, llamadaAt: f.llamadaAt || null });
-      onCerrar();
-    } finally {
-      setGuardando(false);
-    }
-  };
-  return (
-    <div className="modal-backdrop" onClick={onCerrar} role="presentation">
-      <form className="modal-card nuevo-pitch" onClick={(e) => e.stopPropagation()} onSubmit={enviar} role="dialog" aria-label="Nuevo pitch">
-        <header><h3>Nuevo pitch</h3><button type="button" className="btn ghost" onClick={onCerrar}>Cerrar</button></header>
-        <label>Prospecto<input value={f.prospecto} onChange={set('prospecto')} placeholder="Nombre, mail o usuario" autoFocus required /></label>
-        <div className="dos">
-          <label>Fecha del pitch<input type="date" value={f.pitchAt} onChange={set('pitchAt')} required /></label>
-          <label>Estado<select value={f.pitchEstado} onChange={set('pitchEstado')}>
-            <option value="pendiente">Sin respuesta</option><option value="booked">Booked</option>
-            <option value="ghosted">Ghosted</option><option value="denied">Denied</option>
-          </select></label>
-        </div>
-        <div className="dos">
-          <label>Canal<select value={f.canal} onChange={set('canal')}>
-            <option value="dm">100% por DM</option><option value="phone">100% por llamada</option><option value="hibrido">Híbrido</option>
-          </select></label>
-          <label>Origen<select value={f.origen} onChange={set('origen')}>
-            <option value="organico">Orgánico</option><option value="ads">Ads</option>
-          </select></label>
-        </div>
-        {f.pitchEstado === 'booked' && (
-          <label>Llamada agendada para<input type="date" value={f.llamadaAt} onChange={set('llamadaAt')} /></label>
-        )}
-        <div className="tres">
-          <label>Instagram<input value={f.usuarioIg} onChange={set('usuarioIg')} placeholder="usuario" /></label>
-          <label>Email<input value={f.email} onChange={set('email')} /></label>
-          <label>Teléfono<input value={f.telefono} onChange={set('telefono')} /></label>
-        </div>
-        <footer><button type="submit" className="btn primary" disabled={guardando || !f.prospecto.trim()}>{guardando ? 'Guardando…' : 'Agregar'}</button></footer>
-      </form>
-    </div>
-  );
-}
 
 /**
  * La pestaña Sets: el período, las tasas, el calendario de calls y el trackeo diario.
  *
- * @param {{ pitches: object[], hoy: string, cargando: boolean, tick: number,
- *           onCambiar: (id, patch) => void, onCrear: (datos) => Promise<void>, onBorrar: (id) => void }} props
+ * Es la pantalla donde el setter trabaja todos los días: mira qué calls tiene, carga lo
+ * que pasó con las de ayer y agrega los pitches del día. Por eso todo se edita en la
+ * misma fila, sin abrir formularios.
  */
 export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear, onBorrar }) {
   const [modo, setModo] = useState('semana');
@@ -74,34 +26,40 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
   const [canal, setCanal] = useState('');
   const [vistaCalls, setVistaCalls] = useState('semana');
   const [nuevo, setNuevo] = useState(false);
+  const [plegados, setPlegados] = useState({});
   const [m, setM] = useState(null);
 
   const lim = useMemo(() => limites(modo, ref, rango), [modo, ref, rango]);
   useEffect(() => {
     let vivo = true;
+    setM(null);
     getMetricasSetting({ ...lim, canal }).then((d) => vivo && setM(d)).catch(() => vivo && setM(null));
     return () => { vivo = false; };
   }, [lim, canal, tick]);
 
   const filtrados = useMemo(() => (canal ? pitches.filter((p) => p.canal === canal) : pitches), [pitches, canal]);
-  const calls = useMemo(() => callsDe(filtrados, vistaCalls, hoy), [filtrados, vistaCalls, hoy]);
+  const lunes = lunesDe(modo === 'todo' || modo === 'rango' ? hoy : ref);
+  const calls = useMemo(() => callsDe(filtrados, vistaCalls, hoy, lunes), [filtrados, vistaCalls, hoy, lunes]);
   const sinResolver = calls.filter((p) => p.sinResolver).length;
-  const lunes = lunesDe(modo === 'hoy' || modo === 'semana' ? ref : hoy);
-  const trackeo = useMemo(() => trackeoDe(filtrados, lunes), [filtrados, lunes]);
-  const moverSemana = (n) => { setRef((r) => sumarDias(r, 7 * n)); if (modo !== 'semana' && modo !== 'hoy') setModo('semana'); };
+  const trackeo = useMemo(() => trackeoDe(filtrados, lunes, hoy), [filtrados, lunes, hoy]);
+  // Las flechas son la semana: mover una semana vuelve a ese modo aunque estés en otro.
+  const mover = (n) => {
+    setModo('semana');
+    setRef((r) => sumarDias(r, 7 * n));
+  };
 
   return (
     <>
       <div className="sets-barra">
         <div className="sets-periodo">
-          <button type="button" className="btn ghost icon" onClick={() => moverSemana(-1)} aria-label="Semana anterior">‹</button>
-          <span className="strong">{etiquetaPeriodo(modo, lim)}</span>
-          <button type="button" className="btn ghost icon" onClick={() => moverSemana(1)} aria-label="Semana siguiente">›</button>
-          {ref !== hoy && <button type="button" className="btn ghost sm" onClick={() => setRef(hoy)}>volver a hoy</button>}
+          <button type="button" className="btn ghost icon" onClick={() => mover(-1)} aria-label="Semana anterior">◀</button>
+          <span className="strong">{etiquetaPeriodo(modo === 'semana' ? 'semana' : modo, lim)}</span>
+          <button type="button" className="btn ghost icon" onClick={() => mover(1)} aria-label="Semana siguiente">▶</button>
         </div>
         <div className="tabs sm">
           {MODOS.map(([v, l]) => (
-            <button key={v} type="button" className={`tab${modo === v ? ' active' : ''}`} onClick={() => setModo(v)}>{l}</button>
+            <button key={v} type="button" className={`tab${modo === v ? ' active' : ''}`}
+              onClick={() => { setModo(v); if (v === 'hoy') setRef(hoy); }}>{l}</button>
           ))}
         </div>
         {modo === 'rango' && (
@@ -111,8 +69,9 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
             <input type="date" value={rango.hasta} onChange={(e) => setRango((r) => ({ ...r, hasta: e.target.value }))} />
           </span>
         )}
-        <button type="button" className="btn primary sets-mas" onClick={() => setNuevo(true)} title="Nuevo pitch">+ Pitch</button>
+        <button type="button" className="btn primary sets-mas" onClick={() => setNuevo(true)}>+ Pitch</button>
       </div>
+
       <div className="diag-filtros sets-filtros">
         {[['', 'Todos'], ...Object.entries(CANAL_LARGO)].map(([v, l]) => (
           <button key={v} type="button" className={`chip${canal === v ? ' activo' : ''}`} onClick={() => setCanal(v)}>
@@ -121,52 +80,72 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
         ))}
       </div>
 
-      <Card title="Tasas y embudo" sub={`Sobre los pitches de ${etiquetaPeriodo(modo, lim).toLowerCase()}`}>
-        {!m ? <SkeletonBlock height={180} /> : <TasasEmbudo m={m} />}
+      <Card>
+        {!m ? <SkeletonBlock height={220} /> : <TasasEmbudo m={m} />}
       </Card>
 
       <Card
         title="Calendario de calls"
-        sub={`${calls.length} ${calls.length === 1 ? 'call' : 'calls'} · ${sinResolver} sin resolver`}
         actions={(
           <div className="tabs sm">
             {VISTAS_CALLS.map(([v, l]) => (
-              <button key={v} type="button" className={`tab${vistaCalls === v ? ' active' : ''}`} onClick={() => setVistaCalls(v)}>{l}</button>
+              <button key={v} type="button" className={`tab${vistaCalls === v ? ' active' : ''}`}
+                onClick={() => setVistaCalls(v)}>{l}</button>
             ))}
           </div>
         )}
         flush
-        foot="Sin resolver: la fecha pasó y no se cargó qué fue. Ponele showed, no show o cancelada para que el show rate sea real."
+        foot={`${calls.length} ${calls.length === 1 ? 'call' : 'calls'} · ${sinResolver} sin resolver`}
       >
         {cargando && !pitches.length ? <SkeletonBlock height={160} /> : calls.length === 0 ? (
           <div className="empty">Sin calls en esta vista.</div>
         ) : (
-          <div className="pitch-lista">
-            {calls.map((p) => <FilaPitch key={p.id} p={p} modo="call" onCambiar={onCambiar} onBorrar={onBorrar} />)}
+          <div className="calls-dias">
+            {porDia(calls).map(({ fecha, items }) => (
+              <div key={fecha} className={`calls-dia${fecha === hoy ? ' hoy' : ''}`}>
+                <div className="calls-fecha">
+                  <span className="calls-semana">{diaSemana(fecha)}</span>
+                  <span className="calls-num">{diaMes(fecha)}</span>
+                </div>
+                <div className="pitch-lista">
+                  {items.map((p) => <FilaPitch key={p.id} p={p} modo="call" onCambiar={onCambiar} onBorrar={onBorrar} />)}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>
 
       <Card
         title="Trackeo diario"
-        sub={`Semana del ${fechaCorta(lunes)} · ${trackeo.reduce((a, d) => a + d.pitches.length, 0)} pitches · ${trackeo.reduce((a, d) => a + d.booked, 0)} booked`}
+        sub={`Semana del ${diaMes(lunes)} · ${trackeo.reduce((a, d) => a + d.pitches.length, 0)} pitches · ${trackeo.reduce((a, d) => a + d.booked, 0)} booked`}
         flush
-        foot="Cada pitch en el día que se mandó el link. Booked cuenta los que agendaron ese día, aunque el pitch sea anterior."
+        foot="Cada pitch en el día que se mandó el link. Booked son los de ese día que terminaron agendando, aunque hayan agendado al otro día."
       >
         <div className="trackeo">
-          {trackeo.map((d, i) => (
-            <div key={d.fecha} className={`trackeo-dia${d.fecha === hoy ? ' hoy' : ''}`}>
-              <div className="trackeo-cab">
-                <span className="strong">{DIAS[i]} <span className="dim num">{fechaCorta(d.fecha)}</span></span>
-                <span className="dim num">{d.pitches.length} pitches · {d.booked} booked</span>
+          {trackeo.map((d) => {
+            const plegado = plegados[d.fecha] ?? d.pitches.length === 0;
+            return (
+              <div key={d.fecha} className={`trackeo-dia${d.esHoy ? ' hoy' : ''}`}>
+                <button type="button" className="trackeo-cab"
+                  onClick={() => setPlegados((v) => ({ ...v, [d.fecha]: !plegado }))}
+                  aria-expanded={!plegado}>
+                  <span className="trackeo-flecha">{plegado ? '▸' : '▾'}</span>
+                  <span className="trackeo-nombre">{diaSemana(d.fecha)} {diaMes(d.fecha)}</span>
+                  {d.esHoy && <span className="chip">hoy</span>}
+                  <span className="trackeo-cuentas dim">
+                    <span>pitches <b className="num">{d.pitches.length}</b></span>
+                    <span>booked <b className="num">{d.booked}</b></span>
+                  </span>
+                </button>
+                {!plegado && d.pitches.length > 0 && (
+                  <div className="pitch-lista">
+                    {d.pitches.map((p) => <FilaPitch key={p.id} p={p} modo="pitch" onCambiar={onCambiar} onBorrar={onBorrar} />)}
+                  </div>
+                )}
               </div>
-              {d.pitches.length === 0 ? <div className="dim trackeo-vacio">—</div> : (
-                <div className="pitch-lista">
-                  {d.pitches.map((p) => <FilaPitch key={p.id} p={p} modo="pitch" onCambiar={onCambiar} onBorrar={onBorrar} />)}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
