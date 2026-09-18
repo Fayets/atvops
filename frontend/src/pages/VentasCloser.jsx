@@ -4,14 +4,21 @@ import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loadin
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
 import { getMisLlamadas } from '../data/api.js';
+import { mesId } from '../lib/format.js';
 import { useResource } from '../lib/hooks.js';
 import { alActualizarLlamadas } from '../lib/llamadasSync.js';
+import { useMes } from '../lib/MesContext.jsx';
 
 /** Mi día: las llamadas del closer, para cargar el resultado de cada una. */
 export default function VentasCloser() {
+  const { mes } = useMes();
   const [tick, setTick] = useState(0);
   const [local, setLocal] = useState(null);
-  const { data, loading, error } = useResource(getMisLlamadas, [tick]);
+  // El mes en curso: así entran las del calendario del 1° al 30, no solo ±30 días.
+  const { data, loading, error } = useResource(
+    () => getMisLlamadas(undefined, mes || mesId()),
+    [tick, mes],
+  );
   const vista = local ?? data;
   // Cargar un resultado o agregar una reunión tiene que mover los números de arriba.
   const refrescar = useCallback(() => { setLocal(null); setTick((t) => t + 1); }, []);

@@ -120,6 +120,27 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     }
     return map;
   }, [llamados, ocultos, estados, numerosAgendaProp]);
+
+  /** Número de agenda: por evento, id de CRM o nombre+día (si la ficha no quedó atada). */
+  const numeroDe = (l) => {
+    if (!numeroAgenda) return null;
+    const e = estadoDe(l);
+    const d = parseAt(l.fechaAt);
+    const nombre = (e?.prospecto || l.prospecto || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const claveDia = `${nombre}|${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const candidatos = [
+      l.id,
+      e?.eventoId,
+      e?.id != null ? String(e.id) : null,
+      e?.id != null ? `manual:${e.id}` : null,
+      e?.id != null ? `cal:${e.id}` : null,
+      claveDia ? `~${claveDia}` : null,
+    ];
+    for (const k of candidatos) {
+      if (k != null && numeroAgenda[k] != null) return numeroAgenda[k];
+    }
+    return null;
+  };
   // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
   // para no dispararse también cuando en realidad fue doble click.
   const clickPendiente = useRef(null);
@@ -253,7 +274,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                       <div className="dim" style={{ fontSize: 11 }}>Sin llamadas</div>
                     ) : (
                       items.map((l) => {
-                        const n = numeroAgenda[l.id];
+                        const n = numeroDe(l);
                         return (
                         <button
                           key={l.id}
@@ -309,7 +330,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                 >
                   <div className="num-dia">{d.getDate()}</div>
                   {items.slice(0, 3).map((l) => {
-                    const n = numeroAgenda[l.id];
+                    const n = numeroDe(l);
                     return (
                     <button
                       key={l.id}

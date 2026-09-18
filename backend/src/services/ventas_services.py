@@ -440,7 +440,8 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
             "nombre": r["prospecto"], "email": next(iter(r["_emails"]), ""),
             "telefono": "", "ig": "",
             "origen": (base.get("origen") or "").strip() or "Orgánico",
-            "closer": base.get("closer") or "", "setter": base.get("setter") or "",
+            "closer": _persona(base.get("closer"), "closer") if (base.get("closer") or "").strip() else "",
+            "setter": base.get("setter") or "",
             "call": r["_cuando"], "agendo": None, "agendo_en": "Google Calendar",
             "pago": 0, "debe": 0, "ingresos_rango": "", "programa_ofrecido": "",
             "vino_de_ads": False, "notas": r["titulo"], "created_at": None,
@@ -1133,11 +1134,28 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         desde = hoy - timedelta(days=dias_atras)
         hasta = hoy + timedelta(days=dias_adelante + 1)
     mios = [_norm(n) for n in nombres]
-    filas = sorted(
-        [f for f in _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
-         if _norm(f.get("closer")) in mios],
-        key=lambda f: f["call"], reverse=True,
-    )
+    todas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    # Las del closer + las del calendario que todavía no tienen closer en el CRM
+    # (segunda reunión, lead nuevo, solo Google). Si no las sumamos, el chip queda
+    # sin número y el KPI queda más corto que lo que se ve en el calendario.
+    filas = []
+    vistos: set[str] = set()
+    for f in todas:
+        evento = str(f.get("eventoId") or "")
+        es_mio = _norm(f.get("closer")) in mios
+        huerfana = bool(f.get("soloCalendario")) and not (f.get("closer") or "").strip()
+        if not es_mio and not huerfana:
+            continue
+        if evento and evento in vistos:
+            continue
+        if evento:
+            vistos.add(evento)
+        if huerfana and not es_mio:
+            # En la vista del closer logueado, las huérfanas cuentan como suyas
+            # hasta que alguien les cargue closer / resultado.
+            f = {**f, "closer": nombres[0]}
+        filas.append(f)
+    filas = sorted(filas, key=lambda f: f["call"], reverse=True)
     precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
 
     def _fila(l: dict) -> dict:
@@ -1290,7 +1308,14 @@ def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
     numero = int(texto)
     if not crm_db.consultar("SELECT id FROM lead WHERE id = %s", (numero,)):
         raise HTTPException(status_code=404, detail="Esa llamada no existe.")
-    return numero, ""
+    # Si ya hay ficha en ATV Ops, reusar su evento de Google: si no, el chip del
+    # calendario no encuentra el número de agenda (queda sin correlativo).
+    with db_session:
+        r = ReunionCrm.get(lead_id=numero)
+        evento = ""
+        if r and r.evento_id and not str(r.evento_id).startswith("lead:"):
+            evento = r.evento_id
+    return numero, evento
 
 
 def ocultar_evento(evento_id: str, datos: dict, usuario: dict, mostrar: bool = False) -> dict:

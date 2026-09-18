@@ -178,17 +178,29 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
   );
 
   // Mismo correlativo que "Agendas del mes": el chip de la semana y el KPI hablan igual.
+  // Además de eventoId, indexamos por nombre+día por si la ficha quedó sin atar al Google.
   const numerosAgenda = useMemo(() => {
     const ordenados = [...delMes].sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
     /** @type {Record<string, number>} */
     const map = {};
+    const clave = (nombre, iso) => {
+      const d = new Date(iso);
+      const n = String(nombre || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      return `${n}|${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    };
     ordenados.forEach((l, i) => {
       const n = i + 1;
-      if (l.eventoId) map[l.eventoId] = n;
+      if (l.eventoId) {
+        map[l.eventoId] = n;
+        map[`cal:${l.eventoId}`] = n;
+      }
       if (l.id != null) {
         map[String(l.id)] = n;
         map[`manual:${l.id}`] = n;
+        if (String(l.id).startsWith('cal:')) map[String(l.id).slice(4)] = n;
       }
+      const k = clave(l.prospecto, l.fechaAt);
+      if (k && map[`~${k}`] == null) map[`~${k}`] = n;
     });
     return map;
   }, [delMes]);

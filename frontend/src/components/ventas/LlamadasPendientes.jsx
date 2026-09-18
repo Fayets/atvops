@@ -80,7 +80,10 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
   };
 
   /** Llamadas internas, duplicadas o cargadas por error: quedan fuera de las métricas. */
-  const descartar = () => enviar({ resultado: 'Descartada', programa: '', cashUsd: 0, saldoUsd: 0, nota });
+  const descartar = () => enviar({
+    resultado: 'Descartada', programa: '', cashUsd: 0, saldoUsd: 0, nota,
+    evento: llamada.eventoId || '', prospecto: llamada.prospecto || '',
+  });
 
   const guardar = async () => {
     setGuardando(true);
@@ -93,6 +96,9 @@ export function TarjetaPendiente({ llamada, programas, onGuardado }) {
           cashUsd: compro ? pagado : 0,
           saldoUsd: compro ? debe : 0,
           nota,
+          // Sin esto la ficha queda como lead:N y el calendario no le pone número.
+          evento: llamada.eventoId || '',
+          prospecto: llamada.prospecto || '',
         }),
         llamada.id,
       );
