@@ -125,6 +125,19 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
     ? Math.round((metaAgendas * decreto.showUpRate) / 100)
     : 0;
 
+  // Setting rate: del pitch al cierre. Es el número que resume el trabajo del setter,
+  // porque atraviesa las cuatro etapas.
+  const tasas = [
+    { id: 'booking', label: 'Booking rate', valor: pct(e.agendas, e.pitches), b: BENCHMARKS.agendas,
+      pie: `${n(e.agendas)} de ${n(e.pitches)} pitches` },
+    { id: 'show', label: 'Show rate', valor: e.showRate ?? pct(e.shows, e.agendas), b: BENCHMARKS.shows,
+      pie: `${n(e.shows)} de las que ya pasaron` },
+    { id: 'close', label: 'Close rate', valor: pct(e.cierres, e.shows), b: { verde: 25, amarillo: 15 },
+      pie: `${n(e.cierres)} de ${n(e.shows)} shows` },
+    { id: 'setting', label: 'Setting rate', valor: pct(e.cierres, e.pitches), b: null,
+      pie: 'del pitch al cierre' },
+  ];
+
   const abrir = (titulo, clave) => () =>
     setDetalle({ titulo, filas: e.detalle?.[clave] ?? [] });
 
@@ -175,6 +188,18 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
             </button>
           </form>
         )}
+
+        <div className="tasas">
+          {tasas.map((t) => (
+            <div key={t.id} className="tasa">
+              <span className="tasa-label">{t.label}</span>
+              <span className={`tasa-valor num${t.b ? ` zona-${zonaDe(t.valor, t.b) ?? ''}` : ''}`}>
+                {t.valor == null ? '—' : `${t.valor}%`}
+              </span>
+              <span className="tasa-pie dim">{t.pie}</span>
+            </div>
+          ))}
+        </div>
 
         <div className="embudo">
           <Etapa label="Chats" valor={e.chats} meta={metaChats}

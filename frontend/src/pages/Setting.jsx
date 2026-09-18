@@ -1,4 +1,5 @@
 import EmbudoSetting from '../components/ventas/EmbudoSetting.jsx';
+import SemanasSetting from '../components/ventas/SemanasSetting.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
@@ -31,7 +32,10 @@ export default function Setting() {
       {embudo.loading && !embudo.data ? (
         <SkeletonBlock height={320} />
       ) : (
-        <EmbudoSetting embudo={embudo.data} decreto={leerDecretoGuardado(mes) ?? {}} />
+        <>
+          <EmbudoSetting embudo={embudo.data} decreto={leerDecretoGuardado(mes) ?? {}} />
+          <SemanasSetting semanas={embudo.data?.semanas ?? []} />
+        </>
       )}
     </div>
   );

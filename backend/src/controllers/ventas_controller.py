@@ -199,6 +199,8 @@ def setting_embudo(_user: dict = Depends(solo_interno), mes: str | None = None):
                 # El show rate sale de ventas: shows sobre las que ya pasaron, no sobre
                 # todas las agendas del mes. Dividir por las futuras da un rojo falso.
                 "showRate": v.get("showRate"),
+                "cierres": v.get("cierres", 0),
+                "semanas": ventas.semanas_de_setting(mes),
                 **conversaciones.embudo(
                     inicio, fin,
                     pitches=sum(p["cuantos"] for p in pitches),

@@ -1752,6 +1752,67 @@ def agendas_del_calendario(mes: str) -> list[dict]:
     return sorted(salida, key=lambda x: x["cuando"], reverse=True)
 
 
+def semanas_de_setting(hasta_mes: str, cuantas: int = 6) -> list[dict]:
+    """Las últimas semanas de setting, con lo que convirtió cada paso.
+
+    Una foto del mes no dice si algo está mejorando o empeorando: dice dónde estás. La
+    serie por semana sí, y es lo que permite ver que el show rate viene cayendo tres
+    semanas seguidas antes de que el mes cierre mal.
+
+    Las cinco columnas son las del embudo más el cierre, que es a dónde va todo esto.
+    """
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    anio, m = int(hasta_mes[:4]), int(hasta_mes[5:7])
+    fin_mes = min(date(anio + (m == 12), (m % 12) + 1, 1), ahora.date() + timedelta(days=7))
+    lunes_final = _semana(fin_mes)
+    lunes_inicial = lunes_final - timedelta(weeks=cuantas - 1)
+
+    try:
+        filas = _sumar_reuniones_del_calendario(
+            _leads(lunes_inicial, lunes_final + timedelta(days=7)),
+            lunes_inicial, lunes_final + timedelta(days=7))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las semanas de setting: %s", str(e)[:160])
+        filas = []
+
+    # Los pitches los reporta el setter: se cuentan por día y se agrupan por semana.
+    pitches_por_semana: dict[date, int] = {}
+    for r in _reportes_propios("setter", lunes_inicial):
+        if r["fecha"] > lunes_final + timedelta(days=6):
+            continue
+        pitches_por_semana[_semana(r["fecha"])] = (
+            pitches_por_semana.get(_semana(r["fecha"]), 0) + int(_num(r.get("links_enviados"))))
+
+    salida = []
+    for i in range(cuantas):
+        lunes = lunes_inicial + timedelta(weeks=i)
+        domingo = lunes + timedelta(days=6)
+        de_la_semana = [f for f in filas if f["call"] and lunes <= f["call"].date() <= domingo]
+        clases = [_clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
+                              f.get("soloCalendario", False), f.get("duplicada", False),
+                              f.get("reprogramada", False)) for f in de_la_semana]
+        agendas = sum(1 for c in clases if c not in ("descartada", "duplicada", "reprogramada"))
+        shows = sum(1 for c in clases if c in ("show", "cierre"))
+        cierres = sum(1 for f, c in zip(de_la_semana, clases)
+                      if c == "cierre" and _norm(f["resultado"]) == _norm("Cerrado"))
+        pitches = pitches_por_semana.get(lunes, 0)
+        tasa = lambda a, b: round(a / b * 100, 1) if b else None  # noqa: E731
+        salida.append({
+            "semana": lunes.isoformat(),
+            "etiqueta": lunes.strftime("%d %b").lower(),
+            "pitches": pitches,
+            "agendas": agendas,
+            "shows": shows,
+            "cierres": cierres,
+            "booking": tasa(agendas, pitches),
+            "show": tasa(shows, agendas),
+            "close": tasa(cierres, shows),
+            # Setting rate: del pitch al cierre, el ciclo entero.
+            "setting": tasa(cierres, pitches),
+        })
+    return salida
+
+
 def pitches_del_reporte(mes: str) -> list[dict]:
     """Los links de agenda que el setter reportó, día por día.
 

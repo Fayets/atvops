@@ -5810,3 +5810,28 @@ body.gate-abierto .shell { display: none; }
     font-size: 32px;
   }
 }
+
+/* Las cuatro tasas del setting, arriba del embudo. */
+.tasas { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); overflow: hidden; margin-bottom: var(--space-4); }
+.tasa { display: grid; gap: 2px; padding: var(--space-4); background: var(--surface); }
+.tasa-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+.tasa-valor { font-size: 24px; font-weight: 600; line-height: 1.1; }
+.tasa-pie { font-size: 11.5px; }
+
+/* Serie semanal: nueve columnas, todas numéricas salvo la primera. */
+.proy-tabla.semanas .proy-fila {
+  grid-template-columns: minmax(76px, 1fr) repeat(8, minmax(52px, 1fr)); }
+@media (max-width: 900px) {
+  .proy-tabla.semanas .proy-fila { grid-template-columns: minmax(64px, 1fr) repeat(4, minmax(46px, 1fr)); }
+  .proy-tabla.semanas .proy-fila > span:nth-child(3),
+  .proy-tabla.semanas .proy-fila > span:nth-child(4),
+  .proy-tabla.semanas .proy-fila > span:nth-child(5),
+  .proy-tabla.semanas .proy-fila > span:nth-child(9) { display: none; }
+}
+.peor-etapa { display: grid; gap: var(--space-2); }
+.peor-cab { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.peor-titulo { font-size: 17px; font-weight: 600; }
+.peor-porque { margin: 0; color: var(--text-2); }
+.peor-etapa p { margin: 0; }

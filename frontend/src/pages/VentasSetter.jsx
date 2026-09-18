@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import CalendarioReportes from '../components/ventas/CalendarioReportes.jsx';
 import EmbudoSetting from '../components/ventas/EmbudoSetting.jsx';
+import SemanasSetting from '../components/ventas/SemanasSetting.jsx';
 import SetterVista from '../components/ventas/SetterVista.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import { completarReporteSetter, getEmbudoSetting, getSetterDashboard, marcarPitch } from '../data/api.js';
@@ -75,6 +76,7 @@ export default function VentasSetter() {
               setTick((t) => t + 1);
             }}
           />
+          <SemanasSetting semanas={embudo.data?.semanas ?? []} />
           <CalendarioReportes rol="setter" />
           <SetterVista data={data} onCompletarReporte={onCompletarReporte} />
         </>
