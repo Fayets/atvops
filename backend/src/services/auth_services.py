@@ -457,3 +457,8 @@ class AuthServices:
             datos = _to_response(usuario)
         _CACHE_SESION[user_id] = (ahora, datos)
         return dict(datos)
+
+
+def ensure_pitch_setting_columns() -> None:
+    """`borrado_at` llegó después de crear la tabla de pitches: borrar es esconder."""
+    _agregar_columnas("pitches_setting", "PitchSetting", [("borrado_at", "TIMESTAMP")])

@@ -22,6 +22,7 @@ from src.controllers.integrantes_controller import router as integrantes_router
 from src.controllers.mkt_controller import router as mkt_router
 from src.controllers.meta_controller import router as meta_router
 from src.controllers.reuniones_controller import router as reuniones_router
+from src.controllers.setting_controller import router as setting_router
 from src.controllers.transcripts_controller import router as transcripts_router
 from src.db import init_db
 from src.services.auth_services import AuthServices
@@ -106,6 +107,8 @@ app.include_router(pendientes_router, prefix="/api/pendientes", tags=["pendiente
 app.include_router(eventos_router, prefix="/api/eventos", tags=["eventos"])
 app.include_router(gcal_router, prefix="/api/calendario-ventas", tags=["calendario"])
 app.include_router(ventas_router, prefix="/api/ventas", tags=["ventas"])
+# El sistema del setter: pitches, métricas, notas de llamadas y respaldo.
+app.include_router(setting_router, prefix="/api/setting", tags=["setting"])
 # Sin sesión: los avisos de afuera se validan con su propio token.
 app.include_router(webhooks_router, prefix="/api/webhooks", tags=["webhooks"])
 

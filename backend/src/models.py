@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pony.orm import Optional, PrimaryKey, Required, Set
+from pony.orm import LongStr, Optional, PrimaryKey, Required, Set
 
 from src.db import DB_SCHEMA, ES_POSTGRES, db
 
@@ -286,6 +286,95 @@ class ReunionCrm(db.Entity):
     descartada = Required(bool, default=False)
     actualizado_por = Optional(str)
     actualizado_at = Optional(datetime)
+
+
+class PitchSetting(db.Entity):
+    """Cada link de agenda que manda el setter, con lo que pasó después.
+
+    Es el registro que Cris llevaba en SetSystem. Vive acá para que cargue en un solo
+    lugar: el pitch, si agendó, si vino, si cerró y cuánto entró.
+
+    El estado del pitch y el de la llamada son dos cosas distintas a propósito. Un pitch
+    puede quedar sin respuesta —ghosted— y ahí no hay llamada; y una llamada agendada
+    puede terminar en show, en ausencia o en cierre. Mezclarlos en un solo campo obliga a
+    inventar estados que no existen.
+    """
+
+    _table_ = _tabla("pitches_setting", "PitchSetting")
+
+    id = PrimaryKey(int, auto=True)
+    externo_id = Optional(str, unique=True, nullable=True)   # el id que traía de SetSystem
+    prospecto = Required(str)
+    pitch_at = Required(date, index=True)     # cuándo se mandó el link
+    setter = Optional(str, index=True, nullable=True)
+
+    canal = Required(str, default="dm")       # dm | phone | hibrido
+    origen = Required(str, default="organico")  # organico | ads
+
+    pitch_estado = Required(str, default="pendiente")  # pendiente | booked | ghosted | denied
+    agendo_at = Optional(date)                # cuándo agendó
+    llamada_at = Optional(date)               # para cuándo quedó la llamada
+    reprogramada_at = Optional(date)
+    reprogramaciones = Required(int, default=0)
+
+    llamada_estado = Optional(str, index=True, nullable=True)  # scheduled | showed | no_show | cancelled | deposit | closed
+    cierre_at = Optional(date)
+    seguimientos = Required(int, default=0)
+    llamadas = Required(int, default=0)
+
+    valor_usd = Required(float, default=0)    # lo que se vendió
+    cash_usd = Required(float, default=0)     # lo que efectivamente entró
+
+    email = Optional(str, nullable=True)
+    telefono = Optional(str, nullable=True)
+    usuario_ig = Optional(str, nullable=True)
+    nota = Optional(str, nullable=True)
+
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_por = Optional(str, nullable=True)
+    # Borrar es esconder: un pitch que se borró por error tiene que poder volver.
+    borrado_at = Optional(datetime)
+
+
+class SesionNota(db.Entity):
+    """Una llamada o una conversación del setter, grabada, transcripta y resumida.
+
+    Es la Librería de Notes de SetSystem. El audio queda en disco (data/notas), y acá vive
+    lo que se saca de él: la transcripción y las notas del prospecto que lee el closer
+    antes de entrar a la llamada.
+
+    `proceso` es lo que está pasando ahora con la sesión —transcribiendo, redactando— para
+    que la pantalla lo muestre sin quedarse esperando una respuesta larga.
+    """
+
+    _table_ = _tabla("sesiones_notas", "SesionNota")
+
+    id = PrimaryKey(int, auto=True)
+    externo_id = Optional(str, unique=True, nullable=True)   # el id que traía de SetSystem
+    setter = Optional(str, index=True, nullable=True)
+    pitch_id = Optional(int, index=True)      # a qué pitch pertenece, si se asignó
+    contacto = Optional(str, nullable=True)                  # nombre, mail o usuario del prospecto
+    tipo = Required(str, default="call")      # call | dm
+    fecha = Required(date, index=True)
+    origen = Required(str, default="grabacion")  # grabacion | subida | texto
+
+    audio_path = Optional(str, nullable=True)                # relativo a data/
+    audio_mic_path = Optional(str, nullable=True)            # la pista del micrófono cuando se grabó en dos
+    duracion_seg = Optional(int)
+
+    transcripcion = Optional(LongStr, nullable=True)
+    segmentos = Optional(LongStr, nullable=True)             # JSON [{inicio, fin, texto, hablante?}]
+    diarizado = Optional(str, nullable=True)                 # no | pistas
+    motor = Optional(str, nullable=True)                     # whisper | pegado
+    resumen = Optional(LongStr, nullable=True)               # las notas del prospecto
+
+    proceso = Optional(str, nullable=True)                   # transcribiendo | notas | error
+    proceso_error = Optional(str, nullable=True)
+
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    borrado_at = Optional(datetime)
 
 
 class DecretoMes(db.Entity):

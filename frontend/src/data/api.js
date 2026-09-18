@@ -831,6 +831,97 @@ export async function marcarPitch(datos) {
   });
 }
 
+// ------------------------------------------------------------ sistema del setter
+
+/** Todos los pitches del setter (o de todos, si mira dirección), con lo derivado. */
+export async function getPitches() {
+  return pedir('/api/setting/pitches');
+}
+
+export async function crearPitch(datos) {
+  return pedir('/api/setting/pitches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+}
+
+export async function actualizarPitch(id, datos) {
+  return pedir(`/api/setting/pitches/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+}
+
+export async function borrarPitch(id) {
+  return pedir(`/api/setting/pitches/${id}`, { method: 'DELETE' });
+}
+
+export async function borrarTodosLosPitches() {
+  return pedir('/api/setting/pitches?confirmar=todo', { method: 'DELETE' });
+}
+
+/** Las tasas, el embudo y las semanas, sobre los pitches del período. */
+export async function getMetricasSetting({ desde, hasta, canal } = {}) {
+  const q = new URLSearchParams();
+  if (desde) q.set('desde', desde);
+  if (hasta) q.set('hasta', hasta);
+  if (canal) q.set('canal', canal);
+  const qs = q.toString();
+  return pedir(`/api/setting/metricas${qs ? `?${qs}` : ''}`);
+}
+
+/** El respaldo entero: pitches y sesiones con transcripción y notas. */
+export async function getRespaldoSetting() {
+  return pedir('/api/setting/respaldo?refrescar=true');
+}
+
+export async function restaurarRespaldoSetting(payload) {
+  return pedir('/api/setting/respaldo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+}
+
+export async function getSesionesNotas() {
+  return pedir('/api/setting/sesiones');
+}
+
+export async function getSesionNota(id, refrescar = false) {
+  return pedir(`/api/setting/sesiones/${id}${refrescar ? '?refrescar=true' : ''}`);
+}
+
+export async function crearSesionNota(datos) {
+  return pedir('/api/setting/sesiones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+}
+
+export async function actualizarSesionNota(id, datos) {
+  return pedir(`/api/setting/sesiones/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+}
+
+export async function borrarSesionNota(id) {
+  return pedir(`/api/setting/sesiones/${id}`, { method: 'DELETE' });
+}
+
+/** El audio va crudo, como lo entrega el grabador. `pista` = 'mic' para la segunda pista. */
+export async function subirAudioSesion(id, blob, { pista = '', nombre = '' } = {}) {
+  const q = new URLSearchParams();
+  if (pista) q.set('pista', pista);
+  if (nombre) q.set('nombre', nombre);
+  const qs = q.toString();
+  return pedir(`/api/setting/sesiones/${id}/audio${qs ? `?${qs}` : ''}`, {
+    method: 'PUT', headers: { 'Content-Type': blob.type || 'audio/webm' }, body: blob,
+  });
+}
+
+/** El audio como URL de objeto: el <audio> no puede mandar el token, así que se baja acá. */
+export async function bajarAudioSesion(id, pista = '') {
+  const token = getToken();
+  const r = await fetch(`${API_BASE}/api/setting/sesiones/${id}/audio${pista ? `?pista=${pista}` : ''}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) throw new Error('No se pudo recuperar el audio.');
+  return URL.createObjectURL(await r.blob());
+}
+
+export async function procesarSesionNota(id, notasTambien = true) {
+  return pedir(`/api/setting/sesiones/${id}/procesar?notas_tambien=${notasTambien}`, { method: 'POST' });
+}
+
+export async function refinarSesionNota(id, pedido) {
+  return pedir(`/api/setting/sesiones/${id}/refinar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pedido }) });
+}
+
 /** Las conversaciones que abrió Instagram y los Calendly enviados, de la base propia. */
 export async function getConversaciones(mes) {
   return pedir(`/api/ventas/conversaciones${mes ? `?mes=${mes}` : ''}`);

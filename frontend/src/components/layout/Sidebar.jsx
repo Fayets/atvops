@@ -49,7 +49,7 @@ const NAV = [
     sub: [
       { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer', 'admin', 'founder'] },
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer', 'admin', 'founder'] },
-      { to: '/ventas/mi-progreso', label: 'Mi progreso', roles: ['setter', 'admin', 'founder'] },
+      { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter', 'admin', 'founder'] },
       { to: '/ventas', label: 'Operativa', end: true, roles: ['ventas', 'admin', 'founder'] },
       { to: '/ventas/performance', label: 'Performance', roles: ['ventas', 'admin', 'founder'] },
       { to: '/ventas/setting', label: 'Setting', roles: ['admin', 'operaciones', 'founder', 'ventas'] },
