@@ -794,7 +794,8 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "deudaUsd": round(sum(_num(l["debe"]) for l in ventas), 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
-        "averageSaleUsd": round(cash / len(ventas), 2) if ventas else 0,
+        # Lo mismo que el AOV del closer: cash sobre cierres, no sobre cierres más señas.
+        "averageSaleUsd": round(cash / len(cierres), 2) if cierres else 0,
     }
 
 
@@ -1291,7 +1292,10 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         "noShowRate": round(no_shows / evaluables * 100, 1) if evaluables else None,
         "closeRate": round(len(cerradas) / shows * 100, 1) if shows else None,
-        "aovUsd": round(facturacion / len(ventas), 2) if ventas else 0,
+        # AOV: el cash cobrado dividido por la cantidad de cierres. La seña no es un
+        # cierre, así que no entra al divisor: si entrara, dos señas chicas bajarían el
+        # promedio de una venta que todavía no está hecha.
+        "aovUsd": round(cash / len(cerradas), 2) if cerradas else 0,
         "cashPromedioUsd": round(cash / len(ventas), 2) if ventas else 0,
     }
 

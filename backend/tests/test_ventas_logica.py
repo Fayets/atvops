@@ -214,3 +214,27 @@ def test_la_reprogramada_no_se_queda_con_la_agenda_del_dia(monkeypatch):
     v._marcar_seguimientos([manana, tarde])
     assert manana["seguimiento"] is False    # no cuenta, pero tampoco ocupa el lugar
     assert tarde["seguimiento"] is False     # esta es la primera real del prospecto
+
+
+# ------------------------------------------------------------------ AOV
+
+def test_el_aov_es_el_cash_sobre_los_cierres_no_sobre_las_senas():
+    """AOV es cuánto entra por venta cerrada.
+
+    La seña es plata que entró con la venta a medio hacer: si contara como una venta más,
+    dos señas chicas bajarían el promedio de un cierre que sí se hizo.
+    """
+    del_mes = [
+        {"estado": "cierre", "resultado": "Cerrado", "pasada": True, "seguimiento": False,
+         "cashUsd": 8000.0, "facturacionUsd": 8000.0, "saldoUsd": 0.0},
+        {"estado": "cierre", "resultado": "Cerrado", "pasada": True, "seguimiento": False,
+         "cashUsd": 3830.0, "facturacionUsd": 4000.0, "saldoUsd": 170.0},
+        {"estado": "cierre", "resultado": "Seña", "pasada": True, "seguimiento": False,
+         "cashUsd": 200.0, "facturacionUsd": 4000.0, "saldoUsd": 3800.0},
+    ]
+    ventas = del_mes
+    m = v._metricas_closer(del_mes, ventas)
+
+    assert m["cierres"] == 2 and m["senas"] == 1
+    assert m["cashUsd"] == 12030.0            # la seña sí suma al cash cobrado
+    assert m["aovUsd"] == 6015.0              # 12.030 sobre 2 cierres, no sobre 3 ventas

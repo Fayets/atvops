@@ -222,8 +222,8 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           nota={`${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cerrada' : 'cerradas'} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
           onVer={ver('Close rate', 'Las ventas cerradas sobre las llamadas que sí se presentaron. Las señas no cuentan: la venta todavía no está hecha.', shows, (l) => (l.estado === 'cierre' ? dinero(l) : '—'), 'Cash')} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
-          nota={`cash promedio ${formatValue(mes.cashPromedioUsd ?? 0, 'usd')}`}
-          onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'), 'Facturación')} />
+          nota={`${formatValue(mes.cashUsd ?? 0, 'usd')} de cash sobre ${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cierre' : 'cierres'}`}
+          onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', ventas.filter((l) => l.estado === 'cierre'), dinero, 'Cash')} />
       </div>
 
       <CalendarioReal onCambio={onCambio} syncKey={syncKey} />
