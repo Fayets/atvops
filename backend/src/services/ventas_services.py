@@ -774,7 +774,9 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     no_shows = sum(1 for c in clases if c == "no_show")
     sin_reportar = sum(1 for c in clases if c == "sin_reportar")
     sin_crm = sum(1 for c in clases if c == "sin_crm")
-    agendados = len(leads)
+    # Misma regla que en el tablero del closer: la segunda reunión con el mismo prospecto
+    # no es una agenda nueva.
+    agendados = len(leads) - seguimientos
     cash = sum(_num(l["pago"]) for l in ventas)
     evaluables = shows + no_shows
     return {
@@ -1269,9 +1271,10 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     cash = round(sum(x["cashUsd"] for x in ventas), 2)
     facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
     return {
-        # Toda reunión del mes es una agenda (incluida la reprogramada). Solo queda
-        # afuera la descartada a mano.
-        "agendadas": len(del_mes),
+        # La agenda es la primera reunión de cada prospecto. La segunda y la tercera se
+        # siguen viendo en el calendario y suman show, cierre y cash, pero no son una
+        # agenda nueva: el setter la trajo una sola vez.
+        "agendadas": len(del_mes) - seguimientos,
         "reprogramadas": reprogramadas,
         "seguimientos": seguimientos,
         "reuniones": len(del_mes),

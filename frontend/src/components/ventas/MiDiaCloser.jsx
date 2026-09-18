@@ -187,15 +187,17 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
   const notaAgendas = [
     nReprog > 0 ? `${nReprog} reprogramadas` : null,
     mes.porVenir ? `${mes.porVenir} por venir` : null,
-    mes.seguimientos ? `${mes.seguimientos} son segunda reunión` : null,
+    // Las segundas reuniones ya no están en el número: se dicen aparte para que se vea
+    // que existen y por qué no suman.
+    mes.seguimientos ? `${mes.seguimientos} segundas reuniones aparte` : null,
   ].filter(Boolean).join(' · ');
 
   return (
     <div className="mi-dia">
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? delMes.length}
-          nota={notaAgendas || 'todas las del mes'}
-          onVer={ver('Agendas del mes', 'Todas las reuniones del mes. Solo quedan afuera las descartadas a mano.', delMes, (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.origen || l.setter || '')), 'Detalle')} />
+          nota={notaAgendas || 'la primera de cada prospecto'}
+          onVer={ver('Agendas del mes', 'La primera reunión de cada prospecto. Las segundas se siguen viendo en el calendario, pero no son una agenda nueva.', delMes.filter((l) => !l.seguimiento), (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.origen || l.setter || '')), 'Detalle')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"
