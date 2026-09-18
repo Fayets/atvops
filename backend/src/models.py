@@ -248,7 +248,7 @@ class EventoCliente(db.Entity):
 
 
 class ReunionCrm(db.Entity):
-    """La llamada de ventas, con lo que ATV Ops sabe de ella.
+    """Una llamada de ventas. Es el registro: existe acá, no se re-arma en cada carga.
 
     Es la base propia: acá vive el resultado que carga el equipo, y manda sobre lo que
     diga el CRM de atv-mkt. Ese sistema pisa fechas y duplica leads en cada sync, así que
@@ -267,12 +267,38 @@ class ReunionCrm(db.Entity):
     _table_ = _tabla("reuniones_crm", "ReunionCrm")
 
     id = PrimaryKey(int, auto=True)
-    evento_id = Required(str, unique=True)   # id del evento en Google Calendar
+    # La identidad de la llamada. Es el id del evento de Google Calendar cuando existe;
+    # si la llamada solo vive en el CRM, `lead:<id>`; si se cargó a mano, `ops:<uuid>`.
+    evento_id = Required(str, unique=True)
     lead_id = Required(int, index=True, default=0)   # id en el CRM viejo; 0 = solo de acá
     prospecto = Optional(str)
     inicio_at = Optional(datetime)           # cuándo es la reunión, en hora de Argentina
     creado_por = Optional(str)
     creado_at = Required(datetime, default=datetime.utcnow)
+
+    # --- La ficha de la llamada, copiada acá por el sync ---------------------------
+    # Antes se leía de las tres fuentes en cada carga de la vista y se apareaba de nuevo
+    # cada vez, adivinando por nombre y cercanía. Ahora se resuelve una sola vez, al
+    # sincronizar, y lo que queda escrito es lo que se muestra.
+    email = Optional(str, nullable=True)
+    telefono = Optional(str, nullable=True)
+    ig = Optional(str, nullable=True)
+    setter = Optional(str, nullable=True)
+    origen = Optional(str, nullable=True)
+    calificacion = Optional(str, nullable=True)
+    # Segunda reunión con el mismo prospecto: cuenta como show pero no como agenda.
+    segunda = Required(bool, default=False)
+    titulo = Optional(str, nullable=True)            # el título del evento, como está en Google
+    url = Optional(str, nullable=True)
+    link_llamada = Optional(str, nullable=True)
+    agendo_at = Optional(datetime, nullable=True)    # cuándo se agendó
+    agendo_en = Optional(str, nullable=True)
+    ingresos_rango = Optional(str, nullable=True)
+    vino_de_ads = Required(bool, default=False)
+    lead_creado_at = Optional(datetime, nullable=True)
+    # calendario | crm | manual: de dónde salió la llamada la primera vez.
+    fuente = Required(str, default="calendario")
+    sincronizado_at = Optional(datetime, nullable=True)
     # Lo que cargó el equipo. Vacío = todavía no se cargó y manda lo que diga el CRM.
     resultado = Optional(str)
     # Una reunión interna (un 1a1, una weekly) no es de venta: se puede ocultar del

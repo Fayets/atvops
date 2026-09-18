@@ -831,6 +831,11 @@ export async function marcarPitch(datos) {
   });
 }
 
+/** Vuelve a mirar el calendario y el CRM ahora mismo, sin esperar al reloj. */
+export async function sincronizarLlamadas() {
+  return pedir('/api/ventas/llamadas/sincronizar', { method: 'POST' });
+}
+
 // ------------------------------------------------------------ sistema del setter
 
 /** Todos los pitches del setter (o de todos, si mira dirección), con lo derivado. */

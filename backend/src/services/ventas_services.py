@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 import unicodedata
+from collections import Counter
 from datetime import date, datetime, time, timedelta, timezone
 
 from decouple import config
@@ -181,6 +182,21 @@ def _referencias(evento_ids: list[str]) -> dict[str, int]:
                 for r in list(ReunionCrm.select()) if r.evento_id in evento_ids}
 
 
+def _fila_del_lead(lead_id: int):
+    """La fila de ATV Ops de ese lead. Puede haber más de una —una 1ra y una 2da reunión,
+    o un evento duplicado en Google—, así que se queda con la que ya tiene algo cargado y,
+    si ninguna tiene, con la más reciente. `.get()` de Pony levanta excepción con varias."""
+    from src.models import ReunionCrm
+
+    if not lead_id:
+        return None
+    suyas = [r for r in list(ReunionCrm.select()) if r.lead_id == lead_id]
+    if not suyas:
+        return None
+    suyas.sort(key=lambda r: (bool((r.resultado or "").strip()), r.inicio_at or r.creado_at), reverse=True)
+    return suyas[0]
+
+
 def _guardar_propio(lead_id: int, evento_id: str, prospecto: str, quien: str, **campos) -> None:
     """Guarda el resultado en la base de ATV Ops, que es la que manda."""
     from pony.orm import db_session
@@ -189,7 +205,7 @@ def _guardar_propio(lead_id: int, evento_id: str, prospecto: str, quien: str, **
 
     try:
         with db_session:
-            fila = (ReunionCrm.get(evento_id=evento_id) if evento_id else None) or ReunionCrm.get(lead_id=lead_id)
+            fila = (ReunionCrm.get(evento_id=evento_id) if evento_id else None) or _fila_del_lead(lead_id)
             if fila is None:
                 fila = ReunionCrm(evento_id=evento_id or f"lead:{lead_id}", lead_id=lead_id,
                                   prospecto=prospecto[:200], creado_por=quien[:80])
@@ -345,8 +361,19 @@ def _leads_por_id(ids: list[int]) -> list[dict]:
     return _horas_locales(filas)
 
 
-def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
-    """Deja en la lista TODAS las reuniones que hubo, no solo las que el CRM guardó.
+# A partir de cuántas reuniones un email deja de identificar a un prospecto. Nadie viene
+# a cinco llamadas de venta distintas; el equipo, a todas.
+EMAILS_DE_TODAS = 5
+
+
+def _armar_desde_las_fuentes(filas: list[dict], desde: date, hasta: date) -> list[dict]:
+    """Cruza el CRM con el calendario para descubrir qué reuniones hubo.
+
+    Corre en el sync de llamadas, no en cada carga de la vista: acá es donde se decide,
+    adivinando por nombre y por cercanía, qué evento del calendario es qué llamada del
+    CRM. Esa decisión se escribe una sola vez y después manda lo escrito.
+
+    Deja en la lista TODAS las reuniones que hubo, no solo las que el CRM guardó.
 
     El CRM tiene una sola fecha por lead, así que cuando un prospecto tiene varias
     reuniones hasta cerrar, la última le pisa a las anteriores. El calendario sí las
@@ -375,6 +402,16 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         r["_cuando"] = datetime.fromisoformat(r["inicioAt"]).astimezone(AR_TZ).replace(tzinfo=None)
         r["_emails"] = {_norm(e) for e in (r.get("invitados") or []) if _norm(e)}
         r["_nombre"] = _clave_persona(r["prospecto"])
+
+    # El closer y el setter están invitados a todas las reuniones, así que su email no
+    # identifica a nadie. Si se lo deja, un lead que tenga ese email —el CRM los crea
+    # solos— se pega a cualquier reunión: así fue como la llamada de un prospecto
+    # terminó atada a la de otro.
+    veces = Counter(e for r in reuniones for e in r["_emails"])
+    del_equipo = {e for e, n in veces.items() if n >= EMAILS_DE_TODAS}
+    if del_equipo:
+        for r in reuniones:
+            r["_emails"] -= del_equipo
 
     # Las que ya tienen su llamada anotada: se traen por id, estén donde estén.
     referencias = _referencias([r["eventoId"] for r in reuniones])
@@ -455,6 +492,27 @@ def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date)
         _marcar_seguimientos(_marcar_reprogramadas(
             _marcar_duplicados(_aplicar_lo_propio(filas + extras)), ahora)),
         key=lambda f: f["call"])
+
+
+def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
+    """Las reuniones del período, de la base de ATV Ops.
+
+    `filas` son las del CRM y ya no se usan para armar nada: quedan como respaldo para el
+    caso en que todavía no se haya sincronizado nunca —un deploy recién hecho—, así la
+    vista nunca aparece vacía.
+    """
+    from src.services import llamadas_services
+
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    try:
+        if llamadas_services.hay_datos():
+            guardadas = llamadas_services.listar(desde, hasta)
+            return sorted(
+                _marcar_seguimientos(_marcar_reprogramadas(_marcar_duplicados(guardadas), ahora)),
+                key=lambda f: f["call"])
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las llamadas guardadas: %s", str(e)[:200])
+    return _armar_desde_las_fuentes(filas, desde, hasta)
 
 
 def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
@@ -1363,7 +1421,7 @@ def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
     # Si ya hay ficha en ATV Ops, reusar su evento de Google: si no, el chip del
     # calendario no encuentra el número de agenda (queda sin correlativo).
     with db_session:
-        r = ReunionCrm.get(lead_id=numero)
+        r = _fila_del_lead(numero)
         evento = ""
         if r and r.evento_id and not str(r.evento_id).startswith("lead:"):
             evento = r.evento_id

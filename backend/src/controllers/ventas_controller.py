@@ -11,6 +11,7 @@ from src.services import metas_services as metas
 from src.services import marketing_services as marketing
 from src.services import onboarding_services as onboarding
 from src.services import reporte_semanal_services as reporte
+from src.services import llamadas_services as llamadas
 from src.services import ventas_services as ventas
 
 router = APIRouter()
@@ -316,6 +317,18 @@ def reuniones(_user: dict = Depends(solo_interno), desde: str | None = None, has
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al leer las reuniones.")
+
+
+@router.post("/llamadas/sincronizar")
+def sincronizar_llamadas(user: dict = Depends(solo_interno)):
+    """Vuelve a mirar el calendario y el CRM ahora mismo, sin esperar al reloj."""
+    if user.get("rol") not in ventas.ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede sincronizar las llamadas.")
+    try:
+        return llamadas.sincronizar()
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló sincronizar las llamadas")
+        raise HTTPException(status_code=500, detail=f"No se pudo sincronizar: {str(e)[:180]}")
 
 
 @router.get("/mi-setting")

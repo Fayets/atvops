@@ -171,6 +171,17 @@ def ensure_reunion_crm_columns() -> None:
         ("saldo_usd", "DOUBLE PRECISION"), ("nota", "TEXT"),
         ("descartada", "BOOLEAN DEFAULT FALSE NOT NULL"),
         ("actualizado_por", "TEXT"), ("actualizado_at", "TIMESTAMP"),
+        # La ficha completa de la llamada: llegó cuando la reunión pasó a ser un registro
+        # propio en vez de armarse en vivo desde el CRM y el calendario.
+        ("email", "TEXT"), ("telefono", "TEXT"), ("ig", "TEXT"), ("setter", "TEXT"),
+        ("origen", "TEXT"), ("calificacion", "TEXT"),
+        ("segunda", "BOOLEAN DEFAULT FALSE NOT NULL"),
+        ("titulo", "TEXT"), ("url", "TEXT"), ("link_llamada", "TEXT"),
+        ("agendo_at", "TIMESTAMP"), ("agendo_en", "TEXT"), ("ingresos_rango", "TEXT"),
+        ("vino_de_ads", "BOOLEAN DEFAULT FALSE NOT NULL"),
+        ("lead_creado_at", "TIMESTAMP"),
+        ("fuente", "TEXT DEFAULT 'calendario' NOT NULL"),
+        ("sincronizado_at", "TIMESTAMP"),
     ]
     if ES_POSTGRES:
         import psycopg2

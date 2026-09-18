@@ -29,7 +29,7 @@ from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
 from src.controllers.clientes_controller import service as clientes_service
 from src.services import (activacion_ia_services, cerebro_services, instagram_services,
-                          pedidos_services, youtube_services)
+                          llamadas_services, pedidos_services, youtube_services)
 
 import logging
 import threading
@@ -69,6 +69,9 @@ async def lifespan(_app: FastAPI):
     # Instagram cada 3 h: las historias duran un día y si no se traen a tiempo se pierden.
     threading.Thread(target=instagram_services.iniciar_scheduler, args=(stop,), daemon=True, name="instagram").start()
     threading.Thread(target=youtube_services.iniciar_scheduler, args=(stop,), daemon=True, name="youtube").start()
+    # Las llamadas de ventas: el calendario y el CRM se cruzan acá cada 10 minutos y lo
+    # que queda escrito es lo que muestran las vistas.
+    threading.Thread(target=llamadas_services.iniciar_scheduler, args=(stop,), daemon=True, name="llamadas").start()
     yield
     stop.set()
 

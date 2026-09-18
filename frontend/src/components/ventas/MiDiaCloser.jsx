@@ -5,7 +5,7 @@ import NuevaReunion from './NuevaReunion.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
 import { formatValue } from '../../lib/format.js';
-import { getEstadoReuniones, getLlamadosAgenda, ocultarReunion } from '../../data/api.js';
+import { getEstadoReuniones, getLlamadosAgenda, ocultarReunion, sincronizarLlamadas } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 import { alActualizarLlamadas } from '../../lib/llamadasSync.js';
 
@@ -70,6 +70,7 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, encabezado, on
 /** El mismo calendario de Google que ve el director de ventas. */
 function CalendarioReal({ onCambio, syncKey = 0 }) {
   const [detalle, setDetalle] = useState(null);
+  const [sincronizando, setSincronizando] = useState(false);
   const [tick, setTick] = useState(0);
   // El rango lo manda el calendario según la semana o el mes que esté mostrando.
   const [rango, setRango] = useState(null);
@@ -115,8 +116,20 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
         llamados={llamadosConManuales}
         onSelect={setDetalle}
         sub={`${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
-        actualizando={loading}
-        onActualizar={() => setTick((t) => t + 1)}
+        actualizando={loading || sincronizando}
+        onActualizar={async () => {
+          // Actualizar es ir a mirar el calendario de verdad, no releer lo mismo: la
+          // vista sale de la base de ATV Ops y el sync es el que la pone al día.
+          setSincronizando(true);
+          try {
+            await sincronizarLlamadas();
+          } catch {
+            /* si el sync falla igual se refresca: se ve lo último que quedó guardado */
+          } finally {
+            setSincronizando(false);
+            setTick((t) => t + 1);
+          }
+        }}
         onRango={onRango}
         estados={reuniones?.porEvento}
         ocultos={reuniones?.ocultos}
