@@ -68,7 +68,7 @@ function DetalleMetrica({ titulo, explicacion, llamadas, columna, encabezado, on
 }
 
 /** El mismo calendario de Google que ve el director de ventas. */
-function CalendarioReal({ onCambio, numerosAgenda, syncKey = 0 }) {
+function CalendarioReal({ onCambio, syncKey = 0 }) {
   const [detalle, setDetalle] = useState(null);
   const [tick, setTick] = useState(0);
   // El rango lo manda el calendario según la semana o el mes que esté mostrando.
@@ -120,7 +120,6 @@ function CalendarioReal({ onCambio, numerosAgenda, syncKey = 0 }) {
         onRango={onRango}
         estados={reuniones?.porEvento}
         ocultos={reuniones?.ocultos}
-        numerosAgenda={numerosAgenda}
         onEditar={(reunion, estado) => setEditando({ reunion, estado })}
         onAgregar={() => setAgregando(true)}
         onOcultar={async (l) => {
@@ -177,33 +176,6 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
     [delMes],
   );
 
-  // Mismo correlativo que "Agendas del mes": el chip de la semana y el KPI hablan igual.
-  // Además de eventoId, indexamos por nombre+día por si la ficha quedó sin atar al Google.
-  const numerosAgenda = useMemo(() => {
-    const ordenados = [...delMes].sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
-    /** @type {Record<string, number>} */
-    const map = {};
-    const clave = (nombre, iso) => {
-      const d = new Date(iso);
-      const n = String(nombre || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      return `${n}|${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    };
-    ordenados.forEach((l, i) => {
-      const n = i + 1;
-      if (l.eventoId) {
-        map[l.eventoId] = n;
-        map[`cal:${l.eventoId}`] = n;
-      }
-      if (l.id != null) {
-        map[String(l.id)] = n;
-        map[`manual:${l.id}`] = n;
-        if (String(l.id).startsWith('cal:')) map[String(l.id).slice(4)] = n;
-      }
-      const k = clave(l.prospecto, l.fechaAt);
-      if (k && map[`~${k}`] == null) map[`~${k}`] = n;
-    });
-    return map;
-  }, [delMes]);
 
   const ventas = delMes.filter((l) => l.estado === 'cierre');
   const shows = delMes.filter((l) => l.estado === 'show' || l.estado === 'cierre');
@@ -252,7 +224,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           onVer={ver('AOV', 'El precio promedio de los programas vendidos.', ventas, (l) => formatValue(l.facturacionUsd ?? 0, 'usd'), 'Facturación')} />
       </div>
 
-      <CalendarioReal onCambio={onCambio} numerosAgenda={numerosAgenda} syncKey={syncKey} />
+      <CalendarioReal onCambio={onCambio} syncKey={syncKey} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 

@@ -40,11 +40,10 @@ function parseAt(iso) {
  *           onRango?: (desde: string, hasta: string) => void,
  *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void,
  *           onOcultar?: (l: object) => void, ocultos?: Record<string, boolean>,
- *           numerosAgenda?: Record<string, number> }} props
+ }} props
  */
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
-                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos,
-                                           numerosAgenda: numerosAgendaProp }) {
+                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -97,50 +96,23 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     return e.estado === 'sin_crm' ? ' sin-crm' : '';
   };
 
-  // Número de agenda del mes: misma regla que el KPI (sin descartadas; reprogramadas sí cuentan).
-  // Si el padre pasa `numerosAgenda` (p. ej. desde mis llamadas del closer), se usa eso
-  // para que el chip y el KPI digan exactamente el mismo correlativo.
-  const numeroAgenda = useMemo(() => {
-    if (numerosAgendaProp) return numerosAgendaProp;
-    /** @type {Record<string, object[]>} */
-    const porMes = {};
-    for (const l of llamados ?? []) {
-      if (ocultos?.[l.id]) continue;
-      if (estados?.[l.id]?.estado === 'descartada') continue;
-      const d = parseAt(l.fechaAt);
-      const mk = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!porMes[mk]) porMes[mk] = [];
-      porMes[mk].push(l);
-    }
-    /** @type {Record<string, number>} */
-    const map = {};
-    for (const lista of Object.values(porMes)) {
-      lista.sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
-      lista.forEach((l, i) => { map[l.id] = i + 1; });
-    }
-    return map;
-  }, [llamados, ocultos, estados, numerosAgendaProp]);
+  // Número de agenda del mes, contado sobre lo que el calendario muestra.
+  //
+  // Antes venía de la lista de llamadas del closer y se buscaba por cinco claves
+  // distintas. Las dos listas no son la misma —el calendario es del equipo y tiene
+  // reuniones que no están en el CRM— así que el correlativo salía con agujeros (faltaba
+  // la 21) y había tarjetas sin número (la de Víctor). Un contador que saltea no se puede
+  // leer: si el número está, tiene que ser la posición real entre lo que se ve.
+  //
+  // Se numera exactamente lo que se pinta como agenda: fuera las ocultas y las
+  // descartadas, que la propia tarjeta marca como que no cuentan.
+  // Los días que se están dibujando, que es sobre lo que se cuenta.
+  const visibles = modo === 'semana' ? semana : mes;
 
-  /** Número de agenda: por evento, id de CRM o nombre+día (si la ficha no quedó atada). */
-  const numeroDe = (l) => {
-    if (!numeroAgenda) return null;
-    const e = estadoDe(l);
-    const d = parseAt(l.fechaAt);
-    const nombre = (e?.prospecto || l.prospecto || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    const claveDia = `${nombre}|${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const candidatos = [
-      l.id,
-      e?.eventoId,
-      e?.id != null ? String(e.id) : null,
-      e?.id != null ? `manual:${e.id}` : null,
-      e?.id != null ? `cal:${e.id}` : null,
-      claveDia ? `~${claveDia}` : null,
-    ];
-    for (const k of candidatos) {
-      if (k != null && numeroAgenda[k] != null) return numeroAgenda[k];
-    }
-    return null;
-  };
+  // El número de agenda lo pone el servidor, que tiene el mes entero. Calcularlo acá
+  // con lo que está cargado hacía que el mismo prospecto cambiara de número según qué
+  // semana estuvieras mirando, y que quedaran saltos.
+  const numeroDe = (l) => estadoDe(l)?.numeroAgenda ?? null;
   // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
   // para no dispararse también cuando en realidad fue doble click.
   const clickPendiente = useRef(null);
@@ -171,10 +143,14 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   // Pedimos desde el 1° del mes más temprano visible: el contador de agendas
   // es del mes entero, no solo de la semana en pantalla.
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const visibles = modo === 'semana' ? semana : mes;
+  // Se pide el mes entero, no hasta el último día visible: el número de agenda lo calcula
+  // el servidor sobre el mes, y si acá falta la última semana, las reuniones que ya tienen
+  // número no llegan y el correlativo se ve con saltos.
   const inicioMesVisible = new Date(visibles[0].getFullYear(), visibles[0].getMonth(), 1);
+  const ultimoVisible = visibles[visibles.length - 1];
+  const finMesVisible = new Date(ultimoVisible.getFullYear(), ultimoVisible.getMonth() + 1, 0);
   const desde = iso(inicioMesVisible);
-  const hasta = iso(visibles[visibles.length - 1]);
+  const hasta = iso(finMesVisible);
   useEffect(() => {
     onRango?.(desde, hasta);
   }, [desde, hasta, onRango]);

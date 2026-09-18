@@ -465,6 +465,11 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
     """
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
+    # Se trae el mes completo aunque la vista pida una semana: el número de agenda es del
+    # mes, y calcularlo sobre un pedazo hacía que el mismo prospecto cambiara de número al
+    # cambiar de semana.
+    desde = desde.replace(day=1)
+    hasta = date(hasta.year + (hasta.month == 12), (hasta.month % 12) + 1, 1)
     filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
     por_evento = {}
     for f in filas:
@@ -517,10 +522,50 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "desde": desde.isoformat(), "hasta": hasta.isoformat(),
         "programas": programas(), "estados": list(ESTADOS_LLAMADA),
-        "porEvento": por_evento,
+        "porEvento": _numerar_agendas(por_evento, manuales),
         "manuales": manuales,
         "ocultos": eventos_ocultos(),
     }
+
+
+def _numerar_agendas(por_evento: dict, manuales: list[dict]) -> dict:
+    """Le pone a cada reunión su número de agenda del mes.
+
+    El número lo calcula el servidor, que tiene el mes entero, y no el calendario, que
+    solo tiene cargado el rango que está mostrando: ahí el mismo prospecto cambiaba de
+    número según qué semana estuvieras mirando, y aparecían saltos.
+
+    Se numeran las que cuentan como agenda —fuera las ocultas y las descartadas—, de la
+    primera del mes a la última. Las demás quedan sin número, que es lo correcto: no son
+    la agenda número nada.
+    """
+    ocultos = eventos_ocultos()
+    # Solo se numera lo que el calendario puede dibujar. Una reunión sin evento no tiene
+    # tarjeta donde mostrar su número, y numerarla igual deja un hueco en el correlativo:
+    # el lector ve que falta el 19 y no tiene forma de saber cuál era.
+    # Una reunión cargada a mano puede estar en las dos listas: si se numeran las dos
+    # copias, la misma reunión se lleva dos números y uno de ellos no tiene tarjeta.
+    unicos: dict[str, dict] = {}
+    for d in list(por_evento.values()) + manuales:
+        clave = d.get("eventoId")
+        if (clave and clave not in ocultos
+                and d.get("estado") not in ("descartada", "reprogramada")):
+            unicos.setdefault(clave, d)
+    numerables = list(unicos.values())
+    por_mes: dict[str, list[dict]] = {}
+    for d in numerables:
+        por_mes.setdefault(str(d.get("fechaAt"))[:7], []).append(d)
+    for lista in por_mes.values():
+        lista.sort(key=lambda d: str(d.get("fechaAt")))
+        for i, d in enumerate(lista, 1):
+            d["numeroAgenda"] = i
+    # Las cargadas a mano se numeran igual, pero el calendario busca por `porEvento`: si
+    # no quedan también acá, su número existe y no se ve, y el correlativo saltea.
+    for d in manuales:
+        clave = d.get("eventoId")
+        if clave and clave not in por_evento:
+            por_evento[clave] = d
+    return por_evento
 
 
 def _gente_del_rol(rol: str) -> list[str]:
