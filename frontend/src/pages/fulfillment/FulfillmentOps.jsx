@@ -5,7 +5,8 @@ import FulfillmentOpsSalud from '../../components/fulfillment/FulfillmentOpsSalu
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
-import { getFulfillmentOps } from '../../data/api.js';
+import PanelFulfillment from '../../components/fulfillment/PanelFulfillment.jsx';
+import { getFulfillment, getFulfillmentOps } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 
 /**
@@ -14,6 +15,8 @@ import { useResource } from '../../lib/hooks.js';
  */
 export default function FulfillmentOps() {
   const { data, loading, error } = useResource(getFulfillmentOps);
+  // La cartera cliente a cliente: de ahí salen los números de la cabecera.
+  const cartera = useResource(getFulfillment);
 
   if (error) {
     return (
@@ -31,6 +34,8 @@ export default function FulfillmentOps() {
         desc="Expansión, retención y calidad agregadas. Para decidir y reportar — no para operar cliente a cliente."
         actions={<SourceTag sourceId="discord_transcripts" updatedAt={data?.syncAt} />}
       />
+
+      {cartera.data && <PanelFulfillment data={cartera.data} />}
 
       {loading || !data ? (
         <>

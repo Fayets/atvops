@@ -4,6 +4,7 @@ import {
   getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getVentasReal, getYouTubePropio,
 } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
+import PanelMarketing from '../components/marketing/PanelMarketing.jsx';
 import { useResource } from '../lib/hooks.js';
 
 /**
@@ -28,6 +29,8 @@ export default function MarketingOpsPage() {
 
   return (
     <div className="page">
+      {mkt.data && <PanelMarketing data={mkt.data} />}
+
       {cargando ? (
         <>
           <SkeletonKpis n={4} />

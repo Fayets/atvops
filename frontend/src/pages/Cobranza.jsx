@@ -5,6 +5,7 @@ import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loadin
 import Pill from '../components/ui/Pill.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
 import MetaRow from '../components/home/MetaRow.jsx';
+import PanelCobranza from '../components/cobranza/PanelCobranza.jsx';
 import { getCobranza } from '../data/api.js';
 import { formatFecha, formatValue, hace } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
@@ -79,6 +80,8 @@ export default function Cobranza() {
         </>
       ) : (
         <>
+          <PanelCobranza data={data} />
+
           <div className="filtros" style={{ alignItems: 'center', marginBottom: 4 }}>
             <div style={{ fontSize: 13, color: 'var(--text-2)' }}>
               Cuotas {data.mes ?? ''} · ATV Clients
