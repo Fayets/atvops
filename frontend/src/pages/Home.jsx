@@ -26,6 +26,14 @@ function metricasDe(metas = []) {
   }));
 }
 
+/** La meta que manda para juzgar el área: la principal si está decretada, si no la
+ *  primera que lo esté. Sin ninguna, el área no se juzga. */
+function metaQueManda(area) {
+  const conMeta = (area.metas ?? []).filter((m) => Number(m.meta?.meta) > 0);
+  if (Number(area.principal?.meta?.meta) > 0) return area.principal;
+  return conMeta[0] ?? null;
+}
+
 export default function Home() {
   const { mes: mesId } = useMes();
   const { data, loading, error } = useResource(() => getHome(mesId), [mesId]);
@@ -43,6 +51,8 @@ export default function Home() {
 
   const { mes, semana, acciones, marketing, ventas, fulfillment, sistemas, cobranza } = data;
   const pctMes = Math.round(mes.fraccion * 100);
+  const mandaVentas = metaQueManda(ventas);
+  const mandaMkt = metaQueManda(marketing);
 
   return (
     <div className="page">
@@ -72,16 +82,20 @@ export default function Home() {
       <div className="areas-resumen">
         <ResumenArea
           titulo="Ventas" dueno={ventas.dueno} href="/ventas"
-          estado={ESTADO_RITMO[ventas.principal.ritmo.estado]}
+          estado={mandaVentas ? ESTADO_RITMO[mandaVentas.ritmo.estado] : undefined}
           metricas={metricasDe(ventas.metas)}
-          pie={`Proyección de cierre: ${formatValue(Math.round(ventas.principal.ritmo.proyeccion), ventas.principal.meta.format)} sobre ${formatValue(ventas.principal.meta.meta, ventas.principal.meta.format)}.`}
+          pie={mandaVentas
+            ? `${mandaVentas.meta.nombre}: proyecta ${formatCompact(Math.round(mandaVentas.ritmo.proyeccion), mandaVentas.meta.format)} sobre ${formatCompact(mandaVentas.meta.meta, mandaVentas.meta.format)}.`
+            : 'Todavía no hay metas decretadas para el mes.'}
         />
 
         <ResumenArea
           titulo="Marketing" dueno={marketing.dueno} href="/marketing"
-          estado={ESTADO_RITMO[marketing.principal.ritmo.estado]}
+          estado={mandaMkt ? ESTADO_RITMO[mandaMkt.ritmo.estado] : undefined}
           metricas={metricasDe(marketing.metas)}
-          pie={`Hacen falta ${formatValue(Math.round(marketing.principal.ritmo.necesarioSemana), marketing.principal.meta.format)} por semana para llegar.`}
+          pie={mandaMkt
+            ? `${mandaMkt.meta.nombre}: hacen falta ${formatCompact(Math.round(mandaMkt.ritmo.necesarioSemana), mandaMkt.meta.format)} por semana para llegar.`
+            : 'Todavía no hay metas decretadas para el mes.'}
         />
 
         <ResumenArea

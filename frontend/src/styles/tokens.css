@@ -12,13 +12,16 @@
  *                  El número opina, el color no.
  */
 :root {
-  /* Superficies: hueso de fondo, tarjetas blancas */
-  --bg: #faf9f7;
+  /* Superficies: hueso de fondo, tarjetas blancas.
+     El fondo tira bastante más oscuro que el blanco a propósito: con el hueso casi
+     blanco de antes la tarjeta no se despegaba y todo el peso de separarlas caía en el
+     borde, que quedaba invisible. */
+  --bg: #f1eee8;
   --surface: #ffffff;
-  --surface-2: #f5f3f0;
-  --surface-3: #ebe7e1;
-  --border: #e3ddd4;
-  --border-soft: #efebe5;
+  --surface-2: #f6f4f0;
+  --surface-3: #e9e4db;
+  --border: #d8cfc1;
+  --border-soft: #e6e0d5;
 
   /* Texto. Los tres pasan 4.5:1 sobre blanco y sobre el hueso. */
   --text: #1c1917;
@@ -65,8 +68,8 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  /* En claro la sombra es casi nada: el borde es el que separa. */
-  --shadow: 0 1px 2px rgba(28, 25, 23, 0.05), 0 8px 24px rgba(28, 25, 23, 0.04);
+  /* Sombra corta y baja: levanta la tarjeta del fondo sin ensuciarla. */
+  --shadow: 0 1px 2px rgba(28, 25, 23, 0.06), 0 1px 1px rgba(28, 25, 23, 0.04);
 
   /* Instrument Sans: la eligió Franco mirando la maqueta, por el carácter que le da a
      los números. Si no carga, cae en la del sistema y se lee igual. */
