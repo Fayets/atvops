@@ -8,17 +8,28 @@ import { pct } from '../../lib/setting.js';
  * porcentaje, y no valen lo mismo.
  */
 
+// El anillo se pinta con el juicio del número contra su rango sano, no con un color
+// decorativo por tasa: si el color no dice nada, es ruido.
 const TASAS = [
-  { id: 'booking', label: 'Booking rate', unidad: 'pitches', num: 'agendas', den: 'pitchesResueltos', color: 'var(--info)' },
-  { id: 'show', label: 'Show rate', unidad: 'calls', num: 'shows', den: 'llamadasResueltas', color: 'var(--s5)' },
-  { id: 'close', label: 'Close rate', unidad: 'shows', num: 'cierres', den: 'shows', color: 'var(--ok)' },
-  { id: 'setting', label: 'Setting rate', unidad: 'ciclos completos', num: 'cierresDelPitch', den: 'recorridosCompletos', color: 'var(--warn)' },
+  { id: 'booking', label: 'Booking rate', unidad: 'pitches', num: 'agendas', den: 'pitchesResueltos', verde: 30, amarillo: 20 },
+  { id: 'show', label: 'Show rate', unidad: 'calls', num: 'shows', den: 'llamadasResueltas', verde: 80, amarillo: 65 },
+  { id: 'close', label: 'Close rate', unidad: 'shows', num: 'cierres', den: 'shows', verde: 25, amarillo: 15 },
+  { id: 'setting', label: 'Setting rate', unidad: 'ciclos completos', num: 'cierresDelPitch', den: 'recorridosCompletos' },
 ];
 
+const tono = (v, verde, amarillo) => {
+  if (v == null || !verde) return 'var(--s4)';
+  if (v >= verde) return 'var(--ok)';
+  if (v >= amarillo) return 'var(--warn)';
+  return 'var(--alert)';
+};
+
+// El embudo es una sola cosa que se va achicando: una escala de grafito lo cuenta mejor
+// que cuatro colores, y deja el verde libre para cuando de verdad significa algo.
 const ETAPAS = [
-  { label: 'Pitches', campo: 'pitches', color: 'var(--text-3)' },
-  { label: 'Agendas', campo: 'agendas', color: 'var(--info)' },
-  { label: 'Shows', campo: 'shows', color: 'var(--s5)' },
+  { label: 'Pitches', campo: 'pitches', color: 'var(--s3)' },
+  { label: 'Agendas', campo: 'agendas', color: 'var(--s4)' },
+  { label: 'Shows', campo: 'shows', color: 'var(--s1)' },
   { label: 'Closes', campo: 'cierres', color: 'var(--ok)' },
 ];
 
@@ -65,7 +76,7 @@ export default function TasasEmbudo({ m }) {
       <div className="anillos">
         {TASAS.map((t) => (
           <Anillo key={t.id} label={t.label} unidad={t.unidad} valor={m[t.id]}
-            num={m[t.num]} den={m[t.den]} color={t.color} />
+            num={m[t.num]} den={m[t.den]} color={tono(m[t.id], t.verde, t.amarillo)} />
         ))}
       </div>
 

@@ -45,7 +45,7 @@
   font-weight: 700;
   font-size: 13px;
   letter-spacing: -0.03em;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18) inset;
 }
 .brand-logo {
   width: 34px;
@@ -218,7 +218,7 @@
   justify-content: space-between;
   gap: var(--space-4);
   padding: 0 var(--space-6);
-  background: rgba(10, 10, 11, 0.82);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-soft);
 }
@@ -1256,7 +1256,7 @@ table.data .dim {
   border-radius: 999px;
   background: var(--surface-3, #222);
   color: var(--text-2);
-  border: 1px solid var(--border-soft, #2a2a2a);
+  border: 1px solid var(--border-soft);
 }
 .cliente-tag.ok {
   color: var(--ok);
@@ -1749,7 +1749,7 @@ table.data .dim {
   text-align: left;
 }
 .resumen-rank-item:hover {
-  background: color-mix(in srgb, var(--surface-2, #1a1a1a) 70%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
 }
 .resumen-rank-n {
   width: 22px;
@@ -2293,7 +2293,7 @@ table.data .dim {
 }
 .aviso code {
   color: var(--text);
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(28, 25, 23, 0.06);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 11.5px;
@@ -2816,7 +2816,7 @@ table.data .dim {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(28, 25, 23, 0.32);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -2827,7 +2827,7 @@ table.data .dim {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px 18px 16px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 16px 40px rgba(28, 25, 23, 0.14);
 }
 .modal-card h3 {
   margin: 0;
@@ -2949,7 +2949,7 @@ table.data .dim {
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  background: #000;
+  background: var(--bg);
 }
 .login-stack {
   width: min(320px, 100%);
@@ -2963,7 +2963,7 @@ table.data .dim {
   height: auto;
   display: block;
   opacity: 0.92;
-  filter: drop-shadow(0 0 14px rgba(225, 43, 38, 0.28));
+  filter: drop-shadow(0 6px 14px rgba(200, 30, 26, 0.18));
   user-select: none;
   pointer-events: none;
 }
@@ -2973,12 +2973,12 @@ table.data .dim {
   flex-direction: column;
   gap: 14px;
   padding: 22px 20px 18px;
-  background: #0f0f10;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow:
-    0 0 0 1px rgba(225, 43, 38, 0.06),
-    0 18px 40px rgba(0, 0, 0, 0.55);
+    0 0 0 1px rgba(200, 30, 26, 0.04),
+    0 18px 40px rgba(28, 25, 23, 0.10);
   position: relative;
 }
 .login-card::before {
@@ -2988,7 +2988,7 @@ table.data .dim {
   width: 28%;
   height: 1px;
   border-radius: 12px 0 0 0;
-  background: linear-gradient(90deg, rgba(225, 43, 38, 0.7), transparent);
+  background: linear-gradient(90deg, var(--brand), transparent);
   pointer-events: none;
 }
 .login-title {
@@ -2996,7 +2996,7 @@ table.data .dim {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #f4f4f5;
+  color: var(--text);
 }
 .login-field {
   display: flex;
@@ -3008,37 +3008,37 @@ table.data .dim {
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #71717a;
+  color: var(--text-3);
 }
 .login-field input {
-  background: #161618;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: #f4f4f5;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   padding: 9px 11px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .login-field input::placeholder {
-  color: #52525b;
+  color: var(--text-3);
 }
 .login-field input:focus {
   outline: none;
-  border-color: rgba(225, 43, 38, 0.4);
-  box-shadow: 0 0 0 2px rgba(225, 43, 38, 0.1);
+  border-color: var(--brand-line);
+  box-shadow: 0 0 0 3px var(--brand-dim);
 }
 .login-error {
   margin: 0;
   font-size: 12px;
-  color: #f87171;
+  color: var(--alert);
 }
 .login-submit {
   margin-top: 2px;
   width: 100%;
   border: none;
   border-radius: 8px;
-  background: #c41e26;
+  background: var(--brand);
   color: #fff;
   font: inherit;
   font-size: 11px;
@@ -3050,7 +3050,7 @@ table.data .dim {
   transition: background 0.15s ease, opacity 0.15s ease;
 }
 .login-submit:hover:not(:disabled) {
-  background: #d4242c;
+  background: var(--brand-hi);
 }
 .login-submit:disabled {
   opacity: 0.4;
@@ -3503,7 +3503,7 @@ table.data .dim {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(28, 25, 23, 0.32);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -3569,7 +3569,7 @@ table.data .dim {
 }
 .ig-filtro {
   appearance: none;
-  border: 1px solid var(--border, #2a2a2a);
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--muted, #9a9a9a);
   font: inherit;
@@ -3582,11 +3582,11 @@ table.data .dim {
   gap: 6px;
 }
 .ig-filtro:hover {
-  color: var(--text, #eee);
+  color: var(--text);
   border-color: #444;
 }
 .ig-filtro.activo {
-  color: var(--text, #eee);
+  color: var(--text);
   border-color: var(--brand, #c43c3c);
   background: color-mix(in srgb, var(--brand, #c43c3c) 12%, transparent);
 }
@@ -3621,8 +3621,8 @@ table.data .dim {
   height: 96px;
   border-radius: 6px;
   overflow: hidden;
-  background: var(--surface-2, #1a1a1a);
-  border: 1px solid var(--border, #2a2a2a);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
 }
 .ig-thumb img {
   width: 100%;
@@ -3647,7 +3647,7 @@ table.data .dim {
   margin: 0 0 4px;
   font-size: 13.5px;
   line-height: 1.4;
-  color: var(--text, #eee);
+  color: var(--text);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -3671,7 +3671,7 @@ table.data .dim {
 .ig-hist-titulo {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text, #eee);
+  color: var(--text);
 }
 .ig-hist-track {
   list-style: none;
@@ -3717,8 +3717,8 @@ table.data .dim {
   height: 168px;
   border-radius: 8px;
   overflow: hidden;
-  background: var(--surface-2, #1a1a1a);
-  border: 1px solid var(--border, #2a2a2a);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
 }
 .ig-hist-frame img {
   width: 100%;
@@ -3743,8 +3743,8 @@ table.data .dim {
   margin-top: 12px;
   padding: 12px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border, #2a2a2a);
-  background: color-mix(in srgb, var(--surface-2, #1a1a1a) 80%, transparent);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -3779,7 +3779,7 @@ table.data .dim {
 .ig-hist-stat .num {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text, #eee);
+  color: var(--text);
   line-height: 1.15;
 }
 .ig-hist-stat .dim {
@@ -4047,7 +4047,7 @@ table.data .dim {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.28);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
   color: var(--cal-text);
   font-size: 13px;
   font-weight: 550;
@@ -4714,7 +4714,7 @@ button.lista-item:hover { background: var(--surface-2); }
 /* Disposition modal */
 .disp-backdrop {
   z-index: 90;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(28, 25, 23, 0.32);
 }
 .disp-modal {
   width: min(640px, 96vw);
@@ -5291,7 +5291,7 @@ button.lista-item:hover { background: var(--surface-2); }
   display: inline-flex; align-items: center; gap: 8px;
   padding: 10px 14px 10px 12px; border-radius: 999px;
   background: var(--brand); color: #fff; font-size: 13px; font-weight: 600;
-  border: 1px solid var(--brand); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--brand); box-shadow: 0 8px 22px rgba(200, 30, 26, 0.24);
   transition: transform 0.12s ease, background 0.12s ease;
 }
 .atv-ai-fab:hover { background: var(--brand-hi); border-color: var(--brand-hi); transform: translateY(-1px); }
