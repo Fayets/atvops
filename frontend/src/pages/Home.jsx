@@ -1,17 +1,30 @@
-import BurnUp from '../components/charts/BurnUp.jsx';
 import AccionesSemana from '../components/home/AccionesSemana.jsx';
 import Bloque from '../components/home/Bloque.jsx';
 import IdeasBloque from '../components/home/IdeasBloque.jsx';
-import MetaRow from '../components/home/MetaRow.jsx';
+import ResumenArea from '../components/home/ResumenArea.jsx';
 import Bar from '../components/ui/Bar.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { getHome } from '../data/api.js';
-import { formatValue, hace } from '../lib/format.js';
+import { formatCompact, formatValue, hace } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { ESTADO_RITMO } from '../lib/pacing.js';
+
+/** Las metas decretadas de un área, con la forma que espera la tarjeta. */
+function metricasDe(metas = []) {
+  return metas.slice(0, 3).map(({ meta, ritmo }) => ({
+    label: meta.nombre,
+    valor: meta.acumulado.at(-1) ?? 0,
+    format: meta.format,
+    meta: Number(meta.meta) > 0 ? meta.meta : null,
+    tono: ritmo.estado === 'critico' ? 'alert' : ritmo.estado === 'atrasado' ? 'warn' : 'ok',
+    nota: Number(meta.meta) > 0
+      ? `esperado a hoy ${formatCompact(Math.round(ritmo.esperado), meta.format)}`
+      : 'sin meta decretada',
+  }));
+}
 
 export default function Home() {
   const { mes: mesId } = useMes();
@@ -54,86 +67,60 @@ export default function Home() {
 
       <AccionesSemana acciones={acciones} semana={semana} />
 
-      <div className="cuadro">
-        {/* ---------------------------------------------------- fulfillment */}
-        <Bloque
-          titulo="Fulfillment"
-          dueno="Franco"
-          href="/fulfillment"
-        >
-          <div className="semaforo-mini">
-            <div className="celda">
-              <div className="n num" style={{ color: 'var(--ok)' }}>{fulfillment.semaforoTotales.verde}</div>
-              <div className="k">verde</div>
-            </div>
-            <div className="celda">
-              <div className="n num" style={{ color: 'var(--warn)' }}>{fulfillment.semaforoTotales.amarillo}</div>
-              <div className="k">amarillo</div>
-            </div>
-            <div className="celda">
-              <div className="n num" style={{ color: 'var(--brand-hi)' }}>{fulfillment.semaforoTotales.rojo}</div>
-              <div className="k">rojo</div>
-            </div>
-          </div>
-          <ul className="revision">
-            {fulfillment.revision.slice(0, 2).map((r, i) => (
-              <li key={i}>{r}</li>
-            ))}
-          </ul>
-        </Bloque>
+      <div className="areas-titulo">El mes, área por área</div>
 
-        {/* ------------------------------------------------------ marketing */}
-        <Bloque
-          titulo="Marketing"
-          dueno={marketing.dueno}
-          href="/marketing"
-          extra={<Pill tone={ESTADO_RITMO[marketing.principal.ritmo.estado].tone}>{ESTADO_RITMO[marketing.principal.ritmo.estado].label}</Pill>}
-        >
-          <MetaRow meta={marketing.principal.meta} ritmo={marketing.principal.ritmo} />
-          <BurnUp
-            meta={marketing.principal.meta.meta}
-            acumulado={marketing.principal.meta.acumulado}
-            diasMes={mes.dias}
-            ritmo={marketing.principal.ritmo}
-            format={marketing.principal.meta.format}
-            height={108}
-          />
-          {marketing.metas
-            .filter((m) => m !== marketing.principal)
-            .map((m) => (
-              <MetaRow key={m.meta.id} meta={m.meta} ritmo={m.ritmo} compacta />
-            ))}
-        </Bloque>
+      <div className="areas-resumen">
+        <ResumenArea
+          titulo="Ventas" dueno={ventas.dueno} href="/ventas"
+          estado={ESTADO_RITMO[ventas.principal.ritmo.estado]}
+          metricas={metricasDe(ventas.metas)}
+          pie={`Proyección de cierre: ${formatValue(Math.round(ventas.principal.ritmo.proyeccion), ventas.principal.meta.format)} sobre ${formatValue(ventas.principal.meta.meta, ventas.principal.meta.format)}.`}
+        />
 
-        {/* --------------------------------------------------------- ventas */}
-        <Bloque
-          titulo="Ventas"
-          dueno={ventas.dueno}
-          href="/ventas"
-          extra={<Pill tone={ESTADO_RITMO[ventas.principal.ritmo.estado].tone}>{ESTADO_RITMO[ventas.principal.ritmo.estado].label}</Pill>}
-        >
-          <MetaRow meta={ventas.principal.meta} ritmo={ventas.principal.ritmo} />
-          <BurnUp
-            meta={ventas.principal.meta.meta}
-            acumulado={ventas.principal.meta.acumulado}
-            diasMes={mes.dias}
-            ritmo={ventas.principal.ritmo}
-            format={ventas.principal.meta.format}
-            height={108}
-          />
-          {ventas.metas
-            .filter((m) => m !== ventas.principal)
-            .map((m) => (
-              <MetaRow key={m.meta.id} meta={m.meta} ritmo={m.ritmo} compacta />
-            ))}
-        </Bloque>
+        <ResumenArea
+          titulo="Marketing" dueno={marketing.dueno} href="/marketing"
+          estado={ESTADO_RITMO[marketing.principal.ritmo.estado]}
+          metricas={metricasDe(marketing.metas)}
+          pie={`Hacen falta ${formatValue(Math.round(marketing.principal.ritmo.necesarioSemana), marketing.principal.meta.format)} por semana para llegar.`}
+        />
 
-        {/* ------------------------------------------------------- sistemas */}
-        <Bloque
-          titulo="Sistemas"
-          dueno="Franco"
-          href="/sistemas"
-        >
+        <ResumenArea
+          titulo="Fulfillment" dueno="Franco" href="/fulfillment"
+          estado={fulfillment.semaforoTotales.rojo > fulfillment.semaforoTotales.verde
+            ? { tone: 'alert', label: 'en rojo' }
+            : { tone: 'ok', label: 'sana' }}
+          metricas={[
+            { label: 'En rojo', valor: fulfillment.semaforoTotales.rojo, tono: 'alert',
+              nota: `de ${fulfillment.activos ?? '—'} clientes activos` },
+            { label: 'Amarillo', valor: fulfillment.semaforoTotales.amarillo, tono: 'warn',
+              nota: 'para mirar esta semana' },
+            { label: 'Verde', valor: fulfillment.semaforoTotales.verde, tono: 'ok',
+              nota: 'avanzando solos' },
+          ]}
+          pie={fulfillment.revision?.[0]}
+        />
+
+        <ResumenArea
+          titulo="Cobranza" dueno="Franco" href="/cobranza"
+          estado={cobranza.unavailable ? { tone: 'off', label: 'sin datos' }
+            : cobranza.vencidas.n ? { tone: 'alert', label: 'con vencidas' } : { tone: 'ok', label: 'al día' }}
+          metricas={cobranza.unavailable ? [] : [
+            { label: 'Cobrado del mes', valor: cobranza.cobrado, format: 'usd', meta: cobranza.totalMes,
+              tono: cobranza.ritmoCobro?.estado === 'critico' ? 'alert' : 'ok',
+              nota: `${Math.round(cobranza.pctSobreVencido)} % de lo que vencía` },
+            { label: 'Vencido', valor: cobranza.vencidas.usd, format: 'usd', tono: 'alert',
+              nota: `${cobranza.vencidas.n} cuotas pasadas de fecha` },
+            { label: 'Vence en 7 días', valor: cobranza.porVencerSemana.usd, format: 'usd', tono: 'warn',
+              nota: `${cobranza.porVencerSemana.n} cuotas por avisar` },
+          ]}
+          pie={cobranza.unavailable
+            ? 'Sin datos de cobranza · levantá ATV Clients o revisá ATV_CLIENTS_API_URL'
+            : undefined}
+        />
+      </div>
+
+      <div className="areas-pie">
+        <Bloque titulo="Sistemas" dueno="Franco" href="/sistemas">
           <div className="estado-lista">
             <div className="estado-item">
               <i className={`luz ${sistemas.backendOk ? 'ok' : 'alert'}`} />
@@ -170,46 +157,7 @@ export default function Home() {
           </div>
         </Bloque>
 
-        {/* ------------------------------------------------------- cobranza */}
-        <Bloque
-          titulo="Cobranza"
-          dueno="Franco"
-          href="/cobranza"
-        >
-          {cobranza.unavailable ? (
-            <div className="empty" style={{ padding: '8px 0' }}>
-              Sin datos de cobranza · levantá ATV Clients o revisá ATV_CLIENTS_API_URL
-            </div>
-          ) : (
-            <>
-              <MetaRow
-                meta={{ id: 'cobrado', nombre: 'Cobrado del mes', meta: cobranza.totalMes, format: 'usd', acumulado: [cobranza.cobrado] }}
-                ritmo={cobranza.ritmoCobro}
-                compacta
-              />
-              <div className="semaforo-mini">
-                <div className="celda">
-                  <div className="n num" style={{ color: cobranza.vencidas.n ? 'var(--brand-hi)' : 'var(--ok)' }}>{cobranza.vencidas.n}</div>
-                  <div className="k">vencidas · {formatValue(cobranza.vencidas.usd, 'usd')}</div>
-                </div>
-                <div className="celda">
-                  <div className="n num" style={{ color: 'var(--warn)' }}>{cobranza.porVencerSemana.n}</div>
-                  <div className="k">vencen en 7 d · {formatValue(cobranza.porVencerSemana.usd, 'usd')}</div>
-                </div>
-                <div className="celda">
-                  <div className="n num">{Math.round(cobranza.pctSobreVencido)}%</div>
-                  <div className="k">cobrado de lo vencido</div>
-                </div>
-              </div>
-            </>
-          )}
-        </Bloque>
-
-        {/* ---------------------------------------------------------- ideas */}
-        <Bloque
-          titulo="Ideas"
-          href="/ideas"
-        >
+        <Bloque titulo="Ideas" href="/ideas">
           <IdeasBloque limite={3} />
         </Bloque>
       </div>

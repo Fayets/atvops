@@ -9,6 +9,20 @@ import Pill from '../ui/Pill.jsx';
  */
 export default function MetaRow({ meta, ritmo, compacta = false }) {
   const actual = meta.acumulado.at(-1) ?? 0;
+  // Sin meta decretada no hay ritmo: la proyección y el "hace falta" salían NaN, que es
+  // peor que no decir nada. Se muestra el número solo, con lo que es.
+  const sinMeta = !(Number(meta.meta) > 0);
+  if (sinMeta) {
+    return (
+      <div className={`meta-row${compacta ? ' compacta' : ''}`}>
+        <div className="meta-row-top">
+          <span className="meta-row-nombre">{meta.nombre}</span>
+          <span className="meta-row-valor num">{formatValue(actual, meta.format)}</span>
+          <span className="dim meta-row-sinmeta">sin meta</span>
+        </div>
+      </div>
+    );
+  }
   const estado = ESTADO_RITMO[ritmo.estado];
   const pct = Math.min(100, ritmo.pctMeta * 100);
   const esperadoPct = Math.min(100, ritmo.fraccion * 100);
