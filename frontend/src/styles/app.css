@@ -6085,3 +6085,26 @@ body.gate-abierto .shell { display: none; }
   background: var(--surface-2); border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; }
 .transcripcion p { margin: 0; }
 .transcripcion .num { margin-right: 6px; font-size: 11px; }
+
+/* ------------------------------------------------------- panel de ops (KPIs + gráficos) */
+
+/* Seis números arriba de todo, cada uno con la línea que dice qué es. */
+.ops-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.ops-kpi { display: flex; flex-direction: column; gap: 5px; padding: 20px 22px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.ops-kpi-label { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.ops-kpi-valor { font-size: 34px; font-weight: 600; line-height: 1.05; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; }
+.ops-kpi-nota { font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+@media (max-width: 1100px) { .ops-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .ops-kpis { grid-template-columns: 1fr; } }
+
+/* Los gráficos de a dos: cada uno responde una pregunta y la dice en el pie. */
+.ops-graficos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.ops-graficos .card { margin: 0; }
+@media (max-width: 1000px) { .ops-graficos { grid-template-columns: 1fr; } }
+
+.ops-tasas-pie { display: flex; flex-wrap: wrap; gap: var(--space-5); padding: 14px 20px;
+  background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius);
+  font-size: 13px; color: var(--text-2); }
+.ops-tasas-pie b { color: var(--text); margin: 0 2px; }

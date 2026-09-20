@@ -14,6 +14,10 @@ export default function Bars({ data, x, y, linea, height = 240, format = 'usd', 
   const [ref, width] = useMeasure();
   const [hover, setHover] = useState(null);
 
+  if (!data?.length) {
+    return <div className="chart-wrap empty" style={{ height }}>Sin datos para este período.</div>;
+  }
+
   const M = { top: 12, right: linea ? 40 : 12, bottom: 26, left: 46 };
   const w = Math.max(width, 240);
   const iw = w - M.left - M.right;
@@ -68,9 +72,16 @@ export default function Bars({ data, x, y, linea, height = 240, format = 'usd', 
                   fill={color ? color(d, i) : 'var(--s1)'}
                   opacity={hover === null || activo ? 1 : 0.42}
                 />
-                <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize="10.5" fill="var(--text-3)">
-                  {x(d)}
-                </text>
+                {(() => {
+                  const cada = Math.ceil(data.length / 8);
+                  const mostrar = i === data.length - 1
+                    || (i % cada === 0 && data.length - 1 - i >= cada);
+                  return mostrar ? (
+                    <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize="10.5" fill="var(--text-3)">
+                      {x(d)}
+                    </text>
+                  ) : null;
+                })()}
               </g>
             );
           })}

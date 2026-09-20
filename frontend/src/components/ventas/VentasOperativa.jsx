@@ -3,6 +3,7 @@ import EditorReunion from './EditorReunion.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
 import { ocultarReunion } from '../../data/api.js';
 import CalendarioEquipo, { ESTADO } from './CalendarioEquipo.jsx';
+import PanelOps from './PanelOps.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
@@ -108,6 +109,8 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
 
   return (
     <div className="ventas-operativa">
+      <PanelOps data={data} />
+
       {agendaError ? (
         <Card title="Calendario del equipo" sub="Google Calendar de ATV">
           <div className="empty">{agendaError.message}</div>

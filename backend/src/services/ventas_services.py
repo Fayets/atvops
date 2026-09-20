@@ -1049,6 +1049,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "actual": actual,
         "previo": previo,
         "semanas": semanas,
+        # Día por día: el mes en un número dice dónde terminaste, la serie dice cómo llegaste.
+        "series": series_diarias(mes),
         "porCloser": _agrupar("closer"),
         "porSetter": _agrupar("setter"),
         "porOrigen": sorted(
@@ -1808,6 +1810,78 @@ def agendas_del_calendario(mes: str) -> list[dict]:
                            "quien": prospecto or (ev.get("titulo") or "Sin título"),
                            "dato": tipo})
     return sorted(salida, key=lambda x: x["cuando"], reverse=True)
+
+
+def series_diarias(mes: str) -> list[dict]:
+    """Día por día del mes: qué se agendó, quién vino y cuánta plata entró.
+
+    El mes en un número dice dónde terminaste; el día a día dice cómo llegaste ahí. Es lo
+    que permite ver que el cash de la semana salió de un solo cierre, o que los no shows
+    se amontonan siempre en los mismos días.
+
+    Los días sin nada quedan en cero y no se saltean: un hueco en el medio de la serie es
+    justamente lo que hay que ver.
+    """
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    anio, m = int(mes[:4]), int(mes[5:7])
+    desde = date(anio, m, 1)
+    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+    try:
+        filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron armar las series diarias: %s", str(e)[:160])
+        return []
+
+    por_dia: dict[date, dict] = {}
+    dia = desde
+    # Hasta hoy si el mes está en curso: los días que todavía no pasaron no son ceros,
+    # son días que no existen todavía, y dibujarlos hace que la serie parezca desplomarse.
+    fin = min(hasta, ahora.date() + timedelta(days=1))
+    while dia < fin:
+        por_dia[dia] = {"fecha": dia.isoformat(), "label": dia.strftime("%d/%m"),
+                        "agendas": 0, "shows": 0, "noShows": 0, "sinReportar": 0,
+                        "cierres": 0, "cashUsd": 0.0, "facturadoUsd": 0.0}
+        dia += timedelta(days=1)
+
+    for f in filas:
+        cuando = f["call"].date() if f.get("call") else None
+        if cuando not in por_dia:
+            continue
+        clase = _clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
+                            f.get("soloCalendario", False), f.get("duplicada", False),
+                            f.get("reprogramada", False))
+        if clase in ("descartada", "duplicada", "reprogramada"):
+            continue
+        d = por_dia[cuando]
+        # Un seguimiento cuenta como show y como cash, pero no como agenda: la agenda ya
+        # se contó la primera vez que ese prospecto entró.
+        if not f.get("seguimiento"):
+            d["agendas"] += 1
+        if clase in ("show", "cierre"):
+            d["shows"] += 1
+        elif clase == "no_show":
+            d["noShows"] += 1
+        elif clase == "sin_reportar":
+            d["sinReportar"] += 1
+        if clase == "cierre":
+            d["cierres"] += 1
+            d["cashUsd"] += float(f.get("pago") or 0)
+            d["facturadoUsd"] += float(f.get("pago") or 0) + float(f.get("debe") or 0)
+
+    salida = []
+    acumulado = 0.0
+    for d in sorted(por_dia.values(), key=lambda x: x["fecha"]):
+        acumulado += d["cashUsd"]
+        d["cashAcumuladoUsd"] = round(acumulado, 2)
+        d["cashUsd"] = round(d["cashUsd"], 2)
+        d["facturadoUsd"] = round(d["facturadoUsd"], 2)
+        # El ticket del día sale de los cierres del día; sin cierres no hay ticket, y un
+        # cero acá haría que el promedio parezca caerse.
+        d["ticketUsd"] = round(d["facturadoUsd"] / d["cierres"], 2) if d["cierres"] else None
+        d["showRate"] = (round(d["shows"] / (d["shows"] + d["noShows"]) * 100, 1)
+                         if (d["shows"] + d["noShows"]) else None)
+        salida.append(d)
+    return salida
 
 
 def semanas_de_setting(hasta_mes: str, cuantas: int = 6) -> list[dict]:

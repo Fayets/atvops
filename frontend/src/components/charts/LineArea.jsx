@@ -14,6 +14,12 @@ export default function LineArea({ data, x, series, height = 240, format = 'coun
   const [ref, width] = useMeasure();
   const [hover, setHover] = useState(null);
 
+  // Sin datos no hay nada que dibujar: armar el área igual deja un path que arranca en
+  // "L" y el navegador lo rechaza entero.
+  if (!data?.length) {
+    return <div className="chart-wrap empty" style={{ height }}>Sin datos para este período.</div>;
+  }
+
   const M = { top: 12, right: 12, bottom: 26, left: 46 };
   const w = Math.max(width, 240);
   const iw = w - M.left - M.right;
