@@ -181,6 +181,7 @@ Devolvé ÚNICAMENTE un JSON:
  "plan": "<uno EXACTO de la lista de programas, o null>",
  "cash_usd": <número o null>,
  "nota": "una o dos líneas: qué pasó, la objeción si quedó alguna, y el próximo paso con fecha",
+ "resumen": "DOS renglones cortos: quién es el prospecto y por qué quedó en ese estado",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -197,6 +198,10 @@ Reglas:
   null. Si hablaron en pesos y no dijeron el equivalente, null: no conviertas.
 - nota: escribila como la escribiría el closer, en rioplatense y sin adornos. Es lo que
   se pega en el reporte, no un resumen ejecutivo. Nada de "el prospecto manifestó".
+- resumen: DOS renglones, nunca más. Va quién es el prospecto (a qué se dedica, de
+  dónde, en qué está) y por qué la llamada terminó como terminó. NO repitas los montos
+  ni las fechas que ya pusiste en la nota: acá va el contexto que no se ve en los
+  campos de arriba.
 - Lo que dice el closer no es evidencia; lo que dice el prospecto sí.
 - Si la transcripción está cortada o no es una llamada de venta, devolvé todo null y
   explicá por qué en nota.
@@ -289,12 +294,21 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         s = str(v).strip() if v else ""
         return s[:tope] or None
 
+    def _dos_renglones(v, tope=200):
+        """Dos renglones y se corta. Si se deja crecer vuelve a ser el párrafo largo."""
+        s = " ".join(str(v).split()) if v else ""
+        if len(s) <= tope:
+            return s or None
+        corte = s.rfind(" ", 0, tope)
+        return (s[:corte] if corte > tope // 2 else s[:tope]).rstrip(" ,;") + "…"
+
     return {
         "lead": _linea(campos.get("lead"), 120),
         "estado": _de_la_lista(campos.get("estado"), estados),
         "plan": _de_la_lista(campos.get("plan"), planes),
         "cashUsd": _numero(campos.get("cash_usd")),
         "nota": _linea(campos.get("nota"), 400),
+        "resumen": _dos_renglones(campos.get("resumen")),
         "saldoUsd": _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
         "objecion": _linea(campos.get("objecion")),
@@ -382,7 +396,7 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     cuando = (getattr(reunion, "inicio_at", None) if reunion is not None else None) or datos.get("inicio")
     quien = (getattr(reunion, "closer", "") if reunion is not None else "") or datos.get("grabo") or ""
 
-    encabezado = f"📞 *{campos['lead'] or datos['titulo'] or 'Llamada sin nombre'}*"
+    encabezado = f"*{campos['lead'] or datos['titulo'] or 'Llamada sin nombre'}*"
     if cuando:
         encabezado += f" · {cuando:%d/%m %H:%M}"
     if quien:
@@ -397,6 +411,8 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     nota = campos.get("nota") or campos.get("proximoPaso")
     if nota:
         lineas += ["", f"_{nota}_"]
+    if campos.get("resumen"):
+        lineas += ["", f"*Resumen:* {campos['resumen']}"]
     if reunion is None:
         lineas += ["", "⚠️ No la encontré en el calendario: el reporte no quedó cargado."]
     if datos.get("url"):

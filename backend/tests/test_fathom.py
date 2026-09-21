@@ -141,6 +141,7 @@ class ReunionFalsa:
 
 CAMPOS = {"lead": "Ana", "estado": "Cerrado", "plan": "Boost", "cashUsd": 2000.0,
           "nota": "Cerró en la llamada, manda el resto el lunes.",
+          "resumen": "Coach de fitness en Córdoba, facturando 3k. Cerró porque ya venía siguiendo a Juan.",
           "saldoUsd": None, "proximoPaso": "manda el pago el lunes", "objecion": None}
 
 
@@ -211,8 +212,27 @@ def test_avisa_cuando_no_pudo_determinar_el_estado():
     assert "no se pudo determinar" in texto
 
 
+def test_el_resumen_se_corta_en_dos_renglones():
+    """Si se lo deja crecer vuelve a ser el párrafo largo que Franco pidió sacar."""
+    largo = "palabra " * 200
+    corto = f._validar({"resumen": largo}, ESTADOS, PLANES)["resumen"]
+    assert len(corto) <= 201
+    assert corto.endswith("…")
+
+
+def test_el_resumen_va_entre_la_nota_y_el_link():
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": "https://fathom.video/share/x"},
+                      CAMPOS, ReunionFalsa())
+    assert texto.index(CAMPOS["nota"]) < texto.index("*Resumen:*") < texto.index("https://")
+
+
+def test_el_encabezado_no_lleva_emoji():
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, ReunionFalsa())
+    assert texto.splitlines()[0].startswith("*")
+
+
 def test_el_mensaje_entra_en_una_pantalla():
     """Franco lo pidió corto: si no se lee de un vistazo, nadie lo usa para cargar."""
     texto = f.mensaje({"inicio": datetime(2026, 9, 21, 15, 0), "titulo": "",
                        "url": "https://fathom.video/share/x"}, CAMPOS, ReunionFalsa())
-    assert len(texto.splitlines()) <= 9
+    assert len(texto.splitlines()) <= 11
