@@ -409,6 +409,24 @@ def recibir(cuerpo: bytes, headers) -> dict:
 # ------------------------------------------------------------------ para Theo
 
 @db_session
+def pendientes() -> list[dict]:
+    """Los reportes que todavía no salieron al grupo, del más viejo al más nuevo.
+
+    Es la cola del aviso por llamada: Theo pregunta seguido, manda lo que haya y
+    avisa qué mandó. Sin la marca de enviado, el mismo reporte saldría en cada
+    corrida y el grupo se llenaría de repetidos.
+    """
+    filas = [r for r in list(ReunionCrm.select())
+             if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None]
+    filas.sort(key=lambda r: r.reporte_at or datetime.min)
+    return [{"eventoId": r.evento_id,
+             "prospecto": r.prospecto,
+             "closer": r.closer or "",
+             "hora": r.inicio_at.strftime("%H:%M") if r.inicio_at else "",
+             "mensaje": r.reporte_mensaje} for r in filas]
+
+
+@db_session
 def del_dia(fecha: date | None = None) -> dict:
     """Las llamadas de un día con su reporte al lado. Es lo que manda Theo al grupo.
 

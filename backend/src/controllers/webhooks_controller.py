@@ -105,6 +105,13 @@ async def fathom(request: Request):
         return {"ok": False, "motivo": f"No se pudo procesar: {str(e)[:180]}"}
 
 
+@router.get("/fathom/pendientes")
+def fathom_pendientes(request: Request):
+    """Los reportes que todavía no salieron al grupo. Es el aviso por llamada."""
+    _agente(request)
+    return {"reportes": fathom_services.pendientes()}
+
+
 @router.get("/fathom/dia")
 def fathom_del_dia(request: Request, fecha: str = Query("")):
     """Las llamadas del día con su reporte. Es la lista que Theo manda al grupo."""

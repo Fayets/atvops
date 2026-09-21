@@ -1,6 +1,6 @@
 ---
 name: llamadas-ventas
-description: "Reporte de las llamadas de venta del día para el grupo de Ventas: por cada llamada, el lead, en qué quedó (cerrado, seña, seguimiento, no show), qué plan y cuánto entró, sacado de la grabación de Fathom. Usar cuando corra el reporte automático de llamadas, cuando pidan cómo vinieron las llamadas de hoy, en qué quedó una llamada puntual, o qué llamadas quedaron sin reportar."
+description: "Avisar al grupo de Ventas en qué quedó cada llamada apenas termina: el lead, el estado (cerrado, seña, seguimiento, no show), el plan y cuánto entró, sacado de la grabación de Fathom. Usar cuando corra el chequeo automático de llamadas nuevas, cuando pidan cómo vinieron las llamadas de hoy, en qué quedó una llamada puntual, o qué llamadas quedaron sin reportar."
 metadata:
   {
     "openclaw":
@@ -31,10 +31,32 @@ a poder reportar solo. **Es lo más accionable del reporte — siempre nombralas
 Header `X-Agent-Key` en todos. Key: la misma que MKT y Clients. Nunca la muestres.
 ATV Ops: `http://localhost:8012`
 
-## Comando
+## Comandos
 
-Fecha: NO la calcules vos (el server está en UTC y de noche da mal). El endpoint ya usa
-hora de Argentina solo. Pasá `fecha=AAAA-MM-DD` únicamente si te piden otro día.
+Fecha: NO la calcules vos (el server está en UTC y de noche da mal). Los endpoints ya
+usan hora de Argentina solos.
+
+### 1. Llamadas nuevas para avisar (el chequeo automático)
+
+```bash
+curl --fail --silent --show-error --max-time 25 \
+  -H "X-Agent-Key: $ATV_AGENT_KEY" \
+  "http://localhost:8012/api/webhooks/fathom/pendientes"
+```
+
+Devuelve `reportes[]`, cada uno con `eventoId`, `prospecto`, `closer`, `hora` y
+**`mensaje`: el texto ya armado**. Lista vacía = no hay nada nuevo.
+
+### 2. Avisar qué mandaste (OBLIGATORIO después de mandar)
+
+```bash
+curl --fail --silent --show-error --max-time 25 -X POST \
+  -H "X-Agent-Key: $ATV_AGENT_KEY" -H "Content-Type: application/json" \
+  -d '{"eventoIds":["ID1","ID2"]}' \
+  "http://localhost:8012/api/webhooks/fathom/enviados"
+```
+
+### 3. Todas las llamadas del día (para preguntas, no para el aviso)
 
 ```bash
 curl --fail --silent --show-error --max-time 25 \
@@ -59,36 +81,39 @@ Devuelve `fecha`, `sinGrabacion` (cuántas quedaron sin grabar) y `llamadas[]`, 
 `estado` en `null` con `grabada: true` significa que la llamada se grabó pero no se pudo
 determinar en qué quedó. Decilo así, no lo completes por tu cuenta.
 
-## Reporte de llamadas (automático o "cómo vinieron las llamadas")
+## El aviso por llamada (el chequeo automático)
 
-Ejecutá el comando y armá el mensaje. Títulos en *negrita*, respetá las líneas en
-blanco, NO uses triple backtick. Va al **grupo de Ventas**.
+Este es el trabajo principal de la skill y corre solo, seguido.
 
-*LLAMADAS DEL DÍA {DD/MM}*
+1. Ejecutá el comando 1.
+2. **Si `reportes` viene vacío, no mandes NADA y terminá ahí.** No avises que no hay
+   novedades, no saludes, no expliques que chequeaste. El grupo se usa para trabajar:
+   un mensaje cada diez minutos diciendo "sin novedades" hace que dejen de leerlo.
+3. Si hay reportes, mandá el campo `mensaje` de cada uno **tal cual viene**. Ya está
+   armado y con el formato correcto: no lo reescribas, no lo resumas, no le agregues
+   introducción ni cierre. Si hay varios, van como mensajes separados.
+4. Ejecutá el comando 2 con TODOS los `eventoId` que mandaste. Si te lo saltás, los
+   mismos reportes vuelven a salir en la próxima corrida.
+
+Si el comando 2 falla, decilo en el grupo en una línea: los reportes van a repetirse
+hasta que alguien lo arregle, y es mejor que se sepa.
+
+## Preguntas sueltas (van con el comando 3)
+
+Acá sí armás el texto vos. Títulos en *negrita*, sin triple backtick. Una llamada es un
+bloque de 2 a 4 líneas — se lee en el celular parado:
 
 *{hora} · {prospecto}* ({closer})
 {estado} · {plan} · ${cashUsd}
 ↳ {proximoPaso}
 ⚠️ {objecion}
 
-_{n} llamadas · {cerradas} cerradas · ${total} en la mesa_
-_{sinGrabacion} sin grabar en Fathom: {lista de prospectos}_
+La línea del medio lleva solo lo que exista; sin plan ni cash queda el estado solo. `↳`
+y `⚠️` únicamente si hay algo que poner. Si `grabada` es `false`, una sola línea:
+*{hora} · {prospecto}* ({closer}) — _sin grabación_. Números con punto de miles.
 
-Reglas del reporte:
-
-- **Una llamada, un bloque de 2 a 4 líneas.** Es para leer en el celular parado.
-- La línea del medio solo lleva lo que exista. Sin plan ni cash, queda solo el estado.
-- `↳` y `⚠️` solo si hay próximo paso u objeción. No pongas la flecha vacía.
-- Si `grabada` es `false`, el bloque es una sola línea:
-  *{hora} · {prospecto}* ({closer}) — _sin grabación_
-- El total de la última línea es la suma de `cashUsd`, nada más. No sumes proyecciones
-  ni seguimientos.
-- Números con punto de miles.
-- Si no hubo llamadas, decilo en una línea y listo. No armes el cuadro vacío.
-
-## Preguntas sueltas
-
-- "¿cómo vinieron las llamadas?" / "¿qué pasó hoy?" → el reporte completo.
+- "¿cómo vinieron las llamadas?" / "¿qué pasó hoy?" → todas las del día, y al pie
+  cuántas quedaron sin grabar y quiénes.
 - "¿en qué quedó la de {nombre}?" → buscá ese prospecto y contá su bloque, con el
   próximo paso y la objeción. Si tiene `fathomUrl`, pasá el link.
 - "¿qué llamadas faltan reportar?" → solo las de `grabada: false`, más las que tienen
