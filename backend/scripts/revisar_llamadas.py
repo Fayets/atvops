@@ -10,7 +10,7 @@ duplicadas, números de agenda que saltan y llamadas del calendario sin resolver
 """
 
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -26,6 +26,7 @@ def main() -> None:
 
     from src.models import ReunionCrm
     from src.services import ventas_services as ventas
+    from src.services.transcripts_services import AR_TZ
 
     # `strftime("%B")` sale en inglés salvo que el server tenga el locale puesto.
     MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
@@ -45,8 +46,16 @@ def main() -> None:
         print(f"  solo del calendario:   {sum(1 for r in todas if not r.lead_id and r.fuente == 'calendario')}")
         print(f"  cargadas a mano:       {sum(1 for r in todas if r.fuente == 'manual')}")
         print(f"  con resultado cargado: {sum(1 for r in todas if (r.resultado or '').strip())}")
+        # `sincronizado_at` se guarda en UTC (datetime.utcnow()): sin convertirlo,
+        # la línea se lee 3 horas adelantada y parece que el sync corrió en el futuro.
         sincro = [r.sincronizado_at for r in todas if r.sincronizado_at]
-        print(f"  último sync:           {max(sincro) if sincro else 'nunca'}")
+        if sincro:
+            ultimo = max(sincro).replace(tzinfo=timezone.utc).astimezone(AR_TZ)
+            minutos = round((datetime.now(AR_TZ) - ultimo).total_seconds() / 60)
+            cuando = "recién" if minutos < 1 else f"hace {minutos} min" if minutos < 120 else f"hace {minutos // 60} h"
+            print(f"  último sync:           {ultimo:%Y-%m-%d %H:%M} ART ({cuando})")
+        else:
+            print("  último sync:           nunca")
         if repetidos:
             print(f"\n  OJO: {len(repetidos)} lead(s) con más de una reunión guardada:")
             for lead in list(repetidos)[:10]:
