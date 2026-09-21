@@ -49,7 +49,10 @@ const NAV = [
     sub: [
       { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer', 'admin', 'founder'] },
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer', 'admin', 'founder'] },
-      { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter', 'admin', 'founder'] },
+      // "Mi setting" es la pantalla propia del setter para cargar sus pitches: no es una
+      // lectura del área. Ops y dirección miran el embudo en Setting y Performance, así
+      // que acá solo ocupaba lugar en un menú que ya está largo. La ruta sigue abierta.
+      { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter', 'admin'] },
       { to: '/ventas', label: 'Operativa', end: true, roles: ['ventas', 'admin', 'founder'] },
       { to: '/ventas/performance', label: 'Performance', roles: ['ventas', 'admin', 'founder'] },
       { to: '/ventas/setting', label: 'Setting', roles: ['admin', 'operaciones', 'founder', 'ventas'] },
