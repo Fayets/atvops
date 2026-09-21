@@ -180,8 +180,17 @@ def ultimo_update() -> str | None:
     return f"({archivos[-1].stem})\n" + cuerpo.strip().strip("`").strip()
 
 
+_CAMPO_EQUIPO = re.compile(r"·\s*(alias|area|área)\s*:\s*", re.IGNORECASE)
+
+
 def equipo() -> list[dict]:
-    """[{nombre, alias:[...]}] leídos de general/equipo.md (editable en Obsidian)."""
+    """[{nombre, alias:[...], area}] leídos de general/equipo.md (editable en Obsidian).
+
+    Cada fila es `- Nombre · alias: a, b · área: Ventas · setting`. Los campos se
+    cortan por el marcador `· clave:`, no por el `·` suelto, para que un área con
+    punto medio adentro ("Ventas · setting") no se parta al medio. Las dos partes
+    son opcionales: una fila con el nombre solo sigue valiendo.
+    """
     ruta = CEREBRO_DIR / "general" / "equipo.md"
     if not ruta.exists():
         ruta = SEMILLA_DIR / "general" / "equipo.md"
@@ -191,11 +200,21 @@ def equipo() -> list[dict]:
     except OSError:
         return salida
     for linea in cuerpo.splitlines():
-        m = re.match(r"^\s*-\s*([^·\n]+?)\s*(?:·\s*alias:\s*(.*))?$", linea)
-        if m and not linea.strip().startswith("- id:"):
-            nombre = m.group(1).strip()
-            alias = [a.strip() for a in (m.group(2) or "").split(",") if a.strip()]
-            salida.append({"nombre": nombre, "alias": alias})
+        texto = linea.strip()
+        if not texto.startswith("- ") or texto.startswith("- id:"):
+            continue
+        texto = texto[2:].strip()
+        marcas = list(_CAMPO_EQUIPO.finditer(texto))
+        nombre = (texto[: marcas[0].start()] if marcas else texto).strip()
+        if not nombre:
+            continue
+        campos: dict[str, str] = {}
+        for i, m in enumerate(marcas):
+            fin = marcas[i + 1].start() if i + 1 < len(marcas) else len(texto)
+            clave = "area" if m.group(1).lower() in ("area", "área") else "alias"
+            campos[clave] = texto[m.end():fin].strip()
+        alias = [a.strip() for a in campos.get("alias", "").split(",") if a.strip()]
+        salida.append({"nombre": nombre, "alias": alias, "area": campos.get("area", "")})
     return salida
 
 

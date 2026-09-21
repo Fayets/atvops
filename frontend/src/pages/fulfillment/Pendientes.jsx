@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import FichasUpdate from '../../components/fulfillment/FichasUpdate.jsx';
 import { ErrorState } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
 import { confirmarUpdate, descartarBorrador, ejecutarRondaPendientes, getPendientes, getProgresoRonda, getUpdateTexto } from '../../data/api.js';
@@ -8,6 +9,11 @@ import { hace } from '../../lib/format.js';
  * Updates: un botón. La ronda solo propone (Claude lee lo nuevo de cada canal);
  * nada queda guardado hasta que el CSM confirma el update. Confirmar aplica la
  * propuesta al registro, mueve los ledgers y guarda el texto en el cerebro.
+ *
+ * Se lee por persona (una ficha por cada uno, con sus hilos). El texto que se
+ * guarda sigue siendo el mismo y se sigue pudiendo corregir a mano antes de
+ * confirmar: vive detrás de "Ver texto", porque confirmar sin poder editar
+ * dejaría sin arreglo lo que Claude entendió mal.
  */
 export default function Pendientes() {
   const [estado, setEstado] = useState(null);
@@ -15,6 +21,7 @@ export default function Pendientes() {
   const [progreso, setProgreso] = useState(null);
   const [copiado, setCopiado] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [verTexto, setVerTexto] = useState(false);
   const [error, setError] = useState(null);
   const timer = useRef(null);
   const feedRef = useRef(null);
@@ -136,7 +143,30 @@ export default function Pendientes() {
         </div>
       )}
 
-      {texto && !enCurso && (
+      {!enCurso && <FichasUpdate fichas={estado?.fichas ?? []} resumen={estado?.resumen ?? {}} />}
+
+      {texto && !enCurso && !verTexto && (
+        <div className="update-acciones">
+          <span className="dim">
+            {borrador
+              ? 'Confirmar guarda el update y aplica la propuesta al registro.'
+              : confirmado
+                ? `Confirmado por ${confirmado.confirmadoPor} ${hace(confirmado.confirmadoAt, new Date())}. Guardado en el cerebro.`
+                : ''}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={() => setVerTexto(true)}>Ver texto</button>
+            {borrador && <button className="btn" onClick={descartar}>Descartar</button>}
+            {borrador && (
+              <button className="btn primary" onClick={confirmar} disabled={guardando}>
+                {guardando ? 'Guardando…' : 'Confirmar update'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {texto && !enCurso && verTexto && (
         <div className="update-editor">
           {borrador?.error && <div className="ronda-evento error" style={{ fontSize: 12.5 }}>Canales con error en la ronda (se reintentan en la próxima): {borrador.error.split('\n').length}</div>}
           <textarea
@@ -155,6 +185,7 @@ export default function Pendientes() {
                   : ''}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={() => setVerTexto(false)}>Ocultar texto</button>
               {borrador && <button className="btn" onClick={descartar}>Descartar</button>}
               <button className="btn" onClick={copiar}>{copiado ? 'Copiado ✓' : 'Copiar'}</button>
               {borrador && (

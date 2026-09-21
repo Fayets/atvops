@@ -15,6 +15,7 @@ import json
 import logging
 import re
 import threading
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -199,7 +200,7 @@ def _pedido_a_dict(p: PedidoAbierto) -> dict:
 
 @db_session
 def _abiertos_de(canal_id: str) -> list[dict]:
-    return [_pedido_a_dict(p) for p in PedidoAbierto.select() if p.canal_id == canal_id and p.estado != "resuelto"]
+    return [_pedido_a_dict(p) for p in list(PedidoAbierto.select()) if p.canal_id == canal_id and p.estado != "resuelto"]
 
 
 @db_session
@@ -484,7 +485,7 @@ def _proyectar() -> tuple[list[dict], dict]:
     """Registro confirmado + borrador aplicado por encima (sin escribir). Devuelve (pedidos, borrador)."""
     ahora = datetime.now(AR_TZ)
     with db_session:
-        todos = {p.id: _pedido_a_dict(p) for p in PedidoAbierto.select()}
+        todos = {p.id: _pedido_a_dict(p) for p in list(PedidoAbierto.select())}
     borrador = _borrador_leer()
     tmp = -1
     for canal_id, prop in borrador.get("canales", {}).items():
@@ -505,6 +506,67 @@ def _proyectar() -> tuple[list[dict], dict]:
                 "horasAbierto": round(((datetime.fromisoformat(resuelto_at) if resuelto_at else ahora) - creado).total_seconds() / 3600, 1),
             })
     return list(todos.values()), borrador
+
+
+def _resumen_de(abiertos: list[dict]) -> dict:
+    """Las cuatro lecturas que el update no da leyendo fila por fila.
+
+    El cuello es quien más hilos tiene encima; lo más viejo es lo que lleva más
+    horas sin respuesta; un canal "repetido" tiene dos personas del equipo
+    contestando al mismo cliente (que suele ser una pisada, no una ayuda); y un
+    canal sin nombre es una mención suelta, sin transcript propio para leer.
+    """
+    por_persona = Counter(p["responsable"] for p in abiertos)
+    canales: dict[str, set[str]] = {}
+    for p in abiertos:
+        canales.setdefault(p["canal"], set()).add(p["responsable"])
+
+    cuello = por_persona.most_common(1)[0] if por_persona else None
+    return {
+        "cuello": None if cuello is None or cuello[1] < 2 else {"responsable": cuello[0], "hilos": cuello[1]},
+        "masViejos": [
+            {"canal": p["canal"], "responsable": p["responsable"], "tema": p["tema"], "horasAbierto": p["horasAbierto"]}
+            for p in sorted(abiertos, key=lambda p: -p["horasAbierto"])[:2]
+            if p["horasAbierto"] >= 12
+        ],
+        "repetidos": sorted(
+            ({"canal": c, "personas": sorted(r)} for c, r in canales.items() if len(r) > 1),
+            key=lambda x: x["canal"],
+        ),
+        "sinCanalPropio": sorted(c for c in canales if c.isdigit()),
+    }
+
+
+def _fichas_de(abiertos: list[dict]) -> list[dict]:
+    """Una fila por persona del equipo, con sus hilos ordenados del más viejo al más nuevo.
+
+    Incluye a los que no tienen nada abierto: ver quién está limpio es parte de
+    la lectura. El orden es por carga, y los que están en cero quedan al final.
+    """
+    from src.services import cerebro_services as cerebro
+
+    por_nombre: dict[str, list[dict]] = {}
+    for p in abiertos:
+        por_nombre.setdefault(p["responsable"], []).append(p)
+
+    fichas = []
+    vistos = set()
+    for m in cerebro.equipo():
+        vistos.add(m["nombre"])
+        fichas.append({"responsable": m["nombre"], "area": m.get("area") or "", "hilos": por_nombre.get(m["nombre"], [])})
+    # Un responsable que la ronda nombró pero que no está en la nota de equipo:
+    # se muestra igual, o sus hilos desaparecerían de la vista sin avisar.
+    for nombre, hilos in por_nombre.items():
+        if nombre not in vistos:
+            fichas.append({"responsable": nombre, "area": "", "hilos": hilos})
+
+    for f in fichas:
+        f["hilos"].sort(key=lambda p: -p["horasAbierto"])
+        f["hilos"] = [
+            {k: p[k] for k in ("id", "canal", "tipo", "tema", "estado", "horasAbierto", "nota") if k in p}
+            for p in f["hilos"]
+        ]
+    return sorted(fichas, key=lambda f: -len(f["hilos"]))
 
 
 def estado() -> dict:
@@ -532,7 +594,7 @@ def estado() -> dict:
             **json.loads(ultima.pendientes or "{}"), "costo_usd": ultima.costo_usd, "error": ultima.error,
         }
         inicio_mes = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        mes = [(r.costo_usd, r.tokens_entrada + r.tokens_salida) for r in RondaPendientes.select() if r.ejecutado_at >= inicio_mes]
+        mes = [(r.costo_usd, r.tokens_entrada + r.tokens_salida) for r in list(RondaPendientes.select()) if r.ejecutado_at >= inicio_mes]
         confirmado = _ultimo_confirmado()
 
     stats = borrador.get("stats") or {}
@@ -545,6 +607,8 @@ def estado() -> dict:
         "esperandoCliente": sum(1 for p in abiertos if p["estado"] == "esperando_cliente"),
         "resueltos7d": len(resueltos7),
         "porResponsable": sorted(por_resp.values(), key=lambda b: -(len(b["esperando_equipo"]) * 10 + len(b["en_proceso"]))),
+        "fichas": _fichas_de(abiertos),
+        "resumen": _resumen_de(abiertos),
         "resueltosRecientes": sorted(resueltos7, key=lambda p: p["resueltoAt"], reverse=True)[:30],
         "borrador": None if not borrador.get("canales") else {
             "generadoAt": borrador.get("generadoAt"), "terminadoAt": borrador.get("terminadoAt"), "origen": borrador.get("origen"),

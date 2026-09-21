@@ -6146,3 +6146,54 @@ body.gate-abierto .shell { display: none; }
 /* Sistemas e Ideas no son métricas del mes: van abajo y más chicas. */
 .areas-pie { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 @media (max-width: 1000px) { .areas-pie { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- Updates por persona
+   El update leído como fichas: una por persona, con sus hilos del más viejo al
+   más nuevo. El único color con opinión es el reloj de espera; el contador solo
+   se pinta cuando alguien concentra los hilos. */
+.upd { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.upd-resumen { display: flex; gap: var(--space-6); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--space-4) var(--space-5); box-shadow: var(--shadow); }
+.upd-resumen-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.upd-resumen-col.angosta { flex: 0 0 300px; border-left: 1px solid var(--border-soft); padding-left: var(--space-5); }
+.upd-resumen-tit { font-size: 11px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.upd-resumen p { margin: 0; font-size: 14px; line-height: 1.5; }
+.upd-resumen p.dim { color: var(--text-2); }
+.upd-resumen strong { font-weight: 600; color: var(--text); }
+
+.upd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+@media (max-width: 1100px) { .upd-grid { grid-template-columns: 1fr; }
+  .upd-resumen { flex-direction: column; gap: var(--space-4); }
+  .upd-resumen-col.angosta { flex: 1; border-left: 0; border-top: 1px solid var(--border-soft);
+    padding-left: 0; padding-top: var(--space-4); } }
+
+.upd-ficha { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-4) var(--space-5); box-shadow: var(--shadow); }
+.upd-ficha header { display: flex; align-items: baseline; gap: var(--space-3); }
+.upd-ficha h4 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.upd-area { flex: 1; font-size: 12px; color: var(--text-3); min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.upd-carga { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.upd-carga.alert { color: var(--alert); }
+.upd-carga.cero { color: var(--text-3); }
+.upd-limpio { font-size: 13px; color: var(--text-3); padding-top: var(--space-2); }
+
+.upd-hilos { margin-top: var(--space-3); }
+.upd-hilo { display: flex; align-items: baseline; gap: var(--space-3); padding: 9px 0;
+  border-top: 1px solid var(--border-soft); }
+.upd-hilo:first-child { border-top: 0; }
+.upd-canal { flex: 0 0 150px; font-size: 13.5px; font-weight: 600; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.upd-canal.anonimo { color: var(--text-3); font-weight: 500; font-style: italic; }
+.upd-tipo { flex: 0 0 82px; font-size: 10.5px; font-weight: 500; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-3); }
+.upd-tema { flex: 1; font-size: 13.5px; color: var(--text-2); line-height: 1.4; min-width: 0; }
+.upd-espera { flex: 0 0 auto; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--text-3); }
+.upd-espera.warn { color: var(--warn); }
+.upd-espera.alert { color: var(--alert); }
+
+.upd-limpios { font-size: 13px; color: var(--text-2); }
+.upd-nota-pie { font-size: 12.5px; color: var(--text-3); border-top: 1px solid var(--border);
+  padding-top: var(--space-3); }
