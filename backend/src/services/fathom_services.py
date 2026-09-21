@@ -180,8 +180,8 @@ Devolvé ÚNICAMENTE un JSON:
  "estado": "<uno EXACTO de la lista de estados, o null>",
  "plan": "<uno EXACTO de la lista de programas, o null>",
  "cash_usd": <número o null>,
- "nota": "DOS renglones como máximo: qué pasó, la objeción si quedó alguna, y el próximo paso con fecha",
- "resumen": "DOS renglones cortos: quién es el prospecto y por qué quedó en ese estado",
+ "nota": "MÁXIMO 200 CARACTERES: qué pasó, la objeción si quedó alguna, y el próximo paso con fecha",
+ "resumen": "MÁXIMO 160 CARACTERES: quién es el prospecto y por qué quedó en ese estado",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -196,13 +196,14 @@ Reglas:
   precio del programa ni lo que prometió pagar más adelante. Si pagó US$ 50 de seña de
   un programa de US$ 1.800, cash_usd es 50 y el resto va en la nota. Si no pagó nada,
   null. Si hablaron en pesos y no dijeron el equivalente, null: no conviertas.
-- nota: DOS renglones, nunca más — se corta si te pasás y queda a medio terminar.
-  Escribila como la escribiría el closer, en rioplatense y sin adornos: es lo que se
-  pega en el reporte, no un resumen ejecutivo. Nada de "el prospecto manifestó".
-- resumen: DOS renglones, nunca más. Va quién es el prospecto (a qué se dedica, de
-  dónde, en qué está) y por qué la llamada terminó como terminó. NO repitas los montos
-  ni las fechas que ya pusiste en la nota: acá va el contexto que no se ve en los
-  campos de arriba.
+- **nota: 200 caracteres contados, no más.** Se corta si te pasás y queda a medio
+  terminar. Escribila como la escribiría el closer apurado entre llamada y llamada:
+  rioplatense, sin adornos, sin conectores de relleno. Es lo que se pega en el reporte,
+  no un resumen ejecutivo. Nada de "el prospecto manifestó" ni "la llamada consistió en".
+- **resumen: 160 caracteres contados, no más.** Va quién es el prospecto (a qué se
+  dedica, de dónde, en qué está) y por qué la llamada terminó como terminó. NO repitas
+  los montos ni las fechas que ya pusiste en la nota: acá va el contexto que no se ve
+  en los campos de arriba. Dos frases alcanzan.
 - Lo que dice el closer no es evidencia; lo que dice el prospecto sí.
 - Si la transcripción está cortada o no es una llamada de venta, devolvé todo null y
   explicá por qué en nota.
