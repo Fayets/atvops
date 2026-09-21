@@ -11,11 +11,25 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
+from decouple import config
+
 from src.services import conversaciones_services as conversaciones
+from src.services import fathom_services
 from src.services import instagram_mensajes_services as ig_mensajes
 
 log = logging.getLogger("atv_ops.webhooks")
 router = APIRouter()
+
+# Theo (OpenClaw) se identifica con la misma clave que usa contra atv-backbone.
+AGENT_KEY = config("AGENT_KEY", default="")
+
+
+def _agente(request: Request) -> None:
+    """Deja pasar solo a los agentes. No es una sesión de usuario: es clave fija."""
+    if not AGENT_KEY:
+        raise HTTPException(status_code=503, detail="Falta AGENT_KEY: el agente no puede identificarse.")
+    if (request.headers.get("X-Agent-Key") or "").strip() != AGENT_KEY:
+        raise HTTPException(status_code=401, detail="X-Agent-Key inválida o ausente.")
 
 
 @router.post("/manychat")
@@ -71,3 +85,38 @@ async def instagram_mensaje(request: Request):
     except Exception as e:  # noqa: BLE001
         log.exception("Falló procesar un mensaje de Instagram")
         raise HTTPException(status_code=500, detail=f"No se pudo procesar: {str(e)[:180]}")
+
+
+@router.post("/fathom")
+async def fathom(request: Request):
+    """Fathom avisa que terminó de procesar una llamada y manda la transcripción.
+
+    Se contesta rápido y siempre 200 salvo que la firma falle: Fathom reintenta, y un
+    500 por un transcript raro haría que el mismo aviso vuelva tres veces.
+    """
+    crudo = await request.body()
+    try:
+        return fathom_services.recibir(crudo, request.headers)
+    except fathom_services.AvisoNoAutorizado as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló procesar una llamada de Fathom")
+        return {"ok": False, "motivo": f"No se pudo procesar: {str(e)[:180]}"}
+
+
+@router.get("/fathom/pendientes")
+def fathom_pendientes(request: Request):
+    """Los reportes que Theo todavía no mandó al grupo de ventas."""
+    _agente(request)
+    return {"reportes": fathom_services.pendientes()}
+
+
+@router.post("/fathom/enviados")
+async def fathom_enviados(request: Request):
+    """Theo avisa qué reportes mandó, para que no vuelvan a salir."""
+    _agente(request)
+    cuerpo = await request.json()
+    ids = (cuerpo or {}).get("eventoIds") or []
+    if not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail="eventoIds tiene que ser una lista.")
+    return {"marcados": fathom_services.marcar_enviados([str(i) for i in ids])}

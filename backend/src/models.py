@@ -312,6 +312,14 @@ class ReunionCrm(db.Entity):
     descartada = Required(bool, default=False)
     actualizado_por = Optional(str)
     actualizado_at = Optional(datetime)
+    # --- Lo que leyó Fathom -------------------------------------------------------
+    # Va aparte del resultado que carga el equipo: la IA propone, no pisa. Si el closer
+    # ya cargó la llamada, acá queda el reporte al lado para poder compararlos.
+    fathom_url = Optional(str, nullable=True)
+    reporte_ia = Optional(LongStr, nullable=True)      # el JSON de campos extraídos
+    reporte_mensaje = Optional(LongStr, nullable=True)  # el texto listo para el grupo
+    reporte_at = Optional(datetime, nullable=True)
+    reporte_enviado_at = Optional(datetime, nullable=True)
 
 
 class PitchSetting(db.Entity):
