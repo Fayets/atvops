@@ -1640,12 +1640,16 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
 
 # ------------------------------------------------- reportes diarios del setter
 
+# El orden es el del embudo, porque es el orden en que el setter los vive: abre la
+# conversación, ofrece la llamada, la agenda. `pitches` es el escalón donde más se
+# pierde y hasta ahora no se medía: sin él, el embudo salta de conversaciones a
+# agendas y la fuga queda escondida.
 CAMPOS_REPORTE = {
-    "setter": ("conversaciones", "links_enviados", "agendas", "seguimientos", "outbounds", "leads_nuevos"),
+    "setter": ("conversaciones", "pitches", "agendas", "links_enviados", "seguimientos", "outbounds", "leads_nuevos"),
     "closer": ("llamadas_agendadas", "shows", "cierres", "calificados", "descalificados", "ingreso"),
 }
 ETIQUETAS_REPORTE = {
-    "conversaciones": "Conversaciones", "links_enviados": "Links enviados", "agendas": "Agendas",
+    "conversaciones": "Conversaciones", "pitches": "Pitches", "links_enviados": "Links enviados", "agendas": "Agendas",
     "seguimientos": "Seguimientos", "outbounds": "Outbounds", "leads_nuevos": "Leads nuevos",
     "llamadas_agendadas": "Llamadas agendadas", "shows": "Shows", "cierres": "Cierres",
     "calificados": "Calificados", "descalificados": "Descalificados", "ingreso": "Ingreso USD",
@@ -2008,7 +2012,6 @@ def mi_setting(usuario: dict, mes: str | None = None) -> dict:
     totales = reportes.get("resumen", {}).get("totales", {})
 
     agendadas: list[dict] = []
-    equipo = {"conversaciones": 0, "linksEnviados": 0, "agendas": 0}
     if miembro:
         filas = crm_db.consultar(
             f"""
@@ -2030,14 +2033,17 @@ def mi_setting(usuario: dict, mes: str | None = None) -> dict:
             }
             for f in filas
         ]
-        suma = crm_db.consultar(
-            "SELECT coalesce(sum(conversaciones),0) c, coalesce(sum(links_enviados),0) l, coalesce(sum(agendas),0) a "
-            "FROM setter_report WHERE fecha >= %s AND fecha < %s",
-            (inicio, fin),
-        )
-        if suma:
-            equipo = {"conversaciones": int(_num(suma[0]["c"])), "linksEnviados": int(_num(suma[0]["l"])),
-                      "agendas": int(_num(suma[0]["a"]))}
+    # Los totales del equipo salen de los reportes que se cargan acá. Antes se sumaba
+    # `setter_report` del CRM, una tabla que ya nadie escribe: los números quedaban
+    # congelados en el último día que alguien cargó desde ATV Marketing, y nadie lo veía
+    # porque un total viejo se lee igual que uno nuevo.
+    propios = [r for r in _reportes_propios("setter", inicio) if r["fecha"] < fin]
+    equipo = {
+        "conversaciones": sum(int(_num(r.get("conversaciones"))) for r in propios),
+        "pitches": sum(int(_num(r.get("pitches"))) for r in propios),
+        "linksEnviados": sum(int(_num(r.get("links_enviados"))) for r in propios),
+        "agendas": sum(int(_num(r.get("agendas"))) for r in propios),
+    }
 
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
