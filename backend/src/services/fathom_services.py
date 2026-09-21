@@ -453,7 +453,10 @@ def recibir(cuerpo: bytes, headers) -> dict:
         texto = mensaje(datos, campos, reunion)
         if reunion is not None:
             reunion.reporte_mensaje = texto
-            reunion.reporte_enviado_at = None
+            # `reporte_enviado_at` NO se toca a propósito. Fathom reintenta los avisos
+            # que fallan, y cada reintento volvería a encolar un reporte que el grupo
+            # ya vio. Si la llamada nunca se reportó el campo ya está en None y sigue
+            # en la cola; si ya salió, se actualiza el texto pero no se repite.
         ident = reunion.evento_id if reunion else None
     log.info("Fathom: %s → %s (completó %s)", datos["titulo"], campos["estado"], guardado["completados"] or "nada")
     return {"ok": True, "eventoId": ident, "estado": campos["estado"], "mensaje": texto, **guardado}

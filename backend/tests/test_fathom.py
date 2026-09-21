@@ -7,6 +7,7 @@ no pise lo que ya cargó el closer a mano.
 """
 
 import base64
+import contextlib
 import hashlib
 import hmac
 import json
@@ -248,3 +249,20 @@ def test_el_mensaje_entra_en_una_pantalla():
     texto = f.mensaje({"inicio": datetime(2026, 9, 21, 15, 0), "titulo": "",
                        "url": "https://fathom.video/share/x"}, CAMPOS, ReunionFalsa())
     assert len(texto.splitlines()) <= 11
+
+
+def test_un_reintento_de_fathom_no_vuelve_a_encolar(monkeypatch):
+    """Fathom reintenta los avisos que fallan: sin esto el grupo ve la misma
+    llamada dos o tres veces."""
+    import src.services.fathom_services as fs
+    ya_enviada = ReunionFalsa(resultado="Seña", evento_id="ev1")
+    ya_enviada.reporte_enviado_at = datetime(2026, 9, 21, 12, 0)
+
+    monkeypatch.setattr(fs, "verificar_firma", lambda *a, **k: None)
+    monkeypatch.setattr(fs, "extraer", lambda datos: CAMPOS)
+    monkeypatch.setattr(fs, "buscar_reunion", lambda *a, **k: ya_enviada)
+    monkeypatch.setattr(fs, "db_session", contextlib.nullcontext())
+
+    cuerpo = json.dumps({"title": "x", "transcript": "Nick: hola"}).encode()
+    fs.recibir(cuerpo, Cabeceras({}))
+    assert ya_enviada.reporte_enviado_at == datetime(2026, 9, 21, 12, 0)
