@@ -140,8 +140,8 @@ class ReunionFalsa:
 
 
 CAMPOS = {"lead": "Ana", "estado": "Cerrado", "plan": "Boost", "cashUsd": 2000.0,
-          "saldoUsd": None, "proximoPaso": "manda el pago el lunes",
-          "objecion": None, "resumen": "Cerró en la llamada."}
+          "nota": "Cerró en la llamada, manda el resto el lunes.",
+          "saldoUsd": None, "proximoPaso": "manda el pago el lunes", "objecion": None}
 
 
 def test_completa_la_llamada_que_estaba_vacia():
@@ -175,21 +175,44 @@ def test_el_reporte_queda_guardado_aunque_no_complete_nada():
 
 # ------------------------------------------------------------------ el mensaje
 
-def test_el_mensaje_trae_los_tres_campos_que_pidio_franco():
+def test_el_mensaje_calca_los_campos_del_formulario():
+    """Arriba van Resultado, Programa y Cash cobrado, en ese orden: cargar es copiar."""
     texto = f.mensaje({"inicio": datetime(2026, 9, 21, 15, 0), "titulo": "", "url": ""}, CAMPOS, ReunionFalsa())
     assert "Ana" in texto
-    assert "Cerrado" in texto
-    assert "Boost" in texto
+    assert texto.index("*Resultado:* Cerrado") < texto.index("*Programa:* Boost") < texto.index("*Cash cobrado:*")
     assert "2,000" in texto
+
+
+def test_el_mensaje_muestra_lo_que_cargo_el_equipo_no_lo_que_leyo_la_ia():
+    """Dos versiones distintas del mismo número en el grupo es peor que ninguna."""
+    r = ReunionFalsa(resultado="Seña", programa="Mentoría", cash_usd=50.0)
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
+    assert "*Resultado:* Seña" in texto
+    assert "*Programa:* Mentoría" in texto
+    assert "*Cash cobrado:* US$ 50" in texto
+    assert "2,000" not in texto
+
+
+def test_sin_cash_cobrado_la_linea_queda_igual():
+    """El campo va siempre: un renglón faltante se lee como que nadie lo miró."""
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS | {"cashUsd": None}, ReunionFalsa())
+    assert "*Cash cobrado:* —" in texto
 
 
 def test_avisa_cuando_no_encontro_la_llamada_en_el_calendario():
     """Si no se apareó, el reporte no quedó cargado en ningún lado: hay que decirlo."""
     texto = f.mensaje({"inicio": None, "titulo": "Llamada", "url": ""}, CAMPOS, None)
-    assert "No encontré esta llamada" in texto
+    assert "No la encontré en el calendario" in texto
 
 
 def test_avisa_cuando_no_pudo_determinar_el_estado():
     campos = CAMPOS | {"estado": None}
     texto = f.mensaje({"inicio": None, "titulo": "Llamada", "url": ""}, campos, ReunionFalsa())
     assert "no se pudo determinar" in texto
+
+
+def test_el_mensaje_entra_en_una_pantalla():
+    """Franco lo pidió corto: si no se lee de un vistazo, nadie lo usa para cargar."""
+    texto = f.mensaje({"inicio": datetime(2026, 9, 21, 15, 0), "titulo": "",
+                       "url": "https://fathom.video/share/x"}, CAMPOS, ReunionFalsa())
+    assert len(texto.splitlines()) <= 9

@@ -170,28 +170,36 @@ def datos_de(payload: dict) -> dict:
 SYSTEM = """Sos el asistente de ventas de ATV (agencia de growth para creadores y emprendedores).
 Leés la transcripción de una llamada de venta y devolvés los campos del reporte del closer.
 
+Los tres primeros campos son EXACTAMENTE los que el closer tiene que cargar en ATV Ops
+(Resultado, Programa, Cash cobrado) y el cuarto es su "Nota de la llamada". Devolvelos
+de forma que el closer pueda copiarlos sin pensar.
+
 Devolvé ÚNICAMENTE un JSON:
 
 {"lead": "nombre y apellido del prospecto, como se presentó",
  "estado": "<uno EXACTO de la lista de estados, o null>",
  "plan": "<uno EXACTO de la lista de programas, o null>",
  "cash_usd": <número o null>,
+ "nota": "una o dos líneas: qué pasó, la objeción si quedó alguna, y el próximo paso con fecha",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
- "objecion": "la objeción que quedó sin resolver, en una línea, o null",
- "resumen": "2 líneas: en qué está el prospecto y por qué cerró o no"}
+ "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
 
 Reglas:
 - estado y plan: SOLO valores de las listas que te paso. Si ninguno encaja con lo que
   realmente pasó, devolvé null. NO elijas el más parecido.
-- "Cerrado" es que pagó o se comprometió a pagar el total. "Seña" es que pagó una parte.
-  Si quedó en pensarlo o en volver a hablar, es "Seguimiento". Si no apareció, "No show".
-  Si no tiene con qué pagar o no es el perfil, "Descalificado".
-- cash_usd es lo que EFECTIVAMENTE entró o se comprometió en esta llamada, en dólares.
-  Si hablaron en pesos y no dijeron el equivalente, devolvé null: no conviertas.
+- "Cerrado" es que pagó el total. "Seña" es que pagó una parte. Si quedó en pensarlo o
+  en volver a hablar, es "Seguimiento". Si no apareció, "No show". Si no tiene con qué
+  pagar o no es el perfil, "Descalificado".
+- **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
+  precio del programa ni lo que prometió pagar más adelante. Si pagó US$ 50 de seña de
+  un programa de US$ 1.800, cash_usd es 50 y el resto va en la nota. Si no pagó nada,
+  null. Si hablaron en pesos y no dijeron el equivalente, null: no conviertas.
+- nota: escribila como la escribiría el closer, en rioplatense y sin adornos. Es lo que
+  se pega en el reporte, no un resumen ejecutivo. Nada de "el prospecto manifestó".
 - Lo que dice el closer no es evidencia; lo que dice el prospecto sí.
 - Si la transcripción está cortada o no es una llamada de venta, devolvé todo null y
-  explicá por qué en resumen.
+  explicá por qué en nota.
 Sin texto fuera del JSON."""
 
 
@@ -286,10 +294,10 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "estado": _de_la_lista(campos.get("estado"), estados),
         "plan": _de_la_lista(campos.get("plan"), planes),
         "cashUsd": _numero(campos.get("cash_usd")),
+        "nota": _linea(campos.get("nota"), 400),
         "saldoUsd": _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
         "objecion": _linea(campos.get("objecion")),
-        "resumen": _linea(campos.get("resumen"), 600),
     }
 
 
@@ -341,8 +349,8 @@ def _guardar(reunion, datos: dict, campos: dict) -> dict:
     if reunion.cash_usd in (None, 0) and campos["cashUsd"]:
         reunion.cash_usd = campos["cashUsd"]
         completados.append("cash")
-    if not (reunion.nota or "").strip() and campos["resumen"]:
-        reunion.nota = campos["resumen"]
+    if not (reunion.nota or "").strip() and campos["nota"]:
+        reunion.nota = campos["nota"]
         completados.append("nota")
     if completados:
         reunion.actualizado_por = "fathom"
@@ -351,29 +359,49 @@ def _guardar(reunion, datos: dict, campos: dict) -> dict:
 
 
 def mensaje(datos: dict, campos: dict, reunion=None) -> str:
-    """El texto que Theo manda al grupo. Corto: se lee en un celular."""
-    cuando = datos.get("inicio")
-    lineas = [
-        f"📞 *{campos['lead'] or datos['titulo'] or 'Llamada sin nombre'}*",
-        f"_{cuando:%d/%m %H:%M}_" if cuando else "",
-        "",
-        f"*Estado:* {campos['estado'] or '⚠️ no se pudo determinar'}",
-        f"*Plan:* {campos['plan']}" if campos["plan"] else "",
-    ]
-    if campos["cashUsd"]:
-        saldo = f" (saldo US$ {campos['saldoUsd']:,.0f})" if campos["saldoUsd"] else ""
-        lineas.append(f"*Cash:* US$ {campos['cashUsd']:,.0f}{saldo}")
-    if campos["proximoPaso"]:
-        lineas += ["", f"*Próximo paso:* {campos['proximoPaso']}"]
-    if campos["objecion"]:
-        lineas.append(f"*Objeción abierta:* {campos['objecion']}")
-    if campos["resumen"]:
-        lineas += ["", campos["resumen"]]
+    """El texto que Theo manda al grupo.
+
+    Los tres campos de arriba son los MISMOS que pide ATV Ops para cargar el
+    resultado (Resultado, Programa, Cash cobrado) y en el mismo orden, así cargar
+    la llamada es copiar. Abajo va la nota, que es el cuarto campo del formulario.
+
+    Lo que el equipo ya cargó le gana a lo que leyó la IA: si Nick puso otra cosa,
+    el grupo tiene que ver lo que Nick puso, no una segunda versión que lo
+    contradiga.
+    """
+    def cargado(atributo, campo):
+        valor = getattr(reunion, atributo, None) if reunion is not None else None
+        if isinstance(valor, str):
+            valor = valor.strip() or None
+        return valor if valor else campos.get(campo)
+
+    estado, plan = cargado("resultado", "estado"), cargado("programa", "plan")
+    cash = cargado("cash_usd", "cashUsd")
+    # La hora de la reunión agendada, que es la que el equipo reconoce; la de la
+    # grabación arranca unos minutos después y no coincide con el calendario.
+    cuando = (getattr(reunion, "inicio_at", None) if reunion is not None else None) or datos.get("inicio")
+    quien = (getattr(reunion, "closer", "") if reunion is not None else "") or datos.get("grabo") or ""
+
+    encabezado = f"📞 *{campos['lead'] or datos['titulo'] or 'Llamada sin nombre'}*"
+    if cuando:
+        encabezado += f" · {cuando:%d/%m %H:%M}"
+    if quien:
+        encabezado += f" · {quien}"
+
+    lineas = [encabezado, ""]
+    lineas.append(f"*Resultado:* {estado}" if estado else "*Resultado:* ⚠️ no se pudo determinar")
+    if plan:
+        lineas.append(f"*Programa:* {plan}")
+    lineas.append(f"*Cash cobrado:* US$ {cash:,.0f}" if cash else "*Cash cobrado:* —")
+
+    nota = campos.get("nota") or campos.get("proximoPaso")
+    if nota:
+        lineas += ["", f"_{nota}_"]
     if reunion is None:
-        lineas += ["", "⚠️ No encontré esta llamada en el calendario: el reporte no quedó cargado."]
+        lineas += ["", "⚠️ No la encontré en el calendario: el reporte no quedó cargado."]
     if datos.get("url"):
         lineas += ["", datos["url"]]
-    return "\n".join(x for x in lineas if x != "" or lineas[-1] != "").strip()
+    return "\n".join(lineas).strip()
 
 
 # ------------------------------------------------------------------ entrada
