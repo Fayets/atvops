@@ -90,8 +90,14 @@ Este es el trabajo principal de la skill y corre solo, seguido.
    novedades, no saludes, no expliques que chequeaste. El grupo se usa para trabajar:
    un mensaje cada diez minutos diciendo "sin novedades" hace que dejen de leerlo.
 3. Si hay reportes, mandá el campo `mensaje` de cada uno **tal cual viene**. Ya está
-   armado y con el formato correcto: no lo reescribas, no lo resumas, no le agregues
-   introducción ni cierre. Si hay varios, van como mensajes separados.
+   armado y con el formato correcto: no lo reescribas ni lo resumas. Si hay varios,
+   van como mensajes separados.
+
+   **El mensaje empieza en el nombre del prospecto y termina en el link.** Nada antes,
+   nada después: ni "va el aviso al grupo", ni "marcado como enviado", ni un comentario
+   tuyo sobre lo que hiciste. El grupo lee el reporte, no lo que hace el bot — un
+   renglón de relleno arriba de cada llamada convierte el canal en ruido. Lo que hiciste
+   con la cola es asunto tuyo y no se anuncia.
 4. Ejecutá el comando 2 con TODOS los `eventoId` que mandaste. Si te lo saltás, los
    mismos reportes vuelven a salir en la próxima corrida.
 

@@ -220,6 +220,18 @@ def test_el_resumen_se_corta_en_dos_renglones():
     assert corto.endswith("…")
 
 
+@pytest.mark.parametrize("campo, tope", [("nota", 260), ("resumen", 200)])
+def test_nunca_se_corta_a_mitad_de_una_palabra(campo, tope):
+    """En el grupo se leyó "...para e": parecía un mensaje roto, no uno resumido."""
+    largo = "Claudio y Dylan tienen una agencia de marketing y automatizaciones " * 20
+    corto = f._validar({campo: largo}, ESTADOS, PLANES)[campo]
+    assert corto.endswith("…")
+    assert len(corto) <= tope + 1
+    # Lo que queda antes de los puntos suspensivos son palabras enteras.
+    assert largo.startswith(corto[:-1])
+    assert corto[-2] != " "
+
+
 def test_el_resumen_va_entre_la_nota_y_el_link():
     texto = f.mensaje({"inicio": None, "titulo": "", "url": "https://fathom.video/share/x"},
                       CAMPOS, ReunionFalsa())
