@@ -238,7 +238,9 @@ def extraer(datos: dict) -> dict:
     ]
     texto, meta = invocar_claude_texto(SYSTEM, "\n".join(x for x in contexto if x != ""))
     campos = _json_de(texto)
-    return _validar(campos, estados, planes) | {"costoUsd": meta.get("costoUsd", 0.0)}
+    # El servicio devuelve la clave en snake_case; leerla como costoUsd dejaba
+    # todas las extracciones registradas en cero.
+    return _validar(campos, estados, planes) | {"costoUsd": meta.get("costo_usd", 0.0), "via": meta.get("via", "")}
 
 
 def _json_de(texto: str) -> dict:
