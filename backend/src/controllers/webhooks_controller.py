@@ -7,6 +7,7 @@ flujo alcance con duplicar el bloque y cambiarle la URL.
 
 import json
 import logging
+from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
@@ -104,11 +105,15 @@ async def fathom(request: Request):
         return {"ok": False, "motivo": f"No se pudo procesar: {str(e)[:180]}"}
 
 
-@router.get("/fathom/pendientes")
-def fathom_pendientes(request: Request):
-    """Los reportes que Theo todavía no mandó al grupo de ventas."""
+@router.get("/fathom/dia")
+def fathom_del_dia(request: Request, fecha: str = Query("")):
+    """Las llamadas del día con su reporte. Es la lista que Theo manda al grupo."""
     _agente(request)
-    return {"reportes": fathom_services.pendientes()}
+    try:
+        dia = date.fromisoformat(fecha) if fecha else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="fecha tiene que ser AAAA-MM-DD.")
+    return fathom_services.del_dia(dia)
 
 
 @router.post("/fathom/enviados")

@@ -16,8 +16,11 @@ Dos reglas que no se negocian:
   "Seguimiento?" inventado es peor que un campo en blanco, porque nadie lo
   revisa.
 
-El mensaje que sale de acá lo reparte Theo (OpenClaw) al grupo de ventas; este
-módulo no manda nada, solo lo deja listo y marcado como pendiente.
+Este módulo no manda nada. Theo (OpenClaw) ya manda la lista de llamadas del día
+al grupo de ventas; lo que hace `del_dia()` es devolverle esa misma lista con el
+resumen al lado. Procesar en el webhook y no en la corrida de Theo es a propósito:
+cuando Theo arranca a la mañana los resúmenes ya están hechos, así que no tiene
+que leer transcripciones en el momento.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ import hmac
 import json
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from decouple import config
 from pony.orm import db_session
@@ -406,14 +409,41 @@ def recibir(cuerpo: bytes, headers) -> dict:
 # ------------------------------------------------------------------ para Theo
 
 @db_session
-def pendientes() -> list[dict]:
-    """Los reportes que todavía no se mandaron al grupo. Theo los pide y los reparte."""
+def del_dia(fecha: date | None = None) -> dict:
+    """Las llamadas de un día con su reporte al lado. Es lo que manda Theo al grupo.
+
+    Devuelve TODAS las llamadas de venta del día, tengan reporte o no: una llamada
+    que Fathom no grabó también es información — significa que nadie la va a poder
+    reportar solo.
+    """
+    dia = fecha or datetime.now(AR_TZ).date()
     filas = [r for r in list(ReunionCrm.select())
-             if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None]
-    filas.sort(key=lambda r: r.reporte_at or datetime.min)
-    return [{"eventoId": r.evento_id, "prospecto": r.prospecto, "closer": r.closer,
-             "inicioAt": r.inicio_at.isoformat() if r.inicio_at else None,
-             "mensaje": r.reporte_mensaje} for r in filas]
+             if r.es_venta and not r.descartada and r.inicio_at and r.inicio_at.date() == dia]
+    filas.sort(key=lambda r: r.inicio_at)
+
+    llamadas = []
+    for r in filas:
+        campos = json.loads(r.reporte_ia) if (r.reporte_ia or "").strip() else None
+        llamadas.append({
+            "eventoId": r.evento_id,
+            "prospecto": campos["lead"] if campos and campos.get("lead") else (r.prospecto or ""),
+            "hora": r.inicio_at.strftime("%H:%M"),
+            "closer": r.closer or "",
+            # Lo cargado manda sobre lo que leyó la IA: es lo que el equipo decidió.
+            "estado": (r.resultado or "").strip() or (campos or {}).get("estado"),
+            "plan": (r.programa or "").strip() or (campos or {}).get("plan"),
+            "cashUsd": r.cash_usd if r.cash_usd else (campos or {}).get("cashUsd"),
+            "proximoPaso": (campos or {}).get("proximoPaso"),
+            "objecion": (campos or {}).get("objecion"),
+            "grabada": campos is not None,
+            "fathomUrl": r.fathom_url,
+            "yaEnviado": r.reporte_enviado_at is not None,
+        })
+    return {
+        "fecha": dia.isoformat(),
+        "llamadas": llamadas,
+        "sinGrabacion": sum(1 for x in llamadas if not x["grabada"]),
+    }
 
 
 @db_session
