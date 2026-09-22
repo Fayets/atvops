@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession } from '../../lib/auth.js';
 import { useRol } from '../../lib/RolContext.jsx';
 import { filtrarNav, homeParaRol, ROL_LIST, ROLES } from '../../lib/roles.js';
 import Icon from '../ui/Icon.jsx';
+import ReunionesOcultas from './ReunionesOcultas.jsx';
 
 const ORDEN_GRUPOS = ['Tablero', 'Áreas', 'Dirección', 'Sistema'];
 
@@ -72,6 +74,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user, rol, rolReal, preview, puedePreview, setPreview } = useRol();
+  const [verOcultas, setVerOcultas] = useState(false);
   const nav = filtrarNav(NAV, rol);
   // Agrupado para que la barra se lea de un vistazo: dónde estoy, las áreas del negocio,
   // lo que sirve para decidir y lo del sistema.
@@ -136,33 +139,48 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* Quién sos arriba, qué podés hacer abajo. Antes el nombre, el rol, el selector
+          de preview y Salir se apilaban sin jerarquía y el bloque se leía como una lista
+          de cosas sueltas. */}
       <div className="sidebar-foot">
-        <div className="sidebar-account">
-          <div className="sidebar-account-row">
-            <span className="sidebar-account-name" title={user?.username}>
-              {user?.username ?? '—'}
-            </span>
-            <span className={`sidebar-rol${preview ? ' preview' : ''}`}>
-              {ROLES[rol]?.label ?? rol}
-            </span>
-          </div>
-          {puedePreview && (
-            <label className="sidebar-preview">
-              Ver como
-              <select value={rol} onChange={onPreview} aria-label="Ver como rol">
-                {ROL_LIST.map((id) => (
-                  <option key={id} value={id}>
-                    {ROLES[id]?.label ?? id}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+        <div className="sidebar-quien">
+          <span className="sidebar-account-name" title={user?.username}>
+            {user?.username ?? '—'}
+          </span>
+          <span className={`sidebar-rol${preview ? ' preview' : ''}`}>
+            {ROLES[rol]?.label ?? rol}
+          </span>
+        </div>
+
+        {puedePreview && (
+          <label className="sidebar-preview">
+            <span>Ver como</span>
+            <select value={rol} onChange={onPreview} aria-label="Ver como rol">
+              {ROL_LIST.map((id) => (
+                <option key={id} value={id}>
+                  {ROLES[id]?.label ?? id}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <div className="sidebar-acciones">
+          <button
+            type="button"
+            className="sidebar-icono"
+            onClick={() => setVerOcultas(true)}
+            title="Reuniones ocultas"
+            aria-label="Reuniones ocultas"
+          >
+            <Icon name="config" />
+          </button>
           <button type="button" className="sidebar-salir" onClick={salir}>
             Salir
           </button>
         </div>
       </div>
+      {verOcultas && <ReunionesOcultas onCerrar={() => setVerOcultas(false)} />}
     </aside>
   );
 }

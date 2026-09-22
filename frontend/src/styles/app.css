@@ -133,17 +133,35 @@
   height: 3px;
 }
 
-.sidebar-account {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.sidebar-account-row {
+/* Quién sos arriba, qué podés hacer abajo, separados por una línea. */
+.sidebar-quien {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
 }
+.sidebar-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+.sidebar-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 7px);
+  background: var(--surface);
+  color: var(--text-3);
+  cursor: pointer;
+}
+.sidebar-icono:hover { color: var(--text); border-color: var(--text-3); }
+.sidebar-icono svg { width: 14px; height: 14px; }
 .sidebar-account-name {
   font-size: 12px;
   font-weight: 600;
@@ -182,12 +200,14 @@
   padding: 4px 6px;
 }
 .sidebar-salir {
-  align-self: flex-start;
-  font-size: 11px;
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 7px);
+  background: var(--surface);
   color: var(--text-2);
-  padding: 3px 0;
-  background: none;
-  border: none;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
 }
 .sidebar-salir:hover {
@@ -6313,4 +6333,23 @@ body.gate-abierto .shell { display: none; }
 .cal-oculta-fila { display: flex; align-items: center; gap: var(--space-3); padding: 7px 0;
   border-top: 1px solid var(--border-soft); font-size: 13px; }
 .cal-oculta-nombre { flex: 1; min-width: 0; font-weight: 500; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* ------------------------------------------------------ Reuniones ocultas
+   Se abre desde el engranaje del pie del sidebar, que es donde se busca algo que se
+   toca una vez cada tanto. Devolver una NO recarga la lista: se saca de la pantalla y
+   el panel queda abierto, para poder devolver varias seguidas. */
+.ocultas-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center;
+  justify-content: center; padding: var(--space-5); background: rgba(28, 25, 23, .35); }
+.ocultas-caja { width: min(520px, 100%); max-height: 80vh; overflow: auto; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(28,25,23,.16);
+  padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+.ocultas-caja header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.ocultas-caja h3 { margin: 0 0 2px; font-size: 16px; font-weight: 600; }
+.ocultas-caja .dim { font-size: 12.5px; }
+.ocultas-lista { display: flex; flex-direction: column; }
+.ocultas-fila { display: flex; align-items: center; gap: var(--space-3); padding: 9px 0;
+  border-top: 1px solid var(--border-soft); font-size: 13.5px; }
+.ocultas-nombre { flex: 1; min-width: 0; font-weight: 500; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
