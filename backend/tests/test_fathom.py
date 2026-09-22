@@ -473,10 +473,14 @@ def test_lo_que_decide_el_codigo_sigue_siendo_de_la_lista_de_nick():
         assert campos["estado"] in ESTADOS_LLAMADA, campos["estado"]
 
 
-def test_los_niveles_de_la_nota_existen_en_el_catalogo():
-    """Si alguien renombra un nivel en Obsidian y no lo agrega al catálogo, `_validar`
-    lo descarta sin decir nada y las ventas quedan sin programa."""
-    from src.services.ventas_services import programas
-    catalogo = {p["nombre"] for p in programas()}
-    faltan = [n for n in f._bandas() if n not in catalogo]
-    assert not faltan, f"niveles de la nota que no están en el catálogo: {faltan}"
+def test_los_niveles_de_la_nota_coinciden_con_los_que_se_siembran():
+    """Los nombres de la nota de ofertas y los del catálogo tienen que ser los mismos.
+
+    Si alguien renombra un nivel en Obsidian y no toca PROGRAMAS_2026, `_validar`
+    descarta el programa en silencio y las ventas quedan sin nada. Se compara contra el
+    sembrado y no contra la base: el sembrado es lo que garantiza que existan.
+    """
+    from src.services.ventas_services import PROGRAMAS_2026
+    sembrados = {nombre for nombre, _, _ in PROGRAMAS_2026}
+    faltan = [n for n in f._bandas() if n not in sembrados]
+    assert not faltan, f"niveles de la nota que no se siembran en el catálogo: {faltan}"
