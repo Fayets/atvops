@@ -184,7 +184,7 @@ Devolvé ÚNICAMENTE un JSON:
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
  "encaje": "ok" | "dudoso" | "no" | null,
- "encaje_motivo": "MÁXIMO 90 CARACTERES: por qué no encaja. null si encaje es ok",
+ "encaje_motivo": "MÁXIMO 90 CARACTERES: el dato que sostiene el veredicto, encaje o no",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -215,8 +215,13 @@ Reglas:
   - "dudoso": uno falla pero hay contexto que lo explica.
   - "no": la venta no le cierra a esta persona.
   - null: no hay datos para saberlo (no dijo qué factura, no se mencionó el plan).
-  En encaje_motivo va el dato concreto, no la opinión: "factura $600/mes y la cuota es
-  $1.800" sirve; "no parece el perfil" no sirve. Si encaje es "ok", va null.
+  **encaje_motivo va SIEMPRE, encaje o no**, y lleva el dato que sostiene el veredicto,
+  nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
+  equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
+  Sirve: "15-20k/mes, equipo de 5, margen 60%: es el avatar de Mid".
+  Sirve: "factura $600/mes y la cuota es $1.800".
+  No sirve: "el avatar y la facturación dan para esta oferta".
+  No sirve: "no parece el perfil".
 - **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
   precio del programa ni lo que prometió pagar más adelante. Si pagó US$ 50 de seña de
   un programa de US$ 1.800, cash_usd es 50 y el resto va en la nota. Si no pagó nada,
