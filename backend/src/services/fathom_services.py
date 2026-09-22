@@ -183,8 +183,8 @@ Devolvé ÚNICAMENTE un JSON:
  "nota": ["primera frase", "segunda frase"],
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
- "encaje": "ok" | "dudoso" | "no" | null,
- "encaje_motivo": "MÁXIMO 90 CARACTERES: el dato que sostiene el veredicto, encaje o no",
+ "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
+ "encaje_motivo": "MÁXIMO 90 CARACTERES: el dato que sostiene el puntaje, sea alto o bajo",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -208,13 +208,18 @@ Reglas:
 - facturacion_usd: lo que el prospecto dijo que factura POR MES, en dólares. Si dio un
   rango, el piso. Si habló de lo que factura un cliente suyo y no él, null. Si no lo
   dijo, null: no lo deduzcas del tamaño del negocio ni de los seguidores.
-- **encaje**: si hubo venta (Cerrado o Seña), ¿se le vendió el nivel correcto? Mirá los
-  tres chequeos de la nota de ofertas: banda de facturación, avatar, y capacidad de pago
-  (una cuota que se lleva más del 30% de lo que factura por mes no se va a pagar).
-  - "ok": los tres cierran, o no hubo venta.
-  - "dudoso": uno falla pero hay contexto que lo explica.
-  - "no": la venta no le cierra a esta persona.
-  - null: no hay datos para saberlo (no dijo qué factura, no se mencionó el plan).
+- **encaje_puntaje**: si hubo venta (Cerrado o Seña), qué tan bien le calza la oferta,
+  del 1 al 10. Mirá los tres chequeos de la nota de ofertas: banda de facturación,
+  avatar, y capacidad de pago (una cuota que se lleva más del 30% de lo que factura por
+  mes no se va a pagar). La escala, para que el número signifique lo mismo siempre:
+  - **9-10**: los tres cierran con holgura. Es el avatar del nivel hecho persona.
+  - **7-8**: cierran, con un detalle menor — está en el borde de la banda, o el equipo
+    es más chico de lo típico.
+  - **5-6**: uno de los tres falla, pero hay contexto que lo explica.
+  - **3-4**: uno falla claro. La venta se va a sentir en cobranza o en fulfillment.
+  - **1-2**: no debería habérsele vendido esto.
+  - **null**: no hay con qué juzgarlo — no dijo qué factura, no se habló del plan. No
+    inventes un número para no dejarlo vacío.
   **encaje_motivo va SIEMPRE, encaje o no**, y lleva el dato que sostiene el veredicto,
   nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
   equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
@@ -367,6 +372,25 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
     def _linea(v, tope=300):
         return _recortar(v, tope)
 
+    def _puntaje(v):
+        """Un entero del 1 al 10. Fuera de rango se descarta: un 12 o un 0 dicen que el
+        modelo no estaba usando la escala, y quedarse con el número sería fingir que sí."""
+        try:
+            n = int(round(float(str(v).strip()))) if v is not None and str(v).strip() else None
+        except (TypeError, ValueError):
+            return None
+        return n if n is not None and 1 <= n <= 10 else None
+
+    def _veredicto(n):
+        """El signo sale del puntaje, no de un juicio aparte del modelo.
+
+        Pedirle las dos cosas invita a que se contradigan —un 9 con veredicto "no"— y
+        después hay que decidir cuál gana. Con una sola fuente eso no puede pasar.
+        """
+        if n is None:
+            return None
+        return "ok" if n >= 8 else ("dudoso" if n >= 5 else "no")
+
     def _dos_frases(v, tope=125):
         """Dos frases cortas, unidas con un espacio.
 
@@ -388,7 +412,8 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "cashUsd": _numero(campos.get("cash_usd")),
         "nota": _dos_frases(campos.get("nota")),
         "facturacionUsd": _numero(campos.get("facturacion_usd")),
-        "encaje": next((e for e in ("ok", "dudoso", "no") if str(campos.get("encaje") or "").strip().lower() == e), None),
+        "encajePuntaje": _puntaje(campos.get("encaje_puntaje")),
+        "encaje": _veredicto(_puntaje(campos.get("encaje_puntaje"))),
         "encajeMotivo": _recortar(campos.get("encaje_motivo"), 110),
         "resumen": _dos_frases(campos.get("resumen")),
         "saldoUsd": _numero(campos.get("saldo_usd")),
@@ -522,13 +547,13 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     # salta. Lo que cambia es el signo, no la presencia.
     if _norm_estado(estado) in ("cerrado", "seña", "sena") and campos.get("encaje"):
         signo = {"ok": "✅", "dudoso": "🔸", "no": "⚠️"}[campos["encaje"]]
-        # Siempre con texto: un "⚠️" pelado es una alarma muda, no dice qué mirar.
+        # Siempre con texto: un "⚠️ 3/10" pelado es una alarma muda, no dice qué mirar.
         motivo = campos.get("encajeMotivo") or {
             "ok": "el avatar y la facturación dan para esta oferta",
             "dudoso": "algo no termina de cerrar",
             "no": "la oferta no le cierra a esta persona",
         }[campos["encaje"]]
-        lineas.append(f"*Encaje:* {signo} {motivo}".rstrip())
+        lineas.append(f"*Encaje:* {signo} {campos['encajePuntaje']}/10 · {motivo}")
 
     nota = campos.get("nota") or campos.get("proximoPaso")
     if nota:

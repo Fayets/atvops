@@ -141,6 +141,7 @@ class ReunionFalsa:
 
 
 CAMPOS = {"lead": "Ana", "estado": "Cerrado", "plan": "Boost", "cashUsd": 2000.0,
+          "encajePuntaje": None, "encaje": None, "encajeMotivo": None,
           "nota": "Cerró en la llamada, manda el resto el lunes.",
           "resumen": "Coach de fitness en Córdoba, facturando 3k. Cerró porque ya venía siguiendo a Juan.",
           "saldoUsd": None, "proximoPaso": "manda el pago el lunes", "objecion": None}
@@ -318,21 +319,21 @@ def test_el_encaje_se_ve_siempre_que_hubo_venta():
     """Si solo apareciera el aviso malo, nadie sabría que la validación existe ni
     confiaría en ella el día que salta. Lo que cambia es el signo, no la presencia."""
     base = {"inicio": None, "titulo": "", "url": ""}
-    ok = f.mensaje(base, CAMPOS | {"encaje": "ok", "encajeMotivo": None}, ReunionFalsa())
-    assert "*Encaje:* ✅" in ok
+    ok = f.mensaje(base, CAMPOS | {"encaje": "ok", "encajePuntaje": 9, "encajeMotivo": "15-20k/mes, equipo de 5"}, ReunionFalsa())
+    assert "*Encaje:* ✅ 9/10 · 15-20k/mes, equipo de 5" in ok
 
-    mal = f.mensaje(base, CAMPOS | {"encaje": "no", "encajeMotivo": "factura $600/mes y la cuota es $1.800"}, ReunionFalsa())
-    assert "*Encaje:* ⚠️ factura $600/mes y la cuota es $1.800" in mal
+    mal = f.mensaje(base, CAMPOS | {"encaje": "no", "encajePuntaje": 3, "encajeMotivo": "factura $600/mes y la cuota es $1.800"}, ReunionFalsa())
+    assert "*Encaje:* ⚠️ 3/10 · factura $600/mes y la cuota es $1.800" in mal
 
-    dudoso = f.mensaje(base, CAMPOS | {"encaje": "dudoso", "encajeMotivo": "factura $9k y compró Mid"}, ReunionFalsa())
-    assert "*Encaje:* 🔸" in dudoso
+    dudoso = f.mensaje(base, CAMPOS | {"encaje": "dudoso", "encajePuntaje": 6, "encajeMotivo": "factura $9k y compró Mid"}, ReunionFalsa())
+    assert "*Encaje:* 🔸 6/10" in dudoso
 
 
 def test_un_encaje_sin_motivo_igual_dice_algo():
     """Un "⚠️" pelado es una alarma muda: no dice qué mirar."""
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
-                      CAMPOS | {"encaje": "no", "encajeMotivo": None}, ReunionFalsa())
-    assert "*Encaje:* ⚠️ la oferta no le cierra a esta persona" in texto
+                      CAMPOS | {"encaje": "no", "encajePuntaje": 2, "encajeMotivo": None}, ReunionFalsa())
+    assert "*Encaje:* ⚠️ 2/10 · la oferta no le cierra a esta persona" in texto
 
 
 def test_sin_venta_no_se_valida_el_encaje():
@@ -342,8 +343,23 @@ def test_sin_venta_no_se_valida_el_encaje():
     assert "Encaje" not in texto
 
 
-def test_un_encaje_inventado_se_descarta():
-    campos = f._validar({"encaje": "más o menos"}, ESTADOS, PLANES)
+@pytest.mark.parametrize("puntaje, esperado", [
+    (10, "ok"), (9, "ok"), (8, "ok"),
+    (7, "dudoso"), (5, "dudoso"),
+    (4, "no"), (1, "no"),
+])
+def test_el_signo_sale_del_puntaje(puntaje, esperado):
+    """Una sola fuente: pedirle al modelo el número Y el veredicto invita a que se
+    contradigan, y después hay que decidir cuál gana."""
+    assert f._validar({"encaje_puntaje": puntaje}, ESTADOS, PLANES)["encaje"] == esperado
+
+
+@pytest.mark.parametrize("crudo", [0, 11, -3, "muy bueno", None, ""])
+def test_un_puntaje_fuera_de_escala_se_descarta(crudo):
+    """Un 12 o un 0 dicen que no estaba usando la escala: quedarse con el número sería
+    fingir que sí."""
+    campos = f._validar({"encaje_puntaje": crudo}, ESTADOS, PLANES)
+    assert campos["encajePuntaje"] is None
     assert campos["encaje"] is None
 
 
