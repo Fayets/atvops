@@ -582,9 +582,6 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
         lineas += ["", f"_{nota}_"]
     if campos.get("resumen"):
         lineas += ["", f"*Resumen:* {campos['resumen']}"]
-    # La alerta de encaje sale SOLO cuando algo no cierra. Un "✅ avatar correcto" en cada
-    # llamada es ruido que a la semana nadie lee, y el día que aparezca el aviso de verdad
-    # va a estar enterrado entre veinte tildes verdes.
     if reunion is None:
         lineas += ["", "⚠️ No la encontré en el calendario: el reporte no quedó cargado."]
     if datos.get("url"):
