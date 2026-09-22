@@ -5,6 +5,7 @@ Trae a ATV Ops lo que todavía se leía en vivo de atv-mkt, para poder desconect
     python scripts/migrar_desde_mkt.py --aplicar             # lo hace
     python scripts/migrar_desde_mkt.py --aplicar --solo chats
     python scripts/migrar_desde_mkt.py --aplicar --desde 2026-08-01
+    python scripts/migrar_desde_mkt.py --aplicar --borrar          # la marcha atrás
 
 Dos cosas viajan, y son independientes:
 
@@ -19,6 +20,10 @@ Dos cosas viajan, y son independientes:
 histórico anterior se queda en atv-mkt y ATV Ops arranca limpio. Cambiarlo es pasar
 `--desde`. Ojo con lo que implica: los meses anteriores al corte quedan vacíos en el
 tablero cuando se desconecte el CRM, porque no hay de dónde leerlos.
+
+`--borrar` deshace la migración de chats: saca las conversaciones que trajo este script y
+no toca ninguna otra, porque cada una lleva marcado de qué lead salió. Es la marcha atrás
+de una decisión, no una limpieza: volver a traerlas es correr el script de nuevo.
 
 Se puede correr las veces que haga falta. Un chat se identifica por su lead de origen y
 una llamada por su `lead_id`: lo que ya está no entra dos veces ni se pisa. **Nunca
@@ -104,6 +109,25 @@ def migrar_chats(aplicar: bool, desde: date) -> None:
     print(f"  chats: {nuevos} nuevos, {repetidos} que ya estaban.")
 
 
+def borrar_chats(aplicar: bool) -> None:
+    """Saca las conversaciones que trajo este script, y solo esas."""
+    from pony.orm import db_session
+
+    from src.models import ConversacionIg
+
+    with db_session:
+        # La marca dice de qué lead salió cada una: lo que entró por el webhook no la
+        # tiene y no se toca.
+        suyas = [c for c in list(ConversacionIg.select()) if (c.payload or "").startswith("mkt:lead:")]
+        print(f"Conversaciones traídas de atv-mkt: {len(suyas)}.")
+        otras = ConversacionIg.select().count() - len(suyas)
+        print(f"Del webhook de ATV Ops, que no se tocan: {otras}.")
+        if aplicar:
+            for c in suyas:
+                c.delete()
+            print(f"  borradas {len(suyas)}.")
+
+
 def migrar_llamadas(aplicar: bool, desde: date) -> None:
     """Las llamadas del CRM que el registro propio nunca vio."""
     from pony.orm import db_session
@@ -180,6 +204,16 @@ def main() -> None:
                 raise SystemExit("--desde tiene que ser AAAA-MM-DD.")
 
     init_db()
+
+    if "--borrar" in argv:
+        print(f"{'Borrando' if aplicar else 'Simulacro:'} lo que este script trajo de atv-mkt.\n")
+        borrar_chats(aplicar)
+        if not aplicar:
+            print("\nFue un simulacro. Repetí con --aplicar para borrarlo.")
+        else:
+            print("\nPara traerlas de vuelta: corré el script sin --borrar.")
+        return
+
     print(f"{'Migrando' if aplicar else 'Simulacro:'} desde atv-mkt, a partir del {desde}.")
     print("Lo anterior a esa fecha se queda en atv-mkt. Se cambia con --desde.\n")
     if solo in ("", "chats"):
