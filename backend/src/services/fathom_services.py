@@ -551,30 +551,30 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
         encabezado += f" · {quien}"
 
     lineas = [encabezado, ""]
-    lineas.append(f"*Resultado:* {estado}" if estado else "*Resultado:* ⚠️ no se pudo determinar")
+    lineas.append(f"*Resultado:* {estado}" if estado else "*Resultado:* no se pudo determinar")
     if plan:
         precio = _precio_de(plan)
         detalle = f" · US$ {precio:,.0f}" if precio else ""
-        aviso = f"   ⚠️ cargado como {guardado}" if discrepa else ""
+        aviso = f"  (cargado como {guardado})" if discrepa else ""
         lineas.append(f"*Programa:* {plan}{detalle}{aviso}")
     lineas.append(f"*Cash cobrado:* US$ {cash:,.0f}" if cash else "*Cash cobrado:* —")
 
     # El encaje se muestra SIEMPRE que hubo venta, no solo cuando falla. Si solo aparece
     # el aviso malo, nadie sabe que la validación existe ni confía en ella el día que
     # salta. Lo que cambia es el signo, no la presencia.
+    # El puntaje ya dice lo que decía el signo: un 7/10 no necesita un ícono al lado.
     if _norm_estado(estado) in ("cerrado", "seña", "sena") and campos.get("encaje"):
-        signo = {"ok": "✅", "dudoso": "🔸", "no": "⚠️"}[campos["encaje"]]
-        # Siempre con texto: un "⚠️ 3/10" pelado es una alarma muda, no dice qué mirar.
+        # Siempre con texto: un "3/10" pelado es una alarma muda, no dice qué mirar.
         motivo = campos.get("encajeMotivo") or {
             "ok": "el avatar y la facturación dan para esta oferta",
             "dudoso": "algo no termina de cerrar",
             "no": "la oferta no le cierra a esta persona",
         }[campos["encaje"]]
-        lineas.append(f"*Encaje:* {signo} {campos['encajePuntaje']}/10 · {motivo}")
+        lineas.append(f"*Encaje:* {campos['encajePuntaje']}/10 · {motivo}")
     # Lo que el closer prometió mal es más caro que un mal encaje: el cliente entra
     # esperando algo que no compró y el problema aparece en fulfillment, ya cobrado.
     if campos.get("desvioOferta"):
-        lineas.append(f"*Ojo:* ⚠️ {campos['desvioOferta']}")
+        lineas.append(f"*Ojo:* {campos['desvioOferta']}")
 
     nota = campos.get("nota") or campos.get("proximoPaso")
     if nota:
@@ -582,7 +582,7 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     if campos.get("resumen"):
         lineas += ["", f"*Resumen:* {campos['resumen']}"]
     if reunion is None:
-        lineas += ["", "⚠️ No la encontré en el calendario: el reporte no quedó cargado."]
+        lineas += ["", "No la encontré en el calendario: el reporte no quedó cargado."]
     if datos.get("url"):
         lineas += ["", datos["url"]]
     return "\n".join(lineas).strip()

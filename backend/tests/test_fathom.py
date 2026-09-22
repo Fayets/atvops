@@ -201,7 +201,7 @@ def test_el_programa_muestra_la_oferta_que_cerro_la_llamada():
     r = ReunionFalsa(resultado="Seña", programa="Mentoría")
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
     assert "*Programa:* Boost" in texto
-    assert "⚠️ cargado como Mentoría" in texto
+    assert "(cargado como Mentoría)" in texto
 
 
 def test_sin_discrepancia_no_se_avisa_nada():
@@ -320,20 +320,20 @@ def test_el_encaje_se_ve_siempre_que_hubo_venta():
     confiaría en ella el día que salta. Lo que cambia es el signo, no la presencia."""
     base = {"inicio": None, "titulo": "", "url": ""}
     ok = f.mensaje(base, CAMPOS | {"encaje": "ok", "encajePuntaje": 9, "encajeMotivo": "15-20k/mes, equipo de 5"}, ReunionFalsa())
-    assert "*Encaje:* ✅ 9/10 · 15-20k/mes, equipo de 5" in ok
+    assert "*Encaje:* 9/10 · 15-20k/mes, equipo de 5" in ok
 
     mal = f.mensaje(base, CAMPOS | {"encaje": "no", "encajePuntaje": 3, "encajeMotivo": "factura $600/mes y la cuota es $1.800"}, ReunionFalsa())
-    assert "*Encaje:* ⚠️ 3/10 · factura $600/mes y la cuota es $1.800" in mal
+    assert "*Encaje:* 3/10 · factura $600/mes y la cuota es $1.800" in mal
 
     dudoso = f.mensaje(base, CAMPOS | {"encaje": "dudoso", "encajePuntaje": 6, "encajeMotivo": "factura $9k y compró Mid"}, ReunionFalsa())
-    assert "*Encaje:* 🔸 6/10" in dudoso
+    assert "*Encaje:* 6/10" in dudoso
 
 
 def test_un_encaje_sin_motivo_igual_dice_algo():
     """Un "⚠️" pelado es una alarma muda: no dice qué mirar."""
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
                       CAMPOS | {"encaje": "no", "encajePuntaje": 2, "encajeMotivo": None}, ReunionFalsa())
-    assert "*Encaje:* ⚠️ 2/10 · la oferta no le cierra a esta persona" in texto
+    assert "*Encaje:* 2/10 · la oferta no le cierra a esta persona" in texto
 
 
 def test_sin_venta_no_se_valida_el_encaje():
@@ -397,10 +397,21 @@ def test_avisa_cuando_el_closer_describio_mal_la_oferta():
     el problema aparece en fulfillment, con la venta ya cobrada."""
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
                       CAMPOS | {"desvioOferta": "le dijo 6 meses y Mid Level dura 4"}, ReunionFalsa())
-    assert "*Ojo:* ⚠️ le dijo 6 meses y Mid Level dura 4" in texto
+    assert "*Ojo:* le dijo 6 meses y Mid Level dura 4" in texto
 
 
 def test_sin_desvio_no_aparece_la_linea():
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
                       CAMPOS | {"desvioOferta": None}, ReunionFalsa())
     assert "*Ojo:*" not in texto
+
+
+
+def test_el_mensaje_no_lleva_emojis():
+    """Los saca Franco: el puntaje ya dice lo que decía el signo, y un tablero lleno de
+    íconos se lee peor, no mejor."""
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": "https://fathom.video/x"},
+                      CAMPOS | {"encaje": "no", "encajePuntaje": 2,
+                                "encajeMotivo": "factura $600/mes",
+                                "desvioOferta": "le dijo 6 meses"}, ReunionFalsa())
+    assert not any(ord(c) > 0x2100 for c in texto), [c for c in texto if ord(c) > 0x2100]
