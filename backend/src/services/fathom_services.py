@@ -183,6 +183,7 @@ Devolvé ÚNICAMENTE un JSON:
  "nota": ["primera frase", "segunda frase"],
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
+ "estructura_pago": "total" | "cuotas" | "reserva" | null,
  "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
  "encaje_motivo": "UNA frase corta con el dato que sostiene el puntaje, sea alto o bajo",
  "desvio_oferta": "UNA frase: qué dijo el closer que NO coincide con el documento, o null",
@@ -194,13 +195,8 @@ Reglas:
 - estado y plan: SOLO valores de las listas que te paso. Si ninguno encaja con lo que
   realmente pasó, devolvé null. NO elijas el más parecido.
 - Cómo elegir el estado:
-  - **Cerrado**: la venta se cerró. Pagó el total, O pagó la primera cuota de un plan de
-    pago acordado. Un plan de pago es una venta cerrada que se cobra en partes: el
-    prospecto ya compró, ya sabe cuánto y cuándo, y arrancó.
-  - **Seña**: puso plata para reservar pero la venta NO está cerrada todavía — falta
-    definir el plan, o quedó en confirmar. El caso típico es una seña chica contra un
-    ticket grande ($50 de un programa de $5.000) donde el resto está por verse.
-    Si el monto y las fechas de todas las cuotas ya están acordados, es Cerrado, no Seña.
+  - **Cerrado** / **Seña**: NO elijas entre estos dos vos. Poné el que te parezca y
+    completá `estructura_pago`, que es lo que decide.
   - **No tiene la plata**: no cerró y el motivo fue el dinero — no lo tiene, no le
     alcanza, tiene que juntarlo, está endeudado.
   - **Lo voy a pensar**: no cerró y el motivo fue duda o indecisión, sin una objeción
@@ -233,6 +229,11 @@ Reglas:
 - facturacion_usd: lo que el prospecto dijo que factura POR MES, en dólares. Si dio un
   rango, el piso. Si habló de lo que factura un cliente suyo y no él, null. Si no lo
   dijo, null: no lo deduzcas del tamaño del negocio ni de los seguidores.
+- **estructura_pago**: cómo quedó la plata, si hubo venta. Es un hecho, no un juicio:
+  - **"total"**: pagó todo de una.
+  - **"cuotas"**: acordaron un plan con montos y fechas, y pagó la primera.
+  - **"reserva"**: puso plata para reservar pero el resto NO está acordado todavía.
+  - **null**: no hubo venta, o no se habló de plata.
 - **encaje_puntaje**: si hubo venta (Cerrado o Seña), qué tan bien le calza la oferta,
   del 1 al 10. Mirá los dos chequeos de la nota de ofertas: banda de facturación y
   avatar. La escala, para que el número signifique lo mismo siempre:
@@ -297,6 +298,45 @@ def _nota_ofertas() -> str:
     return "(no hay nota de ofertas cargada: no valides el encaje, devolvé encaje null)"
 
 
+_BANDA = re.compile(r"^##\s+(.+?)\s+·", re.M)
+_FACTURA = re.compile(r"\*\*Factura:\*\*\s*(.+)")
+
+
+def _bandas() -> dict[str, tuple[float, float]]:
+    """Las bandas de facturación de cada nivel, leídas de la nota de ofertas.
+
+    Se parsean para poder decidir el nivel en código. Haiku no respeta la banda ni con
+    la regla escrita ni con un contraejemplo: eligió High para alguien de 15-20k tres
+    veces seguidas y después inventó que estaba "en el borde" de una banda en la que no
+    entra. Una comparación numérica no se racionaliza.
+    """
+    nota = _nota_ofertas()
+    bandas: dict[str, tuple[float, float]] = {}
+    partes = _BANDA.split(nota)
+    for nivel, cuerpo in zip(partes[1::2], partes[2::2]):
+        m = _FACTURA.search(cuerpo)
+        if not m:
+            continue
+        montos = [float(x) * (1000 if k else 1) for x, k in re.findall(r"\$?([\d.,]+)\s*(k)?", m.group(1), re.I)]
+        if not montos:
+            continue
+        if m.group(1).strip().startswith("+"):
+            bandas[nivel.strip()] = (montos[0], float("inf"))
+        elif len(montos) >= 2:
+            bandas[nivel.strip()] = (montos[0], montos[1])
+    return bandas
+
+
+def _nivel_por_banda(facturacion) -> str | None:
+    """En qué nivel cae una facturación mensual. None si no hay dato o no encaja."""
+    if not facturacion:
+        return None
+    for nivel, (piso, techo) in _bandas().items():
+        if piso <= float(facturacion) < techo:
+            return nivel
+    return None
+
+
 def _listas() -> tuple[tuple[str, ...], list[str]]:
     from src.services.ventas_services import ESTADOS_LLAMADA, programas
     try:
@@ -328,9 +368,32 @@ def extraer(datos: dict) -> dict:
     ]
     texto, meta = invocar_claude_texto(SYSTEM, "\n".join(x for x in contexto if x != ""))
     campos = _json_de(texto)
+    campos = _decidir_en_codigo(campos, planes)
     # El servicio devuelve la clave en snake_case; leerla como costoUsd dejaba
     # todas las extracciones registradas en cero.
     return _validar(campos, estados, planes) | {"costoUsd": meta.get("costo_usd", 0.0), "via": meta.get("via", "")}
+
+
+def _decidir_en_codigo(campos: dict, planes: list[str]) -> dict:
+    """Las dos decisiones que el modelo erraba sistemáticamente, hechas con reglas.
+
+    El nivel sale de la banda de facturación y el estado de la estructura de pago. Las
+    dos son mecánicas: una comparación numérica y un mapeo de tres casos. Lo que el
+    modelo sí hace bien —leer qué factura y cómo quedó la plata— queda de su lado.
+    """
+    nivel = _nivel_por_banda(campos.get("facturacion_usd"))
+    elegido = str(campos.get("plan") or "").strip()
+    # Solo se pisa si el modelo eligió uno de los niveles nuevos o no eligió nada: una
+    # venta cargada con un programa viejo puede ser un cliente que ya estaba adentro.
+    if nivel and (not elegido or elegido in _bandas()):
+        campos["plan"] = nivel
+
+    estructura = str(campos.get("estructura_pago") or "").strip().lower()
+    if estructura in ("total", "cuotas"):
+        campos["estado"] = "Cerrado"
+    elif estructura == "reserva":
+        campos["estado"] = "Seña"
+    return campos
 
 
 def _json_de(texto: str) -> dict:

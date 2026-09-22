@@ -410,3 +410,53 @@ def test_el_mensaje_no_lleva_emojis():
                                 "encajeMotivo": "factura $600/mes",
                                 "desvioOferta": "le dijo 6 meses"}, ReunionFalsa())
     assert not any(ord(c) > 0x2100 for c in texto), [c for c in texto if ord(c) > 0x2100]
+
+
+# ------------------------------------------------- decisiones que no son del modelo
+
+@pytest.mark.parametrize("factura, nivel", [
+    (600, "Entry Level"), (9_999, "Entry Level"),
+    (10_000, "Mid Level"), (15_000, "Mid Level"), (29_999, "Mid Level"),
+    (30_000, "High Level"), (80_000, "High Level"),
+    (None, None), (0, None),
+])
+def test_el_nivel_sale_de_la_banda_no_del_modelo(factura, nivel):
+    """Haiku eligió High para alguien de 15-20k tres veces seguidas y después inventó
+    que estaba "en el borde" de una banda en la que no entra. Una comparación numérica
+    no se racionaliza."""
+    assert f._nivel_por_banda(factura) == nivel
+
+
+def test_la_banda_pisa_lo_que_eligio_el_modelo():
+    campos = f._decidir_en_codigo({"plan": "High Level", "facturacion_usd": 15_000}, [])
+    assert campos["plan"] == "Mid Level"
+
+
+def test_un_programa_viejo_no_se_pisa():
+    """Puede ser un cliente que ya estaba adentro: reclasificarlo lo sacaría de su
+    programa."""
+    campos = f._decidir_en_codigo({"plan": "Mentoria", "facturacion_usd": 15_000}, [])
+    assert campos["plan"] == "Mentoria"
+
+
+def test_sin_facturacion_se_respeta_lo_que_dijo_el_modelo():
+    campos = f._decidir_en_codigo({"plan": "High Level", "facturacion_usd": None}, [])
+    assert campos["plan"] == "High Level"
+
+
+@pytest.mark.parametrize("estructura, estado", [
+    ("total", "Cerrado"),
+    ("cuotas", "Cerrado"),
+    ("reserva", "Seña"),
+])
+def test_el_estado_sale_de_la_estructura_de_pago(estructura, estado):
+    """Leonel pagó la primera de dos cuotas acordadas y salía "Seña" tres corridas
+    seguidas. Es un mapeo de tres casos: no hace falta un modelo para eso."""
+    campos = f._decidir_en_codigo({"estado": "Seña", "estructura_pago": estructura}, [])
+    assert campos["estado"] == estado
+
+
+def test_sin_estructura_de_pago_no_se_toca_el_estado():
+    """Un no show o un seguimiento no tienen estructura de pago y no son una venta."""
+    campos = f._decidir_en_codigo({"estado": "No show", "estructura_pago": None}, [])
+    assert campos["estado"] == "No show"
