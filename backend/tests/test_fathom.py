@@ -444,19 +444,20 @@ def test_sin_facturacion_se_respeta_lo_que_dijo_el_modelo():
     assert campos["plan"] == "High Level"
 
 
-@pytest.mark.parametrize("estructura, estado", [
-    ("total", "Cerrado"),
-    ("cuotas", "Cerrado"),
-    ("reserva", "Seña"),
+@pytest.mark.parametrize("pagos, estado", [
+    (1, "Cerrado"),   # pagó todo de una
+    (2, "Cerrado"),   # $7.500 ahora y $7.500 a 45 días: el caso de Leonel
+    (3, "Cerrado"),
+    (0, "Seña"),      # puso plata pero el resto está por verse
 ])
-def test_el_estado_sale_de_la_estructura_de_pago(estructura, estado):
-    """Leonel pagó la primera de dos cuotas acordadas y salía "Seña" tres corridas
-    seguidas. Es un mapeo de tres casos: no hace falta un modelo para eso."""
-    campos = f._decidir_en_codigo({"estado": "Seña", "estructura_pago": estructura}, [])
+def test_el_estado_sale_de_cuantos_pagos_quedaron_acordados(pagos, estado):
+    """Leonel pagó la primera de dos cuotas acordadas y salía "Seña" cuatro corridas
+    seguidas: en la llamada la llamaron "seña" y el modelo le creyó a la palabra."""
+    campos = f._decidir_en_codigo({"estado": "Seña", "pagos_acordados": pagos}, [])
     assert campos["estado"] == estado
 
 
-def test_sin_estructura_de_pago_no_se_toca_el_estado():
-    """Un no show o un seguimiento no tienen estructura de pago y no son una venta."""
-    campos = f._decidir_en_codigo({"estado": "No show", "estructura_pago": None}, [])
+def test_sin_pagos_acordados_no_se_toca_el_estado():
+    """Un no show o un seguimiento no tienen pagos y no son una venta."""
+    campos = f._decidir_en_codigo({"estado": "No show", "pagos_acordados": None}, [])
     assert campos["estado"] == "No show"

@@ -183,7 +183,7 @@ Devolvé ÚNICAMENTE un JSON:
  "nota": ["primera frase", "segunda frase"],
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
- "estructura_pago": "total" | "cuotas" | "reserva" | null,
+ "pagos_acordados": <cuántos pagos quedaron acordados CON monto y fecha, o null>,
  "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
  "encaje_motivo": "UNA frase corta con el dato que sostiene el puntaje, sea alto o bajo",
  "desvio_oferta": "UNA frase: qué dijo el closer que NO coincide con el documento, o null",
@@ -229,11 +229,16 @@ Reglas:
 - facturacion_usd: lo que el prospecto dijo que factura POR MES, en dólares. Si dio un
   rango, el piso. Si habló de lo que factura un cliente suyo y no él, null. Si no lo
   dijo, null: no lo deduzcas del tamaño del negocio ni de los seguidores.
-- **estructura_pago**: cómo quedó la plata, si hubo venta. Es un hecho, no un juicio:
-  - **"total"**: pagó todo de una.
-  - **"cuotas"**: acordaron un plan con montos y fechas, y pagó la primera.
-  - **"reserva"**: puso plata para reservar pero el resto NO está acordado todavía.
-  - **null**: no hubo venta, o no se habló de plata.
+- **pagos_acordados**: contá cuántos pagos quedaron acordados con MONTO y MOMENTO
+  definidos. Es contar, no juzgar.
+  - Pagó los $14.000 de una → **1**
+  - Pagó $7.500 y quedó $7.500 a 45 días → **2**
+  - Pagó $6.000 y quedaron $5.000 y $3.000 en los meses siguientes → **3**
+  - Puso $50 para reservar y el resto está por verse → **0**
+  - No hubo venta o no se habló de plata → **null**
+  **La palabra que usen en la llamada no decide.** Si le dicen "seña" a la primera de
+  dos cuotas ya acordadas, son 2 pagos igual. Lo que cuenta es si el monto y el momento
+  del resto ya están dichos.
 - **encaje_puntaje**: si hubo venta (Cerrado o Seña), qué tan bien le calza la oferta,
   del 1 al 10. Mirá los dos chequeos de la nota de ofertas: banda de facturación y
   avatar. La escala, para que el número signifique lo mismo siempre:
@@ -388,10 +393,18 @@ def _decidir_en_codigo(campos: dict, planes: list[str]) -> dict:
     if nivel and (not elegido or elegido in _bandas()):
         campos["plan"] = nivel
 
-    estructura = str(campos.get("estructura_pago") or "").strip().lower()
-    if estructura in ("total", "cuotas"):
+    # Contar pagos acordados es un hecho; decidir si eso es "seña" o "cerrado" es la
+    # regla de ATV, y la aplica el código. El modelo le creía a la palabra que usaban en
+    # la llamada: a la primera de dos cuotas acordadas le decían seña y él la reportaba
+    # como reserva.
+    pagos = campos.get("pagos_acordados")
+    try:
+        pagos = int(pagos) if pagos is not None and str(pagos).strip() != "" else None
+    except (TypeError, ValueError):
+        pagos = None
+    if pagos is not None and pagos >= 1:
         campos["estado"] = "Cerrado"
-    elif estructura == "reserva":
+    elif pagos == 0:
         campos["estado"] = "Seña"
     return campos
 
