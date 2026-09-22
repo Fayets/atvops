@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../ui/Card.jsx';
+import Icon from '../ui/Icon.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatFecha, formatFechaHora } from '../../lib/format.js';
 
@@ -45,6 +46,7 @@ function parseAt(iso) {
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
                                            estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos }) {
   const [modo, setModo] = useState('semana');
+  const [verOcultas, setVerOcultas] = useState(false);
   const [ancla, setAncla] = useState(() => new Date());
 
   const semana = useMemo(() => {
@@ -155,13 +157,17 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     onRango?.(desde, hasta);
   }, [desde, hasta, onRango]);
 
-  // Las que el equipo sacó del calendario dentro de lo que se está mirando: si no se
-  // pudieran devolver, un doble click de más las escondería para siempre.
-  const escondidas = (llamados ?? []).filter((l) => {
-    if (!ocultos?.[l.id]) return false;
-    const d = parseAt(l.fechaAt);
-    return d >= visibles[0] && d <= new Date(visibles[visibles.length - 1].getTime() + 86400000);
-  });
+  // TODAS las que el equipo sacó del calendario, no solo las de la semana que se está
+  // mirando: una reunión ocultada por error en marzo es imposible de encontrar si hay
+  // que adivinar en qué semana estaba. Si no se pudieran devolver, un doble click de
+  // más las escondería para siempre.
+  const escondidas = Object.entries(ocultos ?? {})
+    .map(([id, datos]) => ({
+      id,
+      prospecto: datos?.prospecto || llamados?.find((l) => l.id === id)?.prospecto || 'Sin nombre',
+      fechaAt: datos?.inicioAt || llamados?.find((l) => l.id === id)?.fechaAt || null,
+    }))
+    .sort((a, b) => (b.fechaAt ?? '').localeCompare(a.fechaAt ?? ''));
 
 
   const navegar = (dir) => {
@@ -221,19 +227,38 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       foot={
         <span className="cal-pie">
           <span>{titulo}</span>
+          {/* Las ocultas no van desplegadas en el pie: son ruido permanente para algo
+              que se toca una vez cada tanto. Viven detrás del engranaje. */}
           {escondidas.length > 0 && (
-            <span className="cal-ocultas">
-              {escondidas.length} {escondidas.length === 1 ? 'reunión oculta' : 'reuniones ocultas'}:
-              {escondidas.slice(0, 4).map((l) => (
-                <button key={l.id} type="button" className="btn sm ghost" onClick={() => onMostrar?.(l)}>
-                  {l.prospecto} ↩
-                </button>
-              ))}
-            </span>
+            <button
+              type="button"
+              className={`cal-ajustes${verOcultas ? ' abierto' : ''}`}
+              onClick={() => setVerOcultas((v) => !v)}
+              aria-expanded={verOcultas}
+              title={`${escondidas.length} ${escondidas.length === 1 ? 'reunión oculta' : 'reuniones ocultas'}`}
+            >
+              <Icon name="config" />
+              <span>{escondidas.length}</span>
+            </button>
           )}
         </span>
       }
     >
+      {verOcultas && (
+        <div className="cal-ocultas-panel">
+          <div className="cal-ocultas-head">
+            <strong>Reuniones ocultas</strong>
+            <span className="dim">No cuentan en ninguna métrica. Tocá una para devolverla al calendario.</span>
+          </div>
+          {escondidas.map((l) => (
+            <div key={l.id} className="cal-oculta-fila">
+              <span className="cal-oculta-nombre">{l.prospecto}</span>
+              <span className="dim">{l.fechaAt ? formatFecha(l.fechaAt) : 'sin fecha'}</span>
+              <button type="button" className="btn sm" onClick={() => onMostrar?.(l)}>Devolver</button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className={`ventas-cal-body${actualizando ? ' is-loading' : ''}`}>
         {modo === 'semana' ? (
           <div className="ventas-cal-semana">

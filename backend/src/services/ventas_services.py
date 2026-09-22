@@ -1609,16 +1609,22 @@ def no_son_de_venta() -> set[str]:
         return set()
 
 
-def eventos_ocultos() -> dict[str, bool]:
-    """Qué reuniones del calendario están ocultas."""
+def eventos_ocultos() -> dict[str, dict]:
+    """Qué reuniones del calendario están ocultas, con qué eran.
+
+    Devuelve el nombre y la fecha además del id: el panel de ocultas las lista todas,
+    también las que quedaron fuera de la semana que se está mirando, y sin estos datos
+    solo podría mostrar un identificador de Google que no le dice nada a nadie.
+    """
     from pony.orm import db_session
 
     from src.models import ReunionCrm
 
     try:
         with db_session:
-            return {r.evento_id: True for r in list(ReunionCrm.select())
-                    if not r.es_venta and r.descartada}
+            return {r.evento_id: {"prospecto": (r.prospecto or "").strip() or "Sin nombre",
+                                  "inicioAt": r.inicio_at.isoformat() if r.inicio_at else None}
+                    for r in list(ReunionCrm.select()) if not r.es_venta and r.descartada}
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las reuniones ocultas: %s", str(e)[:160])
         return {}
