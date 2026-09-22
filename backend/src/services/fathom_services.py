@@ -206,10 +206,17 @@ Reglas:
 - **"Seguimiento" es el último recurso, no el default.** Si el motivo real fue la plata
   o la duda, usá el estado específico: esa distinción es justamente lo que se quiere
   medir, y el closer no la va a tipear nunca. Vos tenés la transcripción y él no.
-- **El documento de ofertas es la fuente de la verdad, no lo que se dijo en la llamada.**
-  Para elegir el `plan`, mirá el avatar, la banda de facturación y qué se le prometió
-  instalar: el nivel es el que describe el documento, aunque el closer haya dicho otro
-  precio u otra duración.
+- **El nivel se decide PRIMERO por la banda de facturación, que es objetiva.** Buscá en
+  qué banda cae lo que el prospecto dijo que factura por mes y ese es el nivel. Recién
+  después mirá el avatar, para confirmarlo o para bajar el puntaje.
+  **El precio y la duración que se dijeron en la llamada NO deciden el nivel.** Si el
+  closer cobró un precio o prometió una duración que es de otro nivel, eso es un desvío
+  y va en desvio_oferta — no es una razón para reclasificar la venta.
+  **Error a evitar, que ya pasó:** el prospecto factura 15-20k/mes y el closer le cobró
+  $15k por 6 meses. El nivel es **Mid** (banda 10-30k). NO es High: High arranca en
+  +30k y 15-20k no está ni cerca de esa banda. Los $15k y los 6 meses son el desvío.
+  Nunca escribas que una facturación está "en el borde" de una banda en la que no
+  entra: si no entra, no entra.
 - **desvio_oferta**: si el closer describió la oferta de una forma que contradice el
   documento, poné qué dijo mal. Ejemplos: le dijo que Mid dura 6 meses cuando dura 4;
   le prometió WhatsApp directo con Juan en un Mid, que es de High; le cobró un precio
