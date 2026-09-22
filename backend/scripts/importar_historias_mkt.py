@@ -3,10 +3,17 @@ Trae a ATV Ops secuencias de historias que quedaron en atv-mkt y nunca se sincro
 
     python scripts/importar_historias_mkt.py 2026-09-01 2026-09-03 2026-09-07 2026-09-08
     python scripts/importar_historias_mkt.py --aplicar 2026-09-01 2026-09-03
+    python scripts/importar_historias_mkt.py --aplicar --fotos http://1.2.3.4:8001 2026-09-01
 
 Sin `--aplicar` muestra lo que haría y no toca nada. Se puede correr las veces que haga
-falta: cada pieza entra una sola vez, identificada por su `instagram_media_id`; lo que ya
-está se deja como está.
+falta: cada pieza entra una sola vez, identificada por su `instagram_media_id`. A las que
+ya estaban solo les completa la miniatura si les falta, así que una corrida que se quedó
+sin fotos se arregla repitiéndola.
+
+La base de atv-mkt sale de `MKT_DSN` o, si no está, de `GCAL_CONEXION_DSN` —las dos
+apuntan al mismo proyecto de Neon, igual que en `crm_db`—. Las fotos salen de
+`ATV_MKT_API_URL`; si no está cargada, se pasa con `--fotos URL` o se importan solo los
+números con `--sin-fotos`.
 
 Por qué existe: ATV Ops sincroniza historias con su propio token desde el 09/09, y
 Instagram las borra a las 24 horas. Todo lo publicado antes de esa fecha solo vive en
@@ -44,9 +51,12 @@ def _slides(fechas: list[str]) -> list[dict]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
-    dsn = (config("MKT_DSN", default="") or "").strip()
+    # El mismo par de variables que usa crm_db: en el VPS la que está cargada es
+    # GCAL_CONEXION_DSN, y las dos apuntan al proyecto de Neon de atv-mkt.
+    dsn = ((config("MKT_DSN", default="") or "").strip()
+           or (config("GCAL_CONEXION_DSN", default="") or "").strip())
     if not dsn:
-        raise SystemExit("Falta MKT_DSN en el .env: sin eso no hay de dónde traerlas.")
+        raise SystemExit("Falta MKT_DSN (o GCAL_CONEXION_DSN) en el .env: sin eso no hay de dónde traerlas.")
 
     with psycopg2.connect(dsn, connect_timeout=25) as con:
         with con.cursor(cursor_factory=RealDictCursor) as cur:
@@ -63,7 +73,7 @@ def _slides(fechas: list[str]) -> list[dict]:
             return [dict(f) for f in cur.fetchall()]
 
 
-def _bajar(ruta: str, ig_id: str) -> str:
+def _bajar(ruta: str, ig_id: str, base: str) -> str:
     """Baja la foto de atv-mkt al disco de ATV Ops. Devuelve la ruta pública, o vacío."""
     if not ruta:
         return ""
@@ -71,10 +81,9 @@ def _bajar(ruta: str, ig_id: str) -> str:
     publica = f"/uploads/ig/{ig_id}.jpg"
     if destino.exists() and destino.stat().st_size > 0:
         return publica
-    if not MKT_WEB:
-        print("    sin ATV_MKT_API_URL: no se puede bajar la foto")
+    if not base:
         return ""
-    url = ruta if ruta.startswith("http") else f"{MKT_WEB}/{ruta.lstrip('/')}"
+    url = ruta if ruta.startswith("http") else f"{base}/{ruta.lstrip('/')}"
     try:
         FOTOS.mkdir(parents=True, exist_ok=True)
         pedido = urllib.request.Request(url, headers={"User-Agent": "atv-ops"})
@@ -89,16 +98,41 @@ def _bajar(ruta: str, ig_id: str) -> str:
         return ""
 
 
+def _origen_fotos(argv: list[str]) -> str:
+    """De dónde se bajan las miniaturas: el flag manda, después la variable del .env."""
+    for i, a in enumerate(argv):
+        if a == "--fotos" and i + 1 < len(argv):
+            return argv[i + 1].rstrip("/")
+        if a.startswith("--fotos="):
+            return a.split("=", 1)[1].rstrip("/")
+    return MKT_WEB
+
+
 def main() -> None:
-    args = [a for a in sys.argv[1:] if a != "--aplicar"]
-    aplicar = "--aplicar" in sys.argv
-    fechas = sorted({a.strip()[:10] for a in args if a.strip()})
+    argv = sys.argv[1:]
+    aplicar = "--aplicar" in argv
+    sin_fotos = "--sin-fotos" in argv
+    base_fotos = _origen_fotos(argv)
+
+    saltear = {"--aplicar", "--sin-fotos", "--fotos", base_fotos, f"--fotos={base_fotos}"}
+    fechas = sorted({a.strip()[:10] for a in argv if a.strip() and a not in saltear and not a.startswith("--")})
     if not fechas:
         raise SystemExit("Pasá al menos una fecha: scripts/importar_historias_mkt.py 2026-09-01")
+
+    # Sin origen de fotos las filas entrarían sin miniatura y una segunda corrida no las
+    # arreglaría sola salvo que se la vuelva a pedir: mejor frenar y decirlo.
+    if not base_fotos and not sin_fotos:
+        raise SystemExit(
+            "No sé de dónde bajar las fotos: falta ATV_MKT_API_URL en el .env.\n"
+            "  Pasala a mano:  --fotos http://72.60.244.220:8001\n"
+            "  O importá solo los números:  --sin-fotos"
+        )
 
     filas = _slides(fechas)
     if not filas:
         raise SystemExit(f"atv-mkt no tiene historias para {', '.join(fechas)}.")
+
+    print(f"Fotos desde: {base_fotos or '(ninguna, --sin-fotos)'}")
 
     init_db()
     from pony.orm import db_session
@@ -106,7 +140,7 @@ def main() -> None:
     from src.models import PublicacionIg
 
     print(f"{'Importando' if aplicar else 'Simulacro:'} {len(filas)} piezas de {len(fechas)} secuencias.\n")
-    nuevas = repetidas = 0
+    nuevas = repetidas = completadas = 0
 
     with db_session:
         por_dia: dict[str, int] = {}
@@ -116,8 +150,17 @@ def main() -> None:
             if not ig_id:
                 print(f"  {dia} pieza {f['order_index']}: sin id en atv-mkt, se saltea")
                 continue
-            if PublicacionIg.get(ig_id=ig_id) is not None:
+            ya = PublicacionIg.get(ig_id=ig_id)
+            if ya is not None:
                 repetidas += 1
+                # Si quedó sin miniatura —la primera corrida fue sin fotos, o el servidor
+                # de atv-mkt no contestó— se completa ahora. Saltearla sin más dejaría la
+                # pieza sin foto para siempre.
+                if aplicar and base_fotos and not str(ya.thumbnail or "").startswith("/uploads/"):
+                    ruta = _bajar(f["image_url"], ig_id, base_fotos)
+                    if ruta:
+                        ya.thumbnail = ruta
+                        completadas += 1
                 continue
 
             orden = por_dia.get(dia, 0)
@@ -144,13 +187,14 @@ def main() -> None:
                     publicado_at=cuando,
                     permalink="",
                     caption="",
-                    thumbnail=_bajar(f["image_url"], ig_id),
+                    thumbnail=_bajar(f["image_url"], ig_id, base_fotos),
                     keyword="",
                     metricas=json.dumps(metricas),
                 )
             nuevas += 1
 
-    print(f"\n{nuevas} piezas nuevas, {repetidas} que ya estaban.")
+    print(f"\n{nuevas} piezas nuevas, {repetidas} que ya estaban"
+          + (f", {completadas} a las que les faltaba la foto." if completadas else "."))
     if not aplicar:
         print("Fue un simulacro. Repetí con --aplicar para guardarlas.")
     else:
