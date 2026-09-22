@@ -288,3 +288,23 @@ def test_la_reagenda_cuenta_como_seguimiento():
     """La llamada pasó y el paso siguiente es otra llamada: no es una tajada propia."""
     d = v.disposiciones([_lead("Re-agenda")], ["show"])
     assert {t["disposicion"]: t["n"] for t in d["tajadas"]}["Seguimiento"] == 1
+
+
+# ------------------------------------------------- qué llamadas ve el closer
+
+def test_una_llamada_sin_closer_no_desaparece_al_cargarla():
+    """Antes se pedía que además fuera "solo del calendario" para considerarla huérfana.
+    Al cargarle un resultado desde un rol que no toma llamadas —ops, admin— dejaba de
+    ser del calendario, se quedaba sin closer, y desaparecía de la lista justo después
+    de guardarla."""
+    def visible(fila, mios):
+        es_mio = v._norm(fila.get("closer")) in mios
+        huerfana = not (fila.get("closer") or "").strip()
+        return es_mio or huerfana
+
+    mios = [v._norm("Nick Xanderz")]
+    assert visible({"closer": "Nick Xanderz", "soloCalendario": False}, mios)
+    assert visible({"closer": "", "soloCalendario": True}, mios)
+    # El caso que se rompía: cargada, sin closer, ya no es del calendario.
+    assert visible({"closer": "", "soloCalendario": False}, mios)
+    assert not visible({"closer": "Lucas", "soloCalendario": False}, mios)

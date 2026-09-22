@@ -1356,10 +1356,19 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     # sin número y el KPI queda más corto que lo que se ve en el calendario.
     filas = []
     vistos: set[str] = set()
+    internas = no_son_de_venta()
     for f in todas:
         evento = str(f.get("eventoId") or "")
+        # Una reunión marcada como que no es de venta no va a la lista del closer: no
+        # hay resultado que cargarle y ensucia el conteo del mes.
+        if evento and evento in internas:
+            continue
         es_mio = _norm(f.get("closer")) in mios
-        huerfana = bool(f.get("soloCalendario")) and not (f.get("closer") or "").strip()
+        # Sin closer cargado, la llamada es de quien la esté mirando. Antes se pedía
+        # además que fuera "solo del calendario", y entonces al cargarle un resultado
+        # desde un rol que no toma llamadas —ops, admin— dejaba de ser del calendario,
+        # se quedaba sin closer y desaparecía de la lista apenas se guardaba.
+        huerfana = not (f.get("closer") or "").strip()
         if not es_mio and not huerfana:
             continue
         if evento and evento in vistos:
@@ -1574,6 +1583,26 @@ def ocultar_evento(evento_id: str, datos: dict, usuario: dict, mostrar: bool = F
                 "mostrada" if mostrar else "ocultada", usuario.get("username"))
     _olvidar_meses()
     return {"ok": True, "eventoId": evento_id, "oculta": not mostrar}
+
+
+def no_son_de_venta() -> set[str]:
+    """Los eventos marcados como que no son llamadas de venta: internas, weeklys, 1a1.
+
+    Es lo que escribe el botón de ocultar del calendario. La lista de llamadas del
+    closer tiene que respetarlo igual que el calendario: si alguien se tomó el trabajo
+    de decir que una reunión no era de venta, no puede seguir apareciendo para cargarle
+    un resultado.
+    """
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    try:
+        with db_session:
+            return {r.evento_id for r in list(ReunionCrm.select()) if not r.es_venta}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las reuniones que no son de venta: %s", str(e)[:160])
+        return set()
 
 
 def eventos_ocultos() -> dict[str, bool]:

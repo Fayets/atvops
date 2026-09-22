@@ -37,7 +37,9 @@ export default function VentasLlamadas() {
       .filter((l) => (q ? l.prospecto.toLowerCase().includes(q) : true));
   }, [vista, filtro, busqueda]);
 
-  const cargadas = (vista?.llamadas ?? []).filter((l) => !['sin_reportar', 'agendado', 'sin_crm'].includes(l.estado));
+  // Sobre las mismas que se muestran: contarlas sobre todas incluía las descartadas y
+  // daba más cargadas que reuniones ("44 reuniones · 51 con resultado cargado").
+  const cargadas = filas.filter((l) => !['sin_reportar', 'agendado', 'sin_crm'].includes(l.estado));
 
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 

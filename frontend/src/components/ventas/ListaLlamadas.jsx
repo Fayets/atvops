@@ -30,6 +30,10 @@ const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
 export function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes, sinLista }) {
+  // El nombre se puede corregir: muchas llamadas llegan con el título del evento de
+  // Google ("Ingreso Kariana", "Canceled: Kevin Serna and Aumenta Tu Valor") y así
+  // quedan en el registro y en los reportes para siempre.
+  const [prospecto, setProspecto] = useState(llamada.prospecto || '');
   const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
@@ -48,7 +52,7 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
       // El evento viaja para dejar atada la reunión a esta llamada del CRM.
       onGuardado(await guardarResultadoLlamada(llamada.id, {
         resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), nota,
-        evento: llamada.eventoId || '', prospecto: llamada.prospecto || '',
+        evento: llamada.eventoId || '', prospecto: prospecto.trim() || llamada.prospecto || '',
       }, mes, { lista: !sinLista }));
     } catch (e) {
       setError(e.message);
@@ -58,6 +62,15 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
 
   return (
     <div className="llamada-form">
+      <label className="campo">
+        <span>Nombre del prospecto</span>
+        <input
+          value={prospecto}
+          onChange={(e) => setProspecto(e.target.value)}
+          placeholder="Como se llama de verdad"
+          maxLength={200}
+        />
+      </label>
       <div className="llamada-estados">
         {estados.map((e) => (
           <button
