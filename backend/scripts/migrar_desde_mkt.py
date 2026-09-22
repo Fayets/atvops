@@ -1,9 +1,10 @@
 """
 Trae a ATV Ops lo que todavía se leía en vivo de atv-mkt, para poder desconectarlo.
 
-    python scripts/migrar_desde_mkt.py                 # muestra lo que haría
-    python scripts/migrar_desde_mkt.py --aplicar       # lo hace
+    python scripts/migrar_desde_mkt.py                       # muestra lo que haría
+    python scripts/migrar_desde_mkt.py --aplicar             # lo hace
     python scripts/migrar_desde_mkt.py --aplicar --solo chats
+    python scripts/migrar_desde_mkt.py --aplicar --desde 2026-08-01
 
 Dos cosas viajan, y son independientes:
 
@@ -14,6 +15,11 @@ Dos cosas viajan, y son independientes:
   registro propio no se tocan; las viejas —anteriores a que arrancara el sync— entran como
   `ReunionCrm` con fuente `crm`, para que el histórico no se pierda al cortar.
 
+**Se migra desde septiembre de 2026 para atrás no.** Es la decisión de Franco: el
+histórico anterior se queda en atv-mkt y ATV Ops arranca limpio. Cambiarlo es pasar
+`--desde`. Ojo con lo que implica: los meses anteriores al corte quedan vacíos en el
+tablero cuando se desconecte el CRM, porque no hay de dónde leerlos.
+
 Se puede correr las veces que haga falta. Un chat se identifica por su lead de origen y
 una llamada por su `lead_id`: lo que ya está no entra dos veces ni se pisa. **Nunca
 sobrescribe lo que cargó el equipo**: si una reunión ya existe en ATV Ops, se deja como
@@ -21,7 +27,7 @@ está, porque acá manda el registro propio.
 """
 
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -50,11 +56,15 @@ def _consultar(sql: str, params=None) -> list[dict]:
             return [dict(f) for f in cur.fetchall()]
 
 
+# De acá para adelante. Antes de esto ATV Ops no existía como registro y no se trae.
+DESDE = date(2026, 9, 1)
+
+
 def _texto(v) -> str:
     return str(v or "").strip()
 
 
-def migrar_chats(aplicar: bool) -> None:
+def migrar_chats(aplicar: bool, desde: date) -> None:
     """Los leads que abrió el bot pasan a ser conversaciones de ATV Ops."""
     from pony.orm import db_session
 
@@ -62,9 +72,10 @@ def migrar_chats(aplicar: bool) -> None:
 
     filas = _consultar(
         "SELECT id, nombre, ig, keyword, content_url, fecha_bot, manychat_contact_id, origen "
-        "FROM lead WHERE fecha_bot IS NOT NULL ORDER BY fecha_bot"
+        "FROM lead WHERE fecha_bot >= %s ORDER BY fecha_bot",
+        (desde,),
     )
-    print(f"atv-mkt tiene {len(filas)} leads con fecha de bot.")
+    print(f"atv-mkt tiene {len(filas)} leads con fecha de bot desde {desde}.")
 
     nuevos = repetidos = 0
     with db_session:
@@ -93,7 +104,7 @@ def migrar_chats(aplicar: bool) -> None:
     print(f"  chats: {nuevos} nuevos, {repetidos} que ya estaban.")
 
 
-def migrar_llamadas(aplicar: bool) -> None:
+def migrar_llamadas(aplicar: bool, desde: date) -> None:
     """Las llamadas del CRM que el registro propio nunca vio."""
     from pony.orm import db_session
 
@@ -103,9 +114,10 @@ def migrar_llamadas(aplicar: bool) -> None:
         "SELECT id, nombre, email, telefono, ig, origen, closer, setter, call, agendo, "
         "       agendo_en, ingresos_rango, vino_de_ads, link_llamada, created_at, "
         "       calificacion_llamada, programa_ofrecido, pago, debe, notas "
-        "FROM lead WHERE call IS NOT NULL ORDER BY call"
+        "FROM lead WHERE call >= %s ORDER BY call",
+        (desde,),
     )
-    print(f"atv-mkt tiene {len(filas)} leads con fecha de llamada.")
+    print(f"atv-mkt tiene {len(filas)} leads con fecha de llamada desde {desde}.")
 
     nuevas = repetidas = 0
     with db_session:
@@ -157,12 +169,23 @@ def main() -> None:
     if solo and solo not in ("chats", "llamadas"):
         raise SystemExit("--solo acepta 'chats' o 'llamadas'.")
 
+    desde = DESDE
+    for i, a in enumerate(argv):
+        crudo = argv[i + 1] if a == "--desde" and i + 1 < len(argv) else (
+            a.split("=", 1)[1] if a.startswith("--desde=") else "")
+        if crudo:
+            try:
+                desde = date.fromisoformat(crudo[:10])
+            except ValueError:
+                raise SystemExit("--desde tiene que ser AAAA-MM-DD.")
+
     init_db()
-    print(f"{'Migrando' if aplicar else 'Simulacro:'} desde atv-mkt.\n")
+    print(f"{'Migrando' if aplicar else 'Simulacro:'} desde atv-mkt, a partir del {desde}.")
+    print("Lo anterior a esa fecha se queda en atv-mkt. Se cambia con --desde.\n")
     if solo in ("", "chats"):
-        migrar_chats(aplicar)
+        migrar_chats(aplicar, desde)
     if solo in ("", "llamadas"):
-        migrar_llamadas(aplicar)
+        migrar_llamadas(aplicar, desde)
     if not aplicar:
         print("\nFue un simulacro. Repetí con --aplicar para guardarlo.")
 
