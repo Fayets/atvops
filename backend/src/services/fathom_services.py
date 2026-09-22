@@ -391,6 +391,12 @@ def _decidir_en_codigo(campos: dict, planes: list[str]) -> dict:
     # Solo se pisa si el modelo eligió uno de los niveles nuevos o no eligió nada: una
     # venta cargada con un programa viejo puede ser un cliente que ya estaba adentro.
     if nivel and (not elegido or elegido in _bandas()):
+        # El nivel sale de un título de la nota y el programa tiene que existir en el
+        # catálogo: si alguien renombra "Mid Level" a "Mid" en Obsidian, `_validar` lo
+        # descartaría sin decir nada y las ventas quedarían sin programa.
+        if nivel not in planes:
+            log.warning("El nivel %r de la nota de ofertas no está en el catálogo de "
+                        "programas: la venta va a quedar sin programa.", nivel)
         campos["plan"] = nivel
 
     # Contar pagos acordados es un hecho; decidir si eso es "seña" o "cerrado" es la

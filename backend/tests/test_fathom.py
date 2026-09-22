@@ -461,3 +461,22 @@ def test_sin_pagos_acordados_no_se_toca_el_estado():
     """Un no show o un seguimiento no tienen pagos y no son una venta."""
     campos = f._decidir_en_codigo({"estado": "No show", "pagos_acordados": None}, [])
     assert campos["estado"] == "No show"
+
+
+def test_lo_que_decide_el_codigo_sigue_siendo_de_la_lista_de_nick():
+    """El estado que sale de acá lo carga Nick en su reporte: si no está en
+    ESTADOS_LLAMADA, el formulario no lo puede mostrar. Hoy se respeta porque `_validar`
+    corre después y filtra; este test lo fija por si ese orden cambia."""
+    from src.services.ventas_services import ESTADOS_LLAMADA
+    for pagos in (0, 1, 2, 5):
+        campos = f._decidir_en_codigo({"estado": "Seguimiento", "pagos_acordados": pagos}, [])
+        assert campos["estado"] in ESTADOS_LLAMADA, campos["estado"]
+
+
+def test_los_niveles_de_la_nota_existen_en_el_catalogo():
+    """Si alguien renombra un nivel en Obsidian y no lo agrega al catálogo, `_validar`
+    lo descarta sin decir nada y las ventas quedan sin programa."""
+    from src.services.ventas_services import programas
+    catalogo = {p["nombre"] for p in programas()}
+    faltan = [n for n in f._bandas() if n not in catalogo]
+    assert not faltan, f"niveles de la nota que no están en el catálogo: {faltan}"
