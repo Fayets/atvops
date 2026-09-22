@@ -238,3 +238,53 @@ def test_el_aov_es_el_cash_sobre_los_cierres_no_sobre_las_senas():
     assert m["cierres"] == 2 and m["senas"] == 1
     assert m["cashUsd"] == 12030.0            # la seña sí suma al cash cobrado
     assert m["aovUsd"] == 6015.0              # 12.030 sobre 2 cierres, no sobre 3 ventas
+
+
+# ------------------------------------------------- disposición en llamada
+
+def _lead(resultado):
+    return {"resultado": resultado, "calificacion": "", "call": None}
+
+
+def test_no_contesta_se_pliega_sobre_no_show():
+    """Si el prospecto no se conectó, la llamada no pasó. Contarlo como show infla el
+    show rate con llamadas que nunca existieron."""
+    leads = [_lead("No contesta"), _lead("No show"), _lead("Cancelada")]
+    d = v.disposiciones(leads, ["no_show"] * 3)
+    tajada = {t["disposicion"]: t["n"] for t in d["tajadas"]}
+    assert tajada["No show"] == 3
+    assert "No contesta" not in tajada
+
+
+def test_la_barra_tiene_siete_tajadas():
+    d = v.disposiciones([], [])
+    assert [t["disposicion"] for t in d["tajadas"]] == [
+        "Cerrado", "Seña", "No show", "Descalificado",
+        "No tiene la plata", "Lo voy a pensar", "Seguimiento",
+    ]
+
+
+def test_las_sin_reportar_no_se_reparten():
+    """Meterlas en una tajada sería inventar qué pasó; repartirlas proporcionalmente
+    maquillaría justo el número que uno mira para saber dónde se cae."""
+    leads = [_lead("Cerrado"), _lead(""), _lead("")]
+    d = v.disposiciones(leads, ["cierre", "sin_reportar", "sin_reportar"])
+    assert d["total"] == 1
+    assert d["sinReportar"] == 2
+    assert sum(t["n"] for t in d["tajadas"]) == 1
+
+
+def test_los_estados_de_plata_y_duda_salen_de_seguimiento():
+    """Son las dos tajadas que antes vivían colapsadas y que dan el diagnóstico."""
+    leads = [_lead("No tiene la plata"), _lead("Lo voy a pensar"), _lead("Seguimiento")]
+    d = v.disposiciones(leads, ["show"] * 3)
+    tajada = {t["disposicion"]: t["n"] for t in d["tajadas"]}
+    assert tajada["No tiene la plata"] == 1
+    assert tajada["Lo voy a pensar"] == 1
+    assert tajada["Seguimiento"] == 1
+
+
+def test_la_reagenda_cuenta_como_seguimiento():
+    """La llamada pasó y el paso siguiente es otra llamada: no es una tajada propia."""
+    d = v.disposiciones([_lead("Re-agenda")], ["show"])
+    assert {t["disposicion"]: t["n"] for t in d["tajadas"]}["Seguimiento"] == 1

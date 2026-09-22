@@ -189,9 +189,19 @@ Devolvé ÚNICAMENTE un JSON:
 Reglas:
 - estado y plan: SOLO valores de las listas que te paso. Si ninguno encaja con lo que
   realmente pasó, devolvé null. NO elijas el más parecido.
-- "Cerrado" es que pagó el total. "Seña" es que pagó una parte. Si quedó en pensarlo o
-  en volver a hablar, es "Seguimiento". Si no apareció, "No show". Si no tiene con qué
-  pagar o no es el perfil, "Descalificado".
+- Cómo elegir el estado:
+  - **Cerrado**: pagó el total. **Seña**: pagó una parte.
+  - **No tiene la plata**: no cerró y el motivo fue el dinero — no lo tiene, no le
+    alcanza, tiene que juntarlo, está endeudado.
+  - **Lo voy a pensar**: no cerró y el motivo fue duda o indecisión, sin una objeción
+    concreta. Es el "déjame pensarlo", "lo hablo con mi mujer", "te aviso".
+  - **Seguimiento**: no cerró y quedó un próximo paso concreto que NO es ninguno de los
+    dos anteriores (esperar a un socio, mirar material, cobrar a un cliente suyo).
+  - **Descalificado**: no es el perfil, no importa lo que diga de la plata.
+  - **No show** / **No contesta**: no se conectó a la llamada.
+- **"Seguimiento" es el último recurso, no el default.** Si el motivo real fue la plata
+  o la duda, usá el estado específico: esa distinción es justamente lo que se quiere
+  medir, y el closer no la va a tipear nunca. Vos tenés la transcripción y él no.
 - **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
   precio del programa ni lo que prometió pagar más adelante. Si pagó US$ 50 de seña de
   un programa de US$ 1.800, cash_usd es 50 y el resto va en la nota. Si no pagó nada,

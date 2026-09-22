@@ -38,10 +38,14 @@ _lock = threading.Lock()
 
 RESULTADO_SQL = "lower(trim(coalesce(nullif(l.estado, ''), nullif(l.status, ''), '')))"
 CIERRE = ("cerrado", "seña", "sena")
-NO_SHOW = ("no show", "cancelada", "cancelado")
+# "No contesta" es un no show con otro nombre: si el prospecto no se conectó, la llamada
+# no pasó y el closer no pudo hacer nada. Contarlo como show infla el show rate con
+# llamadas que nunca existieron.
+NO_SHOW = ("no show", "cancelada", "cancelado", "no contesta")
 # Llamadas que no son de ventas (internas, duplicadas, cargadas por error): no cuentan para nada.
 DESCARTE = ("descartada", "no corresponde")
-CON_RESULTADO = CIERRE + ("seguimiento", "descalificado", "re-agenda", "reagenda")
+CON_RESULTADO = CIERRE + ("seguimiento", "descalificado", "re-agenda", "reagenda",
+                          "no tiene la plata", "lo voy a pensar")
 
 
 def _norm(t: str | None) -> str:
@@ -866,6 +870,57 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "pifPorEstado": round(len(cierres) / len(ventas) * 100, 1) if ventas else None,
         "pifPorDeuda": round(len(saldadas) / len(ventas) * 100, 1) if ventas else None,
         "ventasConPlan": len(ventas) - len(saldadas),
+        "disposiciones": disposiciones(leads, clases),
+    }
+
+
+# Las siete tajadas de la disposición en llamada. Es la métrica más diagnóstica que hay:
+# dice DÓNDE se cae el embudo sin tener que adivinar. Mucho No show es setting o
+# follow-up previo; mucho Descalificado es setting; mucho "No tiene la plata" es
+# calificación u oferta; mucho "Lo voy a pensar" es el closer.
+DISPOSICIONES = ("Cerrado", "Seña", "No show", "Descalificado",
+                 "No tiene la plata", "Lo voy a pensar", "Seguimiento")
+
+# Los estados que no son una tajada propia se pliegan sobre la que corresponde. No son
+# disposiciones distintas: son la misma cosa escrita de otra forma.
+_PLIEGUE = {
+    "no contesta": "No show",       # no se conectó: la llamada no pasó
+    "cancelada": "No show", "cancelado": "No show",
+    "re-agenda": "Seguimiento", "reagenda": "Seguimiento",  # pasó y el paso siguiente es otra llamada
+    "sena": "Seña",
+}
+
+
+def disposiciones(leads: list[dict], clases: list[str]) -> dict:
+    """El reparto de las llamadas del mes entre las siete disposiciones.
+
+    Las que pasaron y nadie reportó NO se reparten: se cuentan aparte. Meterlas en una
+    tajada sería inventar qué pasó en esa llamada, y repartirlas proporcionalmente
+    maquillaría justo el número que uno mira para saber dónde se cae.
+    """
+    cuenta = {d: 0 for d in DISPOSICIONES}
+    sin_reportar = 0
+    for lead, clase in zip(leads, clases):
+        if clase in ("agendado", "descartada", "duplicada", "reprogramada", "sin_crm"):
+            continue
+        if clase == "sin_reportar":
+            sin_reportar += 1
+            continue
+        crudo = _norm(lead.get("resultado"))
+        nombre = _PLIEGUE.get(crudo) or next((d for d in DISPOSICIONES if _norm(d) == crudo), None)
+        if nombre is None:
+            # Un show sin estado reconocible igual ocurrió: entra como seguimiento, que
+            # es lo que significa "se habló y no se cerró".
+            nombre = "No show" if clase == "no_show" else "Seguimiento"
+        cuenta[nombre] += 1
+
+    total = sum(cuenta.values())
+    return {
+        "total": total,
+        "sinReportar": sin_reportar,
+        "tajadas": [{"disposicion": d, "n": cuenta[d],
+                     "pct": round(cuenta[d] / total * 100, 1) if total else 0.0}
+                    for d in DISPOSICIONES],
     }
 
 
@@ -1149,7 +1204,9 @@ def estado() -> dict:
 
 # ------------------------------------------------- programas y cierres
 
-ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No show", "Descalificado", "Cancelada", "Re-agenda", "Agendado", "Descartada")
+ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No tiene la plata", "Lo voy a pensar",
+                   "No show", "No contesta", "Descalificado", "Cancelada", "Re-agenda",
+                   "Agendado", "Descartada")
 ESTADOS_VENTA = ("Cerrado", "Seña")
 ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
 # Quién puede cargar el resultado de una reunión. El calendario es del equipo: si la
