@@ -54,6 +54,12 @@ def _clave(fila: dict) -> str:
     return str(ident)
 
 
+# Lo que el calendario sabe mejor que nadie y por eso manda siempre, incluso vacío: la
+# reunión se movió, se le sacó el link, dejó de ser una segunda. El resto de la ficha solo
+# se completa —ver el bucle de actualización—, porque su fuente ya no existe.
+SIEMPRE_DEL_CALENDARIO = frozenset({"inicio_at", "segunda", "titulo", "url", "sincronizado_at"})
+
+
 # ------------------------------------------------------------------ escritura
 
 def sincronizar(desde: date | None = None, hasta: date | None = None) -> dict:
@@ -71,7 +77,7 @@ def sincronizar(desde: date | None = None, hasta: date | None = None) -> dict:
     desde = desde or hoy - timedelta(days=DIAS_ATRAS)
     hasta = hasta or hoy + timedelta(days=DIAS_ADELANTE)
 
-    filas = ventas._armar_desde_las_fuentes(ventas._leads(desde, hasta), desde, hasta)
+    filas = ventas._armar_desde_las_fuentes(desde, hasta)
     ahora = datetime.utcnow()
     nuevas = actualizadas = 0
 
@@ -135,8 +141,13 @@ def sincronizar(desde: date | None = None, hasta: date | None = None) -> dict:
                 fila.evento_id = clave
                 guardadas[clave] = fila
                 sin_evento.pop(lead, None)
+            # Un dato que ya está no se reemplaza por uno vacío. Mientras la ficha venía
+            # del CRM esto daba igual —cada corrida traía todo de nuevo—, pero el
+            # calendario no sabe el origen ni la facturación: pisar con vacío borraba lo
+            # que el CRM había dejado y las agendas de Ads aparecían como orgánicas.
             for campo, valor in ficha.items():
-                setattr(fila, campo, valor)
+                if campo in SIEMPRE_DEL_CALENDARIO or valor not in (None, "", 0, False):
+                    setattr(fila, campo, valor)
             if not fila.lead_id and lead:
                 # Recién ahora se supo a qué llamada del CRM corresponde.
                 fila.lead_id = lead

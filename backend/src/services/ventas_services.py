@@ -24,7 +24,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from decouple import config
 from fastapi import HTTPException
 
-from src.services import crm_db
 from src.services.transcripts_services import AR_TZ
 
 from src.services import equipo_services
@@ -36,7 +35,6 @@ SEMANAS_SERIE = 8
 _cache: dict = {}
 _lock = threading.Lock()
 
-RESULTADO_SQL = "lower(trim(coalesce(nullif(l.estado, ''), nullif(l.status, ''), '')))"
 CIERRE = ("cerrado", "seña", "sena")
 # "No contesta" es un no show con otro nombre: si el prospecto no se conectó, la llamada
 # no pasó y el closer no pudo hacer nada. Contarlo como show infla el show rate con
@@ -115,24 +113,6 @@ def _horas_locales(filas: list[dict]) -> list[dict]:
     return filas
 
 
-def _leads(desde: date, hasta: date) -> list[dict]:
-    # Se pide un día de más de cada lado porque la base está en UTC y el corte es local.
-    filas = crm_db.consultar(
-        f"""
-        SELECT l.id, l.nombre, l.email, l.telefono, l.ig, l.origen, l.closer, l.setter,
-               l.call, l.agendo, l.agendo_en, l.pago, l.debe, l.ingresos_rango,
-               l.programa_ofrecido, l.vino_de_ads, l.notas, l.created_at,
-               l.closer_report, l.link_llamada,
-               {RESULTADO_SQL} AS resultado,
-               lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
-        FROM lead l
-        WHERE l.call IS NOT NULL AND l.call >= %s AND l.call < %s
-        ORDER BY l.call
-        """,
-        (desde - timedelta(days=1), hasta + timedelta(days=1)),
-    )
-    return [f for f in _horas_locales(filas) if desde <= f["call"].date() < hasta]
-
 
 def _clave_persona(nombre: str | None) -> str:
     """El nombre del prospecto sin la marca, para cruzar CRM y calendario.
@@ -155,10 +135,17 @@ def _duenio_de_cada_lead() -> dict[str, dict]:
         guardado = _cache.get("duenios")
         if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
             return guardado["data"]
-    filas = crm_db.consultar(
-        "SELECT nombre, email, closer, setter, origen, call FROM lead "
-        "WHERE coalesce(closer, '') <> '' ORDER BY call NULLS FIRST"
-    )
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    with db_session:
+        filas = sorted(
+            [{"nombre": r.prospecto, "email": r.email, "closer": r.closer,
+              "setter": r.setter, "origen": r.origen, "call": r.inicio_at}
+             for r in list(ReunionCrm.select()) if (r.closer or "").strip()],
+            key=lambda f: (f["call"] is not None, f["call"] or datetime.min),
+        )
     indice: dict[str, dict] = {}
     for f in filas:  # el más reciente pisa al viejo: gana el closer que lo atiende hoy
         datos = {"closer": f["closer"], "setter": f["setter"] or "", "origen": (f["origen"] or "").strip()}
@@ -346,23 +333,6 @@ def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
         return []
 
 
-def _leads_por_id(ids: list[int]) -> list[dict]:
-    """Las llamadas del CRM por id, sin importar en qué fecha las haya dejado el sync."""
-    if not ids:
-        return []
-    filas = crm_db.consultar(
-        f"""
-        SELECT l.id, l.nombre, l.email, l.telefono, l.ig, l.origen, l.closer, l.setter,
-               l.call, l.agendo, l.agendo_en, l.pago, l.debe, l.ingresos_rango,
-               l.programa_ofrecido, l.vino_de_ads, l.notas, l.created_at,
-               l.closer_report, l.link_llamada,
-               {RESULTADO_SQL} AS resultado,
-               lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
-        FROM lead l WHERE l.id = ANY(%s)
-        """,
-        (list(ids),),
-    )
-    return _horas_locales(filas)
 
 
 # A partir de cuántas reuniones un email deja de identificar a un prospecto. Nadie viene
@@ -370,30 +340,21 @@ def _leads_por_id(ids: list[int]) -> list[dict]:
 EMAILS_DE_TODAS = 5
 
 
-def _armar_desde_las_fuentes(filas: list[dict], desde: date, hasta: date) -> list[dict]:
-    """Cruza el CRM con el calendario para descubrir qué reuniones hubo.
+def _armar_desde_las_fuentes(desde: date, hasta: date) -> list[dict]:
+    """Arma la lista de llamadas del período cruzando el calendario con lo cargado acá.
 
-    Corre en el sync de llamadas, no en cada carga de la vista: acá es donde se decide,
-    adivinando por nombre y por cercanía, qué evento del calendario es qué llamada del
-    CRM. Esa decisión se escribe una sola vez y después manda lo escrito.
+    Es el motor del sync: lo que sale de acá es lo que queda escrito en `ReunionCrm`.
 
-    Deja en la lista TODAS las reuniones que hubo, no solo las que el CRM guardó.
-
-    El CRM tiene una sola fecha por lead, así que cuando un prospecto tiene varias
-    reuniones hasta cerrar, la última le pisa a las anteriores. El calendario sí las
-    tiene todas, y una vez que alguien carga un resultado queda anotado en ATV Ops qué
-    llamada del CRM es esa reunión: esa referencia manda, aunque después el sync de
-    atv-mkt le cambie la fecha a la llamada.
-
-    Lo que no tiene referencia se aparea con la reunión más cercana en el tiempo de esa
-    misma persona, por email y si no, por nombre. Toda reunión que quede sin aparear se
-    agrega: existió aunque el CRM no la registre. Si el calendario no responde, quedan
-    solo las del CRM.
+    Antes la tercera fuente era el CRM de atv-mkt y era la que traía los datos del lead
+    —origen, facturación, a quién le toca—. Ya no se lee. Una reunión que aparece en el
+    calendario y no está cargada acá entra igual, y lo que se sabe de esa persona sale del
+    propio registro: si ya tuvo una llamada, se hereda su closer, su setter y su origen.
+    Si es la primera vez, entra sin eso y lo completa el equipo.
     """
     from src.services import gcal_services
 
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
-    filas = filas + _llamadas_propias(desde, hasta)
+    filas = _llamadas_propias(desde, hasta)
     if not gcal_services.configurado():
         return _marcar_seguimientos(_marcar_reprogramadas(_marcar_duplicados(filas), ahora))
     inicio = datetime.combine(desde, time.min).replace(tzinfo=AR_TZ)
@@ -417,12 +378,9 @@ def _armar_desde_las_fuentes(filas: list[dict], desde: date, hasta: date) -> lis
         for r in reuniones:
             r["_emails"] -= del_equipo
 
-    # Las que ya tienen su llamada anotada: se traen por id, estén donde estén.
+    # Qué llamada quedó atada a cada evento. Las filas que esa referencia nombra ya están
+    # en el registro propio, así que no hay que ir a buscarlas a ningún lado.
     referencias = _referencias([r["eventoId"] for r in reuniones])
-    conocidas = {f["id"]: f for f in filas}
-    for extra in _leads_por_id([i for i in referencias.values() if i not in conocidas]):
-        filas.append(extra)
-        conocidas[extra["id"]] = extra
 
     fila_usada: set = set()
     reunion_usada: set = set()
@@ -472,7 +430,8 @@ def _armar_desde_las_fuentes(filas: list[dict], desde: date, hasta: date) -> lis
             continue
         base = conocidos.get(r["_nombre"]) or {}
         if not (base.get("closer") or "").strip():
-            # El lead puede estar fuera del período: se busca en todo el CRM.
+            # La persona puede tener su llamada anterior fuera del período: se busca en
+            # todo el registro.
             duenios = _duenio_de_cada_lead()
             base = next((duenios[f"email:{e}"] for e in r["_emails"] if f"email:{e}" in duenios),
                         duenios.get(f"nombre:{r['_nombre']}")) or base
@@ -480,7 +439,10 @@ def _armar_desde_las_fuentes(filas: list[dict], desde: date, hasta: date) -> lis
             "id": f"cal:{r['eventoId']}",
             "nombre": r["prospecto"], "email": next(iter(r["_emails"]), ""),
             "telefono": "", "ig": "",
-            "origen": (base.get("origen") or "").strip() or "Orgánico",
+            # Sin default: "Orgánico" es lo que se muestra cuando no hay origen NI vino de
+            # ads, y esa cuenta se hace al leer. Guardarlo acá pisaba el `vino_de_ads` y
+            # las agendas de Ads aparecían como orgánicas.
+            "origen": (base.get("origen") or "").strip(),
             "closer": _persona(base.get("closer"), "closer") if (base.get("closer") or "").strip() else "",
             "setter": base.get("setter") or "",
             "call": r["_cuando"], "agendo": None, "agendo_en": "Google Calendar",
@@ -498,25 +460,26 @@ def _armar_desde_las_fuentes(filas: list[dict], desde: date, hasta: date) -> lis
         key=lambda f: f["call"])
 
 
-def _sumar_reuniones_del_calendario(filas: list[dict], desde: date, hasta: date) -> list[dict]:
+def _sumar_reuniones_del_calendario(desde: date, hasta: date) -> list[dict]:
     """Las reuniones del período, de la base de ATV Ops.
 
-    `filas` son las del CRM y ya no se usan para armar nada: quedan como respaldo para el
-    caso en que todavía no se haya sincronizado nunca —un deploy recién hecho—, así la
-    vista nunca aparece vacía.
+    Antes existía un respaldo que re-armaba la lista cruzando el CRM de atv-mkt con el
+    calendario cuando todavía no se había sincronizado nunca. Ya no: el registro es propio
+    y atv-mkt no se lee más. Si el sync todavía no corrió, la vista aparece vacía hasta
+    que corra —cada 10 minutos—, que es preferible a mostrar una lista armada de una
+    fuente que puede no coincidir con lo que el equipo cargó.
     """
     from src.services import llamadas_services
 
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     try:
-        if llamadas_services.hay_datos():
-            guardadas = llamadas_services.listar(desde, hasta)
-            return sorted(
-                _marcar_seguimientos(_marcar_reprogramadas(_marcar_duplicados(guardadas), ahora)),
-                key=lambda f: f["call"])
+        guardadas = llamadas_services.listar(desde, hasta)
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las llamadas guardadas: %s", str(e)[:200])
-    return _armar_desde_las_fuentes(filas, desde, hasta)
+        return []
+    return sorted(
+        _marcar_seguimientos(_marcar_reprogramadas(_marcar_duplicados(guardadas), ahora)),
+        key=lambda f: f["call"])
 
 
 def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
@@ -532,7 +495,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
     # cambiar de semana.
     desde = desde.replace(day=1)
     hasta = date(hasta.year + (hasta.month == 12), (hasta.month % 12) + 1, 1)
-    filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    filas = _sumar_reuniones_del_calendario(desde, hasta)
     por_evento = {}
     for f in filas:
         evento = f.get("eventoId")
@@ -717,11 +680,16 @@ def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
             return guardado["data"]
     primeras: dict[str, datetime] = {}
     try:
-        for f in crm_db.consultar(
-                "SELECT nombre, min(call) primera FROM lead WHERE call IS NOT NULL GROUP BY nombre"):
-            clave = _clave_persona(f["nombre"])
-            cuando = _a_argentina(f["primera"])
-            if clave and cuando and (clave not in primeras or cuando < primeras[clave]):
+        from pony.orm import db_session
+
+        from src.models import ReunionCrm
+
+        with db_session:
+            # El registro propio ya guarda la hora de Argentina: no hay que convertir.
+            crudas = [(r.prospecto, r.inicio_at) for r in list(ReunionCrm.select()) if r.inicio_at]
+        for nombre, cuando in crudas:
+            clave = _clave_persona(nombre)
+            if clave and (clave not in primeras or cuando < primeras[clave]):
                 primeras[clave] = cuando
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo calcular la primera reunión de cada uno: %s", str(e)[:160])
@@ -964,9 +932,13 @@ def _nombres_canonicos() -> dict[str, str]:
             return guardado["data"]
     mapa: dict[str, str] = {}
     try:
-        vistos = [f["nombre"] for f in crm_db.consultar(
-            "SELECT DISTINCT closer AS nombre FROM lead WHERE coalesce(closer, '') <> '' "
-            "UNION SELECT DISTINCT setter FROM lead WHERE coalesce(setter, '') <> ''")]
+        from pony.orm import db_session
+
+        from src.models import ReunionCrm
+
+        with db_session:
+            vistos = sorted({(r.closer or "").strip() for r in list(ReunionCrm.select()) if (r.closer or "").strip()}
+                            | {(r.setter or "").strip() for r in list(ReunionCrm.select()) if (r.setter or "").strip()})
         equipo = equipo_services.nombres()
         por_pila: dict[str, str] = {}
         for n in sorted(vistos, key=len, reverse=True):  # el más largo primero
@@ -1029,7 +1001,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     desde = min(inicio_mes, inicio_serie, mes_previo_inicio)
     hasta = max(fin_mes, hoy + timedelta(days=30))
 
-    leads = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    leads = _sumar_reuniones_del_calendario(desde, hasta)
     del_mes = [l for l in leads if inicio_mes <= l["call"].date() < fin_mes]
     previos = [l for l in leads if mes_previo_inicio <= l["call"].date() < inicio_mes]
 
@@ -1194,12 +1166,21 @@ def _por_programa(leads: list[dict]) -> dict[str, list[dict]]:
 
 
 def estado() -> dict:
-    if not crm_db.disponible():
-        return {"conectado": False, "detalle": "Falta MKT_DSN (o GCAL_CONEXION_DSN) en el .env."}
+    """Si el registro de llamadas tiene datos y de cuándo es el último.
+
+    Antes miraba el CRM de atv-mkt. Ahora el registro es propio, así que lo que hay que
+    responder es si la base de ATV Ops tiene llamadas, no si el CRM contesta.
+    """
     try:
-        fila = crm_db.consultar("SELECT count(*) AS n, max(created_at) AS ultimo FROM lead")[0]
-        fila["ultimo"] = _a_argentina(fila["ultimo"])
-        return {"conectado": True, "leads": fila["n"], "ultimoLeadAt": fila["ultimo"].isoformat() if fila["ultimo"] else None}
+        from pony.orm import db_session
+
+        from src.models import ReunionCrm
+
+        with db_session:
+            filas = list(ReunionCrm.select())
+            ultimo = max((r.creado_at for r in filas if r.creado_at), default=None)
+        return {"conectado": bool(filas), "leads": len(filas),
+                "ultimoLeadAt": ultimo.isoformat() if ultimo else None}
     except Exception as e:  # noqa: BLE001
         return {"conectado": False, "detalle": str(e)[:200]}
 
@@ -1319,8 +1300,13 @@ def _nombres_crm(usuario: dict) -> list[str]:
     if not base:
         return []
     primero = base.split()[0]
-    nombres = [f["closer"] for f in crm_db.consultar("SELECT DISTINCT closer FROM lead WHERE closer <> ''")
-               if _norm(f["closer"]).split()[:1] == [primero]]
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    with db_session:
+        todos = sorted({(r.closer or "").strip() for r in list(ReunionCrm.select()) if (r.closer or "").strip()})
+    nombres = [c for c in todos if _norm(c).split()[:1] == [primero]]
     nombres += [n for n in equipo_services.todas_las_grafias()
                 if _norm(n).split()[:1] == [primero]]
     return sorted(set(nombres)) or [usuario.get("nombre") or usuario.get("username") or ""]
@@ -1350,7 +1336,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         desde = hoy - timedelta(days=dias_atras)
         hasta = hoy + timedelta(days=dias_adelante + 1)
     mios = [_norm(n) for n in nombres]
-    todas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+    todas = _sumar_reuniones_del_calendario(desde, hasta)
     # Las del closer + las del calendario que todavía no tienen closer en el CRM
     # (segunda reunión, lead nuevo, solo Google). Si no las sumamos, el chip queda
     # sin número y el KPI queda más corto que lo que se ve en el calendario.
@@ -1535,7 +1521,11 @@ def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
             raise HTTPException(status_code=404, detail="Esa llamada ya no existe.")
         return 0, r.evento_id
     numero = int(texto)
-    if not crm_db.consultar("SELECT id FROM lead WHERE id = %s", (numero,)):
+    with db_session:
+        # `lead_id` es el número con el que entró la llamada; se conserva aunque el CRM
+        # ya no se lea, porque los enlaces viejos del equipo lo usan.
+        existe = any(r.lead_id == numero for r in list(ReunionCrm.select()))
+    if not existe:
         raise HTTPException(status_code=404, detail="Esa llamada no existe.")
     # Si ya hay ficha en ATV Ops, reusar su evento de Google: si no, el chip del
     # calendario no encuentra el número de agenda (queda sin correlativo).
@@ -1978,7 +1968,7 @@ def series_diarias(mes: str) -> list[dict]:
     desde = date(anio, m, 1)
     hasta = date(anio + (m == 12), (m % 12) + 1, 1)
     try:
-        filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+        filas = _sumar_reuniones_del_calendario(desde, hasta)
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron armar las series diarias: %s", str(e)[:160])
         return []
@@ -2051,9 +2041,7 @@ def semanas_de_setting(hasta_mes: str, cuantas: int = 6) -> list[dict]:
     lunes_inicial = lunes_final - timedelta(weeks=cuantas - 1)
 
     try:
-        filas = _sumar_reuniones_del_calendario(
-            _leads(lunes_inicial, lunes_final + timedelta(days=7)),
-            lunes_inicial, lunes_final + timedelta(days=7))
+        filas = _sumar_reuniones_del_calendario(lunes_inicial, lunes_final + timedelta(days=7))
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las semanas de setting: %s", str(e)[:160])
         filas = []
@@ -2123,7 +2111,7 @@ def reuniones_del_mes(mes: str) -> dict:
     desde = date(anio, m, 1)
     hasta = date(anio + (m == 12), (m % 12) + 1, 1)
     try:
-        filas = _sumar_reuniones_del_calendario(_leads(desde, hasta), desde, hasta)
+        filas = _sumar_reuniones_del_calendario(desde, hasta)
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron listar las reuniones del mes: %s", str(e)[:160])
         return {"agendas": [], "shows": []}
@@ -2160,15 +2148,23 @@ def mi_setting(usuario: dict, mes: str | None = None) -> dict:
 
     agendadas: list[dict] = []
     if miembro:
-        filas = crm_db.consultar(
-            f"""
-            SELECT l.id, l.nombre, l.call, l.agendo, l.closer, l.origen, l.ingresos_rango,
-                   {RESULTADO_SQL} AS resultado,
-                   lower(trim(coalesce(l.calificacion_llamada, ''))) AS calificacion
-            FROM lead l WHERE l.setter = %s AND l.call >= %s AND l.call < %s ORDER BY l.call DESC
-            """,
-            (miembro["nombre"], inicio, fin),
-        )
+        from pony.orm import db_session
+
+        from src.models import ReunionCrm
+
+        with db_session:
+            desde_dt = datetime.combine(inicio, datetime.min.time())
+            hasta_dt = datetime.combine(fin, datetime.min.time())
+            filas = sorted(
+                [{"id": r.lead_id or r.id, "nombre": r.prospecto, "call": r.inicio_at,
+                  "closer": r.closer, "origen": r.origen, "ingresos_rango": r.ingresos_rango,
+                  "resultado": (r.resultado or "").strip().lower(),
+                  "calificacion": (r.calificacion or "").strip().lower()}
+                 for r in list(ReunionCrm.select())
+                 if r.es_venta and not r.descartada
+                 and _norm(r.setter) == _norm(miembro["nombre"])
+                 and r.inicio_at and desde_dt <= r.inicio_at < hasta_dt],
+                key=lambda f: f["call"], reverse=True)
         ahora = datetime.now(AR_TZ).replace(tzinfo=None)
         agendadas = [
             {

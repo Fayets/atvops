@@ -90,8 +90,8 @@ def _reunion(evento, cuando, prospecto, invitados):
 def test_el_email_del_equipo_no_aparea_a_nadie(monkeypatch):
     """El closer está invitado a todas las reuniones: su email no identifica al prospecto.
 
-    Con un lead que tenga ese email —el CRM los crea solos— el cruce le ataba cualquier
-    reunión, y la llamada de un prospecto terminaba mostrándose con el nombre de otro.
+    Con una llamada cargada con ese email el cruce le ataba cualquier reunión, y la de un
+    prospecto terminaba mostrándose con el nombre de otro.
     """
     equipo = "closer@atv.com"
     reuniones = [
@@ -105,16 +105,17 @@ def test_el_email_del_equipo_no_aparea_a_nadie(monkeypatch):
     monkeypatch.setattr(gcal, "configurado", lambda: True)
     monkeypatch.setattr(gcal, "reuniones_venta", lambda *a, **k: reuniones)
 
-    # El lead basura: lleva el email del equipo y una fecha que no es la de ninguna reunión.
+    # La fila basura: lleva el email del equipo y una fecha que no es la de ninguna reunión.
     lead = {"id": 99, "nombre": "closer", "email": equipo, "telefono": "", "ig": "",
             "origen": "", "closer": "", "setter": "", "call": datetime(2026, 9, 20, 15, 0),
             "agendo": None, "agendo_en": "", "pago": 0, "debe": 0, "ingresos_rango": "",
             "programa_ofrecido": "", "vino_de_ads": False, "notas": "", "created_at": None,
             "closer_report": "", "link_llamada": "", "resultado": "agendado", "calificacion": ""}
 
-    filas = v._armar_desde_las_fuentes([dict(lead)], date(2026, 9, 1), date(2026, 10, 1))
+    monkeypatch.setattr(v, "_llamadas_propias", lambda *a, **k: [dict(lead)])
+    filas = v._armar_desde_las_fuentes(date(2026, 9, 1), date(2026, 10, 1))
     suyo = next(f for f in filas if f["id"] == 99)
-    # Se queda con su fecha del CRM en vez de robarle el evento a un prospecto.
+    # Se queda con su propia fecha en vez de robarle el evento a un prospecto.
     assert suyo["call"] == datetime(2026, 9, 20, 15, 0)
     assert not suyo.get("eventoId")
     # Y las cinco reuniones siguen siendo de quien son.
@@ -135,7 +136,8 @@ def test_el_email_del_prospecto_si_aparea(monkeypatch):
             "notas": "", "created_at": None, "closer_report": "", "link_llamada": "",
             "resultado": "", "calificacion": ""}
 
-    filas = v._armar_desde_las_fuentes([dict(lead)], date(2026, 9, 1), date(2026, 10, 1))
+    monkeypatch.setattr(v, "_llamadas_propias", lambda *a, **k: [dict(lead)])
+    filas = v._armar_desde_las_fuentes(date(2026, 9, 1), date(2026, 10, 1))
     suyo = next(f for f in filas if f["id"] == 5)
     assert suyo["eventoId"] == "ev1"
     # La fecha buena es la del calendario: ahí se ven las reprogramaciones.
