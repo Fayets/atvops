@@ -120,7 +120,7 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
   // De qué se compone el número: historias con CTA, reels y bio, otros canales.
   const repartoChats = (e.chatsPartes ?? [])
     .filter((p) => Number(p.cuantos) > 0)
-    .map((p) => `${p.fuente.toLowerCase()} ${p.cuantos}`)
+    .map((p) => `${p.fuente.toLowerCase()} ${formatValue(p.cuantos, 'count')}`)
     .join(' · ');
   const metaChats = decreto.chats ?? 0;
   const metaPitches = decreto.conversaciones ?? 0;

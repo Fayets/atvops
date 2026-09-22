@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Bars from '../charts/Bars.jsx';
 import Card from '../ui/Card.jsx';
+import DeDondeVienenLosChats from './DeDondeVienenLosChats.jsx';
 import PanelArea, { n, pct } from '../ui/PanelArea.jsx';
 
 /**
@@ -17,6 +18,7 @@ const corto = (t, max = 13) => {
 };
 
 export default function PanelMarketing({ data, chats }) {
+  const [verChats, setVerChats] = useState(false);
   const contenido = data?.contenido ?? {};
   const conversaciones = data?.conversaciones ?? {};
   const historias = data?.historias ?? {};
@@ -47,7 +49,9 @@ export default function PanelMarketing({ data, chats }) {
       kpis={[
         { label: 'Chats', valor: n(chats?.total ?? conversaciones.total),
           tono: (chats?.total ?? conversaciones.total) ? 'ok' : null,
-          nota: chats?.fuente || 'los abre el bot con la palabra de un reel o de la bio' },
+          nota: chats?.fuente || 'los abre el bot con la palabra de un reel o de la bio',
+          // Es una suma de tres puertas: tiene que poder abrirse.
+          onVer: chats?.partes?.length ? () => setVerChats(true) : undefined },
         { label: 'Reels publicados', valor: n(contenido.reels),
           nota: 'lo que salió en el mes, sin contar historias' },
         { label: 'Reproducciones', valor: n(vistas),
@@ -60,6 +64,8 @@ export default function PanelMarketing({ data, chats }) {
           nota: `de ${n(historias.secuencias)} secuencias publicadas` },
       ]}
     >
+      {verChats && <DeDondeVienenLosChats chats={chats} onCerrar={() => setVerChats(false)} />}
+
       <Card
         title="Qué trajo cada reel"
         sub="Reproducciones y cuánta gente interactuó"

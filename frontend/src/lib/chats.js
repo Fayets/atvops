@@ -1,3 +1,5 @@
+import { formatValue } from './format.js';
+
 /**
  * Los chats del mes, tal como los compone el backend.
  *
@@ -27,6 +29,6 @@ export function chatsDelMes(resumen) {
     // reparto, que es lo que hay que mirar para decidir dónde empujar.
     fuente: conAlgo.length === 0
       ? 'ninguna puerta trajo chats este mes'
-      : conAlgo.map((p) => `${p.fuente.toLowerCase()} ${p.cuantos}`).join(' · '),
+      : conAlgo.map((p) => `${p.fuente.toLowerCase()} ${formatValue(p.cuantos, 'count')}`).join(' · '),
   };
 }

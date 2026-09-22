@@ -77,7 +77,7 @@ export default function EmbudoOps({ setting = {} }) {
   // De qué se compone: historias con CTA, la palabra de un reel o de la bio, y lo que
   // entre por otro canal. El reparto importa tanto como el total.
   const partes = (setting.chatsPartes ?? []).filter((p) => Number(p.cuantos) > 0);
-  const fuente = partes.map((p) => `${p.fuente.toLowerCase()} ${p.cuantos}`).join(' · ');
+  const fuente = partes.map((p) => `${p.fuente.toLowerCase()} ${formatValue(p.cuantos, 'count')}`).join(' · ');
 
   // El show rate lo calcula ventas contra las llamadas que YA pasaron, no contra todas
   // las agendas del mes: dividir por las futuras da rojo hasta el día 30.

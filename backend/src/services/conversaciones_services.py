@@ -196,29 +196,65 @@ def chats(desde, hasta) -> dict:
         logger.warning("No se pudieron leer las historias del período: %s", str(e)[:160])
     por_historias = sum(x.get("respuestas") or 0 for x in con_cta)
 
+    filas_historias = [
+        {"cuando": x["fecha"],
+         "quien": f"{x['piezas']} {'historia' if x['piezas'] == 1 else 'historias'}",
+         "cuantos": x.get("respuestas") or 0,
+         # La miniatura de la primera pieza: con verla se reconoce cuál secuencia fue.
+         "foto": (x.get("historias") or [{}])[0].get("thumbnail")}
+        for x in sorted(con_cta, key=lambda y: y["fecha"], reverse=True)
+    ]
+
     # --- Reels y bio. Las propias mandan cuando tienen algo de ESTE mes; si no, el CRM.
     # Mirar el histórico en vez del mes era el bug viejo: ATV Ops tiene avisos de Calendly
     # desde hace rato y ni una conversación, así que la condición daba verdadera y el
     # tablero mostraba cero.
     del_crm = 0
+    palabras_crm: dict[str, int] = {}
     if not de_instagram:
         try:
             from src.services import marketing_services
 
-            del_crm = int(marketing_services._conversaciones_del_bot(desde, hasta).get("total") or 0)
+            bot = marketing_services._conversaciones_del_bot(desde, hasta)
+            del_crm = int(bot.get("total") or 0)
+            palabras_crm = bot.get("porPalabra") or {}
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudo leer el CRM de atv-mkt: %s", str(e)[:160])
     por_reels = len(de_instagram) or del_crm
 
+    # El reparto por palabra: es lo que dice qué contenido está trayendo gente. Sale de
+    # donde haya salido el total, para que las dos cosas no puedan contradecirse.
+    if de_instagram:
+        por_palabra: dict[str, int] = {}
+        for x in de_instagram:
+            por_palabra[(x.keyword or "").strip().lower() or "(sin palabra)"] = (
+                por_palabra.get((x.keyword or "").strip().lower() or "(sin palabra)", 0) + 1)
+    else:
+        por_palabra = dict(palabras_crm)
+        sin_palabra = max(0, del_crm - sum(palabras_crm.values()))
+        if sin_palabra:
+            por_palabra["(sin palabra)"] = sin_palabra
+    filas_reels = [{"quien": palabra, "cuantos": cuantos}
+                   for palabra, cuantos in sorted(por_palabra.items(), key=lambda kv: -kv[1])]
+
+    filas_otras = [
+        {"cuando": x.at.date().isoformat(), "quien": x.nombre or x.ig_usuario or "Sin nombre",
+         "dato": _canal(x.fuente), "cuantos": 1}
+        for x in sorted(otras, key=lambda y: y.at, reverse=True)
+    ]
+
     partes = [
         {"clave": "historias", "fuente": "Historias con CTA", "cuantos": por_historias,
          "detalle": (f"de {len(con_cta)} {'secuencia marcada' if len(con_cta) == 1 else 'secuencias marcadas'}"
-                     f" sobre {len(secuencias)} del mes") if secuencias else "sin historias este mes"},
+                     f" sobre {len(secuencias)} del mes") if secuencias else "sin historias este mes",
+         "unidad": "respuestas", "filas": filas_historias},
         {"clave": "reels", "fuente": "Reels y bio", "cuantos": por_reels,
          "detalle": "los abre el bot con la palabra" if de_instagram
-                    else ("los cuenta el CRM de atv-mkt" if del_crm else "sin chats por palabra este mes")},
+                    else ("los cuenta el CRM de atv-mkt" if del_crm else "sin chats por palabra este mes"),
+         "unidad": "chats", "filas": filas_reels},
         {"clave": "otras", "fuente": "Otras", "cuantos": len(otras),
-         "detalle": "WhatsApp y cargadas a mano"},
+         "detalle": "WhatsApp y cargadas a mano",
+         "unidad": "chats", "filas": filas_otras},
     ]
 
     return {

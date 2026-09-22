@@ -139,3 +139,34 @@ def test_sin_historias_ni_crm_el_total_es_cero(monkeypatch):
     r = _chats_con([], del_crm=0, monkeypatch=monkeypatch)
     assert r["total"] == 0
     assert [p["cuantos"] for p in r["partes"]] == [0, 0, 0]
+
+
+def test_cada_puerta_trae_sus_filas(monkeypatch):
+    """El total tiene que poder abrirse: de qué secuencia y de qué palabra vino cada chat.
+
+    Un número que no se puede auditar se discute en vez de usarse.
+    """
+    secuencias = [
+        {"fecha": "2026-09-01", "piezas": 4, "respuestas": 407, "cta": True,
+         "historias": [{"thumbnail": "/uploads/ig/a.jpg"}]},
+        {"fecha": "2026-09-08", "piezas": 2, "respuestas": 120, "cta": True, "historias": [{}]},
+        {"fecha": "2026-09-05", "piezas": 3, "respuestas": 40, "cta": False, "historias": [{}]},
+    ]
+    from src.services import instagram_services, marketing_services
+
+    monkeypatch.setattr(instagram_services, "contenido",
+                        lambda desde, hasta: {"secuencias": secuencias, "reels": [], "conectado": True})
+    monkeypatch.setattr(marketing_services, "_conversaciones_del_bot",
+                        lambda desde, hasta: {"total": 106, "porPalabra": {"documento": 40, "info": 8}})
+    r = c.chats(date(2026, 9, 1), date(2026, 10, 1))
+
+    historias = next(p for p in r["partes"] if p["clave"] == "historias")
+    assert [f["cuando"] for f in historias["filas"]] == ["2026-09-08", "2026-09-01"], "la más nueva arriba"
+    assert historias["filas"][1]["cuantos"] == 407
+    assert historias["filas"][1]["foto"] == "/uploads/ig/a.jpg"
+    assert sum(f["cuantos"] for f in historias["filas"]) == historias["cuantos"]
+
+    reels = next(p for p in r["partes"] if p["clave"] == "reels")
+    # 106 del CRM contra 48 con palabra: el resto no se esconde, se nombra.
+    assert [f["quien"] for f in reels["filas"]] == ["(sin palabra)", "documento", "info"]
+    assert sum(f["cuantos"] for f in reels["filas"]) == 106, "las filas tienen que cerrar con el total"
