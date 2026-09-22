@@ -39,12 +39,6 @@ function veredicto(valor, rango) {
   return ' es-alert';
 }
 
-/** De dónde salió el número de chats. Si no salió de ningún lado, hay que decirlo. */
-const FUENTE_CHATS = {
-  conversaciones: 'automático · ManyChat',
-  historias: 'automático · historias con CTA',
-};
-
 function Ficha({ etapa, n, pie, atenuado }) {
   return (
     <div className={`embudo-ficha${atenuado ? ' atenuada' : ''}`}>
@@ -80,7 +74,10 @@ export default function EmbudoOps({ setting = {} }) {
   const pitches = Number(setting.pitches ?? 0);
   const agendas = Number(setting.agendas ?? 0);
   const shows = Number(setting.shows ?? 0);
-  const fuente = FUENTE_CHATS[setting.chatsFuente] || '';
+  // De qué se compone: historias con CTA, la palabra de un reel o de la bio, y lo que
+  // entre por otro canal. El reparto importa tanto como el total.
+  const partes = (setting.chatsPartes ?? []).filter((p) => Number(p.cuantos) > 0);
+  const fuente = partes.map((p) => `${p.fuente.toLowerCase()} ${p.cuantos}`).join(' · ');
 
   // El show rate lo calcula ventas contra las llamadas que YA pasaron, no contra todas
   // las agendas del mes: dividir por las futuras da rojo hasta el día 30.
@@ -94,7 +91,8 @@ export default function EmbudoOps({ setting = {} }) {
   return (
     <section className="card embudo-card">
       <div className="embudo-fila">
-        <Ficha etapa="Chats" n={fuente ? chats : null} pie={fuente || 'sin conectar'} atenuado={!fuente} />
+        <Ficha etapa="Chats" n={partes.length ? chats : null}
+          pie={fuente || 'ninguna puerta trajo chats'} atenuado={!partes.length} />
         <Salto valor={tasa(pitches, chats)} rango={RANGOS.pitch} label="a pitch" />
         <Ficha etapa="Pitches" n={pitches} pie={pitches ? 'del reporte del setter' : 'sin cargar'} />
         <Salto valor={tasa(agendas, pitches)} rango={RANGOS.booking} label="booking" />
@@ -104,7 +102,7 @@ export default function EmbudoOps({ setting = {} }) {
       </div>
 
       {/* Un solo aviso, el primero que rompe: dos carteles juntos no los lee nadie. */}
-      {!fuente && sinMarcar ? (
+      {!partes.length && sinMarcar ? (
         <div className="embudo-aviso">
           <i className="dot warn" />
           <span>
@@ -115,13 +113,13 @@ export default function EmbudoOps({ setting = {} }) {
             Solo suman chats las que pedían algo: se marcan con el botón CTA en Marketing → Historias.
           </span>
         </div>
-      ) : !fuente ? (
+      ) : !partes.length ? (
         <div className="embudo-aviso">
           <i className="dot warn" />
           <span>
-            <strong>Todavía no entra ningún chat.</strong> Los avisa el flujo de ManyChat cuando
-            alguien escribe la palabra de un reel o de la bio: hasta que ese bloque apunte acá, la
-            primera etapa queda vacía.
+            <strong>Ninguna puerta trajo chats este mes.</strong> Entran por tres: respuestas a
+            historias marcadas con CTA, la palabra de un reel o de la bio que hace que ManyChat
+            abra el DM, y lo que venga por otro canal.
           </span>
         </div>
       ) : !pitches ? (

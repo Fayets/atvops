@@ -140,13 +140,27 @@ def marcar_pitch(datos: dict, usuario: dict) -> dict:
         return {"ok": True, "id": fila.id, "canal": _canal(canal)}
 
 
-def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
-           detalle_reuniones: dict | None = None) -> dict:
-    """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso.
+def chats(desde, hasta) -> dict:
+    """Los chats del mes, sumando todas las puertas por las que entra una conversación.
 
-    Las dos primeras etapas salen de las conversaciones que ATV Ops registra; las dos
-    últimas se pasan desde ventas, que es donde viven las reuniones. Un pitch es el link de
-    agenda enviado: acá el pitch y la aplicación son la misma acción, no dos.
+    Un chat es una conversación que arrancó porque el contenido la pidió. Hoy son tres
+    puertas y ninguna sabe de la otra:
+
+    - **Historias con CTA.** Alguien contesta una historia que pedía algo. Instagram lo
+      cuenta pieza por pieza; solo suman las secuencias marcadas con el botón CTA, porque
+      un día de historias sin CTA también junta respuestas y esas no son leads.
+    - **Reels y bio.** Alguien comenta la palabra de un reel o la escribe desde la bio y
+      ManyChat le abre el DM. Lo cuenta ATV Ops si el flujo ya avisa a este webhook; si
+      todavía no, el `lead` del CRM de atv-mkt, que los viene contando desde siempre.
+    - **Otras.** WhatsApp, cargadas a mano: lo que entre por un canal que no es Instagram.
+
+    Se devuelven las partes además del total. Un solo número no deja ver que el mes fue
+    bueno por historias y malo por reels, que es exactamente la decisión que hay que tomar.
+
+    **Ojo con el doble conteo.** Si una historia con CTA dice "respondé INFO" y ManyChat
+    reacciona a esa palabra, la misma persona entra por las dos puertas: como respuesta a
+    la historia y como lead con palabra. Por eso las partes se muestran siempre: si un mes
+    las dos suben juntas y el total no cierra con la realidad, es esto.
     """
     from pony.orm import db_session
 
@@ -157,69 +171,123 @@ def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
     try:
         with db_session:
             filas = [c for c in list(ConversacionIg.select()) if inicio <= c.at < fin]
-            todas = list(ConversacionIg.select())
+            historico = ConversacionIg.select().count()
     except Exception as e:  # noqa: BLE001
-        logger.warning("No se pudo leer el embudo: %s", str(e)[:160])
-        filas, todas = [], []
+        logger.warning("No se pudieron leer las conversaciones: %s", str(e)[:160])
+        filas, historico = [], 0
 
-    chats = [c for c in filas if c.evento == "conversacion"]
+    propias = [c for c in filas if c.evento == "conversacion"]
+    de_instagram = [c for c in propias if _canal(c.fuente) == "Instagram"]
+    otras = [c for c in propias if _canal(c.fuente) != "Instagram"]
 
-    # Los chats que todavía no avisa ningún webhook salen de las respuestas a historias:
-    # alguien que contesta una historia abrió una conversación por mensaje directo, y eso
-    # Instagram ya lo cuenta pieza por pieza. Cuando el webhook empiece a llegar, esas
-    # mismas respuestas entran como conversación y esta fuente deja de usarse: si no, el
-    # mismo mensaje se contaría dos veces.
-    #
-    # Solo cuentan las secuencias marcadas con CTA en Marketing. Un día de historias sin
-    # CTA también junta respuestas —gente que contesta un chiste— y meterlas acá infla el
-    # techo del embudo con conversaciones que nadie abrió para vender.
-    respuestas_historias = 0
-    secuencias_del_periodo: list[dict] = []
-    secuencias_con_cta: list[dict] = []
-    if not chats:
+    # --- Historias con CTA
+    secuencias: list[dict] = []
+    con_cta: list[dict] = []
+    try:
+        from src.services import instagram_services
+
+        secuencias = instagram_services.contenido(desde, hasta).get("secuencias", [])
+        con_cta = [x for x in secuencias if x.get("cta")]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las historias del período: %s", str(e)[:160])
+    por_historias = sum(x.get("respuestas") or 0 for x in con_cta)
+
+    # --- Reels y bio. Las propias mandan cuando tienen algo de ESTE mes; si no, el CRM.
+    # Mirar el histórico en vez del mes era el bug viejo: ATV Ops tiene avisos de Calendly
+    # desde hace rato y ni una conversación, así que la condición daba verdadera y el
+    # tablero mostraba cero.
+    del_crm = 0
+    if not de_instagram:
         try:
-            from src.services import instagram_services
+            from src.services import marketing_services
 
-            secuencias_del_periodo = instagram_services.contenido(desde, hasta).get("secuencias", [])
-            secuencias_con_cta = [s for s in secuencias_del_periodo if s.get("cta")]
-            respuestas_historias = sum(s.get("respuestas") or 0 for s in secuencias_con_cta)
+            del_crm = int(marketing_services._conversaciones_del_bot(desde, hasta).get("total") or 0)
         except Exception as e:  # noqa: BLE001
-            logger.warning("No se pudieron leer las respuestas a historias: %s", str(e)[:160])
+            logger.warning("No se pudo leer el CRM de atv-mkt: %s", str(e)[:160])
+    por_reels = len(de_instagram) or del_crm
 
-    por_canal: dict[str, dict] = {}
-    for c in chats:
-        d = por_canal.setdefault(_canal(c.fuente), {"canal": _canal(c.fuente), "chats": 0, "pitches": 0})
-        d["chats"] += 1
-    if respuestas_historias:
-        d = por_canal.setdefault("Instagram", {"canal": "Instagram", "chats": 0, "pitches": 0})
-        d["chats"] += respuestas_historias
-
-    # De dónde sale cada etapa, para poder abrirla y ver las filas que la componen.
-    detalle = {
-        "chats": ([{"cuando": c.at.date().isoformat(), "quien": c.nombre or c.ig_usuario or "Sin nombre",
-                    "dato": _canal(c.fuente)} for c in sorted(chats, key=lambda x: x.at, reverse=True)]
-                  or [{"cuando": s["fecha"], "quien": f"Secuencia de {s['piezas']} historias",
-                       "dato": f"{s.get('respuestas') or 0} respuestas",
-                       # La miniatura de la primera pieza: con verla se reconoce cuál fue.
-                       "foto": (s.get("historias") or [{}])[0].get("thumbnail")}
-                      for s in secuencias_con_cta]),
-        **(detalle_reuniones or {}),
-    }
+    partes = [
+        {"clave": "historias", "fuente": "Historias con CTA", "cuantos": por_historias,
+         "detalle": (f"de {len(con_cta)} {'secuencia marcada' if len(con_cta) == 1 else 'secuencias marcadas'}"
+                     f" sobre {len(secuencias)} del mes") if secuencias else "sin historias este mes"},
+        {"clave": "reels", "fuente": "Reels y bio", "cuantos": por_reels,
+         "detalle": "los abre el bot con la palabra" if de_instagram
+                    else ("los cuenta el CRM de atv-mkt" if del_crm else "sin chats por palabra este mes")},
+        {"clave": "otras", "fuente": "Otras", "cuantos": len(otras),
+         "detalle": "WhatsApp y cargadas a mano"},
+    ]
 
     return {
-        "detalle": detalle,
-        "chats": len(chats) or respuestas_historias,
-        "chatsFuente": "conversaciones" if chats else ("historias" if respuestas_historias else ""),
-        # Para poder decir "hay 12 secuencias y ninguna marcada" en vez de un cero mudo.
-        "secuenciasDelPeriodo": len(secuencias_del_periodo),
-        "secuenciasConCta": len(secuencias_con_cta),
+        "total": sum(p["cuantos"] for p in partes),
+        "partes": partes,
+        # Con qué nivel de confianza se mira el número de reels: propio, prestado o nada.
+        "reelsPropios": bool(de_instagram),
+        "webhookConectado": historico > 0,
+        "secuenciasDelPeriodo": len(secuencias),
+        "secuenciasConCta": len(con_cta),
+        "detalle": [
+            {"cuando": c.at.date().isoformat(), "quien": c.nombre or c.ig_usuario or "Sin nombre",
+             "dato": _canal(c.fuente)}
+            for c in sorted(propias, key=lambda x: x.at, reverse=True)
+        ] or [
+            {"cuando": x["fecha"], "quien": f"Secuencia de {x['piezas']} historias",
+             "dato": f"{x.get('respuestas') or 0} respuestas",
+             # La miniatura de la primera pieza: con verla se reconoce cuál fue.
+             "foto": (x.get("historias") or [{}])[0].get("thumbnail")}
+            for x in con_cta
+        ],
+    }
+
+
+def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
+           detalle_reuniones: dict | None = None) -> dict:
+    """El embudo del setter: chats, pitches, agendas y shows, con lo que convierte cada paso.
+
+    Los chats salen de `chats()`, que suma las tres puertas; las dos últimas etapas se
+    pasan desde ventas, que es donde viven las reuniones. Un pitch es el link de agenda
+    enviado: acá el pitch y la aplicación son la misma acción, no dos.
+    """
+    from pony.orm import db_session
+
+    from src.models import ConversacionIg
+
+    inicio = datetime.combine(desde, datetime.min.time())
+    fin = datetime.combine(hasta, datetime.min.time())
+    try:
+        with db_session:
+            filas = [c for c in list(ConversacionIg.select()) if inicio <= c.at < fin]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo leer el embudo: %s", str(e)[:160])
+        filas = []
+
+    c = chats(desde, hasta)
+
+    # El canal sirve para saber por dónde entra la gente, no solo cuánta. Las respuestas a
+    # historias son Instagram por definición.
+    por_canal: dict[str, dict] = {}
+    for fila in [x for x in filas if x.evento == "conversacion"]:
+        d = por_canal.setdefault(_canal(fila.fuente), {"canal": _canal(fila.fuente), "chats": 0, "pitches": 0})
+        d["chats"] += 1
+    por_historias = next((p["cuantos"] for p in c["partes"] if p["clave"] == "historias"), 0)
+    if por_historias:
+        d = por_canal.setdefault("Instagram", {"canal": "Instagram", "chats": 0, "pitches": 0})
+        d["chats"] += por_historias
+
+    return {
+        "detalle": {"chats": c["detalle"], **(detalle_reuniones or {})},
+        "chats": c["total"],
+        # De qué se compone el número. Un total solo no deja ver que el mes fue bueno por
+        # historias y malo por reels, que es la decisión que hay que tomar.
+        "chatsPartes": c["partes"],
+        "secuenciasDelPeriodo": c["secuenciasDelPeriodo"],
+        "secuenciasConCta": c["secuenciasConCta"],
         "pitches": pitches,
         "agendas": agendas,
         "shows": shows,
         "porCanal": sorted(por_canal.values(), key=lambda x: -x["chats"]),
-        # Sin un solo aviso todavía no hay embudo: el tablero lo dice en vez de poner ceros
-        # que parecen un mes malo.
-        "conectado": bool(todas) or bool(respuestas_historias),
+        # Sin una sola puerta abierta todavía no hay embudo: el tablero lo dice en vez de
+        # poner ceros que parecen un mes malo.
+        "conectado": c["total"] > 0 or c["webhookConectado"],
     }
 
 
@@ -256,9 +324,16 @@ def resumen(desde, hasta) -> dict:
         elif c.evento == "calendly":
             d["calendlys"] += 1
 
+    compuesto = chats(desde, hasta)
+
     return {
         # Sin ningún aviso todavía no hay fuente: el tablero tiene que decirlo, no poner 0.
         "conectado": total_historico > 0,
+        # `conversaciones` es lo que registró ATV Ops por su webhook; `chats` es la métrica
+        # del negocio, que suma historias con CTA, reels y lo que entre por otro canal.
+        # Marketing y el embudo de Ventas leen la misma para no poder discrepar.
+        "chats": compuesto["total"],
+        "chatsPartes": compuesto["partes"],
         "conversaciones": len(conversaciones),
         "calendlys": len(calendlys),
         "respuestas": sum(1 for c in filas if c.evento == "respuesta"),

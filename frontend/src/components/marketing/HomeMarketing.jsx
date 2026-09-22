@@ -74,7 +74,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
 
   const metaConversaciones = decreto?.conversaciones ?? 0;
   // Qué fuente manda vive en lib/chats.js, para que no se decida distinto en cada vista.
-  const chats = chatsDelMes(conversaciones, conv.total ?? 0);
+  const chats = chatsDelMes(conversaciones);
   const abiertas = chats.total;
   const calendlys = conversaciones?.calendlys ?? 0;
   const pct = metaConversaciones ? Math.round((abiertas / metaConversaciones) * 100) : null;

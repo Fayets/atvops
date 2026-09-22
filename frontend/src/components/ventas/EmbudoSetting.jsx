@@ -117,6 +117,11 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
   const [detalle, setDetalle] = useState(null);
 
   const e = embudo ?? {};
+  // De qué se compone el número: historias con CTA, reels y bio, otros canales.
+  const repartoChats = (e.chatsPartes ?? [])
+    .filter((p) => Number(p.cuantos) > 0)
+    .map((p) => `${p.fuente.toLowerCase()} ${p.cuantos}`)
+    .join(' · ');
   const metaChats = decreto.chats ?? 0;
   const metaPitches = decreto.conversaciones ?? 0;
   const metaAgendas = decreto.agendas ?? 0;
@@ -165,9 +170,7 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
         )}
         foot={e.conectado === false
           ? 'Chats y pitches todavía no tienen fuente conectada. Agendas y shows sí salen de la base de ATV Ops.'
-          : e.chatsFuente === 'historias'
-            ? 'Los chats son las respuestas a las secuencias de historias marcadas con CTA en Marketing: alguien que contesta una historia que pedía algo abrió una conversación. Cuando el webhook de Instagram esté conectado, pasan a contarse uno por uno.'
-            : 'Chats y pitches salen de las conversaciones; agendas y shows, de las reuniones.'}
+          : `Los chats entran por ${repartoChats || 'ninguna puerta este mes'}. Pitches sale del reporte del setter; agendas y shows, de las reuniones.`}
       >
         {marcando && (
           <form className="pitch-form" onSubmit={marcar}>
@@ -202,8 +205,7 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
         </div>
 
         <div className="embudo">
-          <Etapa label="Chats" valor={e.chats} meta={metaChats}
-            nota={e.chatsFuente === 'historias' ? 'respuestas a historias' : ''}
+          <Etapa label="Chats" valor={e.chats} meta={metaChats} nota={repartoChats}
             onVer={abrir('Chats', 'chats')} />
           <Paso conversion={pct(e.pitches, e.chats)} benchmark={BENCHMARKS.pitches} />
           <Etapa label="Pitches" valor={e.pitches} meta={metaPitches} onVer={abrir('Pitches', 'pitches')} />

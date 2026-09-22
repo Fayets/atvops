@@ -31,7 +31,7 @@ export default function MarketingOpsPage() {
   // Un solo lugar decide de dónde salen los chats del mes. El KPI de arriba y la
   // proyección de abajo son la misma métrica: si cada uno la resuelve por su cuenta,
   // terminan mostrando 106 y 0 en la misma pantalla.
-  const chatsMes = chatsDelMes(chats.data, mkt.data?.conversaciones?.total ?? 0);
+  const chatsMes = chatsDelMes(chats.data);
 
   return (
     <div className="page">

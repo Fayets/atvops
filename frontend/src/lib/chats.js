@@ -1,39 +1,32 @@
 /**
- * De dónde sale el número de chats del mes.
+ * Los chats del mes, tal como los compone el backend.
  *
- * Hay dos fuentes para el mismo hecho —una conversación que el bot abrió cuando alguien
- * mandó la palabra de un reel o de la bio—: el `lead` del CRM de atv-mkt, que los viene
- * contando desde siempre, y la tabla propia de ATV Ops, que se llena sola cuando el flujo
- * de ManyChat avisa a este webhook.
+ * Un chat es una conversación que arrancó porque el contenido la pidió, y entra por tres
+ * puertas: respuestas a historias marcadas con CTA, la palabra de un reel o de la bio que
+ * hace que ManyChat abra el DM, y lo que venga por otro canal. La suma y el reparto los
+ * decide `conversaciones_services.chats()`; acá solo se leen, para que Marketing y el
+ * embudo de Ventas no puedan mostrar números distintos de lo mismo.
  *
- * La regla era "si ATV Ops tiene alguna, mandan las propias", mirando el total histórico.
- * Con eso, una sola fila de una prueba hacía que todo el tablero cambiara de fuente y
- * mostrara 0 contra una meta de 1.200, mientras el KPI de arriba —que siempre leyó el
- * CRM— decía 106. La misma métrica, dos números, en la misma pantalla.
- *
- * Ahora la pregunta es por el mes que se está mirando: las propias mandan cuando tienen
- * algo de ESE mes. Si no, el CRM. Y siempre se dice cuál se usó: un número sin fuente
- * invita a discutirlo en vez de usarlo.
+ * Antes cada vista elegía su fuente por su cuenta y el mismo número salía 106 arriba y 0
+ * abajo en la misma pantalla.
  */
 
 /**
- * @param {object | null} propias Lo que devuelve GET /api/ventas/conversaciones del mes.
- * @param {number} crm El total del mes según el CRM de atv-mkt.
- * @returns {{ total: number, propia: boolean, fuente: string }}
+ * @param {object | null} resumen Lo que devuelve GET /api/ventas/conversaciones del mes.
+ * @returns {{ total: number, partes: Array<object>, fuente: string }}
  */
-export function chatsDelMes(propias, crm = 0) {
-  const delMes = Number(propias?.conversaciones ?? 0);
-  if (delMes > 0) {
-    return { total: delMes, propia: true, fuente: 'las cuenta ATV Ops' };
-  }
+export function chatsDelMes(resumen) {
+  const partes = resumen?.chatsPartes ?? [];
+  const total = Number(resumen?.chats ?? 0);
+  const conAlgo = partes.filter((p) => Number(p.cuantos) > 0);
+
   return {
-    total: Number(crm) || 0,
-    propia: false,
-    // Si ATV Ops ya recibió avisos alguna vez pero ninguno este mes, no es lo mismo que
-    // no haber recibido nunca: en un caso falta conectar el flujo, en el otro es un mes
-    // sin chats propios y el CRM está tapando el cero.
-    fuente: propias?.conectado
-      ? 'este mes no llegó ninguna a ATV Ops · las cuenta el CRM de atv-mkt'
-      : 'todavía las cuenta el CRM de atv-mkt',
+    total,
+    partes,
+    // El pie dice de dónde salió. Con una sola puerta abierta se nombra; con varias, el
+    // reparto, que es lo que hay que mirar para decidir dónde empujar.
+    fuente: conAlgo.length === 0
+      ? 'ninguna puerta trajo chats este mes'
+      : conAlgo.map((p) => `${p.fuente.toLowerCase()} ${p.cuantos}`).join(' · '),
   };
 }
