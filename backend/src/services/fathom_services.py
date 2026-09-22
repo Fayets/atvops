@@ -194,7 +194,13 @@ Reglas:
 - estado y plan: SOLO valores de las listas que te paso. Si ninguno encaja con lo que
   realmente pasó, devolvé null. NO elijas el más parecido.
 - Cómo elegir el estado:
-  - **Cerrado**: pagó el total. **Seña**: pagó una parte.
+  - **Cerrado**: la venta se cerró. Pagó el total, O pagó la primera cuota de un plan de
+    pago acordado. Un plan de pago es una venta cerrada que se cobra en partes: el
+    prospecto ya compró, ya sabe cuánto y cuándo, y arrancó.
+  - **Seña**: puso plata para reservar pero la venta NO está cerrada todavía — falta
+    definir el plan, o quedó en confirmar. El caso típico es una seña chica contra un
+    ticket grande ($50 de un programa de $5.000) donde el resto está por verse.
+    Si el monto y las fechas de todas las cuotas ya están acordados, es Cerrado, no Seña.
   - **No tiene la plata**: no cerró y el motivo fue el dinero — no lo tiene, no le
     alcanza, tiene que juntarlo, está endeudado.
   - **Lo voy a pensar**: no cerró y el motivo fue duda o indecisión, sin una objeción

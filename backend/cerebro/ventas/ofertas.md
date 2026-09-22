@@ -60,6 +60,17 @@ se vende ni se menciona en el pitch.
 el catálogo **solo para los clientes que ya están adentro**. Una venta nueva cargada con
 uno de esos nombres es un error de carga.
 
+## Cerrado vs. Seña
+
+Un **plan de pago es una venta cerrada**, no una seña: el cliente ya compró, ya sabe
+cuánto y cuándo, y pagó la primera cuota. Todos los niveles se venden en cuotas, así que
+tratar la cuota 1 como seña convertiría casi todas las ventas en señas y dejaría el
+close rate en el piso.
+
+Una **seña** es plata que entra para reservar cuando la venta todavía no está cerrada:
+falta acordar el plan, o quedó en confirmar. Se reconoce por ser chica contra el ticket
+($50 de un programa de $5.000).
+
 ## Cómo se valida una venta
 
 Dos chequeos, y cada uno falla distinto:
