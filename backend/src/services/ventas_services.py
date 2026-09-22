@@ -1127,7 +1127,9 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         ]
         return sorted(salida, key=lambda x: -x[campos[0]])
 
-    top_funnel = _suma_reportes(reportes_setter, ("conversaciones", "agendas", "links_enviados", "leads_nuevos", "outbounds", "seguimientos"))
+    # `pitches` es el escalón entre abrir la conversación y conseguir la agenda: sin él,
+    # el embudo salta de una punta a la otra y la fuga no se ve.
+    top_funnel = _suma_reportes(reportes_setter, ("conversaciones", "pitches", "agendas", "links_enviados", "leads_nuevos", "outbounds", "seguimientos"))
     reporte_closers_mes = _suma_reportes(reportes_closer, ("llamadas_agendadas", "shows", "cierres", "calificados", "descalificados", "ingreso"))
 
     dias_mes = (fin_mes - inicio_mes).days

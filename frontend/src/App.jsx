@@ -24,6 +24,8 @@ import VentasOperativaPage from './pages/VentasOperativa.jsx';
 import VentasOps from './pages/VentasOps.jsx';
 import VentasPerformancePage from './pages/VentasPerformance.jsx';
 import Setting from './pages/Setting.jsx';
+import Laboratorio from './pages/Laboratorio.jsx';
+import VentasDashboard from './pages/VentasDashboard.jsx';
 import VentasSetter from './pages/VentasSetter.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
@@ -64,7 +66,9 @@ function VentasIndex() {
   if (!puedeVerVentasDirector(rol) && puedeVerVentasOps(rol)) {
     return <Navigate to="/ventas/ops" replace />;
   }
-  return <VentasOperativaPage />;
+  // `/ventas` es el dashboard del área: los dos bloques y nada más. La Operativa sigue
+  // viva en su propia ruta, pero deja de ser la puerta de entrada.
+  return <VentasDashboard />;
 }
 
 function VentasMiDiaRoute() {
@@ -161,6 +165,9 @@ export default function App() {
             <Route path="ads" element={<Ads />} />
             <Route path="ventas">
               <Route index element={<VentasIndex />} />
+              <Route path="operativa" element={<VentasOperativaPage />} />
+              <Route path="lab-setting" element={<Laboratorio cual="setting" />} />
+              <Route path="lab-closing" element={<Laboratorio cual="closing" />} />
               <Route path="mi-dia" element={<VentasMiDiaRoute />} />
               <Route path="llamadas" element={<VentasLlamadas />} />
               <Route path="mi-progreso" element={<VentasMiProgresoRoute />} />

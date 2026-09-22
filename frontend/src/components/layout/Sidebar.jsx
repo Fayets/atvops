@@ -47,16 +47,17 @@ const NAV = [
     label: 'Ventas',
     grupo: 'Áreas',
     sub: [
-      { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer', 'admin', 'founder'] },
-      { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer', 'admin', 'founder'] },
-      // "Mi setting" es la pantalla propia del setter para cargar sus pitches: no es una
-      // lectura del área. Ops y dirección miran el embudo en Setting y Performance, así
-      // que acá solo ocupaba lugar en un menú que ya está largo. La ruta sigue abierta.
-      { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter', 'admin'] },
-      { to: '/ventas', label: 'Operativa', end: true, roles: ['ventas', 'admin', 'founder'] },
-      { to: '/ventas/performance', label: 'Performance', roles: ['ventas', 'admin', 'founder'] },
-      { to: '/ventas/setting', label: 'Setting', roles: ['admin', 'operaciones', 'founder', 'ventas'] },
-      { to: '/ventas/ops', label: 'Salud vs meta', roles: ['admin', 'operaciones', 'founder'] },
+      // Las pantallas propias de cada uno: Mi día es de Nick y Mi setting es de Cris.
+      // No son lecturas del área, así que no van en el menú de ops ni de dirección.
+      { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer'] },
+      { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer'] },
+      { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter'] },
+      // Ventas abre el dashboard del área —setting y closing, nada más— y debajo cuelgan
+      // los dos laboratorios. Operativa, Performance, Setting y Salud vs meta salieron
+      // del menú: sus rutas siguen vivas y su contenido se va a repartir entre los dos
+      // laboratorios cuando se definan.
+      { to: '/ventas/lab-setting', label: 'Laboratorio Setting', roles: ['ventas', 'admin', 'operaciones', 'founder'] },
+      { to: '/ventas/lab-closing', label: 'Laboratorio Closing', roles: ['ventas', 'admin', 'operaciones', 'founder'] },
     ],
   },
   { to: '/reporte', icon: 'check', label: 'Reporte semanal', grupo: 'Dirección' },
