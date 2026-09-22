@@ -484,3 +484,49 @@ def test_los_niveles_de_la_nota_coinciden_con_los_que_se_siembran():
     sembrados = {nombre for nombre, _, _ in PROGRAMAS_2026}
     faltan = [n for n in f._bandas() if n not in sembrados]
     assert not faltan, f"niveles de la nota que no se siembran en el catálogo: {faltan}"
+
+
+# ------------------------------------------------- el desvío se compone en código
+
+def test_el_desvio_nombra_el_nivel_correcto_no_el_que_eligio_el_modelo():
+    """El caso de Leonel: Nick vendió Mid y se equivocó la duración. El modelo lo
+    redactaba como "le vendió High y cobró precio de Mid" porque él había elegido High.
+    El código ya sabe el nivel, así que la comparación es directa."""
+    assert f._desvio({"duracion_dicha_meses": 6, "precio_dicho_usd": 15000}, "Mid Level") == \
+        "le dijo 6 meses y Mid Level dura 4"
+
+
+def test_sin_desvio_no_inventa_nada():
+    assert f._desvio({"duracion_dicha_meses": 4, "precio_dicho_usd": 14000}, "Mid Level") is None
+
+
+def test_un_precio_dentro_del_margen_no_se_marca():
+    """Los planes en cuotas suman distinto al contado: $15k contra $14k no es un error,
+    es el plan de pago."""
+    assert f._desvio({"precio_dicho_usd": 15000}, "Mid Level") is None
+    assert "vale US$ 14,000" in f._desvio({"precio_dicho_usd": 25000}, "Mid Level")
+
+
+def test_una_promesa_de_otro_nivel_se_marca():
+    assert f._desvio({"promesa_fuera_de_nivel": "le prometió WhatsApp con Juan"}, "Mid Level") == \
+        "le prometió WhatsApp con Juan"
+
+
+def test_sin_nivel_solo_queda_la_promesa():
+    """Si no se pudo determinar el nivel no hay contra qué comparar precio ni duración."""
+    assert f._desvio({"duracion_dicha_meses": 6, "promesa_fuera_de_nivel": "algo"}, None) == "algo"
+
+
+@pytest.mark.parametrize("pagos, resto, estado", [
+    (2, None, "Cerrado"),
+    (None, True, "Cerrado"),    # el conteo falló pero dijo que el resto está acordado
+    (0, None, "Seña"),
+    (None, False, "Seña"),
+    (None, None, "Seguimiento"),  # no hubo venta: no se toca
+])
+def test_dos_señales_para_decidir_si_cerro(pagos, resto, estado):
+    """Una sola falla: el modelo escribió "pagó la primera cuota, la segunda a 45 días"
+    en la nota y aun así no completó el conteo."""
+    campos = f._decidir_en_codigo(
+        {"estado": "Seguimiento", "pagos_acordados": pagos, "resto_acordado": resto}, [])
+    assert campos["estado"] == estado

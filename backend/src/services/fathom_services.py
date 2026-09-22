@@ -184,9 +184,12 @@ Devolvé ÚNICAMENTE un JSON:
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
  "pagos_acordados": <cuántos pagos quedaron acordados CON monto y fecha, o null>,
+ "resto_acordado": true | false | null,
+ "precio_dicho_usd": <el precio total que el closer dijo que costaba, o null>,
+ "duracion_dicha_meses": <cuántos meses dijo que dura, o null>,
  "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
  "encaje_motivo": "UNA frase corta con el dato que sostiene el puntaje, sea alto o bajo",
- "desvio_oferta": "UNA frase: qué dijo el closer que NO coincide con el documento, o null",
+ "promesa_fuera_de_nivel": "UNA frase: algo que prometió incluir y no es de ese nivel, o null",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -239,6 +242,15 @@ Reglas:
   **La palabra que usen en la llamada no decide.** Si le dicen "seña" a la primera de
   dos cuotas ya acordadas, son 2 pagos igual. Lo que cuenta es si el monto y el momento
   del resto ya están dichos.
+- **resto_acordado**: ¿el monto y el momento de lo que falta pagar ya están dichos en la
+  llamada? true o false. Si pagó todo de una, true. Si puso plata y el resto está por
+  verse, false. Si no hubo venta, null.
+- **precio_dicho_usd** y **duracion_dicha_meses**: el precio total y la cantidad de meses
+  que el closer dijo EN LA LLAMADA. Tal cual los dijo, sin corregirlos contra el
+  documento: sirven justamente para detectar si se equivocó. null si no los mencionó.
+- **promesa_fuera_de_nivel**: algo que prometió incluir y que el documento pone en otro
+  nivel — WhatsApp directo con Juan, gente dedicada a la cuenta, roadmap con Juan. null
+  si no prometió nada así. No cuentan el precio ni la duración: esos se chequean aparte.
 - **encaje_puntaje**: si hubo venta (Cerrado o Seña), qué tan bien le calza la oferta,
   del 1 al 10. Mirá los dos chequeos de la nota de ofertas: banda de facturación y
   avatar. La escala, para que el número signifique lo mismo siempre:
@@ -250,16 +262,15 @@ Reglas:
   - **1-2**: no debería habérsele vendido esto.
   - **null**: no hay con qué juzgarlo — no dijo a qué se dedica ni cuánto factura. No
     inventes un número para no dejarlo vacío.
-  **encaje_motivo va SIEMPRE, encaje o no**: UNA sola frase, del largo de las de la
-  nota. Lleva el dato que sostiene el veredicto,
-  nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
+  **encaje_motivo va SIEMPRE**: UNA sola frase, del largo de las de la nota. Lleva los
+  hechos que sostienen el puntaje, nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
   equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
   **NO nombres el nivel en encaje_motivo**: el nivel lo decide el sistema y se muestra
   arriba. Vos poné solo los hechos, que es lo que se puede verificar.
   Sirve: "15-20k/mes, equipo de 5, margen 60%, ads con ROAS 1.2".
   Sirve: "factura $600/mes y todavía no tiene un solo cliente estable".
   No sirve: "es el avatar de Mid" — eso lo concluye el sistema, no vos.
-  Lo que el closer dijo mal NO va acá: va en desvio_oferta.
+  Lo que el closer dijo mal NO va acá.
   No sirve: "el avatar y la facturación dan para esta oferta".
   No sirve: "no parece el perfil".
 - **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
@@ -306,8 +317,25 @@ def _nota_ofertas() -> str:
     return "(no hay nota de ofertas cargada: no valides el encaje, devolvé encaje null)"
 
 
+_TITULO = re.compile(r"^##\s+(.+?)\s+·\s*US\$\s*([\d.,]+)\s*·\s*(\d+)\s*meses", re.M)
 _BANDA = re.compile(r"^##\s+(.+?)\s+·", re.M)
 _FACTURA = re.compile(r"\*\*Factura:\*\*\s*(.+)")
+
+
+def _niveles() -> dict[str, dict]:
+    """Precio y duración de cada nivel, del título de su sección en la nota.
+
+    `## Mid Level · US$ 14.000 · 4 meses` → {"precio": 14000, "meses": 4}. Se leen para
+    poder comparar contra lo que el closer dijo en la llamada sin que el modelo tenga
+    que acordarse del documento.
+    """
+    salida = {}
+    for nombre, precio, meses in _TITULO.findall(_nota_ofertas()):
+        salida[nombre.strip()] = {
+            "precio": float(precio.replace(".", "").replace(",", ".")),
+            "meses": int(meses),
+        }
+    return salida
 
 
 def _bandas() -> dict[str, tuple[float, float]]:
@@ -411,11 +439,51 @@ def _decidir_en_codigo(campos: dict, planes: list[str]) -> dict:
         pagos = int(pagos) if pagos is not None and str(pagos).strip() != "" else None
     except (TypeError, ValueError):
         pagos = None
-    if pagos is not None and pagos >= 1:
+    resto = campos.get("resto_acordado")
+    # Dos señales para lo mismo, porque una sola falla: el modelo devolvió bien "pagó la
+    # primera cuota, la segunda a 45 días" en la nota y sin embargo no completó el
+    # conteo. Con que cualquiera de las dos diga que el resto está acordado, alcanza.
+    if (pagos is not None and pagos >= 1) or resto is True:
         campos["estado"] = "Cerrado"
-    elif pagos == 0:
+    elif pagos == 0 or resto is False:
         campos["estado"] = "Seña"
+
+    campos["desvio_oferta"] = _desvio(campos, campos.get("plan"))
     return campos
+
+
+def _desvio(campos: dict, nivel) -> str | None:
+    """Qué dijo el closer que no coincide con el documento.
+
+    Se compone acá y no en el modelo porque el modelo elige mal el nivel y después
+    redacta el desvío contra su propia elección: decía "le vendió High y cobró precio de
+    Mid" cuando lo que pasó fue que vendió Mid y se equivocó la duración. El código ya
+    sabe cuál es el nivel, así que la comparación es directa.
+    """
+    datos = _niveles().get(str(nivel or "").strip())
+    partes = []
+    if datos:
+        meses = campos.get("duracion_dicha_meses")
+        try:
+            meses = int(meses) if meses not in (None, "") else None
+        except (TypeError, ValueError):
+            meses = None
+        if meses and meses != datos["meses"]:
+            partes.append(f"le dijo {meses} meses y {nivel} dura {datos['meses']}")
+
+        precio = campos.get("precio_dicho_usd")
+        try:
+            precio = float(str(precio).replace(",", "")) if precio not in (None, "") else None
+        except (TypeError, ValueError):
+            precio = None
+        # Un 10% de margen: los planes en cuotas suman distinto al precio de contado.
+        if precio and abs(precio - datos["precio"]) > datos["precio"] * 0.1:
+            partes.append(f"cobró US$ {precio:,.0f} y {nivel} vale US$ {datos['precio']:,.0f}")
+
+    promesa = str(campos.get("promesa_fuera_de_nivel") or "").strip()
+    if promesa and promesa.lower() not in ("null", "none"):
+        partes.append(promesa)
+    return " · ".join(partes) or None
 
 
 def _json_de(texto: str) -> dict:
