@@ -254,8 +254,11 @@ Reglas:
   nota. Lleva el dato que sostiene el veredicto,
   nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
   equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
-  Sirve: "15-20k/mes, equipo de 5, margen 60%: es el avatar de Mid".
-  Sirve: "factura $600/mes y Entry arranca pensado para 2-5k".
+  **NO nombres el nivel en encaje_motivo**: el nivel lo decide el sistema y se muestra
+  arriba. Vos poné solo los hechos, que es lo que se puede verificar.
+  Sirve: "15-20k/mes, equipo de 5, margen 60%, ads con ROAS 1.2".
+  Sirve: "factura $600/mes y todavía no tiene un solo cliente estable".
+  No sirve: "es el avatar de Mid" — eso lo concluye el sistema, no vos.
   Lo que el closer dijo mal NO va acá: va en desvio_oferta.
   No sirve: "el avatar y la facturación dan para esta oferta".
   No sirve: "no parece el perfil".
@@ -521,6 +524,7 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "cashUsd": _numero(campos.get("cash_usd")),
         "nota": _dos_frases(campos.get("nota")),
         "facturacionUsd": _numero(campos.get("facturacion_usd")),
+        "pagosAcordados": campos.get("pagos_acordados"),
         "encajePuntaje": _puntaje(campos.get("encaje_puntaje")),
         "encaje": _veredicto(_puntaje(campos.get("encaje_puntaje"))),
         # 110 era muy corto para una justificación con evidencia: se cortaba justo donde
@@ -696,7 +700,9 @@ def recibir(cuerpo: bytes, headers) -> dict:
             # en la cola; si ya salió, se actualiza el texto pero no se repite.
         ident = reunion.evento_id if reunion else None
     log.info("Fathom: %s → %s (completó %s)", datos["titulo"], campos["estado"], guardado["completados"] or "nada")
-    return {"ok": True, "eventoId": ident, "estado": campos["estado"], "mensaje": texto, **guardado}
+    return {"ok": True, "eventoId": ident, "estado": campos["estado"], "mensaje": texto,
+            "pagosAcordados": campos.get("pagosAcordados"),
+            "facturacionUsd": campos.get("facturacionUsd"), **guardado}
 
 
 # ------------------------------------------------------------------ para Theo
