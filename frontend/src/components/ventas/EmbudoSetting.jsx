@@ -166,7 +166,7 @@ export default function EmbudoSetting({ embudo, decreto = {}, onPitch }) {
         foot={e.conectado === false
           ? 'Chats y pitches todavía no tienen fuente conectada. Agendas y shows sí salen de la base de ATV Ops.'
           : e.chatsFuente === 'historias'
-            ? 'Los chats son las respuestas a las historias del mes: alguien que contesta una historia abrió una conversación. Cuando el webhook de Instagram esté conectado, pasan a contarse uno por uno.'
+            ? 'Los chats son las respuestas a las secuencias de historias marcadas con CTA en Marketing: alguien que contesta una historia que pedía algo abrió una conversación. Cuando el webhook de Instagram esté conectado, pasan a contarse uno por uno.'
             : 'Chats y pitches salen de las conversaciones; agendas y shows, de las reuniones.'}
       >
         {marcando && (

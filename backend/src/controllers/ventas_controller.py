@@ -288,6 +288,24 @@ def instagram_sincronizar(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"No se pudo sincronizar: {str(e)[:180]}")
 
 
+@router.post("/instagram/cta")
+def instagram_marcar_cta(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+    """Marca si un día de historias tenía CTA. Solo las marcadas suman chats al embudo."""
+    if user.get("rol") not in {"admin", "operaciones", "founder", "marketing", "ventas"}:
+        raise HTTPException(status_code=403, detail="Tu rol no puede marcar el CTA de una secuencia.")
+    try:
+        return instagram.marcar_cta(
+            str((payload or {}).get("fecha") or ""),
+            bool((payload or {}).get("cta")),
+            quien=str(user.get("nombre") or user.get("username") or ""),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló marcar el CTA de la secuencia")
+        raise HTTPException(status_code=500, detail=f"No se pudo marcar: {str(e)[:180]}")
+
+
 @router.post("/reuniones/{evento_id}/ocultar")
 def ocultar_reunion(evento_id: str, user: dict = Depends(solo_interno),
                     payload: dict = Body(default={}), mostrar: bool = False):

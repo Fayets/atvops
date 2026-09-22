@@ -71,3 +71,59 @@ def test_el_alta_del_webhook_exige_el_token(monkeypatch):
         ig.verificar_alta("subscribe", "otro", "1234")
     with _pytest.raises(PermissionError):
         ig.verificar_alta("unsubscribe", "abc", "1234")
+
+
+# ------------------------------------------------- el CTA de una secuencia de historias
+
+from datetime import date  # noqa: E402
+
+
+def _embudo_con(secuencias, monkeypatch):
+    """Corre el embudo con estas secuencias y sin ninguna conversación en la base."""
+    from src.services import instagram_services
+
+    monkeypatch.setattr(c, "_canal", c._canal)
+    monkeypatch.setattr(instagram_services, "contenido",
+                        lambda desde, hasta: {"secuencias": secuencias, "reels": [], "conectado": True})
+    return c.embudo(date(2026, 9, 1), date(2026, 10, 1))
+
+
+def test_solo_las_secuencias_con_cta_suman_chats(monkeypatch):
+    """Un día de historias sin CTA también junta respuestas, y esas no son leads.
+
+    Es la regla entera del botón: si contáramos todo, el techo del embudo se llenaría de
+    gente que contestó un chiste y la tasa a pitch quedaría en el piso sin motivo.
+    """
+    secuencias = [
+        {"fecha": "2026-09-03", "piezas": 4, "respuestas": 18, "cta": True, "historias": [{}]},
+        {"fecha": "2026-09-05", "piezas": 3, "respuestas": 40, "cta": False, "historias": [{}]},
+        {"fecha": "2026-09-09", "piezas": 5, "respuestas": 7, "cta": True, "historias": [{}]},
+    ]
+    e = _embudo_con(secuencias, monkeypatch)
+
+    assert e["chats"] == 25, "solo las dos marcadas: 18 + 7"
+    assert e["chatsFuente"] == "historias"
+    assert e["secuenciasDelPeriodo"] == 3
+    assert e["secuenciasConCta"] == 2
+    # El detalle tiene que mostrar lo que suma, no todo lo que se publicó.
+    assert len(e["detalle"]["chats"]) == 2
+
+
+def test_sin_ninguna_marcada_el_embudo_no_inventa_chats(monkeypatch):
+    """Cero marcadas es cero chats, y el tablero tiene con qué explicar por qué."""
+    secuencias = [
+        {"fecha": "2026-09-03", "piezas": 4, "respuestas": 18, "cta": False, "historias": [{}]},
+        {"fecha": "2026-09-05", "piezas": 3, "respuestas": 40, "cta": False, "historias": [{}]},
+    ]
+    e = _embudo_con(secuencias, monkeypatch)
+
+    assert e["chats"] == 0
+    assert e["chatsFuente"] == ""
+    assert e["secuenciasDelPeriodo"] == 2
+    assert e["secuenciasConCta"] == 0
+
+
+def test_una_secuencia_vieja_sin_el_campo_cta_no_suma(monkeypatch):
+    """El estado por defecto es "no suma": lo que no tiene marca, no entra."""
+    secuencias = [{"fecha": "2026-09-03", "piezas": 4, "respuestas": 18, "historias": [{}]}]
+    assert _embudo_con(secuencias, monkeypatch)["chats"] == 0

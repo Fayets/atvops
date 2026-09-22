@@ -796,6 +796,15 @@ export async function getInstagramPropio(mes) {
   return pedir(`/api/ventas/instagram${mes ? `?mes=${mes}` : ''}`);
 }
 
+/** Marca si un día de historias tenía CTA: solo las marcadas suman chats al embudo. */
+export async function marcarCtaSecuencia(fecha, cta) {
+  return pedir('/api/ventas/instagram/cta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fecha, cta }),
+  });
+}
+
 /** Trae ahora lo último de Instagram, sin esperar la pasada de cada tres horas. */
 export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });

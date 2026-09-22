@@ -42,7 +42,7 @@ function veredicto(valor, rango) {
 /** De dónde salió el número de chats. Si no salió de ningún lado, hay que decirlo. */
 const FUENTE_CHATS = {
   conversaciones: 'automático · ManyChat',
-  historias: 'automático · respuestas a historias',
+  historias: 'automático · historias con CTA',
 };
 
 function Ficha({ etapa, n, pie, atenuado }) {
@@ -86,6 +86,11 @@ export default function EmbudoOps({ setting = {} }) {
   // las agendas del mes: dividir por las futuras da rojo hasta el día 30.
   const showRate = setting.showRate ?? tasa(shows, agendas);
 
+  // Cero chats teniendo secuencias publicadas casi siempre es olvido de marcar el CTA,
+  // no un mes sin historias. Vale la pena decirlo distinto.
+  const secuencias = Number(setting.secuenciasDelPeriodo ?? 0);
+  const sinMarcar = secuencias > 0 && Number(setting.secuenciasConCta ?? 0) === 0;
+
   return (
     <section className="card embudo-card">
       <div className="embudo-fila">
@@ -99,7 +104,18 @@ export default function EmbudoOps({ setting = {} }) {
       </div>
 
       {/* Un solo aviso, el primero que rompe: dos carteles juntos no los lee nadie. */}
-      {!fuente ? (
+      {!fuente && sinMarcar ? (
+        <div className="embudo-aviso">
+          <i className="dot warn" />
+          <span>
+            <strong>
+              Hay {formatValue(secuencias, 'count')} {secuencias === 1 ? 'secuencia' : 'secuencias'} de
+              historias este mes y ninguna marcada con CTA.
+            </strong>{' '}
+            Solo suman chats las que pedían algo: se marcan con el botón CTA en Marketing → Historias.
+          </span>
+        </div>
+      ) : !fuente ? (
         <div className="embudo-aviso">
           <i className="dot warn" />
           <span>

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
+import { marcarCtaSecuencia } from '../../data/api.js';
 import { formatValue } from '../../lib/format.js';
 
 /**
@@ -8,6 +10,11 @@ import { formatValue } from '../../lib/format.js';
  * Se leen como se publicaron: de izquierda a derecha, en orden. Entre pieza y pieza va
  * cuánta gente se cayó, que es el dato que decide si la secuencia sirvió: una caída del
  * 30% en la tercera dice más que el total de vistas del día.
+ *
+ * El botón CTA decide si las respuestas de ese día entran al contador de chats del
+ * embudo. Instagram no sabe cuál secuencia pedía algo y cuál solo contaba una historia:
+ * eso lo sabe el que publicó, y sin la marca las respuestas a un chiste entraban al
+ * embudo como si fueran leads.
  */
 
 const dia = (iso) =>
@@ -25,6 +32,46 @@ function Metrica({ label, valor, tono }) {
   );
 }
 
+/** Prende o apaga el CTA del día. El cambio se ve al toque y se revierte si falla. */
+function BotonCta({ fecha, inicial }) {
+  const [cta, setCta] = useState(Boolean(inicial));
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function alternar() {
+    const siguiente = !cta;
+    setCta(siguiente);
+    setGuardando(true);
+    setError(false);
+    try {
+      await marcarCtaSecuencia(fecha, siguiente);
+    } catch {
+      setCta(!siguiente);
+      setError(true);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className={`btn sm cta-toggle${cta ? ' activo' : ''}`}
+      onClick={alternar}
+      disabled={guardando}
+      aria-pressed={cta}
+      title={error
+        ? 'No se pudo guardar. Probá de nuevo.'
+        : cta
+          ? 'Esta secuencia tenía CTA: sus respuestas suman chats al embudo. Tocá para sacarla.'
+          : 'Esta secuencia no suma chats al embudo. Tocá si tenía CTA.'}
+    >
+      <i className="cta-luz" />
+      CTA
+    </button>
+  );
+}
+
 function Secuencia({ s }) {
   const historias = s.historias ?? [];
   const primera = historias[0];
@@ -37,10 +84,15 @@ function Secuencia({ s }) {
     <Card
       title={dia(s.fecha)}
       sub={`${s.piezas} ${s.piezas === 1 ? 'pieza' : 'piezas'}${desde ? ` · ${desde} a ${hasta}` : ''}`}
-      actions={s.retencion != null && (
-        <Pill tone={s.retencion >= 70 ? 'ok' : s.retencion >= 50 ? 'warn' : 'alert'} dot>
-          {s.retencion}% llega al final
-        </Pill>
+      actions={(
+        <>
+          <BotonCta fecha={s.fecha} inicial={s.cta} />
+          {s.retencion != null && (
+            <Pill tone={s.retencion >= 70 ? 'ok' : s.retencion >= 50 ? 'warn' : 'alert'} dot>
+              {s.retencion}% llega al final
+            </Pill>
+          )}
+        </>
       )}
       flush
       foot={caida != null

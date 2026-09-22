@@ -5240,6 +5240,15 @@ button.lista-item:hover { background: var(--surface-2); }
 @media (max-width: 900px) { .reel-fila { grid-template-columns: minmax(140px, 2fr) repeat(var(--reel-cols), minmax(48px, 1fr)); }
   .reel-fila > span:nth-child(2) { display: none; } }
 
+/* El interruptor de CTA de una secuencia. Apagado no lleva color: es el estado normal,
+   y pintar de gris "no suma" sería darle un veredicto a algo que no lo tiene. Prendido
+   sí, porque ahí la secuencia entró a una métrica. */
+.cta-toggle { gap: 7px; letter-spacing: .06em; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+.cta-luz { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background .15s; }
+.cta-toggle.activo { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 38%, transparent); background: var(--ok-dim); }
+.cta-toggle.activo .cta-luz { background: var(--ok); }
+.cta-toggle:disabled { opacity: .55; cursor: progress; }
+
 /* Los números del día, todos del mismo ancho para que la fila quede pareja. */
 .seq-metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: 1px; background: var(--border-soft); border-bottom: 1px solid var(--border-soft); }

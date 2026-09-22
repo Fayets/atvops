@@ -169,14 +169,20 @@ def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
     # Instagram ya lo cuenta pieza por pieza. Cuando el webhook empiece a llegar, esas
     # mismas respuestas entran como conversación y esta fuente deja de usarse: si no, el
     # mismo mensaje se contaría dos veces.
+    #
+    # Solo cuentan las secuencias marcadas con CTA en Marketing. Un día de historias sin
+    # CTA también junta respuestas —gente que contesta un chiste— y meterlas acá infla el
+    # techo del embudo con conversaciones que nadie abrió para vender.
     respuestas_historias = 0
     secuencias_del_periodo: list[dict] = []
+    secuencias_con_cta: list[dict] = []
     if not chats:
         try:
             from src.services import instagram_services
 
             secuencias_del_periodo = instagram_services.contenido(desde, hasta).get("secuencias", [])
-            respuestas_historias = sum(s.get("respuestas") or 0 for s in secuencias_del_periodo)
+            secuencias_con_cta = [s for s in secuencias_del_periodo if s.get("cta")]
+            respuestas_historias = sum(s.get("respuestas") or 0 for s in secuencias_con_cta)
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudieron leer las respuestas a historias: %s", str(e)[:160])
 
@@ -196,7 +202,7 @@ def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
                        "dato": f"{s.get('respuestas') or 0} respuestas",
                        # La miniatura de la primera pieza: con verla se reconoce cuál fue.
                        "foto": (s.get("historias") or [{}])[0].get("thumbnail")}
-                      for s in secuencias_del_periodo]),
+                      for s in secuencias_con_cta]),
         **(detalle_reuniones or {}),
     }
 
@@ -204,6 +210,9 @@ def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
         "detalle": detalle,
         "chats": len(chats) or respuestas_historias,
         "chatsFuente": "conversaciones" if chats else ("historias" if respuestas_historias else ""),
+        # Para poder decir "hay 12 secuencias y ninguna marcada" en vez de un cero mudo.
+        "secuenciasDelPeriodo": len(secuencias_del_periodo),
+        "secuenciasConCta": len(secuencias_con_cta),
         "pitches": pitches,
         "agendas": agendas,
         "shows": shows,

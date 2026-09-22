@@ -271,10 +271,57 @@ def contenido(desde, hasta) -> dict:
     por_dia: dict[str, list[dict]] = {}
     for h in historias:
         por_dia.setdefault(h["fecha"][:10], []).append(h)
-    secuencias = [_secuencia(dia, items) for dia, items in sorted(por_dia.items(), reverse=True)]
+    marcadas = cta_marcadas()
+    secuencias = [{**_secuencia(dia, items), "cta": dia in marcadas}
+                  for dia, items in sorted(por_dia.items(), reverse=True)]
 
     return {"reels": sorted(reels, key=lambda r: r["fecha"], reverse=True),
             "secuencias": secuencias, "conectado": True}
+
+
+def cta_marcadas() -> set[str]:
+    """Los días de historias marcados con CTA. Sin marca, la secuencia no suma chats."""
+    from pony.orm import db_session
+
+    from src.models import SecuenciaCta
+
+    try:
+        with db_session:
+            return {f.fecha for f in list(SecuenciaCta.select()) if f.cta}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las secuencias con CTA: %s", str(e)[:160])
+        return set()
+
+
+def marcar_cta(fecha: str, cta: bool, quien: str = "") -> dict:
+    """Prende o apaga el CTA de un día de historias.
+
+    Apagar borra la fila en vez de guardar `cta = False`: el estado por defecto es "no
+    suma", así que una fila apagada y una fila que no existe significan lo mismo y tener
+    las dos formas solo da lugar a que se desincronicen.
+    """
+    from datetime import datetime as _dt
+
+    from pony.orm import db_session
+
+    from src.models import SecuenciaCta
+
+    dia = str(fecha or "").strip()[:10]
+    if len(dia) != 10 or dia[4] != "-" or dia[7] != "-":
+        raise ValueError("La fecha de la secuencia tiene que ser AAAA-MM-DD.")
+
+    with db_session:
+        fila = SecuenciaCta.get(fecha=dia)
+        if cta:
+            if fila is None:
+                SecuenciaCta(fecha=dia, cta=True, marcado_por=quien or "", marcado_at=_dt.utcnow())
+            else:
+                fila.cta = True
+                fila.marcado_por = quien or ""
+                fila.marcado_at = _dt.utcnow()
+        elif fila is not None:
+            fila.delete()
+    return {"fecha": dia, "cta": bool(cta)}
 
 
 def _secuencia(dia: str, items: list[dict]) -> dict:

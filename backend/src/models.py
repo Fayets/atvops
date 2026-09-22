@@ -522,6 +522,26 @@ class PublicacionIg(db.Entity):
     actualizado_at = Required(datetime, default=datetime.utcnow)
 
 
+class SecuenciaCta(db.Entity):
+    """Qué secuencia de historias tenía CTA, marcado a mano.
+
+    Una secuencia es un día de historias. Instagram no dice cuál pedía algo y cuál solo
+    mostraba: eso lo sabe el que publicó. Sin esta marca, las respuestas de un día de
+    historias sin CTA entraban al contador de chats igual que las de un día con la
+    palabra clave, y el embudo arrancaba con un techo inflado.
+
+    Una fila por día marcado. Si no hay fila, esa secuencia no suma.
+    """
+
+    _table_ = _tabla("secuencias_cta", "SecuenciaCta")
+
+    id = PrimaryKey(int, auto=True)
+    fecha = Required(str, unique=True)        # AAAA-MM-DD, el día de la secuencia
+    cta = Required(bool, default=True)
+    marcado_por = Optional(str)
+    marcado_at = Required(datetime, default=datetime.utcnow)
+
+
 class ConversacionIg(db.Entity):
     """Cada vez que alguien abrió una conversación por Instagram, o que se le mandó el link.
 
