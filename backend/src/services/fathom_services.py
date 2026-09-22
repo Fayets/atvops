@@ -221,23 +221,22 @@ Reglas:
   rango, el piso. Si habló de lo que factura un cliente suyo y no él, null. Si no lo
   dijo, null: no lo deduzcas del tamaño del negocio ni de los seguidores.
 - **encaje_puntaje**: si hubo venta (Cerrado o Seña), qué tan bien le calza la oferta,
-  del 1 al 10. Mirá los tres chequeos de la nota de ofertas: banda de facturación,
-  avatar, y capacidad de pago (una cuota que se lleva más del 30% de lo que factura por
-  mes no se va a pagar). La escala, para que el número signifique lo mismo siempre:
-  - **9-10**: los tres cierran con holgura. Es el avatar del nivel hecho persona.
+  del 1 al 10. Mirá los dos chequeos de la nota de ofertas: banda de facturación y
+  avatar. La escala, para que el número signifique lo mismo siempre:
+  - **9-10**: los dos cierran con holgura. Es el avatar del nivel hecho persona.
   - **7-8**: cierran, con un detalle menor — está en el borde de la banda, o el equipo
     es más chico de lo típico.
-  - **5-6**: uno de los tres falla, pero hay contexto que lo explica.
-  - **3-4**: uno falla claro. La venta se va a sentir en cobranza o en fulfillment.
+  - **5-6**: uno de los dos falla, pero hay contexto que lo explica.
+  - **3-4**: uno falla claro. La venta se va a sentir en fulfillment.
   - **1-2**: no debería habérsele vendido esto.
-  - **null**: no hay con qué juzgarlo — no dijo qué factura, no se habló del plan. No
+  - **null**: no hay con qué juzgarlo — no dijo a qué se dedica ni cuánto factura. No
     inventes un número para no dejarlo vacío.
   **encaje_motivo va SIEMPRE, encaje o no**: UNA sola frase, del largo de las de la
   nota. Lleva el dato que sostiene el veredicto,
   nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
   equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
   Sirve: "15-20k/mes, equipo de 5, margen 60%: es el avatar de Mid".
-  Sirve: "factura $600/mes y la cuota es $1.800".
+  Sirve: "factura $600/mes y Entry arranca pensado para 2-5k".
   Lo que el closer dijo mal NO va acá: va en desvio_oferta.
   No sirve: "el avatar y la facturación dan para esta oferta".
   No sirve: "no parece el perfil".

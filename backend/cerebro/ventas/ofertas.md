@@ -62,19 +62,15 @@ uno de esos nombres es un error de carga.
 
 ## Cómo se valida una venta
 
-Tres chequeos, y cada uno falla distinto:
+Dos chequeos, y cada uno falla distinto:
 
 1. **Banda de facturación.** Lo que factura el prospecto tiene que caer en la banda del
    nivel que compró. Vender High a alguien de $12k/mes es venderle una máquina que no
    tiene con qué alimentar.
 2. **Avatar.** El perfil tiene que coincidir con el del nivel. Alguien sin equipo ni
    volumen no es Mid por más que tenga la plata.
-3. **Capacidad de pago.** La cuota mensual contra lo que factura por mes. **Una cuota que
-   se lleva más del 30% de la facturación mensual es una cuota que no se va a pagar**, y
-   termina en cobranza o en reembolso. Este chequeo no está en el documento de ofertas:
-   sale de mirar qué ventas se caen.
 
-Los tres se evalúan con lo que el prospecto dijo en la llamada, no con lo que figura en
+Los dos se evalúan con lo que el prospecto dijo en la llamada, no con lo que figura en
 el CRM. Si en la transcripción no se menciona la facturación, el chequeo no se hace: no
 se asume nada.
 
