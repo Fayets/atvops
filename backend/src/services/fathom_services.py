@@ -584,3 +584,21 @@ def marcar_enviados(ids: list[str]) -> int:
             r.reporte_enviado_at = datetime.utcnow()
             n += 1
     return n
+
+
+@db_session
+def reencolar(ids: list[str]) -> int:
+    """Vuelve a poner un reporte en la cola para que Theo lo mande de nuevo.
+
+    Hace falta porque el aviso repetido de Fathom ya NO reencola nada: así se evita que
+    un reintento repita la llamada en el grupo. Pero a veces se quiere justamente eso —
+    cambió el formato del mensaje, o se corrigió el resultado— y sin esto la única salida
+    era tocar la base a mano.
+    """
+    n = 0
+    for ident in ids:
+        r = ReunionCrm.get(evento_id=ident)
+        if r is not None and (r.reporte_mensaje or "").strip():
+            r.reporte_enviado_at = None
+            n += 1
+    return n

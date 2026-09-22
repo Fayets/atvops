@@ -299,3 +299,27 @@ def test_un_encaje_inventado_se_descarta():
 def test_la_facturacion_se_lee_como_numero():
     assert f._validar({"facturacion_usd": "US$ 15.000"}, ESTADOS, PLANES)["facturacionUsd"] == 15000.0
     assert f._validar({"facturacion_usd": None}, ESTADOS, PLANES)["facturacionUsd"] is None
+
+
+def test_reencolar_es_la_marcha_atras_del_marcado(monkeypatch):
+    """El aviso repetido de Fathom ya no reencola, así que hace falta una forma
+    explícita de pedir que un reporte vuelva a salir: cambió el formato del mensaje,
+    o se corrigió el resultado."""
+    import src.services.fathom_services as fs
+    enviada = ReunionFalsa(reporte_mensaje="el reporte")
+    enviada.reporte_enviado_at = datetime(2026, 9, 22, 12, 0)
+
+    monkeypatch.setattr(fs, "db_session", lambda f: f)
+    monkeypatch.setattr(fs.ReunionCrm, "get", staticmethod(lambda **kw: enviada))
+    assert fs.reencolar(["ev1"]) == 1
+    assert enviada.reporte_enviado_at is None
+
+
+def test_no_se_reencola_un_reporte_que_no_existe(monkeypatch):
+    """Sin mensaje armado no hay nada que mandar: reencolarlo dejaría una fila muda
+    trabada en la cola para siempre."""
+    import src.services.fathom_services as fs
+    vacia = ReunionFalsa(reporte_mensaje="")
+    monkeypatch.setattr(fs, "db_session", lambda f: f)
+    monkeypatch.setattr(fs.ReunionCrm, "get", staticmethod(lambda **kw: vacia))
+    assert fs.reencolar(["ev1"]) == 0

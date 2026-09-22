@@ -131,4 +131,8 @@ async def fathom_enviados(request: Request):
     ids = (cuerpo or {}).get("eventoIds") or []
     if not isinstance(ids, list):
         raise HTTPException(status_code=400, detail="eventoIds tiene que ser una lista.")
-    return {"marcados": fathom_services.marcar_enviados([str(i) for i in ids])}
+    ident = [str(i) for i in ids]
+    # `reencolar` es la marcha atrás: vuelve a dejar el reporte en la cola.
+    if bool((cuerpo or {}).get("reencolar")):
+        return {"reencolados": fathom_services.reencolar(ident)}
+    return {"marcados": fathom_services.marcar_enviados(ident)}
