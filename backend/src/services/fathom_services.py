@@ -185,6 +185,7 @@ Devolvé ÚNICAMENTE un JSON:
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
  "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
  "encaje_motivo": "UNA frase corta con el dato que sostiene el puntaje, sea alto o bajo",
+ "desvio_oferta": "UNA frase: qué dijo el closer que NO coincide con el documento, o null",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -205,6 +206,17 @@ Reglas:
 - **"Seguimiento" es el último recurso, no el default.** Si el motivo real fue la plata
   o la duda, usá el estado específico: esa distinción es justamente lo que se quiere
   medir, y el closer no la va a tipear nunca. Vos tenés la transcripción y él no.
+- **El documento de ofertas es la fuente de la verdad, no lo que se dijo en la llamada.**
+  Para elegir el `plan`, mirá el avatar, la banda de facturación y qué se le prometió
+  instalar: el nivel es el que describe el documento, aunque el closer haya dicho otro
+  precio u otra duración.
+- **desvio_oferta**: si el closer describió la oferta de una forma que contradice el
+  documento, poné qué dijo mal. Ejemplos: le dijo que Mid dura 6 meses cuando dura 4;
+  le prometió WhatsApp directo con Juan en un Mid, que es de High; le cobró un precio
+  que no es el del nivel ni un plan de pago previsto.
+  Es lo más caro de todo: el cliente entra esperando algo que no compró, y el que se
+  come el problema es fulfillment dos meses después. Si todo lo que dijo coincide con
+  el documento, va null. No lo fuerces: un desvío inventado hace que nadie mire los reales.
 - facturacion_usd: lo que el prospecto dijo que factura POR MES, en dólares. Si dio un
   rango, el piso. Si habló de lo que factura un cliente suyo y no él, null. Si no lo
   dijo, null: no lo deduzcas del tamaño del negocio ni de los seguidores.
@@ -226,8 +238,7 @@ Reglas:
   equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
   Sirve: "15-20k/mes, equipo de 5, margen 60%: es el avatar de Mid".
   Sirve: "factura $600/mes y la cuota es $1.800".
-  Si el precio o la duración que se cerró NO coinciden con ninguna oferta del catálogo,
-  decilo ahí: "cerró $15k a 6 meses, que no es ni Mid ni High".
+  Lo que el closer dijo mal NO va acá: va en desvio_oferta.
   No sirve: "el avatar y la facturación dan para esta oferta".
   No sirve: "no parece el perfil".
 - **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
@@ -421,6 +432,7 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         # 110 era muy corto para una justificación con evidencia: se cortaba justo donde
         # empezaba el dato que la sostiene.
         "encajeMotivo": _recortar(campos.get("encaje_motivo"), 160),
+        "desvioOferta": _recortar(campos.get("desvio_oferta"), 160),
         "resumen": _dos_frases(campos.get("resumen")),
         "saldoUsd": _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
@@ -560,6 +572,10 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
             "no": "la oferta no le cierra a esta persona",
         }[campos["encaje"]]
         lineas.append(f"*Encaje:* {signo} {campos['encajePuntaje']}/10 · {motivo}")
+    # Lo que el closer prometió mal es más caro que un mal encaje: el cliente entra
+    # esperando algo que no compró y el problema aparece en fulfillment, ya cobrado.
+    if campos.get("desvioOferta"):
+        lineas.append(f"*Ojo:* ⚠️ {campos['desvioOferta']}")
 
     nota = campos.get("nota") or campos.get("proximoPaso")
     if nota:

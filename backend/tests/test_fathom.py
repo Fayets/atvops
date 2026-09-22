@@ -390,3 +390,17 @@ def test_no_se_reencola_un_reporte_que_no_existe(monkeypatch):
     monkeypatch.setattr(fs, "db_session", lambda f: f)
     monkeypatch.setattr(fs.ReunionCrm, "get", staticmethod(lambda **kw: vacia))
     assert fs.reencolar(["ev1"]) == 0
+
+
+def test_avisa_cuando_el_closer_describio_mal_la_oferta():
+    """Es más caro que un mal encaje: el cliente entra esperando algo que no compró y
+    el problema aparece en fulfillment, con la venta ya cobrada."""
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
+                      CAMPOS | {"desvioOferta": "le dijo 6 meses y Mid Level dura 4"}, ReunionFalsa())
+    assert "*Ojo:* ⚠️ le dijo 6 meses y Mid Level dura 4" in texto
+
+
+def test_sin_desvio_no_aparece_la_linea():
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
+                      CAMPOS | {"desvioOferta": None}, ReunionFalsa())
+    assert "*Ojo:*" not in texto
