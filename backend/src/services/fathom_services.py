@@ -500,16 +500,6 @@ def _norm_estado(v) -> str:
     return str(v or "").strip().lower()
 
 
-def _precio_de(nombre) -> float | None:
-    """El precio del catálogo, para que el grupo vea contra qué se compara el cash."""
-    from src.services.ventas_services import programas
-    try:
-        n = str(nombre or "").strip().lower()
-        return next((float(p["precioUsd"]) for p in programas() if p["nombre"].strip().lower() == n), None)
-    except Exception:  # noqa: BLE001
-        return None
-
-
 def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     """El texto que Theo manda al grupo.
 
@@ -534,11 +524,7 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     # el registro suele ser un nombre viejo elegido de una lista, y si difiere hay que
     # decirlo en vez de tapar uno con el otro — esa diferencia es un error de carga que
     # además descuadra el saldo.
-    plan = campos.get("plan")
-    guardado = (getattr(reunion, "programa", "") or "").strip() if reunion is not None else ""
-    discrepa = bool(plan and guardado and plan.lower() != guardado.lower())
-    if not plan:
-        plan = guardado or None
+    plan = campos.get("plan") or (getattr(reunion, "programa", "") or "").strip() or None
     # La hora de la reunión agendada, que es la que el equipo reconoce; la de la
     # grabación arranca unos minutos después y no coincide con el calendario.
     cuando = (getattr(reunion, "inicio_at", None) if reunion is not None else None) or datos.get("inicio")
@@ -553,10 +539,7 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     lineas = [encabezado, ""]
     lineas.append(f"*Resultado:* {estado}" if estado else "*Resultado:* no se pudo determinar")
     if plan:
-        precio = _precio_de(plan)
-        detalle = f" · US$ {precio:,.0f}" if precio else ""
-        aviso = f"  (cargado como {guardado})" if discrepa else ""
-        lineas.append(f"*Programa:* {plan}{detalle}{aviso}")
+        lineas.append(f"*Programa:* {plan}")
     lineas.append(f"*Cash cobrado:* US$ {cash:,.0f}" if cash else "*Cash cobrado:* —")
 
     # El encaje se muestra SIEMPRE que hubo venta, no solo cuando falla. Si solo aparece

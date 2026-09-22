@@ -195,20 +195,15 @@ def test_el_mensaje_muestra_lo_que_cargo_el_equipo_no_lo_que_leyo_la_ia():
     assert "2,000" not in texto
 
 
-def test_el_programa_muestra_la_oferta_que_cerro_la_llamada():
+def test_el_programa_es_solo_el_nombre_de_la_oferta_que_cerro():
     """Es la excepción a "lo cargado manda": el grupo necesita ver qué se vendió de
-    verdad, no el nombre viejo que alguien eligió de una lista."""
+    verdad, no el nombre viejo que alguien eligió de una lista. Sin precio ni aclaración
+    al lado: el renglón tiene que leerse de un vistazo."""
     r = ReunionFalsa(resultado="Seña", programa="Mentoría")
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
-    assert "*Programa:* Boost" in texto
-    assert "(cargado como Mentoría)" in texto
-
-
-def test_sin_discrepancia_no_se_avisa_nada():
-    r = ReunionFalsa(resultado="Seña", programa="Boost")
-    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
-    assert "*Programa:* Boost" in texto
+    assert "*Programa:* Boost\n" in texto
     assert "cargado como" not in texto
+    assert "US$ 20" not in texto
 
 
 def test_si_la_ia_no_supo_el_programa_se_usa_el_cargado():
