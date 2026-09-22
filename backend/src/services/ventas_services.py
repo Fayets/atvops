@@ -836,6 +836,9 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     # no es una agenda nueva.
     agendados = len(leads) - seguimientos
     cash = sum(_num(l["pago"]) for l in ventas)
+    # Una venta saldada es la que no debe nada. No alcanza con que el estado diga
+    # "Cerrado": ahí entra el que firmó un plan de pago y pagó la primera cuota.
+    saldadas = [l for l in ventas if _saldo(l) <= 0]
     evaluables = shows + no_shows
     return {
         "agendados": agendados,
@@ -854,7 +857,46 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
         # Lo mismo que el AOV del closer: cash sobre cierres, no sobre cierres más señas.
         "averageSaleUsd": round(cash / len(cierres), 2) if cierres else 0,
+        # PIF rate, las dos lecturas, porque dan distinto y cada una dice algo:
+        # - por estado: qué proporción de las ventas quedó cerrada y no en seña. Es lo
+        #   que carga el closer, y responde "¿cuántas ventas quedaron a medio hacer?".
+        # - por deuda: de las ventas, cuántas no deben nada. Agarra al que figura como
+        #   Cerrado pero arrancó un plan de pago, que por estado contaría como completo.
+        # La segunda es la que dice cuánta plata entra hoy y cuánta es promesa.
+        "pifPorEstado": round(len(cierres) / len(ventas) * 100, 1) if ventas else None,
+        "pifPorDeuda": round(len(saldadas) / len(ventas) * 100, 1) if ventas else None,
+        "ventasConPlan": len(ventas) - len(saldadas),
     }
+
+
+def _saldo(lead: dict) -> float:
+    """Cuánto falta cobrar de esta venta.
+
+    El campo `saldo_usd` existe pero el formulario nunca lo escribe: solo muestra en
+    pantalla "quedan X por cobrar" calculado del precio del programa. Pedirle a alguien
+    que tipee un número que ya se puede calcular es garantía de que quede en cero, y un
+    saldo en cero hace ver como pagada completa a una seña. Así que si no está cargado,
+    se deriva: precio del programa menos lo que entró.
+    """
+    cargado = _num(lead.get("debe"))
+    if cargado > 0:
+        return cargado
+    precio = _precio_programa(lead.get("programa_ofrecido"))
+    if precio is None:
+        # Sin precio no se puede afirmar nada: una seña debe algo aunque no sepamos
+        # cuánto, y decir que no debe nada sería peor que no saber.
+        return 0.0 if _norm(lead.get("resultado")) == _norm("Cerrado") else float("inf")
+    return max(precio - _num(lead.get("pago")), 0.0)
+
+
+def _precio_programa(nombre) -> float | None:
+    n = _norm(str(nombre or ""))
+    if not n:
+        return None
+    try:
+        return next((float(p["precioUsd"]) for p in programas() if _norm(p["nombre"]) == n), None)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _nombres_canonicos() -> dict[str, str]:
