@@ -184,7 +184,8 @@ Devolvé ÚNICAMENTE un JSON:
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
  "pagos_acordados": <cuántos pagos quedaron acordados CON monto y fecha, o null>,
- "resto_acordado": true | false | null,
+ "resto_usd": <cuánto falta pagar después de este pago, o null>,
+ "resto_cuando": "cuándo se paga ese resto, como lo dijeron, o null",
  "precio_dicho_usd": <el precio total que el closer dijo que costaba, o null>,
  "duracion_dicha_meses": <cuántos meses dijo que dura, o null>,
  "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
@@ -242,9 +243,11 @@ Reglas:
   **La palabra que usen en la llamada no decide.** Si le dicen "seña" a la primera de
   dos cuotas ya acordadas, son 2 pagos igual. Lo que cuenta es si el monto y el momento
   del resto ya están dichos.
-- **resto_acordado**: ¿el monto y el momento de lo que falta pagar ya están dichos en la
-  llamada? true o false. Si pagó todo de una, true. Si puso plata y el resto está por
-  verse, false. Si no hubo venta, null.
+- **resto_usd** y **resto_cuando**: cuánto falta pagar y cuándo, tal como lo dijeron.
+  "quedan $7.500 a los 45 días" → resto_usd 7500, resto_cuando "a los 45 días".
+  Si pagó todo de una, resto_usd 0. Si no se habló del resto, los dos null.
+  **Esto es transcribir, no interpretar**: aunque en la llamada le digan "seña" al
+  primer pago, si dijeron cuánto falta y cuándo, ponelo.
 - **precio_dicho_usd** y **duracion_dicha_meses**: el precio total y la cantidad de meses
   que el closer dijo EN LA LLAMADA. Tal cual los dijo, sin corregirlos contra el
   documento: sirven justamente para detectar si se equivocó. null si no los mencionó.
@@ -439,13 +442,20 @@ def _decidir_en_codigo(campos: dict, planes: list[str]) -> dict:
         pagos = int(pagos) if pagos is not None and str(pagos).strip() != "" else None
     except (TypeError, ValueError):
         pagos = None
-    resto = campos.get("resto_acordado")
-    # Dos señales para lo mismo, porque una sola falla: el modelo devolvió bien "pagó la
-    # primera cuota, la segunda a 45 días" en la nota y sin embargo no completó el
-    # conteo. Con que cualquiera de las dos diga que el resto está acordado, alcanza.
-    if (pagos is not None and pagos >= 1) or resto is True:
+    # El resto con monto Y fecha es la señal fuerte: significa que la venta está cerrada
+    # y se cobra en partes. Se le pide como plata y fecha, no como un sí/no, porque con
+    # un booleano el modelo le creía a la palabra "seña" que usaban en la llamada.
+    resto_usd = campos.get("resto_usd")
+    try:
+        resto_usd = float(str(resto_usd).replace(",", "")) if resto_usd not in (None, "") else None
+    except (TypeError, ValueError):
+        resto_usd = None
+    resto_cuando = str(campos.get("resto_cuando") or "").strip()
+    resto_acordado = resto_usd == 0 or (bool(resto_usd) and bool(resto_cuando))
+
+    if (pagos is not None and pagos >= 1) or resto_acordado:
         campos["estado"] = "Cerrado"
-    elif pagos == 0 or resto is False:
+    elif pagos == 0 or (resto_usd and not resto_cuando):
         campos["estado"] = "Seña"
 
     campos["desvio_oferta"] = _desvio(campos, campos.get("plan"))
@@ -593,6 +603,7 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "nota": _dos_frases(campos.get("nota")),
         "facturacionUsd": _numero(campos.get("facturacion_usd")),
         "pagosAcordados": campos.get("pagos_acordados"),
+        "restoUsd": _numero(campos.get("resto_usd")),
         "encajePuntaje": _puntaje(campos.get("encaje_puntaje")),
         "encaje": _veredicto(_puntaje(campos.get("encaje_puntaje"))),
         # 110 era muy corto para una justificación con evidencia: se cortaba justo donde
@@ -600,7 +611,7 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "encajeMotivo": _recortar(campos.get("encaje_motivo"), 160),
         "desvioOferta": _recortar(campos.get("desvio_oferta"), 160),
         "resumen": _dos_frases(campos.get("resumen")),
-        "saldoUsd": _numero(campos.get("saldo_usd")),
+        "saldoUsd": _numero(campos.get("resto_usd")) if campos.get("resto_usd") is not None else _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
         "objecion": _linea(campos.get("objecion")),
     }
@@ -770,6 +781,7 @@ def recibir(cuerpo: bytes, headers) -> dict:
     log.info("Fathom: %s → %s (completó %s)", datos["titulo"], campos["estado"], guardado["completados"] or "nada")
     return {"ok": True, "eventoId": ident, "estado": campos["estado"], "mensaje": texto,
             "pagosAcordados": campos.get("pagosAcordados"),
+            "restoUsd": campos.get("restoUsd"),
             "facturacionUsd": campos.get("facturacionUsd"), **guardado}
 
 

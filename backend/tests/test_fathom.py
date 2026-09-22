@@ -517,16 +517,18 @@ def test_sin_nivel_solo_queda_la_promesa():
     assert f._desvio({"duracion_dicha_meses": 6, "promesa_fuera_de_nivel": "algo"}, None) == "algo"
 
 
-@pytest.mark.parametrize("pagos, resto, estado", [
-    (2, None, "Cerrado"),
-    (None, True, "Cerrado"),    # el conteo falló pero dijo que el resto está acordado
-    (0, None, "Seña"),
-    (None, False, "Seña"),
-    (None, None, "Seguimiento"),  # no hubo venta: no se toca
+@pytest.mark.parametrize("pagos, resto_usd, cuando, estado", [
+    (2, None, None, "Cerrado"),                      # el conteo alcanzó
+    (None, 7500, "a los 45 días", "Cerrado"),        # el caso de Leonel
+    (None, 0, None, "Cerrado"),                      # pagó todo de una
+    (0, None, None, "Seña"),
+    (None, 3000, "", "Seña"),                        # falta plata pero no se dijo cuándo
+    (None, None, None, "Seguimiento"),               # no hubo venta: no se toca
 ])
-def test_dos_señales_para_decidir_si_cerro(pagos, resto, estado):
-    """Una sola falla: el modelo escribió "pagó la primera cuota, la segunda a 45 días"
-    en la nota y aun así no completó el conteo."""
+def test_para_decidir_si_cerro_alcanza_con_una_de_las_dos_señales(pagos, resto_usd, cuando, estado):
+    """El conteo solo fallaba: en la llamada de Leonel le dicen "seña" al primer pago y
+    el modelo le creía a la palabra. El resto con monto Y fecha no se presta a eso."""
     campos = f._decidir_en_codigo(
-        {"estado": "Seguimiento", "pagos_acordados": pagos, "resto_acordado": resto}, [])
+        {"estado": "Seguimiento", "pagos_acordados": pagos,
+         "resto_usd": resto_usd, "resto_cuando": cuando}, [])
     assert campos["estado"] == estado
