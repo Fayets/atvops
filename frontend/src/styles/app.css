@@ -6244,18 +6244,25 @@ body.gate-abierto .shell { display: none; }
 .embudo-etapa { font-size: 11px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
 .embudo-n { font-size: 34px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .embudo-pie { font-size: 12px; color: var(--text-3); }
-.embudo-paso { flex: 0 0 92px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; border-left: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft); }
+/* Acotado a .embudo-fila: `.embudo-paso` ya existe en el embudo del setter y esta regla,
+   por venir después, le pisaba el layout. */
+.embudo-fila .embudo-paso { flex: 0 0 92px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px;
+  border-left: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft); }
+.embudo-fila .embudo-paso::before { content: "→"; color: var(--text-3); font-size: 14px; }
 .embudo-tasa { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .embudo-tasa.vacia { color: var(--text-3); }
 .embudo-paso-label { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
 .embudo-aviso { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-soft);
   display: flex; align-items: center; gap: var(--space-3); font-size: 13.5px; color: var(--text-2); }
 .embudo-aviso strong { font-weight: 600; color: var(--text); }
+/* Son tres etapas y dos pasos: entran en una fila hasta bastante angosto. El `wrap`
+   queda como red para el celular, pero con base chica para que no parta en 2 + 1. */
 @media (max-width: 1100px) {
-  .embudo-fila { flex-wrap: wrap; gap: var(--space-4); }
-  .embudo-escalon { flex: 1 1 40%; }
-  .embudo-paso { flex: 0 0 70px; }
+  .embudo-fila { flex-wrap: wrap; row-gap: var(--space-4); }
+  .embudo-escalon { flex: 1 1 108px; padding-right: var(--space-3); }
+  .embudo-fila .embudo-paso { flex: 0 0 62px; }
+  .embudo-n { font-size: 28px; }
 }
 
 /* Closing */

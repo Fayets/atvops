@@ -1,8 +1,8 @@
 import BloqueClosing from '../components/ventas/BloqueClosing.jsx';
-import EmbudoSetting from '../components/ventas/EmbudoSetting.jsx';
+import EmbudoOps from '../components/ventas/EmbudoOps.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import { getVentas } from '../data/api.js';
+import { getEmbudoSetting, getVentas } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
@@ -12,10 +12,14 @@ import { useResource } from '../lib/hooks.js';
  * Setting arriba y closing abajo, en el orden del embudo. Lo operativo —el calendario,
  * los reportes, el pipeline— no vive acá: esta pantalla dice cómo venimos, no qué hacer
  * ahora. Para eso están los laboratorios.
+ *
+ * Son dos pedidos y no uno porque el embudo es caro (cruza conversaciones, reporte del
+ * setter y calendario) y el bloque de closing no tiene por qué esperarlo.
  */
 export default function VentasDashboard() {
   const { mes } = useMes();
   const { data, error, loading } = useResource(() => getVentas(mes), [mes]);
+  const embudo = useResource(() => getEmbudoSetting(mes), [mes]);
 
   if (error) return <ErrorState error={error} />;
   if (loading || !data) {
@@ -29,7 +33,6 @@ export default function VentasDashboard() {
 
   const actual = data.real?.actual ?? data.actual ?? {};
   const ctx = data.real?.contexto ?? data.contexto ?? {};
-  const funnel = data.real?.topFunnel ?? data.topFunnel ?? {};
 
   return (
     <div className="page ventas-dash">
@@ -46,9 +49,15 @@ export default function VentasDashboard() {
       <section className="ventas-dash-bloque">
         <header>
           <h2>Setting</h2>
-          <span className="dim">lo carga el setter · los chats son automáticos y viven en Marketing</span>
+          <span className="dim">se llena solo · el detalle de conversaciones vive en la vista del setter</span>
         </header>
-        <EmbudoSetting funnel={funnel} chats={null} />
+        {embudo.error ? (
+          <ErrorState error={embudo.error} />
+        ) : embudo.loading ? (
+          <SkeletonBlock height={120} />
+        ) : (
+          <EmbudoOps setting={embudo.data ?? {}} />
+        )}
       </section>
 
       <section className="ventas-dash-bloque">
