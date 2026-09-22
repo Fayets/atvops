@@ -83,7 +83,11 @@ function Secuencia({ s }) {
   return (
     <Card
       title={dia(s.fecha)}
-      sub={`${s.piezas} ${s.piezas === 1 ? 'pieza' : 'piezas'}${desde ? ` · ${desde} a ${hasta}` : ''}`}
+      sub={`${s.piezas} ${s.piezas === 1 ? 'pieza' : 'piezas'}${
+        // Las traídas de atv-mkt no tienen hora: allá se guardaba el día y el orden. Poner
+        // un rango sería inventarlo, así que se dice de dónde vino y listo.
+        s.importada ? ' · importada de atv-mkt, sin hora' : desde ? ` · ${desde} a ${hasta}` : ''
+      }`}
       actions={(
         <>
           <BotonCta fecha={s.fecha} inicial={s.cta} />

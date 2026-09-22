@@ -344,6 +344,10 @@ def _secuencia(dia: str, items: list[dict]) -> dict:
         "fecha": dia,
         "historias": orden,
         "piezas": piezas,
+        # Las que se trajeron de atv-mkt tienen el día bien y la hora puesta a mano: allá
+        # se guardaba la fecha de la secuencia y el orden, nunca el momento de cada pieza.
+        # La vista necesita saberlo para no mostrar un rango horario que nadie midió.
+        "importada": all(x.get("origen") == "atv-mkt" for x in orden) if orden else False,
         # Vistas y alcance se suman pieza por pieza, como en el panel de marketing: es el
         # trabajo total que hizo la secuencia, no el de la historia más vista.
         "vistas": sum(x.get("views") or 0 for x in orden),
