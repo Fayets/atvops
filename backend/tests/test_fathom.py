@@ -266,3 +266,36 @@ def test_un_reintento_de_fathom_no_vuelve_a_encolar(monkeypatch):
     cuerpo = json.dumps({"title": "x", "transcript": "Nick: hola"}).encode()
     fs.recibir(cuerpo, Cabeceras({}))
     assert ya_enviada.reporte_enviado_at == datetime(2026, 9, 21, 12, 0)
+
+
+# ------------------------------------------------- encaje de la venta
+
+def test_el_aviso_de_encaje_sale_solo_cuando_algo_no_cierra():
+    """Un '✅ avatar correcto' en cada llamada es ruido: a la semana nadie lo lee, y el
+    día que aparezca el aviso de verdad va a estar enterrado."""
+    base = {"inicio": None, "titulo": "", "url": ""}
+    ok = f.mensaje(base, CAMPOS | {"encaje": "ok", "encajeMotivo": None}, ReunionFalsa())
+    assert "Encaje" not in ok
+
+    mal = f.mensaje(base, CAMPOS | {"encaje": "no", "encajeMotivo": "factura $600/mes y la cuota es $1.800"}, ReunionFalsa())
+    assert "⚠️ *Encaje:* factura $600/mes y la cuota es $1.800" in mal
+
+    dudoso = f.mensaje(base, CAMPOS | {"encaje": "dudoso", "encajeMotivo": "factura $9k y compró Mid"}, ReunionFalsa())
+    assert "🔸 *Encaje:*" in dudoso
+
+
+def test_sin_motivo_no_se_avisa_nada():
+    """Un aviso sin el dato concreto no sirve para actuar: es solo una alarma vaga."""
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
+                      CAMPOS | {"encaje": "no", "encajeMotivo": None}, ReunionFalsa())
+    assert "Encaje" not in texto
+
+
+def test_un_encaje_inventado_se_descarta():
+    campos = f._validar({"encaje": "más o menos"}, ESTADOS, PLANES)
+    assert campos["encaje"] is None
+
+
+def test_la_facturacion_se_lee_como_numero():
+    assert f._validar({"facturacion_usd": "US$ 15.000"}, ESTADOS, PLANES)["facturacionUsd"] == 15000.0
+    assert f._validar({"facturacion_usd": None}, ESTADOS, PLANES)["facturacionUsd"] is None

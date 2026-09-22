@@ -182,6 +182,9 @@ Devolvé ÚNICAMENTE un JSON:
  "cash_usd": <número o null>,
  "nota": "MÁXIMO 200 CARACTERES: qué pasó, la objeción si quedó alguna, y el próximo paso con fecha",
  "resumen": "MÁXIMO 160 CARACTERES: quién es el prospecto y por qué quedó en ese estado",
+ "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
+ "encaje": "ok" | "dudoso" | "no" | null,
+ "encaje_motivo": "MÁXIMO 90 CARACTERES: por qué no encaja. null si encaje es ok",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -202,6 +205,18 @@ Reglas:
 - **"Seguimiento" es el último recurso, no el default.** Si el motivo real fue la plata
   o la duda, usá el estado específico: esa distinción es justamente lo que se quiere
   medir, y el closer no la va a tipear nunca. Vos tenés la transcripción y él no.
+- facturacion_usd: lo que el prospecto dijo que factura POR MES, en dólares. Si dio un
+  rango, el piso. Si habló de lo que factura un cliente suyo y no él, null. Si no lo
+  dijo, null: no lo deduzcas del tamaño del negocio ni de los seguidores.
+- **encaje**: si hubo venta (Cerrado o Seña), ¿se le vendió el nivel correcto? Mirá los
+  tres chequeos de la nota de ofertas: banda de facturación, avatar, y capacidad de pago
+  (una cuota que se lleva más del 30% de lo que factura por mes no se va a pagar).
+  - "ok": los tres cierran, o no hubo venta.
+  - "dudoso": uno falla pero hay contexto que lo explica.
+  - "no": la venta no le cierra a esta persona.
+  - null: no hay datos para saberlo (no dijo qué factura, no se mencionó el plan).
+  En encaje_motivo va el dato concreto, no la opinión: "factura $600/mes y la cuota es
+  $1.800" sirve; "no parece el perfil" no sirve. Si encaje es "ok", va null.
 - **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
   precio del programa ni lo que prometió pagar más adelante. Si pagó US$ 50 de seña de
   un programa de US$ 1.800, cash_usd es 50 y el resto va en la nota. Si no pagó nada,
@@ -218,6 +233,25 @@ Reglas:
 - Si la transcripción está cortada o no es una llamada de venta, devolvé todo null y
   explicá por qué en nota.
 Sin texto fuera del JSON."""
+
+
+def _nota_ofertas() -> str:
+    """Los criterios de validación salen del cerebro, no del código.
+
+    Las ofertas cambian: si vivieran en el prompt, cada cambio de precio o de avatar
+    sería un deploy. En `cerebro/ventas/ofertas.md` los edita cualquiera desde Obsidian.
+    """
+    from src.services.cerebro_services import CEREBRO_DIR, SEMILLA_DIR
+
+    for base in (CEREBRO_DIR, SEMILLA_DIR):
+        ruta = base / "ventas" / "ofertas.md"
+        try:
+            texto = ruta.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        # Sin el frontmatter, que no le dice nada al modelo y ocupa tokens en cada llamada.
+        return texto.split("---", 2)[-1].strip()[:6000]
+    return "(no hay nota de ofertas cargada: no valides el encaje, devolvé encaje null)"
 
 
 def _listas() -> tuple[tuple[str, ...], list[str]]:
@@ -244,6 +278,7 @@ def extraer(datos: dict) -> dict:
         "",
         "## Estados posibles\n" + " | ".join(estados),
         "## Programas posibles\n" + (" | ".join(planes) or "(no hay catálogo cargado)"),
+        "## Ofertas y cómo se valida una venta\n" + _nota_ofertas(),
         "",
         "## Transcripción",
         datos["transcripcion"][:60_000],
@@ -327,6 +362,9 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "plan": _de_la_lista(campos.get("plan"), planes),
         "cashUsd": _numero(campos.get("cash_usd")),
         "nota": _recortar(campos.get("nota"), 260),
+        "facturacionUsd": _numero(campos.get("facturacion_usd")),
+        "encaje": next((e for e in ("ok", "dudoso", "no") if str(campos.get("encaje") or "").strip().lower() == e), None),
+        "encajeMotivo": _recortar(campos.get("encaje_motivo"), 110),
         "resumen": _recortar(campos.get("resumen"), 200),
         "saldoUsd": _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
@@ -432,6 +470,12 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
         lineas += ["", f"_{nota}_"]
     if campos.get("resumen"):
         lineas += ["", f"*Resumen:* {campos['resumen']}"]
+    # La alerta de encaje sale SOLO cuando algo no cierra. Un "✅ avatar correcto" en cada
+    # llamada es ruido que a la semana nadie lee, y el día que aparezca el aviso de verdad
+    # va a estar enterrado entre veinte tildes verdes.
+    if campos.get("encaje") in ("no", "dudoso") and campos.get("encajeMotivo"):
+        signo = "⚠️" if campos["encaje"] == "no" else "🔸"
+        lineas += ["", f"{signo} *Encaje:* {campos['encajeMotivo']}"]
     if reunion is None:
         lineas += ["", "⚠️ No la encontré en el calendario: el reporte no quedó cargado."]
     if datos.get("url"):

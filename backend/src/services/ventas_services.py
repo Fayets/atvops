@@ -1217,26 +1217,33 @@ ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
 ROLES_CARGAN_LLAMADAS = ROLES_PRECIOS | {"ventas", "closer", "setter"}
 
 
+# Las ofertas vigentes desde 2026. Las viejas —Mentoria, Boost, Consultoria
+# Personalizada— se dejan como están: los clientes que ya están adentro siguen en su
+# programa, y cambiarles el nombre o el precio les movería el saldo que ya tienen
+# calculado. Los que entran de ahora en más van a los nuevos.
+PROGRAMAS_2026 = (
+    ("Entry Level", 5000.0, 10),
+    ("Mid Level", 14000.0, 11),
+    ("High Level", 25000.0, 12),
+)
+
+
 def _sembrar_programas() -> None:
-    """La primera vez copia el catálogo del CRM viejo. Después vive solo acá."""
-    from pony.orm import db_session, select
+    """Deja el catálogo con las ofertas vigentes, sin tocar las viejas.
+
+    Solo agrega las que faltan y nunca pisa el precio de una que ya existe: si alguien lo
+    corrigió a mano desde la pantalla, esa corrección manda sobre lo que diga el código.
+    """
+    from pony.orm import db_session
 
     from src.models import Programa
 
     with db_session:
-        if Programa.select().count():
-            return
-        try:
-            filas = []  # los programas ya viven en ATV Ops; el CRM viejo no se consulta más
-        except Exception:  # noqa: BLE001
-            return
-        for f in filas:
-            nombre = (f["name"] or "").strip()
-            if nombre and not Programa.get(nombre=nombre):
-                Programa(nombre=nombre[:120], precio_usd=_num(f["price_usd"]),
-                         orden=int(f["sort_order"] or 0), actualizado_por="migración")
-        if filas:
-            logger.info("Programas: %s copiados del CRM viejo a ATV Ops", len(filas))
+        for nombre, precio, orden in PROGRAMAS_2026:
+            if Programa.get(nombre=nombre) is None:
+                Programa(nombre=nombre, precio_usd=precio, orden=orden,
+                         actualizado_por="ofertas 2026")
+                logger.info("Programa agregado al catálogo: %s (US$ %s)", nombre, precio)
 
 
 def programas() -> list[dict]:
