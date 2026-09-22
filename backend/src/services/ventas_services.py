@@ -1575,7 +1575,11 @@ def ocultar_evento(evento_id: str, datos: dict, usuario: dict, mostrar: bool = F
             fila = ReunionCrm(evento_id=evento_id, lead_id=0,
                               prospecto=str(datos.get("titulo") or "")[:200],
                               inicio_at=cuando, creado_por=(usuario.get("username") or "")[:80])
-        fila.es_venta = False
+        # Los dos campos se mueven juntos. Antes `es_venta` quedaba en False para
+        # siempre: una reunión ocultada y vuelta a mostrar reaparecía en el calendario
+        # —que mira los dos— pero seguía fuera de las métricas y de la lista del closer,
+        # sin nada visible que lo explicara.
+        fila.es_venta = bool(mostrar)
         fila.descartada = not mostrar
         fila.actualizado_por = (usuario.get("username") or "")[:80]
         fila.actualizado_at = datetime.utcnow()

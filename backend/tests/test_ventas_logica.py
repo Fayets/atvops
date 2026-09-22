@@ -308,3 +308,16 @@ def test_una_llamada_sin_closer_no_desaparece_al_cargarla():
     # El caso que se rompía: cargada, sin closer, ya no es del calendario.
     assert visible({"closer": "", "soloCalendario": False}, mios)
     assert not visible({"closer": "Lucas", "soloCalendario": False}, mios)
+
+
+# ------------------------------------------------- lo oculto no cuenta
+
+def test_una_reunion_oculta_no_entra_en_ninguna_metrica():
+    """Ocultar marca `descartada`, el merge lo convierte en resultado "descartada" y
+    `_bloque` saca del cálculo todo lo que se clasifique así."""
+    ahora = datetime(2026, 9, 22, 12, 0)
+    paso = datetime(2026, 9, 20, 15, 0)
+    assert v._clasificar("descartada", "", paso, ahora) == "descartada"
+    assert v._clasificar("no corresponde", "", paso, ahora) == "descartada"
+    # Y una normal sí entra, para que el test no pase por casualidad.
+    assert v._clasificar("cerrado", "", paso, ahora) == "cierre"
