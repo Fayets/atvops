@@ -3,6 +3,7 @@ import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import SourceTag from '../ui/SourceTag.jsx';
 import { formatValue } from '../../lib/format.js';
+import { chatsDelMes } from '../../lib/chats.js';
 
 /**
  * El panorama del mes para marketing: cuántas conversaciones abrió el contenido y de
@@ -72,11 +73,10 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
   const transcurrido = Math.min(100, Math.round((diaHoy / diasMes) * 100));
 
   const metaConversaciones = decreto?.conversaciones ?? 0;
-  // Las propias son las que avisa el bot a ATV Ops. Mientras no llegue ninguna se sigue
-  // mostrando lo que cuenta el CRM, pero dicho: un número sin fuente no sirve para nada.
-  const propias = conversaciones?.conectado ? conversaciones : null;
-  const abiertas = propias ? propias.conversaciones : (conv.total ?? 0);
-  const calendlys = propias?.calendlys ?? 0;
+  // Qué fuente manda vive en lib/chats.js, para que no se decida distinto en cada vista.
+  const chats = chatsDelMes(conversaciones, conv.total ?? 0);
+  const abiertas = chats.total;
+  const calendlys = conversaciones?.calendlys ?? 0;
   const pct = metaConversaciones ? Math.round((abiertas / metaConversaciones) * 100) : null;
   const tono = pct == null ? undefined : pct >= transcurrido ? 'ok' : pct >= transcurrido * 0.6 ? 'warn' : 'alert';
   const faltan = Math.max(metaConversaciones - abiertas, 0);
@@ -103,13 +103,13 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
             nota={metaConversaciones
               ? `${formatValue(metaConversaciones, 'count')} es la meta · faltan ${formatValue(faltan, 'count')}, ${formatValue(Math.ceil(faltan / semanasRestantes), 'count')} por semana`
               : 'Sin meta cargada en el decreto'}
-            fuente={propias ? 'las cuenta ATV Ops' : 'todavía las cuenta el CRM de atv-mkt'}
+            fuente={chats.fuente}
           />
           <Numero
             label="Calendly enviados"
             valor={calendlys}
-            nota={propias
-              ? `${formatValue(propias.personas ?? 0, 'count')} ${propias.personas === 1 ? 'persona escribió' : 'personas escribieron'} este mes`
+            nota={conversaciones?.conectado
+              ? `${formatValue(conversaciones.personas ?? 0, 'count')} ${conversaciones.personas === 1 ? 'persona escribió' : 'personas escribieron'} este mes`
               : 'todavía no llega ningún aviso de Instagram ni de ManyChat'}
           />
           <Numero label="Reels publicados" valor={propio.reels} nota={`${formatValue(propio.reproducciones, 'count')} reproducciones`} />
@@ -118,7 +118,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
       </Card>
 
       <Card
-        title="De dónde salen las conversaciones"
+        title="De dónde salen los chats"
         sub="Cada formato, con el volumen que salió y lo que trajo"
         flush
         foot="Las de Instagram las abre el bot cuando alguien comenta la palabra de un reel: se cuentan solas."

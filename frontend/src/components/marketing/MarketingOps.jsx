@@ -55,18 +55,17 @@ function Fila({ label, p, format = 'count' }) {
 /**
  * @param {{ decreto: object, real: object, contexto: object, origenes: array,
  *           piezas: {reels: number, secuencias: number, videos: number},
- *           conversacionesPropias: object }} props
+ *           chats: { total: number, fuente: string } }} props
  */
 export default function MarketingOps({ decreto, real, contexto, origenes = [], piezas,
-                                       conversacionesPropias, conversacionesCrm = 0 }) {
+                                       chats = { total: 0, fuente: '' } }) {
   const diaHoy = contexto?.diaHoy ?? 1;
   const diasMes = contexto?.diasMes ?? 30;
   const base = { diaHoy, diasMes };
 
-  // Las conversaciones propias mandan apenas empiezan a llegar; hasta entonces, el CRM.
-  const conversacionesReales = conversacionesPropias?.conectado
-    ? conversacionesPropias.conversaciones
-    : conversacionesCrm;
+  // El número ya viene resuelto desde la página, que es la que lo comparte con el KPI de
+  // arriba. Ver lib/chats.js: acá y allá tienen que dar lo mismo, y antes no lo daban.
+  const conversacionesReales = chats.total;
 
   const conversaciones = proyectarMes({ ...base, real: conversacionesReales, meta: decreto?.conversaciones ?? 0 });
   const agendas = proyectarMes({ ...base, real: real?.agendas ?? 0, meta: decreto?.agendas ?? 0 });
@@ -84,8 +83,7 @@ export default function MarketingOps({ decreto, real, contexto, origenes = [], p
   return (
     <>
       <div className="kpi-grid">
-        <Proyeccion label="Chats a fin de mes" p={conversaciones}
-          nota={conversacionesPropias?.conectado ? 'las cuenta ATV Ops' : 'las cuenta el CRM de atv-mkt'} />
+        <Proyeccion label="Chats a fin de mes" p={conversaciones} nota={chats.fuente} />
         <Proyeccion label="Agendas a fin de mes" p={agendas} />
         <Proyeccion label="Cash a fin de mes" p={cash} format="usd" />
         <article className="kpi sm">

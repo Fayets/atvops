@@ -3,6 +3,7 @@ import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loadin
 import {
   getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getVentasReal, getYouTubePropio,
 } from '../data/api.js';
+import { chatsDelMes } from '../lib/chats.js';
 import { useMes } from '../lib/MesContext.jsx';
 import PanelMarketing from '../components/marketing/PanelMarketing.jsx';
 import { useResource } from '../lib/hooks.js';
@@ -27,9 +28,14 @@ export default function MarketingOpsPage() {
 
   const cargando = (metas.loading && !metas.data) || (ventas.loading && !ventas.data);
 
+  // Un solo lugar decide de dónde salen los chats del mes. El KPI de arriba y la
+  // proyección de abajo son la misma métrica: si cada uno la resuelve por su cuenta,
+  // terminan mostrando 106 y 0 en la misma pantalla.
+  const chatsMes = chatsDelMes(chats.data, mkt.data?.conversaciones?.total ?? 0);
+
   return (
     <div className="page">
-      {mkt.data && <PanelMarketing data={mkt.data} />}
+      {mkt.data && <PanelMarketing data={mkt.data} chats={chatsMes} />}
 
       {cargando ? (
         <>
@@ -48,8 +54,7 @@ export default function MarketingOpsPage() {
             secuencias: (ig.data?.secuencias ?? []).length,
             videos: (yt.data?.videos ?? []).length,
           }}
-          conversacionesPropias={chats.data}
-          conversacionesCrm={mkt.data?.conversaciones?.total ?? 0}
+          chats={chatsMes}
         />
       )}
     </div>

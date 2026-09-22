@@ -16,7 +16,7 @@ const corto = (t, max = 13) => {
   return limpio.length > max ? `${limpio.slice(0, max)}…` : limpio;
 };
 
-export default function PanelMarketing({ data }) {
+export default function PanelMarketing({ data, chats }) {
   const contenido = data?.contenido ?? {};
   const conversaciones = data?.conversaciones ?? {};
   const historias = data?.historias ?? {};
@@ -45,8 +45,9 @@ export default function PanelMarketing({ data }) {
   return (
     <PanelArea
       kpis={[
-        { label: 'Chats', valor: n(conversaciones.total), tono: conversaciones.total ? 'ok' : null,
-          nota: 'los abre el bot con la palabra de un reel o de la bio' },
+        { label: 'Chats', valor: n(chats?.total ?? conversaciones.total),
+          tono: (chats?.total ?? conversaciones.total) ? 'ok' : null,
+          nota: chats?.fuente || 'los abre el bot con la palabra de un reel o de la bio' },
         { label: 'Reels publicados', valor: n(contenido.reels),
           nota: 'lo que salió en el mes, sin contar historias' },
         { label: 'Reproducciones', valor: n(vistas),
