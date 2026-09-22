@@ -17,7 +17,6 @@ from datetime import date, datetime
 
 from decouple import config
 
-from src.services import crm_db
 from src.services.transcripts_services import AR_TZ
 
 logger = logging.getLogger("atv_ops.marketing")
@@ -113,6 +112,18 @@ def _setting_propio(inicio: date, fin: date) -> list[dict]:
     return sorted(por_persona.values(), key=lambda x: -x["conversaciones"])
 
 
+def _campanias_de_meta(mes: str) -> list[dict]:
+    """Las campañas del mes, del Ads Manager. Si Ads no contesta, el mes sigue existiendo:
+    el resto del tablero —contenido, chats, setting— no depende de esto."""
+    try:
+        from src.services.meta_services import MetaServices
+
+        return MetaServices().ads_resumen(mes).get("campanias") or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer las campañas de Meta: %s", str(e)[:160])
+        return []
+
+
 def _conversaciones_del_bot(inicio: date, fin: date) -> dict:
     """Las conversaciones que se abrieron solas en Instagram, por contenido.
 
@@ -120,26 +131,47 @@ def _conversaciones_del_bot(inicio: date, fin: date) -> dict:
     el lead con esa palabra y la fecha en que arrancó el bot. Contar esos leads es contar
     las conversaciones: no hace falta que nadie las reporte a mano.
     """
-    total = crm_db.consultar(
-        "SELECT count(*) n FROM lead WHERE fecha_bot >= %s AND fecha_bot < %s", (inicio, fin))
-    respondieron = crm_db.consultar(
-        "SELECT count(*) n FROM lead WHERE fecha_bot >= %s AND fecha_bot < %s AND respondio_auto", (inicio, fin))
-    por_palabra = crm_db.consultar(
-        "SELECT lower(trim(keyword)) palabra, count(*) n FROM lead "
-        "WHERE fecha_bot >= %s AND fecha_bot < %s AND coalesce(keyword, '') <> '' "
-        "GROUP BY 1 ORDER BY 2 DESC", (inicio, fin))
+    from datetime import datetime as _dt
+
+    from pony.orm import db_session
+
+    from src.models import ConversacionIg
+
+    arranca = _dt.combine(inicio, _dt.min.time())
+    termina = _dt.combine(fin, _dt.min.time())
+    with db_session:
+        todas = [c for c in list(ConversacionIg.select()) if c.evento == "conversacion"]
+    del_mes = [c for c in todas if arranca <= c.at < termina]
+
+    def _palabra(c) -> str:
+        return (c.keyword or "").strip().lower()
+
+    por_palabra: dict[str, int] = {}
+    for c in del_mes:
+        if _palabra(c):
+            por_palabra[_palabra(c)] = por_palabra.get(_palabra(c), 0) + 1
+
     # Del total del mes y de siempre: un reel viejo sigue abriendo conversaciones.
-    historico = crm_db.consultar(
-        "SELECT lower(trim(keyword)) palabra, count(*) n, max(fecha_bot) ultima FROM lead "
-        "WHERE fecha_bot IS NOT NULL AND coalesce(keyword, '') <> '' GROUP BY 1")
+    historico: dict[str, dict] = {}
+    for c in todas:
+        if not _palabra(c):
+            continue
+        d = historico.setdefault(_palabra(c), {"total": 0, "ultima": None})
+        d["total"] += 1
+        if d["ultima"] is None or c.at > d["ultima"]:
+            d["ultima"] = c.at
+
     return {
-        "total": int(_num(total[0]["n"])) if total else 0,
-        "respondieron": int(_num(respondieron[0]["n"])) if respondieron else 0,
-        "porPalabra": {f["palabra"]: int(_num(f["n"])) for f in por_palabra},
-        "historicoPorPalabra": {f["palabra"]: {"total": int(_num(f["n"])),
-                                               "ultima": f["ultima"].isoformat() if f["ultima"] else None}
-                                for f in historico},
-        "sinPalabra": max(0, (int(_num(total[0]["n"])) if total else 0) - sum(int(_num(f["n"])) for f in por_palabra)),
+        "total": len(del_mes),
+        # `respondio_auto` era una columna del CRM y no tiene equivalente acá: el webhook
+        # avisa que la conversación se abrió, no si el bot llegó a contestar. Cero es más
+        # honesto que un número inventado.
+        "respondieron": 0,
+        "porPalabra": dict(sorted(por_palabra.items(), key=lambda kv: -kv[1])),
+        "historicoPorPalabra": {k: {"total": v["total"],
+                                    "ultima": v["ultima"].isoformat() if v["ultima"] else None}
+                                for k, v in historico.items()},
+        "sinPalabra": max(0, len(del_mes) - sum(por_palabra.values())),
     }
 
 
@@ -152,28 +184,22 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         if guardado and not refrescar and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
             return guardado["data"]
 
-    if not crm_db.disponible():
-        return _vacio(mes, "No hay conexión al CRM de Marketing.")
-
     inicio, fin = _rango(mes)
     try:
-        campanias = crm_db.consultar(
-            "SELECT nombre, estado, objective, spend, impressions, clicks, conversions, "
-            "cost_per_conversion, reach, period_start, period_end "
-            "FROM ads_campaign WHERE period_start < %s AND period_end >= %s ORDER BY spend DESC",
-            (fin, inicio),
-        )
+        campanias = _campanias_de_meta(mes)
         reels, videos, historias = _contenido_propio(inicio, fin)
         setting = _setting_propio(inicio, fin)
         bot = _conversaciones_del_bot(inicio, fin)
     except Exception as e:  # noqa: BLE001
         logger.warning("Marketing: %s", str(e)[:200])
-        return _vacio(mes, "No se pudo leer el CRM de Marketing.")
+        return _vacio(mes, "No se pudo armar el mes de marketing.")
 
-    gasto = sum(_num(c["spend"]) for c in campanias)
-    impresiones = sum(_num(c["impressions"]) for c in campanias)
-    clicks = sum(_num(c["clicks"]) for c in campanias)
-    conversiones = sum(_num(c["conversions"]) for c in campanias)
+    gasto = sum(_num(c["gastoUsd"]) for c in campanias)
+    # Meta no devuelve impresiones ni clicks a nivel campaña en este pedido: lo que
+    # sí da es alcance, frecuencia y leads. Lo que no viene, no se inventa.
+    impresiones = 0
+    clicks = 0
+    conversiones = sum(_num(c["leads"]) for c in campanias)
     interacciones = sum(_num(r["likes"]) + _num(r["comentarios"]) + _num(r["shares"]) + _num(r["guardados"]) for r in reels)
 
     data = {
@@ -187,17 +213,16 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "impresiones": int(impresiones),
             "clicks": int(clicks),
             "conversiones": int(conversiones),
-            "alcance": int(sum(_num(c["reach"]) for c in campanias)),
+            "alcance": 0,
             "ctr": round(clicks / impresiones * 100, 2) if impresiones else 0,
             "costoPorConversionUsd": round(gasto / conversiones, 2) if conversiones else 0,
             "campanias": [
                 {
-                    "nombre": c["nombre"], "estado": c["estado"], "objetivo": c["objective"],
-                    "gastoUsd": round(_num(c["spend"]), 2), "impresiones": int(_num(c["impressions"])),
-                    "clicks": int(_num(c["clicks"])), "conversiones": int(_num(c["conversions"])),
-                    "costoPorConversionUsd": round(_num(c["cost_per_conversion"]), 2),
-                    "alcance": int(_num(c["reach"])),
-                    "ctr": round(_num(c["clicks"]) / _num(c["impressions"]) * 100, 2) if _num(c["impressions"]) else 0,
+                    "nombre": c["nombre"], "estado": c["estado"], "objetivo": c["objetivo"],
+                    "gastoUsd": round(_num(c["gastoUsd"]), 2), "impresiones": 0,
+                    "clicks": 0, "conversiones": int(_num(c["leads"])),
+                    "costoPorConversionUsd": round(_num(c["cplUsd"]), 2),
+                    "alcance": 0, "ctr": 0, "frecuencia": _num(c.get("frecuencia")),
                 }
                 for c in campanias
             ],
@@ -273,11 +298,13 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
 
 
 def estado() -> dict:
-    if not crm_db.disponible():
-        return {"conectado": False, "detalle": "Falta MKT_DSN en el .env."}
+    """Si Ads contesta. Antes se miraba la copia que atv-mkt guardaba; ahora se pregunta
+    en el origen, que es el Ads Manager con las claves propias de ATV Ops."""
     try:
-        fila = crm_db.consultar("SELECT count(*) AS n, max(fecha_sync) AS ultimo FROM ads_campaign")[0]
-        return {"conectado": True, "campanias": fila["n"],
-                "ultimaSync": fila["ultimo"].isoformat() if fila["ultimo"] else None}
+        from src.services.meta_services import MetaServices
+
+        datos = MetaServices().ads_resumen()
+        return {"conectado": True, "campanias": len(datos.get("campanias") or []),
+                "ultimaSync": datos.get("syncAt")}
     except Exception as e:  # noqa: BLE001
         return {"conectado": False, "detalle": str(e)[:200]}

@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta
 
 from decouple import config
 
-from src.services import clients_db, crm_db
+from src.services import clients_db
 from src.services import onboarding_services as onboarding
 from src.services import ventas_services as ventas
 from src.services.transcripts_services import AR_TZ
@@ -59,13 +59,9 @@ def _bloque_ventas(desde: date, hasta: date, todas: list[dict] | None = None) ->
     el reporte lee el CRM y Google una sola vez y corta por fecha tres veces, en vez de
     pedir tres rangos distintos (cada uno costaba una llamada a Google).
     """
-    if not crm_db.disponible():
-        return {"agendadas": 0, "shows": 0, "noShows": 0, "sinReportar": 0, "sinCrm": 0, "cierres": 0,
-                "cashUsd": 0, "facturacionUsd": 0, "showRate": None, "closeRate": None, "aovUsd": 0,
-                "porCloser": [], "ventas": []}
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     if todas is None:
-        todas = ventas._sumar_reuniones_del_calendario(ventas._leads(desde, hasta), desde, hasta)
+        todas = ventas._sumar_reuniones_del_calendario(desde, hasta)
     filas = [f for f in todas if desde <= f["call"].date() < hasta]
     precios = {ventas._norm(p["nombre"]): p["precioUsd"] for p in ventas.programas()}
     clases = [ventas._clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
@@ -126,10 +122,6 @@ def _bloque_ventas(desde: date, hasta: date, todas: list[dict] | None = None) ->
 
 
 def _bloque_marketing(desde: date, hasta: date) -> dict:
-    if not crm_db.disponible():
-        return {"conversaciones": 0, "linksEnviados": 0, "agendas": 0, "seguimientos": 0,
-                "reels": 0, "reproducciones": 0, "historias": 0, "chatsHistorias": 0,
-                "videos": 0, "vistas": 0, "porSetter": [], "publicaciones": []}
     # Todo esto sale de la base de ATV Ops: reportes propios y contenido sincronizado con
     # las credenciales propias. El CRM de atv-mkt ya no se consulta.
     from src.services import marketing_services, ventas_services
@@ -208,13 +200,13 @@ def _bloque_cartera(desde: date, hasta: date) -> dict:
 
 def _bloque_ads(mes_inicio: date, mes_fin: date) -> dict:
     """Meta reporta por período mensual, así que esto es del mes, no de la semana."""
-    if not crm_db.disponible():
-        return {"gastoUsd": 0, "conversiones": 0, "clicks": 0, "impresiones": 0, "campanias": 0, "periodo": "mes"}
-    filas = crm_db.consultar(
-        "SELECT spend, conversions, clicks, impressions FROM ads_campaign "
-        "WHERE period_start < %s AND period_end >= %s",
-        (mes_fin, mes_inicio),
-    )
+    # Del Ads Manager, con las claves propias. Antes era la copia que guardaba atv-mkt.
+    from src.services import marketing_services
+
+    filas = [{"spend": c.get("gastoUsd"), "conversions": c.get("leads"),
+              # Meta no da clicks ni impresiones a nivel campaña en este pedido.
+              "clicks": 0, "impressions": 0}
+             for c in marketing_services._campanias_de_meta(mes_inicio.strftime("%Y-%m"))]
     return {
         "gastoUsd": round(sum(_num(f["spend"]) for f in filas), 2),
         "conversiones": int(sum(_num(f["conversions"]) for f in filas)),
@@ -252,8 +244,7 @@ def reporte(semana: str | None = None, refrescar: bool = False) -> dict:
     # mes; cada bloque corta por fecha. Antes eran tres lecturas y tres llamadas a Google.
     rango_desde = min(previa_inicio, mes_inicio)
     rango_hasta = max(fin, corte_mes)
-    llamadas = (ventas._sumar_reuniones_del_calendario(ventas._leads(rango_desde, rango_hasta), rango_desde, rango_hasta)
-                if crm_db.disponible() else [])
+    llamadas = ventas._sumar_reuniones_del_calendario(rango_desde, rango_hasta)
 
     data = {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
@@ -283,7 +274,9 @@ def reporte(semana: str | None = None, refrescar: bool = False) -> dict:
         "carteraMes": _bloque_cartera(mes_inicio, corte_mes),
         "ads": _bloque_ads(mes_inicio, mes_fin),
         "fuentes": {
-            "crm": crm_db.disponible(),
+            # El registro de llamadas ya es propio: lo que hay que reportar es si tiene
+            # datos, no si contesta un sistema de afuera.
+            "crm": bool(llamadas),
             "clients": clients_db.disponible(),
             "onboarding": clients_db.disponible(),
         },

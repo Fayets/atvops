@@ -27,31 +27,10 @@ CACHE_SEGUNDOS = 300
 
 
 def _de_atv_mkt() -> dict[str, dict]:
-    """Lee la tabla apiconnection de atv-mkt. Solo se usa para la copia inicial."""
-    from src.services import crm_db
-
-    salida: dict[str, dict] = {}
-    try:
-        filas = crm_db.consultar(
-            "SELECT platform, credentials FROM apiconnection WHERE platform = ANY(%s) ORDER BY id",
-            (list(PLATAFORMAS),),
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.info("No se pudo leer apiconnection de atv-mkt: %s", str(e)[:160])
-        return salida
-    for f in filas:
-        cred = f["credentials"]
-        if isinstance(cred, str):
-            try:
-                cred = json.loads(cred)
-            except ValueError:
-                continue
-        if isinstance(cred, dict) and cred:
-            # Si hay más de una fila por plataforma gana la que tenga más datos cargados.
-            previa = salida.get(f["platform"])
-            if previa is None or len(cred) > len(previa):
-                salida[f["platform"]] = cred
-    return salida
+    """Ya no se lee nada de atv-mkt. Queda el nombre porque la copia inicial de las
+    credenciales ya se hizo y vive en la base de ATV Ops: volver a ir a buscarlas allá
+    sería reintroducir la dependencia que se sacó."""
+    return {}
 
 
 def sembrar(refrescar: bool = False, quien: str = "migración", desde_mkt: bool = False) -> list[str]:
