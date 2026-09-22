@@ -213,19 +213,41 @@ def test_avisa_cuando_no_pudo_determinar_el_estado():
     assert "no se pudo determinar" in texto
 
 
-def test_el_resumen_se_corta_en_dos_renglones():
-    """Si se lo deja crecer vuelve a ser el párrafo largo que Franco pidió sacar."""
+def test_la_nota_y_el_resumen_llegan_como_dos_frases():
+    """Pedir "máximo 200 caracteres" no funciona: Haiku devuelve el párrafo igual y el
+    recorte lo corta a mitad de idea. Una restricción de estructura sí la respeta."""
+    campos = f._validar({
+        "nota": ["Pagó $50 de seña.", "Primer pago el 30/11."],
+        "resumen": ["Storymaker en transición.", "Cerró por la charla con Cris."],
+    }, ESTADOS, PLANES)
+    assert campos["nota"] == "Pagó $50 de seña. Primer pago el 30/11."
+    assert campos["resumen"] == "Storymaker en transición. Cerró por la charla con Cris."
+
+
+def test_una_tercera_frase_se_descarta():
+    """Dos, no tres: si se dejan crecer vuelve el párrafo que Franco pidió sacar."""
+    campos = f._validar({"nota": ["Una.", "Dos.", "Tres.", "Cuatro."]}, ESTADOS, PLANES)
+    assert campos["nota"] == "Una. Dos."
+
+
+def test_si_manda_un_string_igual_se_usa():
+    """El modelo a veces ignora la estructura: mejor usar lo que mandó que perderlo."""
+    assert f._validar({"nota": "Una nota suelta."}, ESTADOS, PLANES)["nota"] == "Una nota suelta."
+
+
+def test_una_frase_larguisima_se_corta_igual():
+    """La red de seguridad sigue: una sola frase de mil caracteres se acota."""
     largo = "palabra " * 200
-    corto = f._validar({"resumen": largo}, ESTADOS, PLANES)["resumen"]
-    assert len(corto) <= 201
+    corto = f._validar({"nota": [largo]}, ESTADOS, PLANES)["nota"]
+    assert len(corto) <= 126
     assert corto.endswith("…")
 
 
-@pytest.mark.parametrize("campo, tope", [("nota", 260), ("resumen", 200)])
+@pytest.mark.parametrize("campo, tope", [("nota", 125), ("resumen", 125)])
 def test_nunca_se_corta_a_mitad_de_una_palabra(campo, tope):
     """En el grupo se leyó "...para e": parecía un mensaje roto, no uno resumido."""
     largo = "Claudio y Dylan tienen una agencia de marketing y automatizaciones " * 20
-    corto = f._validar({campo: largo}, ESTADOS, PLANES)[campo]
+    corto = f._validar({campo: [largo]}, ESTADOS, PLANES)[campo]
     assert corto.endswith("…")
     assert len(corto) <= tope + 1
     # Lo que queda antes de los puntos suspensivos son palabras enteras.

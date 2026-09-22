@@ -180,8 +180,8 @@ Devolvé ÚNICAMENTE un JSON:
  "estado": "<uno EXACTO de la lista de estados, o null>",
  "plan": "<uno EXACTO de la lista de programas, o null>",
  "cash_usd": <número o null>,
- "nota": "MÁXIMO 200 CARACTERES: qué pasó, la objeción si quedó alguna, y el próximo paso con fecha",
- "resumen": "MÁXIMO 160 CARACTERES: quién es el prospecto y por qué quedó en ese estado",
+ "nota": ["primera frase", "segunda frase"],
+ "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
  "encaje": "ok" | "dudoso" | "no" | null,
  "encaje_motivo": "MÁXIMO 90 CARACTERES: por qué no encaja. null si encaje es ok",
@@ -221,14 +221,20 @@ Reglas:
   precio del programa ni lo que prometió pagar más adelante. Si pagó US$ 50 de seña de
   un programa de US$ 1.800, cash_usd es 50 y el resto va en la nota. Si no pagó nada,
   null. Si hablaron en pesos y no dijeron el equivalente, null: no conviertas.
-- **nota: 200 caracteres contados, no más.** Se corta si te pasás y queda a medio
-  terminar. Escribila como la escribiría el closer apurado entre llamada y llamada:
-  rioplatense, sin adornos, sin conectores de relleno. Es lo que se pega en el reporte,
-  no un resumen ejecutivo. Nada de "el prospecto manifestó" ni "la llamada consistió en".
-- **resumen: 160 caracteres contados, no más.** Va quién es el prospecto (a qué se
-  dedica, de dónde, en qué está) y por qué la llamada terminó como terminó. NO repitas
-  los montos ni las fechas que ya pusiste en la nota: acá va el contexto que no se ve
-  en los campos de arriba. Dos frases alcanzan.
+- **nota: EXACTAMENTE DOS frases, cada una de una línea.** Ni tres ni una larga partida
+  en dos. Qué pasó y cuál es el próximo paso. Escribilas como el closer apurado entre
+  llamada y llamada: rioplatense, sin adornos, sin conectores de relleno. Es lo que se
+  pega en el reporte, no un resumen ejecutivo — nada de "el prospecto manifestó".
+  Ejemplo del largo exacto que se espera:
+  ["Pagó $50 de seña y completa la reserva a fin de mes.",
+   "Primer pago de $1.800 arranca el 30/11, Nick coordina."]
+- **resumen: EXACTAMENTE DOS frases**, del mismo largo que las de la nota. Quién es el
+  prospecto (a qué se dedica, en qué está) y por qué la llamada terminó como terminó. NO
+  repitas los montos ni las fechas que ya pusiste en la nota: acá va el contexto que no
+  se ve en los campos de arriba.
+  Ejemplo:
+  ["Storymaker colombiano ganando $600/mes, en transición a Growth Operator.",
+   "Cerró seña por la charla previa con Cris, no por la oferta."]
 - Lo que dice el closer no es evidencia; lo que dice el prospecto sí.
 - Si la transcripción está cortada o no es una llamada de venta, devolvé todo null y
   explicá por qué en nota.
@@ -356,16 +362,30 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
     def _linea(v, tope=300):
         return _recortar(v, tope)
 
+    def _dos_frases(v, tope=125):
+        """Dos frases cortas, unidas con un espacio.
+
+        Pedir "máximo 200 caracteres" no funciona: Haiku devuelve el párrafo igual y el
+        recorte lo corta. Una restricción de ESTRUCTURA —una lista de dos— sí la respeta,
+        y de paso cada frase se acota sola. Si igual manda un string, se usa como venía.
+        """
+        if isinstance(v, str):
+            return _recortar(v, tope * 2)
+        if not isinstance(v, list):
+            return None
+        frases = [_recortar(x, tope) for x in v[:2] if str(x or "").strip()]
+        return " ".join(f for f in frases if f) or None
+
     return {
         "lead": _linea(campos.get("lead"), 120),
         "estado": _de_la_lista(campos.get("estado"), estados),
         "plan": _de_la_lista(campos.get("plan"), planes),
         "cashUsd": _numero(campos.get("cash_usd")),
-        "nota": _recortar(campos.get("nota"), 260),
+        "nota": _dos_frases(campos.get("nota")),
         "facturacionUsd": _numero(campos.get("facturacion_usd")),
         "encaje": next((e for e in ("ok", "dudoso", "no") if str(campos.get("encaje") or "").strip().lower() == e), None),
         "encajeMotivo": _recortar(campos.get("encaje_motivo"), 110),
-        "resumen": _recortar(campos.get("resumen"), 200),
+        "resumen": _dos_frases(campos.get("resumen")),
         "saldoUsd": _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
         "objecion": _linea(campos.get("objecion")),
