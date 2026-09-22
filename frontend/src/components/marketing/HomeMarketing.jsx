@@ -97,7 +97,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
       >
         <div className="kpi-grid">
           <Numero
-            label="Conversaciones abiertas"
+            label="Chats abiertos"
             valor={abiertas}
             tono={tono}
             nota={metaConversaciones
@@ -164,7 +164,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
               <span>Reel</span>
               <span>Palabra</span>
               <span>Reproducciones</span>
-              <span>Conversaciones</span>
+              <span>Chats</span>
             </div>
             {top.map((p) => (
               <div key={p.url ?? p.titulo} className="conv-fila">

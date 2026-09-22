@@ -84,7 +84,7 @@ export default function MarketingOps({ decreto, real, contexto, origenes = [], p
   return (
     <>
       <div className="kpi-grid">
-        <Proyeccion label="Conversaciones a fin de mes" p={conversaciones}
+        <Proyeccion label="Chats a fin de mes" p={conversaciones}
           nota={conversacionesPropias?.conectado ? 'las cuenta ATV Ops' : 'las cuenta el CRM de atv-mkt'} />
         <Proyeccion label="Agendas a fin de mes" p={agendas} />
         <Proyeccion label="Cash a fin de mes" p={cash} format="usd" />
@@ -113,7 +113,7 @@ export default function MarketingOps({ decreto, real, contexto, origenes = [], p
             <span>Meta</span>
             <span>Falta</span>
           </div>
-          <Fila label="Conversaciones" p={conversaciones} />
+          <Fila label="Chats" p={conversaciones} />
           <Fila label="Agendas" p={agendas} />
           <Fila label="Cash" p={cash} format="usd" />
           <Fila label="Piezas publicadas" p={publicacion} />
@@ -165,7 +165,7 @@ export default function MarketingOps({ decreto, real, contexto, origenes = [], p
           )}
           {conversaciones.meta > 0 && conversaciones.zona !== 'ok' && (
             <li>
-              Conversaciones proyecta <b>{n(conversaciones.proyectado)}</b> contra una meta de{' '}
+              Chats proyecta <b>{n(conversaciones.proyectado)}</b> contra una meta de{' '}
               {n(conversaciones.meta)}. Para llegar hacen falta{' '}
               <b>{n(Math.ceil(conversaciones.necesarioDia))} por día</b> en los {conversaciones.diasRestantes} que
               quedan, contra las {n(Math.round(conversaciones.ritmoDia * 10) / 10)} de hoy.

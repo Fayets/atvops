@@ -4,7 +4,7 @@ import Card from '../ui/Card.jsx';
 import PanelArea, { n, pct } from '../ui/PanelArea.jsx';
 
 /**
- * Marketing visto desde dirección: qué se publicó y cuántas conversaciones trajo.
+ * Marketing visto desde dirección: qué se publicó y cuántos chats trajo.
  *
  * Las reproducciones solas no dicen nada —un reel puede tener cien mil y no abrir una
  * charla—, así que al lado de cada pieza va lo que de verdad importa: cuánta gente
@@ -45,8 +45,8 @@ export default function PanelMarketing({ data }) {
   return (
     <PanelArea
       kpis={[
-        { label: 'Conversaciones', valor: n(conversaciones.total), tono: conversaciones.total ? 'ok' : null,
-          nota: 'gente que escribió por Instagram este mes' },
+        { label: 'Chats', valor: n(conversaciones.total), tono: conversaciones.total ? 'ok' : null,
+          nota: 'los abre el bot con la palabra de un reel o de la bio' },
         { label: 'Reels publicados', valor: n(contenido.reels),
           nota: 'lo que salió en el mes, sin contar historias' },
         { label: 'Reproducciones', valor: n(vistas),
@@ -72,12 +72,12 @@ export default function PanelMarketing({ data }) {
       </Card>
 
       <Card
-        title="Por dónde entró cada conversación"
+        title="Por dónde entró cada chat"
         sub="La palabra con la que escribieron"
         foot="Es la palabra que mandó la persona para pedir el recurso. Dice qué contenido está trayendo gente, no cuál tuvo más vistas."
       >
         <Bars
-          data={porPalabra} x={(d) => d.label} y={(d) => d.cuantas} format="count" label="Conversaciones"
+          data={porPalabra} x={(d) => d.label} y={(d) => d.cuantas} format="count" label="Chats"
           color={() => 'var(--s4)'} height={190}
         />
       </Card>
