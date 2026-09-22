@@ -449,6 +449,20 @@ def _guardar(reunion, datos: dict, campos: dict) -> dict:
     return {"completados": completados}
 
 
+def _norm_estado(v) -> str:
+    return str(v or "").strip().lower()
+
+
+def _precio_de(nombre) -> float | None:
+    """El precio del catálogo, para que el grupo vea contra qué se compara el cash."""
+    from src.services.ventas_services import programas
+    try:
+        n = str(nombre or "").strip().lower()
+        return next((float(p["precioUsd"]) for p in programas() if p["nombre"].strip().lower() == n), None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     """El texto que Theo manda al grupo.
 
@@ -466,8 +480,18 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
             valor = valor.strip() or None
         return valor if valor else campos.get(campo)
 
-    estado, plan = cargado("resultado", "estado"), cargado("programa", "plan")
+    estado = cargado("resultado", "estado")
     cash = cargado("cash_usd", "cashUsd")
+    # El programa es la EXCEPCIÓN a "lo cargado manda": acá se muestra la oferta que la
+    # llamada cerró de verdad, porque es lo que el grupo necesita ver. Lo que figura en
+    # el registro suele ser un nombre viejo elegido de una lista, y si difiere hay que
+    # decirlo en vez de tapar uno con el otro — esa diferencia es un error de carga que
+    # además descuadra el saldo.
+    plan = campos.get("plan")
+    guardado = (getattr(reunion, "programa", "") or "").strip() if reunion is not None else ""
+    discrepa = bool(plan and guardado and plan.lower() != guardado.lower())
+    if not plan:
+        plan = guardado or None
     # La hora de la reunión agendada, que es la que el equipo reconoce; la de la
     # grabación arranca unos minutos después y no coincide con el calendario.
     cuando = (getattr(reunion, "inicio_at", None) if reunion is not None else None) or datos.get("inicio")
@@ -482,8 +506,24 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     lineas = [encabezado, ""]
     lineas.append(f"*Resultado:* {estado}" if estado else "*Resultado:* ⚠️ no se pudo determinar")
     if plan:
-        lineas.append(f"*Programa:* {plan}")
+        precio = _precio_de(plan)
+        detalle = f" · US$ {precio:,.0f}" if precio else ""
+        aviso = f"   ⚠️ cargado como {guardado}" if discrepa else ""
+        lineas.append(f"*Programa:* {plan}{detalle}{aviso}")
     lineas.append(f"*Cash cobrado:* US$ {cash:,.0f}" if cash else "*Cash cobrado:* —")
+
+    # El encaje se muestra SIEMPRE que hubo venta, no solo cuando falla. Si solo aparece
+    # el aviso malo, nadie sabe que la validación existe ni confía en ella el día que
+    # salta. Lo que cambia es el signo, no la presencia.
+    if _norm_estado(estado) in ("cerrado", "seña", "sena") and campos.get("encaje"):
+        signo = {"ok": "✅", "dudoso": "🔸", "no": "⚠️"}[campos["encaje"]]
+        # Siempre con texto: un "⚠️" pelado es una alarma muda, no dice qué mirar.
+        motivo = campos.get("encajeMotivo") or {
+            "ok": "el avatar y la facturación dan para esta oferta",
+            "dudoso": "algo no termina de cerrar",
+            "no": "la oferta no le cierra a esta persona",
+        }[campos["encaje"]]
+        lineas.append(f"*Encaje:* {signo} {motivo}".rstrip())
 
     nota = campos.get("nota") or campos.get("proximoPaso")
     if nota:
@@ -493,9 +533,6 @@ def mensaje(datos: dict, campos: dict, reunion=None) -> str:
     # La alerta de encaje sale SOLO cuando algo no cierra. Un "✅ avatar correcto" en cada
     # llamada es ruido que a la semana nadie lee, y el día que aparezca el aviso de verdad
     # va a estar enterrado entre veinte tildes verdes.
-    if campos.get("encaje") in ("no", "dudoso") and campos.get("encajeMotivo"):
-        signo = "⚠️" if campos["encaje"] == "no" else "🔸"
-        lineas += ["", f"{signo} *Encaje:* {campos['encajeMotivo']}"]
     if reunion is None:
         lineas += ["", "⚠️ No la encontré en el calendario: el reporte no quedó cargado."]
     if datos.get("url"):

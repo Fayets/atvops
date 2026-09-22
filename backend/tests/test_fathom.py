@@ -190,9 +190,31 @@ def test_el_mensaje_muestra_lo_que_cargo_el_equipo_no_lo_que_leyo_la_ia():
     r = ReunionFalsa(resultado="Seña", programa="Mentoría", cash_usd=50.0)
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
     assert "*Resultado:* Seña" in texto
-    assert "*Programa:* Mentoría" in texto
     assert "*Cash cobrado:* US$ 50" in texto
     assert "2,000" not in texto
+
+
+def test_el_programa_muestra_la_oferta_que_cerro_la_llamada():
+    """Es la excepción a "lo cargado manda": el grupo necesita ver qué se vendió de
+    verdad, no el nombre viejo que alguien eligió de una lista."""
+    r = ReunionFalsa(resultado="Seña", programa="Mentoría")
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
+    assert "*Programa:* Boost" in texto
+    assert "⚠️ cargado como Mentoría" in texto
+
+
+def test_sin_discrepancia_no_se_avisa_nada():
+    r = ReunionFalsa(resultado="Seña", programa="Boost")
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS, r)
+    assert "*Programa:* Boost" in texto
+    assert "cargado como" not in texto
+
+
+def test_si_la_ia_no_supo_el_programa_se_usa_el_cargado():
+    r = ReunionFalsa(resultado="Seña", programa="Mentoría")
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, CAMPOS | {"plan": None}, r)
+    assert "*Programa:* Mentoría" in texto
+    assert "cargado como" not in texto
 
 
 def test_sin_cash_cobrado_la_linea_queda_igual():
@@ -292,24 +314,31 @@ def test_un_reintento_de_fathom_no_vuelve_a_encolar(monkeypatch):
 
 # ------------------------------------------------- encaje de la venta
 
-def test_el_aviso_de_encaje_sale_solo_cuando_algo_no_cierra():
-    """Un '✅ avatar correcto' en cada llamada es ruido: a la semana nadie lo lee, y el
-    día que aparezca el aviso de verdad va a estar enterrado."""
+def test_el_encaje_se_ve_siempre_que_hubo_venta():
+    """Si solo apareciera el aviso malo, nadie sabría que la validación existe ni
+    confiaría en ella el día que salta. Lo que cambia es el signo, no la presencia."""
     base = {"inicio": None, "titulo": "", "url": ""}
     ok = f.mensaje(base, CAMPOS | {"encaje": "ok", "encajeMotivo": None}, ReunionFalsa())
-    assert "Encaje" not in ok
+    assert "*Encaje:* ✅" in ok
 
     mal = f.mensaje(base, CAMPOS | {"encaje": "no", "encajeMotivo": "factura $600/mes y la cuota es $1.800"}, ReunionFalsa())
-    assert "⚠️ *Encaje:* factura $600/mes y la cuota es $1.800" in mal
+    assert "*Encaje:* ⚠️ factura $600/mes y la cuota es $1.800" in mal
 
     dudoso = f.mensaje(base, CAMPOS | {"encaje": "dudoso", "encajeMotivo": "factura $9k y compró Mid"}, ReunionFalsa())
-    assert "🔸 *Encaje:*" in dudoso
+    assert "*Encaje:* 🔸" in dudoso
 
 
-def test_sin_motivo_no_se_avisa_nada():
-    """Un aviso sin el dato concreto no sirve para actuar: es solo una alarma vaga."""
+def test_un_encaje_sin_motivo_igual_dice_algo():
+    """Un "⚠️" pelado es una alarma muda: no dice qué mirar."""
     texto = f.mensaje({"inicio": None, "titulo": "", "url": ""},
                       CAMPOS | {"encaje": "no", "encajeMotivo": None}, ReunionFalsa())
+    assert "*Encaje:* ⚠️ la oferta no le cierra a esta persona" in texto
+
+
+def test_sin_venta_no_se_valida_el_encaje():
+    """En un no show o un seguimiento no se vendió nada: no hay nada que validar."""
+    campos = CAMPOS | {"estado": "Seguimiento", "encaje": "ok"}
+    texto = f.mensaje({"inicio": None, "titulo": "", "url": ""}, campos, ReunionFalsa(resultado="Seguimiento"))
     assert "Encaje" not in texto
 
 
