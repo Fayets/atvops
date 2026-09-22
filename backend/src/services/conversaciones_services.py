@@ -157,10 +157,14 @@ def chats(desde, hasta) -> dict:
     Se devuelven las partes además del total. Un solo número no deja ver que el mes fue
     bueno por historias y malo por reels, que es exactamente la decisión que hay que tomar.
 
-    **Ojo con el doble conteo.** Si una historia con CTA dice "respondé INFO" y ManyChat
-    reacciona a esa palabra, la misma persona entra por las dos puertas: como respuesta a
-    la historia y como lead con palabra. Por eso las partes se muestran siempre: si un mes
-    las dos suben juntas y el total no cierra con la realidad, es esto.
+    **Las puertas no se pisan, y eso es una decisión, no una casualidad.** ManyChat escucha
+    solo palabras de reels; los CTA de historias no pasan por el bot. Por eso sumar es
+    correcto y nadie se cuenta dos veces (Franco, 22-09-2026).
+
+    Lo único que rompería esa garantía es poner en una historia una palabra que ManyChat
+    ya escuche: esa persona entraría como respuesta a la historia Y como lead con palabra.
+    Si alguna vez el total deja de cerrar con la realidad, empezar por ahí. Las partes se
+    muestran siempre, que es lo que permite verlo.
     """
     from pony.orm import db_session
 
