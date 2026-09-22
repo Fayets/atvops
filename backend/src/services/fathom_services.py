@@ -184,7 +184,7 @@ Devolvé ÚNICAMENTE un JSON:
  "resumen": ["primera frase", "segunda frase"],
  "facturacion_usd": <lo que el prospecto dijo que factura por mes, en dólares, o null>,
  "encaje_puntaje": <1 a 10, o null si no hay datos para juzgarlo>,
- "encaje_motivo": "MÁXIMO 90 CARACTERES: el dato que sostiene el puntaje, sea alto o bajo",
+ "encaje_motivo": "UNA frase corta con el dato que sostiene el puntaje, sea alto o bajo",
  "saldo_usd": <número o null>,
  "proximo_paso": "una línea: qué se comprometió cada parte y para cuándo, o null",
  "objecion": "la objeción que quedó sin resolver, en una línea, o null"}
@@ -220,11 +220,14 @@ Reglas:
   - **1-2**: no debería habérsele vendido esto.
   - **null**: no hay con qué juzgarlo — no dijo qué factura, no se habló del plan. No
     inventes un número para no dejarlo vacío.
-  **encaje_motivo va SIEMPRE, encaje o no**, y lleva el dato que sostiene el veredicto,
+  **encaje_motivo va SIEMPRE, encaje o no**: UNA sola frase, del largo de las de la
+  nota. Lleva el dato que sostiene el veredicto,
   nunca la opinión. Citá los números que dijo en la llamada — facturación, tamaño del
   equipo, margen, gasto en ads — que es lo que hace que el veredicto se pueda discutir.
   Sirve: "15-20k/mes, equipo de 5, margen 60%: es el avatar de Mid".
   Sirve: "factura $600/mes y la cuota es $1.800".
+  Si el precio o la duración que se cerró NO coinciden con ninguna oferta del catálogo,
+  decilo ahí: "cerró $15k a 6 meses, que no es ni Mid ni High".
   No sirve: "el avatar y la facturación dan para esta oferta".
   No sirve: "no parece el perfil".
 - **cash_usd es lo que ENTRÓ en esta llamada**: la seña, el pago que hizo ahí. NO es el
@@ -238,7 +241,8 @@ Reglas:
   Ejemplo del largo exacto que se espera:
   ["Pagó $50 de seña y completa la reserva a fin de mes.",
    "Primer pago de $1.800 arranca el 30/11, Nick coordina."]
-- **resumen: EXACTAMENTE DOS frases**, del mismo largo que las de la nota. Quién es el
+- **resumen: EXACTAMENTE DOS frases cortas**, del mismo largo que las de la nota. Dos
+  elementos en la lista, no uno largo partido con punto y coma. Quién es el
   prospecto (a qué se dedica, en qué está) y por qué la llamada terminó como terminó. NO
   repitas los montos ni las fechas que ya pusiste en la nota: acá va el contexto que no
   se ve en los campos de arriba.
@@ -414,7 +418,9 @@ def _validar(campos: dict, estados: tuple[str, ...], planes: list[str]) -> dict:
         "facturacionUsd": _numero(campos.get("facturacion_usd")),
         "encajePuntaje": _puntaje(campos.get("encaje_puntaje")),
         "encaje": _veredicto(_puntaje(campos.get("encaje_puntaje"))),
-        "encajeMotivo": _recortar(campos.get("encaje_motivo"), 110),
+        # 110 era muy corto para una justificación con evidencia: se cortaba justo donde
+        # empezaba el dato que la sostiene.
+        "encajeMotivo": _recortar(campos.get("encaje_motivo"), 160),
         "resumen": _dos_frases(campos.get("resumen")),
         "saldoUsd": _numero(campos.get("saldo_usd")),
         "proximoPaso": _linea(campos.get("proximo_paso")),
