@@ -1,23 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import CalendarioReportes from '../components/ventas/CalendarioReportes.jsx';
-import EmbudoSetting from '../components/ventas/EmbudoSetting.jsx';
-import SemanasSetting from '../components/ventas/SemanasSetting.jsx';
-import SetterVista from '../components/ventas/SetterVista.jsx';
 import MetricasSetting from '../components/setting/MetricasSetting.jsx';
 import NotasSetting from '../components/setting/Notas.jsx';
 import Sets from '../components/setting/Sets.jsx';
-import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
+import { ErrorState } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
-  actualizarPitch, borrarPitch, completarReporteSetter, crearPitch, getEmbudoSetting, getPitches,
-  getSesionesNotas, getSetterDashboard, marcarPitch,
+  actualizarPitch, borrarPitch, crearPitch, getPitches, getSesionesNotas,
 } from '../data/api.js';
-import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
-import { leerDecretoGuardado } from '../lib/metasMes.js';
-import { useRol } from '../lib/RolContext.jsx';
 import { iso } from '../lib/setting.js';
 
 const VISTAS = [
@@ -28,15 +21,13 @@ const VISTAS = [
 ];
 
 /**
- * La vista del setter: el sistema de SetSystem (Sets, Métricas, Notes) más lo que ya
- * tenía ATV Ops (embudo del mes, calendario de reportes y su día).
+ * La vista del setter: Sets, Métricas y Notes (el sistema de pitches) más el
+ * calendario para cargar el reporte del día.
  *
  * Los pitches se cargan una vez acá y las pestañas los comparten. Cambiar un dato es
  * optimista: la fila cambia al toque y si el servidor dice que no, vuelve.
  */
 export default function VentasSetter() {
-  const { user } = useRol();
-  const { mes } = useMes();
   const [params, setParams] = useSearchParams();
   const vista = VISTAS.some((v) => v.value === params.get('vista')) ? params.get('vista') : 'sets';
   const setVista = (v) => setParams((p) => { const n = new URLSearchParams(p); n.set('vista', v); return n; }, { replace: true });
@@ -92,26 +83,6 @@ export default function VentasSetter() {
     }
   }, [recargar]);
 
-  // Lo que ya tenía la vista: el embudo del mes y el dashboard con el reporte diario.
-  const embudo = useResource(() => getEmbudoSetting(mes), [mes, tick]);
-  const [data, setData] = useState(null);
-  const [cargandoDia, setCargandoDia] = useState(true);
-  const refreshDia = useCallback(async () => {
-    setCargandoDia(true);
-    try {
-      const next = await getSetterDashboard();
-      if (user?.username || user?.nombre) {
-        next.perfil = { ...next.perfil, id: user.username || next.perfil.id, nombre: user.nombre || next.perfil.nombre };
-      }
-      setData(next);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setCargandoDia(false);
-    }
-  }, [user]);
-  useEffect(() => { if (vista === 'reporte') refreshDia(); }, [refreshDia, vista]);
-
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
   return (
@@ -132,19 +103,7 @@ export default function VentasSetter() {
         <NotasSetting sesiones={sesiones.data?.sesiones ?? []} motor={sesiones.data?.motor} pitches={pitches}
           hoy={hoy} cargando={sesiones.loading} onRecargar={recargar} />
       )}
-      {vista === 'reporte' && (
-        cargandoDia || !data ? (
-          <><SkeletonKpis n={3} /><SkeletonKpis n={4} /><SkeletonBlock height={220} /></>
-        ) : (
-          <>
-            <EmbudoSetting embudo={embudo.data} decreto={leerDecretoGuardado(mes) ?? {}}
-              onPitch={async (datos) => { await marcarPitch(datos); recargar(); }} />
-            <SemanasSetting semanas={embudo.data?.semanas ?? []} />
-            <CalendarioReportes rol="setter" />
-            <SetterVista data={data} onCompletarReporte={async (payload) => setData(await completarReporteSetter(payload))} />
-          </>
-        )
-      )}
+      {vista === 'reporte' && <CalendarioReportes rol="setter" />}
     </div>
   );
 }
