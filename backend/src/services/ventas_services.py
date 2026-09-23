@@ -781,7 +781,7 @@ def _marcar_duplicados(filas: list[dict]) -> list[dict]:
     return filas
 
 
-def _bloque(leads: list[dict], ahora: datetime) -> dict:
+def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
     # Las descartadas quedan afuera de toda métrica.
     def _clase(l: dict) -> str:
         return _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
@@ -837,7 +837,7 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "Cerrado" if _norm(l["resultado"]) == _norm("Cerrado") else "Seña"
     )
 
-    return {
+    out = {
         "agendados": agendados,
         "seguimientos": seguimientos,
         "reuniones": len(leads),
@@ -847,26 +847,6 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "sinCrm": sin_crm,
         "cierres": len(cierres),
         "senas": len(senas),
-        "cierresDetalle": [_fila(l, estado="Cerrado") for l in por_fecha(cierres)],
-        "senasDetalle": [_fila(l, estado="Seña") for l in por_fecha(senas)],
-        "ventasDetalle": [
-            _fila(l, estado=estado_venta(l), saldada=_saldo(l) <= 0)
-            for l in por_fecha(ventas)
-        ],
-        "showsDetalle": [
-            _fila(l, estado=(l.get("resultado") or "Show").strip() or "Show")
-            for l in por_fecha(shows_leads)
-        ],
-        "noShowsDetalle": [
-            _fila(l, estado=(l.get("resultado") or "No show").strip() or "No show")
-            for l in por_fecha(no_shows_leads)
-        ],
-        "saldadasDetalle": [
-            _fila(l, estado=estado_venta(l), saldada=True) for l in por_fecha(saldadas)
-        ],
-        "conPlanDetalle": [
-            _fila(l, estado=estado_venta(l), saldada=False) for l in por_fecha(con_plan)
-        ],
         "ventas": len(ventas),
         "cashUsd": round(cash, 2),
         "deudaUsd": round(sum(_saldo(l) for l in ventas), 2),
@@ -889,8 +869,35 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "pifPorEstado": round(len(cierres) / len(ventas) * 100, 1) if ventas else None,
         "pifPorDeuda": round(len(saldadas) / len(ventas) * 100, 1) if ventas else None,
         "ventasConPlan": len(ventas) - len(saldadas),
-        "disposiciones": disposiciones(leads, clases),
+        # Sin listas de leads: las series semanales y por persona no las necesitan y
+        # meterlas ahí hinchaba la respuesta hasta tumbar el endpoint.
+        "disposiciones": disposiciones(leads, clases, con_leads=detalle),
     }
+    if detalle:
+        out.update({
+            "cierresDetalle": [_fila(l, estado="Cerrado") for l in por_fecha(cierres)],
+            "senasDetalle": [_fila(l, estado="Seña") for l in por_fecha(senas)],
+            "ventasDetalle": [
+                _fila(l, estado=estado_venta(l), saldada=_saldo(l) <= 0)
+                for l in por_fecha(ventas)
+            ],
+            "showsDetalle": [
+                _fila(l, estado=(l.get("resultado") or "Show").strip() or "Show")
+                for l in por_fecha(shows_leads)
+            ],
+            "noShowsDetalle": [
+                _fila(l, estado=(l.get("resultado") or "No show").strip() or "No show")
+                for l in por_fecha(no_shows_leads)
+            ],
+            "saldadasDetalle": [
+                _fila(l, estado=estado_venta(l), saldada=True) for l in por_fecha(saldadas)
+            ],
+            "conPlanDetalle": [
+                _fila(l, estado=estado_venta(l), saldada=False) for l in por_fecha(con_plan)
+            ],
+        })
+    return out
+
 
 
 # Las siete tajadas de la disposición en llamada. Es la métrica más diagnóstica que hay:
@@ -910,16 +917,17 @@ _PLIEGUE = {
 }
 
 
-def disposiciones(leads: list[dict], clases: list[str]) -> dict:
+def disposiciones(leads: list[dict], clases: list[str], con_leads: bool = False) -> dict:
     """El reparto de las llamadas del mes entre las siete disposiciones.
 
     Las que pasaron y nadie reportó NO se reparten: se cuentan aparte. Meterlas en una
     tajada sería inventar qué pasó en esa llamada, y repartirlas proporcionalmente
     maquillaría justo el número que uno mira para saber dónde se cae.
 
-    Cada tajada trae sus leads: al tocarla en el tablero se ve quién está en ese estado.
+    Con `con_leads=True` cada tajada trae sus leads (solo el bloque del mes actual).
     """
-    por_disp: dict[str, list[dict]] = {d: [] for d in DISPOSICIONES}
+    cuenta = {d: 0 for d in DISPOSICIONES}
+    por_disp: dict[str, list[dict]] = {d: [] for d in DISPOSICIONES} if con_leads else {}
     sin_reportar = 0
     for lead, clase in zip(leads, clases):
         if clase in ("agendado", "descartada", "duplicada", "reprogramada", "sin_crm"):
@@ -933,28 +941,35 @@ def disposiciones(leads: list[dict], clases: list[str]) -> dict:
             # Un show sin estado reconocible igual ocurrió: entra como seguimiento, que
             # es lo que significa "se habló y no se cerró".
             nombre = "No show" if clase == "no_show" else "Seguimiento"
-        call = lead.get("call")
-        por_disp[nombre].append({
-            "id": str(lead.get("id") or ""),
-            "nombre": (lead.get("nombre") or "Sin nombre").strip(),
-            "closer": _persona(lead.get("closer"), "closer"),
-            "fecha": call.date().isoformat() if call else None,
-            "pagoUsd": round(_num(lead.get("pago")), 2),
-            "programa": (lead.get("programa_ofrecido") or "").strip(),
-            "resultado": (lead.get("resultado") or "").strip(),
-        })
+        cuenta[nombre] += 1
+        if con_leads:
+            call = lead.get("call")
+            por_disp[nombre].append({
+                "id": str(lead.get("id") or ""),
+                "nombre": (lead.get("nombre") or "Sin nombre").strip(),
+                "closer": _persona(lead.get("closer"), "closer"),
+                "fecha": call.date().isoformat() if call else None,
+                "pagoUsd": round(_num(lead.get("pago")), 2),
+                "programa": (lead.get("programa_ofrecido") or "").strip(),
+                "resultado": (lead.get("resultado") or "").strip(),
+            })
 
-    for lista in por_disp.values():
-        lista.sort(key=lambda x: x.get("fecha") or "", reverse=True)
+    if con_leads:
+        for lista in por_disp.values():
+            lista.sort(key=lambda x: x.get("fecha") or "", reverse=True)
 
-    total = sum(len(v) for v in por_disp.values())
+    total = sum(cuenta.values())
+    tajadas = []
+    for d in DISPOSICIONES:
+        fila = {"disposicion": d, "n": cuenta[d],
+                "pct": round(cuenta[d] / total * 100, 1) if total else 0.0}
+        if con_leads:
+            fila["leads"] = por_disp[d]
+        tajadas.append(fila)
     return {
         "total": total,
         "sinReportar": sin_reportar,
-        "tajadas": [{"disposicion": d, "n": len(por_disp[d]),
-                     "pct": round(len(por_disp[d]) / total * 100, 1) if total else 0.0,
-                     "leads": por_disp[d]}
-                    for d in DISPOSICIONES],
+        "tajadas": tajadas,
     }
 
 
@@ -1173,7 +1188,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     dias_mes = (fin_mes - inicio_mes).days
     dia_hoy = min(max((hoy - inicio_mes).days + 1, 1), dias_mes)
 
-    actual = _bloque(del_mes, ahora)
+    actual = _bloque(del_mes, ahora, detalle=True)
     previo = _bloque(previos, ahora)
     data = {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
