@@ -113,9 +113,9 @@ export default function MetricasSetting({ pitches, sesiones = 0, hoy, tick, onRe
         </div>
         {periodo !== 'todo' && periodo !== 'rango' && (
           <div className="sets-periodo">
-            <button type="button" className="btn ghost icon" onClick={() => mover(-1)} aria-label="Anterior">◀</button>
-            <span className="strong">{etiquetaPeriodo(periodo, lim)}</span>
-            <button type="button" className="btn ghost icon" onClick={() => mover(1)} aria-label="Siguiente">▶</button>
+            <button type="button" className="sets-periodo-flecha" onClick={() => mover(-1)} aria-label="Anterior">◀</button>
+            <span className="sets-periodo-texto">{etiquetaPeriodo(periodo, lim)}</span>
+            <button type="button" className="sets-periodo-flecha" onClick={() => mover(1)} aria-label="Siguiente">▶</button>
             {ref !== hoy && <button type="button" className="btn sm" onClick={() => setRef(hoy)}>Hoy</button>}
           </div>
         )}

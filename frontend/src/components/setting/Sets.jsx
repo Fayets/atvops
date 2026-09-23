@@ -48,28 +48,32 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
     setRef((r) => sumarDias(r, 7 * n));
   };
 
+  const etiqueta = etiquetaPeriodo(modo === 'semana' ? 'semana' : modo, lim);
+
   return (
     <>
-      <div className="sets-barra">
+      <div className="sets-toolbar">
         <div className="sets-periodo">
-          <button type="button" className="btn ghost icon" onClick={() => mover(-1)} aria-label="Semana anterior">◀</button>
-          <span className="strong">{etiquetaPeriodo(modo === 'semana' ? 'semana' : modo, lim)}</span>
-          <button type="button" className="btn ghost icon" onClick={() => mover(1)} aria-label="Semana siguiente">▶</button>
+          <button type="button" className="sets-periodo-flecha" onClick={() => mover(-1)} aria-label="Semana anterior">◀</button>
+          <span className="sets-periodo-texto">{etiqueta}</span>
+          <button type="button" className="sets-periodo-flecha" onClick={() => mover(1)} aria-label="Semana siguiente">▶</button>
         </div>
-        <div className="tabs sm">
-          {MODOS.map(([v, l]) => (
-            <button key={v} type="button" className={`tab${modo === v ? ' active' : ''}`}
-              onClick={() => { setModo(v); if (v === 'hoy') setRef(hoy); }}>{l}</button>
-          ))}
+        <div className="sets-toolbar-acciones">
+          <div className="tabs sm">
+            {MODOS.map(([v, l]) => (
+              <button key={v} type="button" className={`tab${modo === v ? ' active' : ''}`}
+                onClick={() => { setModo(v); if (v === 'hoy') setRef(hoy); }}>{l}</button>
+            ))}
+          </div>
+          {modo === 'rango' && (
+            <span className="sets-rango">
+              <input type="date" value={rango.desde} onChange={(e) => setRango((r) => ({ ...r, desde: e.target.value }))} />
+              <span className="dim">a</span>
+              <input type="date" value={rango.hasta} onChange={(e) => setRango((r) => ({ ...r, hasta: e.target.value }))} />
+            </span>
+          )}
+          <button type="button" className="btn primary" onClick={() => setNuevo(true)}>+ Pitch</button>
         </div>
-        {modo === 'rango' && (
-          <span className="sets-rango">
-            <input type="date" value={rango.desde} onChange={(e) => setRango((r) => ({ ...r, desde: e.target.value }))} />
-            <span className="dim">a</span>
-            <input type="date" value={rango.hasta} onChange={(e) => setRango((r) => ({ ...r, hasta: e.target.value }))} />
-          </span>
-        )}
-        <button type="button" className="btn primary sets-mas" onClick={() => setNuevo(true)}>+ Pitch</button>
       </div>
 
       <div className="diag-filtros sets-filtros">
@@ -106,6 +110,7 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
                 <div className="calls-fecha">
                   <span className="calls-semana">{diaSemana(fecha)}</span>
                   <span className="calls-num">{diaMes(fecha)}</span>
+                  {fecha === hoy && <span className="calls-hoy">hoy</span>}
                 </div>
                 <div className="pitch-lista">
                   {items.map((p) => <FilaPitch key={p.id} p={p} modo="call" onCambiar={onCambiar} onBorrar={onBorrar} />)}
@@ -118,7 +123,7 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
 
       <Card
         title="Trackeo diario"
-        sub={`Semana del ${diaMes(lunes)} · ${trackeo.reduce((a, d) => a + d.pitches.length, 0)} pitches · ${trackeo.reduce((a, d) => a + d.booked, 0)} booked`}
+        sub={`${etiquetaPeriodo('semana', { desde: lunes, hasta: sumarDias(lunes, 6) })} · ${trackeo.reduce((a, d) => a + d.pitches.length, 0)} pitches · ${trackeo.reduce((a, d) => a + d.booked, 0)} booked`}
         flush
         foot="Cada pitch en el día que se mandó el link. Booked son los de ese día que terminaron agendando, aunque hayan agendado al otro día."
       >
@@ -132,7 +137,7 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
                   aria-expanded={!plegado}>
                   <span className="trackeo-flecha">{plegado ? '▸' : '▾'}</span>
                   <span className="trackeo-nombre">{diaSemana(d.fecha)} {diaMes(d.fecha)}</span>
-                  {d.esHoy && <span className="chip">hoy</span>}
+                  {d.esHoy && <span className="calls-hoy">hoy</span>}
                   <span className="trackeo-cuentas dim">
                     <span>pitches <b className="num">{d.pitches.length}</b></span>
                     <span>booked <b className="num">{d.booked}</b></span>

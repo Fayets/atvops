@@ -5884,7 +5884,24 @@ body.gate-abierto .shell { display: none; }
 /* ------------------------------------------------------- sistema del setter (Sets · Métricas · Notes) */
 
 .sets-barra, .metricas-barra { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.sets-periodo { display: flex; align-items: center; gap: var(--space-2); }
+.sets-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--space-3) var(--space-4); margin-bottom: var(--space-4);
+}
+.sets-periodo {
+  display: inline-flex; align-items: center; gap: 14px;
+  min-width: min(100%, 340px);
+}
+.sets-periodo-texto {
+  flex: 1; text-align: center; font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+  color: var(--text); line-height: 1.3; white-space: nowrap;
+}
+.sets-periodo-flecha {
+  flex: none; width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+  background: transparent; color: var(--text-2); font-size: 11px; line-height: 1; cursor: pointer;
+}
+.sets-periodo-flecha:hover { background: var(--surface-2); color: var(--text); }
+.sets-toolbar-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-left: auto; }
 .sets-periodo .strong { min-width: 210px; text-align: center; }
 .sets-periodo .strong::first-letter { text-transform: uppercase; }
 .sets-rango { display: inline-flex; align-items: center; gap: var(--space-2); }
@@ -5985,14 +6002,25 @@ body.gate-abierto .shell { display: none; }
 /* ---------------- calendario de calls */
 
 .calls-dias { display: grid; }
-.calls-dia { display: grid; grid-template-columns: 104px minmax(0, 1fr); border-bottom: 1px solid var(--border-soft); }
+.calls-dia { display: grid; grid-template-columns: 118px minmax(0, 1fr); border-bottom: 1px solid var(--border-soft); }
 .calls-dia:last-child { border-bottom: none; }
 .calls-dia.hoy { box-shadow: inset 3px 0 0 var(--brand); }
-.calls-fecha { display: grid; align-content: start; gap: 2px; padding: 12px var(--space-3) 12px var(--space-4);
-  border-right: 1px solid var(--border-soft); }
-.calls-semana { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); }
-.calls-num { font-size: 14px; font-weight: 600; }
-@media (max-width: 800px) { .calls-dia { grid-template-columns: 1fr; } .calls-fecha { border-right: none; padding-bottom: 0; } }
+.calls-fecha {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 14px var(--space-3) 14px var(--space-4); border-right: 1px solid var(--border-soft);
+}
+.calls-semana { font-size: 12px; font-weight: 500; color: var(--text-2); line-height: 1.2; }
+.calls-num { font-size: 15px; font-weight: 650; color: var(--text); letter-spacing: -0.01em; line-height: 1.2; }
+.calls-hoy {
+  margin-top: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--brand-hi); background: var(--brand-dim);
+  border-radius: var(--radius-pill); padding: 1px 7px;
+}
+@media (max-width: 800px) {
+  .calls-dia { grid-template-columns: 1fr; }
+  .calls-fecha { flex-direction: row; align-items: baseline; gap: 8px; border-right: none; padding-bottom: 4px; }
+  .calls-hoy { margin-top: 0; }
+}
 
 /* ---------------- trackeo diario */
 
@@ -6000,14 +6028,13 @@ body.gate-abierto .shell { display: none; }
 .trackeo-dia { border-bottom: 1px solid var(--border-soft); }
 .trackeo-dia:last-child { border-bottom: none; }
 .trackeo-dia.hoy .trackeo-cab { box-shadow: inset 3px 0 0 var(--brand); }
-.trackeo-cab { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: 9px var(--space-4);
+.trackeo-cab { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: 11px var(--space-4);
   background: var(--surface); border: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .trackeo-cab:hover { background: var(--surface-2); }
 .trackeo-flecha { color: var(--text-3); font-size: 10px; }
-.trackeo-nombre { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-.calls-semana { font-size: 10px; }
-.trackeo-cuentas { display: flex; gap: var(--space-4); margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-.trackeo-cuentas b { color: var(--text); margin-left: 4px; }
+.trackeo-nombre { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+.trackeo-cuentas { display: flex; gap: var(--space-4); margin-left: auto; font-size: 11px; color: var(--text-3); }
+.trackeo-cuentas b { color: var(--text); margin-left: 4px; font-weight: 600; }
 
 /* ---------------- nuevo pitch */
 

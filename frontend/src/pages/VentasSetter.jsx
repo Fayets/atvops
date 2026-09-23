@@ -117,9 +117,7 @@ export default function VentasSetter() {
   return (
     <div className="page setter-page">
       <PageHeader
-        eyebrow="Ventas"
         title="Mi setting"
-        desc="Cada link que mandás, lo que pasó después y las notas de cada llamada."
         actions={<Tabs value={vista} onChange={setVista} options={VISTAS} />}
       />
 

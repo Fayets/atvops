@@ -22,7 +22,7 @@ const TITULOS = {
   '/reporte': 'Reporte semanal',
   '/ventas/llamadas': 'Ventas · Llamadas',
   '/ventas/mi-dia': 'Ventas · Mi día',
-  '/ventas/mi-progreso': 'Ventas · Mi progreso',
+  '/ventas/mi-progreso': 'Ventas',
   '/ventas/performance': 'Ventas · Performance',
   '/ventas/ops': 'Ventas · Salud vs meta',
   '/metas': 'Metas del mes',
