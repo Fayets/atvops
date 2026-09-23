@@ -44,6 +44,13 @@ const NAV = [
   },
   { to: '/ads', icon: 'ads', label: 'Ads', grupo: 'Áreas' },
   {
+    to: '/webinars',
+    icon: 'ventas',
+    label: 'Webinars',
+    grupo: 'Áreas',
+    roles: ['admin', 'founder', 'operaciones', 'marketing', 'ventas'],
+  },
+  {
     to: '/ventas',
     icon: 'ventas',
     label: 'Ventas',

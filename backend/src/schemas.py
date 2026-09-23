@@ -190,3 +190,53 @@ class AsistenteRespuesta(BaseModel):
     tokens_salida: int = 0
     costo_usd: float = 0.0
     duracion_ms: int = 0
+
+
+# ---------------------------------------------------------------- webinars
+
+
+class WebinarCampania(BaseModel):
+    id: str
+    nombre: str = ""
+
+
+class WebinarCreate(BaseModel):
+    nombre: str
+    fechaHora: str | None = None
+    tema: str | None = None
+    ctaTipo: str = "call_funnel"
+    precioUsd: float = 0
+    landingUrl: str | None = None
+    thankYouUrl: str | None = None
+    calendlyUrl: str | None = None
+    whatsappGrupo: str | None = None
+    campaniasAds: list[WebinarCampania] = []
+    benchmarks: dict | None = None
+    estado: str | None = None
+    notas: str | None = None
+    plantillaDeId: int | None = None
+
+
+class WebinarUpdate(BaseModel):
+    nombre: str | None = None
+    fechaHora: str | None = None
+    tema: str | None = None
+    ctaTipo: str | None = None
+    precioUsd: float | None = None
+    landingUrl: str | None = None
+    thankYouUrl: str | None = None
+    calendlyUrl: str | None = None
+    whatsappGrupo: str | None = None
+    campaniasAds: list[WebinarCampania] | None = None
+    benchmarks: dict | None = None
+    metricas: dict | None = None
+    estado: str | None = None
+    notas: str | None = None
+
+
+class WebinarDuplicar(BaseModel):
+    nombre: str | None = None
+    fechaHora: str | None = None
+    tema: str | None = None
+    calendlyUrl: str | None = None
+    campaniasAds: list[WebinarCampania] | None = None

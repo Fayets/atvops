@@ -621,3 +621,40 @@ class PublicacionYt(db.Entity):
     metricas = Required(str, default="{}")    # JSON: vistas, likes, comentarios
     visto_at = Required(datetime, default=datetime.utcnow)
     actualizado_at = Required(datetime, default=datetime.utcnow)
+
+
+class Webinar(db.Entity):
+    """Un webinar como entidad propia: configuración, ads y métricas por evento.
+
+    Cada uno es independiente. Duplicar uno anterior hereda landing, Calendly, CTA y
+    benchmarks; solo cambia fecha, tema y campañas. Así se escala sin hardcodear.
+    """
+
+    _table_ = _tabla("webinars", "Webinar")
+
+    id = PrimaryKey(int, auto=True)
+    nombre = Required(str)
+    # borrador | configurado | en_vivo | finalizado
+    estado = Required(str, default="borrador", index=True)
+    fecha_hora = Optional(datetime, index=True, nullable=True)
+    tema = Optional(str, nullable=True)              # ángulo / tema del pitch
+    # call_funnel | checkout | formulario
+    cta_tipo = Required(str, default="call_funnel")
+    precio_usd = Required(float, default=0.0)
+    landing_url = Optional(str, nullable=True)
+    thank_you_url = Optional(str, nullable=True)
+    calendly_url = Optional(str, nullable=True)
+    whatsapp_grupo = Optional(str, nullable=True)
+    # JSON: [{id, nombre}] campañas Meta que mandan tráfico a este webinar
+    campanias_ads = Required(str, default="[]")
+    # JSON: benchmarks / metas del funnel de este evento
+    benchmarks = Required(str, default="{}")
+    # JSON: métricas cargadas o sincronizadas (registros, shows, etc.)
+    metricas = Required(str, default="{}")
+    plantilla_de_id = Optional(int, nullable=True)  # id del webinar del que se duplicó
+    notas = Optional(LongStr, nullable=True)
+    creado_por = Optional(str, nullable=True)
+    actualizado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    borrado_at = Optional(datetime, nullable=True)

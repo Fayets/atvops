@@ -15,6 +15,7 @@ const TITULOS = {
   '/fulfillment/chats': 'Fulfillment · Chats en vivo',
   '/marketing': 'Marketing',
   '/ads': 'Ads',
+  '/webinars': 'Webinars',
   '/ventas': 'Ventas',
   '/ventas/operativa': 'Ventas · Operativa',
   '/ventas/lab-setting': 'Ventas · Laboratorio Setting',

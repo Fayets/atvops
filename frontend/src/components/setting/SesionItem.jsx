@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   actualizarSesionNota, bajarAudioSesion, borrarSesionNota, getSesionNota, procesarSesionNota, refinarSesionNota,
 } from '../../data/api.js';
-import { CANAL_PILL, LLAMADA_ESTADO, PITCH_ESTADO, diaMes, duracion } from '../../lib/setting.js';
+import { CANAL_PILL, LLAMADA_ESTADO, PITCH_ESTADO, diaMes, diaSemana, duracion } from '../../lib/setting.js';
 
 /** Las notas se leen en párrafos: cada línea con "Título:" va en negrita. */
 function Notas({ texto }) {
@@ -92,10 +92,10 @@ export default function SesionItem({ sesion, pitches, onCambio }) {
   const enProceso = s.proceso && s.proceso !== 'error';
 
   return (
-    <div className="sesion-card">
+    <article className="sesion-card">
       <header>
         <span className="sesion-quien">
-          <span className="strong">{s.contacto || pitch?.prospecto || 'Sin identificar'}</span>
+          <span className="sesion-nombre">{s.contacto || pitch?.prospecto || 'Sin identificar'}</span>
           {estado ? (
             <>
               <span className={`pill-estado tono-${estado.tone}`}>{estado.label}</span>
@@ -103,7 +103,11 @@ export default function SesionItem({ sesion, pitches, onCambio }) {
             </>
           ) : <span className="pill-estado tono-off">no se encontró match</span>}
         </span>
-        <span className="dim num">{diaMes(s.fecha)}{s.duracionSeg ? ` · ${duracion(s.duracionSeg)}` : ''}</span>
+        <span className="sesion-cuando">
+          <span className="sesion-dia">{diaSemana(s.fecha)}</span>
+          <span className="sesion-fecha">{diaMes(s.fecha)}</span>
+          {s.duracionSeg ? <span className="sesion-dur">{duracion(s.duracionSeg)}</span> : null}
+        </span>
       </header>
 
       {s.tieneAudio && (audioUrl ? (
@@ -217,6 +221,6 @@ export default function SesionItem({ sesion, pitches, onCambio }) {
             : <p>{s.transcripcion}</p>}
         </div>
       )}
-    </div>
+    </article>
   );
 }

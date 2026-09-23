@@ -27,6 +27,8 @@ import Setting from './pages/Setting.jsx';
 import Laboratorio from './pages/Laboratorio.jsx';
 import VentasDashboard from './pages/VentasDashboard.jsx';
 import VentasSetter from './pages/VentasSetter.jsx';
+import Webinars from './pages/Webinars.jsx';
+import WebinarDetalle from './pages/WebinarDetalle.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
 import Pendientes from './pages/fulfillment/Pendientes.jsx';
@@ -163,6 +165,11 @@ export default function App() {
               <Route path="youtube" element={<ContenidoPage vista="youtube" />} />
             </Route>
             <Route path="ads" element={<Ads />} />
+            <Route path="webinars">
+              <Route index element={<Webinars />} />
+              <Route path="nuevo" element={<WebinarDetalle modo="nuevo" />} />
+              <Route path=":id" element={<WebinarDetalle />} />
+            </Route>
             <Route path="ventas">
               <Route index element={<VentasIndex />} />
               <Route path="operativa" element={<VentasOperativaPage />} />

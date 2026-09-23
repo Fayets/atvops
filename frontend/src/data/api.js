@@ -2374,6 +2374,52 @@ export async function getIdeas() {
   return pedir('/api/ideas');
 }
 
+/* --------------------------------------------------------------- webinars */
+
+export async function getWebinars() {
+  const d = await pedir('/api/webinars');
+  return d.webinars ?? [];
+}
+
+export async function getWebinar(id) {
+  return pedir(`/api/webinars/${id}`);
+}
+
+export async function crearWebinar(payload) {
+  return pedir('/api/webinars', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function actualizarWebinar(id, payload) {
+  return pedir(`/api/webinars/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function duplicarWebinar(id, payload = {}) {
+  return pedir(`/api/webinars/${id}/duplicar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function borrarWebinar(id) {
+  return pedir(`/api/webinars/${id}`, { method: 'DELETE' });
+}
+
+/** Campañas Meta con id real (para vincular a un webinar). */
+export async function getCampaniasMeta(mes) {
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  const d = await pedir(`/api/meta/ads${q}`);
+  return d.campanias ?? [];
+}
+
 export async function crearIdea(texto, quien) {
   return pedir('/api/ideas', {
     method: 'POST',

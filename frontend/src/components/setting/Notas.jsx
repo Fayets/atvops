@@ -4,7 +4,8 @@ import { SkeletonBlock } from '../ui/Loading.jsx';
 import Grabador from './Grabador.jsx';
 import SesionItem from './SesionItem.jsx';
 import { actualizarSesionNota, crearSesionNota, procesarSesionNota, subirAudioSesion } from '../../data/api.js';
-import { diaMes, lunesDe, sumarDias } from '../../lib/setting.js';
+import { useMes } from '../../lib/MesContext.jsx';
+import { lunesDe, sumarDias } from '../../lib/setting.js';
 
 const MODOS = [['grabar', 'Grabar'], ['subir', 'Subir audio'], ['texto', 'Pegar texto']];
 
@@ -16,12 +17,13 @@ const MODOS = [['grabar', 'Grabar'], ['subir', 'Subir audio'], ['texto', 'Pegar 
  * el closer se prepara.
  */
 export default function NotasSetting({ sesiones, motor, pitches, hoy, cargando, onRecargar }) {
+  const { mes, nombreMes: mesLabel } = useMes();
   const [tab, setTab] = useState('nueva');
   const [modo, setModo] = useState('grabar');
   const [contacto, setContacto] = useState('');
   const [fecha, setFecha] = useState(hoy);
   const [texto, setTexto] = useState('');
-  const [filtro, setFiltro] = useState('todas');
+  const [filtro, setFiltro] = useState('mes');
   const [paso, setPaso] = useState('');
   const [error, setError] = useState('');
   const archivo = useRef(null);
@@ -30,15 +32,22 @@ export default function NotasSetting({ sesiones, motor, pitches, hoy, cargando, 
   const lunes = lunesDe(hoy);
   const domingo = sumarDias(lunes, 6);
 
-  const sinMatch = sesiones.filter((s) => !s.pitchId && !s.contacto);
+  const delMes = useMemo(
+    () => sesiones.filter((s) => String(s.fecha || '').startsWith(mes)),
+    [sesiones, mes],
+  );
+  const sinMatch = useMemo(
+    () => delMes.filter((s) => !s.pitchId && !s.contacto),
+    [delMes],
+  );
   const semana = useMemo(() => {
-    const deLaSemana = sesiones.filter((s) => s.fecha >= lunes && s.fecha <= domingo);
+    const deLaSemana = delMes.filter((s) => s.fecha >= lunes && s.fecha <= domingo);
     const calls = pitches.filter((p) => p.pitchEstado === 'booked' && p.fechaLlamada >= lunes && p.fechaLlamada <= domingo);
-    const conGrabacion = calls.filter((p) => sesiones.some((s) => s.pitchId === p.id && s.tieneAudio));
+    const conGrabacion = calls.filter((p) => delMes.some((s) => s.pitchId === p.id && s.tieneAudio));
     return { sesiones: deLaSemana, calls: calls.length, conGrabacion: conGrabacion.length };
-  }, [sesiones, pitches, lunes, domingo]);
+  }, [delMes, pitches, lunes, domingo]);
 
-  const listadas = { todas: sesiones, semana: semana.sesiones, sinMatch }[filtro] ?? sesiones;
+  const listadas = { mes: delMes, semana: semana.sesiones, sinMatch }[filtro] ?? delMes;
 
   /** Crea la sesión, sube lo que haya y la manda a procesar. */
   const guardar = async ({ audio, audioMic, duracionSeg, textoPegado, nombre }) => {
@@ -76,7 +85,7 @@ export default function NotasSetting({ sesiones, motor, pitches, hoy, cargando, 
       <div className="tabs sm notas-tabs">
         <button type="button" className={`tab${tab === 'nueva' ? ' active' : ''}`} onClick={() => setTab('nueva')}>Lead Notes</button>
         <button type="button" className={`tab${tab === 'libreria' ? ' active' : ''}`} onClick={() => setTab('libreria')}>
-          Librería <span className="num">{sesiones.length}</span>
+          Librería <span className="num">{delMes.length}</span>
         </button>
       </div>
 
@@ -131,22 +140,23 @@ export default function NotasSetting({ sesiones, motor, pitches, hoy, cargando, 
       {tab === 'libreria' && (
         <Card
           title="Librería"
-          sub={`Semana del ${diaMes(lunes)} al ${diaMes(domingo)}: ${semana.sesiones.length} ${semana.sesiones.length === 1 ? 'sesión grabada' : 'sesiones grabadas'} · ${semana.conGrabacion} de ${semana.calls} calls agendadas tienen grabación`}
+          sub={`${mesLabel}: ${delMes.length} ${delMes.length === 1 ? 'sesión' : 'sesiones'} · esta semana ${semana.conGrabacion} de ${semana.calls} calls agendadas tienen grabación`}
           actions={(
             <div className="tabs sm">
-              <button type="button" className={`tab${filtro === 'todas' ? ' active' : ''}`} onClick={() => setFiltro('todas')}>Todas</button>
+              <button type="button" className={`tab${filtro === 'mes' ? ' active' : ''}`} onClick={() => setFiltro('mes')}>
+                Del mes <span className="num">{delMes.length}</span>
+              </button>
               <button type="button" className={`tab${filtro === 'semana' ? ' active' : ''}`} onClick={() => setFiltro('semana')}>Esta semana</button>
               <button type="button" className={`tab${filtro === 'sinMatch' ? ' active' : ''}`} onClick={() => setFiltro('sinMatch')}>
                 Sin match <span className="num">{sinMatch.length}</span>
               </button>
             </div>
           )}
-          flush
         >
           {cargando && !sesiones.length ? <SkeletonBlock height={200} /> : listadas.length === 0 ? (
-            <div className="empty">No hay sesiones acá.</div>
+            <div className="empty">No hay sesiones en {mesLabel.toLowerCase()}.</div>
           ) : (
-            <div className="sesiones-lista">
+            <div className="sesiones-grid">
               {listadas.map((s) => <SesionItem key={s.id} sesion={s} pitches={pitches} onCambio={onRecargar} />)}
             </div>
           )}
