@@ -797,11 +797,13 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     # el cash, no para el close rate.
     cierres = [l for l in ventas if _norm(l["resultado"]) == _norm("Cerrado")]
     senas = [l for l in ventas if l not in cierres]
-    shows = sum(1 for c in clases if c in ("show", "cierre"))
+    shows_leads = [l for l, c in zip(leads, clases) if c in ("show", "cierre")]
+    no_shows_leads = [l for l, c in zip(leads, clases) if c == "no_show"]
+    shows = len(shows_leads)
     # Cuántas son segunda vuelta con el mismo prospecto. Es un dato para leer el mes, no
     # un descuento: esa reunión también se agendó y también hubo que ir.
     seguimientos = sum(1 for l in leads if l.get("seguimiento"))
-    no_shows = sum(1 for c in clases if c == "no_show")
+    no_shows = len(no_shows_leads)
     sin_reportar = sum(1 for c in clases if c == "sin_reportar")
     sin_crm = sum(1 for c in clases if c == "sin_crm")
     # Misma regla que en el tablero del closer: la segunda reunión con el mismo prospecto
@@ -811,7 +813,30 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
     # Una venta saldada es la que no debe nada. No alcanza con que el estado diga
     # "Cerrado": ahí entra el que firmó un plan de pago y pagó la primera cuota.
     saldadas = [l for l in ventas if _saldo(l) <= 0]
+    con_plan = [l for l in ventas if l not in saldadas]
     evaluables = shows + no_shows
+    ids_venta = {id(l) for l in ventas}
+
+    def _fila(l: dict, **extra) -> dict:
+        call = l.get("call")
+        es_venta = id(l) in ids_venta
+        return {
+            "id": str(l.get("id") or ""),
+            "nombre": (l.get("nombre") or "Sin nombre").strip(),
+            "closer": _persona(l.get("closer"), "closer"),
+            "fecha": call.date().isoformat() if call else None,
+            "pagoUsd": round(_num(l.get("pago")), 2),
+            "deudaUsd": round(_saldo(l), 2) if es_venta else round(_num(l.get("debe")), 2),
+            "programa": (l.get("programa_ofrecido") or "").strip(),
+            "resultado": (l.get("resultado") or "").strip(),
+            **extra,
+        }
+
+    por_fecha = lambda xs: sorted(xs, key=lambda x: x.get("call") or datetime.min, reverse=True)
+    estado_venta = lambda l: (
+        "Cerrado" if _norm(l["resultado"]) == _norm("Cerrado") else "Seña"
+    )
+
     return {
         "agendados": agendados,
         "seguimientos": seguimientos,
@@ -822,20 +847,29 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "sinCrm": sin_crm,
         "cierres": len(cierres),
         "senas": len(senas),
-        "senasDetalle": [
-            {
-                "id": str(l.get("id") or ""),
-                "nombre": (l.get("nombre") or "Sin nombre").strip(),
-                "closer": _persona(l.get("closer"), "closer"),
-                "fecha": l["call"].date().isoformat() if l.get("call") else None,
-                "pagoUsd": round(_num(l.get("pago")), 2),
-                "programa": (l.get("programa_ofrecido") or "").strip(),
-            }
-            for l in sorted(senas, key=lambda x: x.get("call") or datetime.min, reverse=True)
+        "cierresDetalle": [_fila(l, estado="Cerrado") for l in por_fecha(cierres)],
+        "senasDetalle": [_fila(l, estado="Seña") for l in por_fecha(senas)],
+        "ventasDetalle": [
+            _fila(l, estado=estado_venta(l), saldada=_saldo(l) <= 0)
+            for l in por_fecha(ventas)
+        ],
+        "showsDetalle": [
+            _fila(l, estado=(l.get("resultado") or "Show").strip() or "Show")
+            for l in por_fecha(shows_leads)
+        ],
+        "noShowsDetalle": [
+            _fila(l, estado=(l.get("resultado") or "No show").strip() or "No show")
+            for l in por_fecha(no_shows_leads)
+        ],
+        "saldadasDetalle": [
+            _fila(l, estado=estado_venta(l), saldada=True) for l in por_fecha(saldadas)
+        ],
+        "conPlanDetalle": [
+            _fila(l, estado=estado_venta(l), saldada=False) for l in por_fecha(con_plan)
         ],
         "ventas": len(ventas),
         "cashUsd": round(cash, 2),
-        "deudaUsd": round(sum(_num(l["debe"]) for l in ventas), 2),
+        "deudaUsd": round(sum(_saldo(l) for l in ventas), 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         # Close rate real: solo Cerrado / shows. La seña no cuenta: la venta no está hecha.
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
@@ -882,8 +916,10 @@ def disposiciones(leads: list[dict], clases: list[str]) -> dict:
     Las que pasaron y nadie reportó NO se reparten: se cuentan aparte. Meterlas en una
     tajada sería inventar qué pasó en esa llamada, y repartirlas proporcionalmente
     maquillaría justo el número que uno mira para saber dónde se cae.
+
+    Cada tajada trae sus leads: al tocarla en el tablero se ve quién está en ese estado.
     """
-    cuenta = {d: 0 for d in DISPOSICIONES}
+    por_disp: dict[str, list[dict]] = {d: [] for d in DISPOSICIONES}
     sin_reportar = 0
     for lead, clase in zip(leads, clases):
         if clase in ("agendado", "descartada", "duplicada", "reprogramada", "sin_crm"):
@@ -897,14 +933,27 @@ def disposiciones(leads: list[dict], clases: list[str]) -> dict:
             # Un show sin estado reconocible igual ocurrió: entra como seguimiento, que
             # es lo que significa "se habló y no se cerró".
             nombre = "No show" if clase == "no_show" else "Seguimiento"
-        cuenta[nombre] += 1
+        call = lead.get("call")
+        por_disp[nombre].append({
+            "id": str(lead.get("id") or ""),
+            "nombre": (lead.get("nombre") or "Sin nombre").strip(),
+            "closer": _persona(lead.get("closer"), "closer"),
+            "fecha": call.date().isoformat() if call else None,
+            "pagoUsd": round(_num(lead.get("pago")), 2),
+            "programa": (lead.get("programa_ofrecido") or "").strip(),
+            "resultado": (lead.get("resultado") or "").strip(),
+        })
 
-    total = sum(cuenta.values())
+    for lista in por_disp.values():
+        lista.sort(key=lambda x: x.get("fecha") or "", reverse=True)
+
+    total = sum(len(v) for v in por_disp.values())
     return {
         "total": total,
         "sinReportar": sin_reportar,
-        "tajadas": [{"disposicion": d, "n": cuenta[d],
-                     "pct": round(cuenta[d] / total * 100, 1) if total else 0.0}
+        "tajadas": [{"disposicion": d, "n": len(por_disp[d]),
+                     "pct": round(len(por_disp[d]) / total * 100, 1) if total else 0.0,
+                     "leads": por_disp[d]}
                     for d in DISPOSICIONES],
     }
 
