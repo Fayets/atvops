@@ -654,7 +654,14 @@ def importar(payload: dict, usuario: dict) -> dict:
 
 def desde_setsystem(lead: dict) -> dict:
     """Un lead de SetSystem con los nombres de ATV Ops."""
+    # SetSystem dice `pitched`; acá es `pendiente`. `rescheduled` es una llamada
+    # todavía viva: queda `scheduled` y la fecha nueva va en reprogramadaAt.
     estado_pitch = lead.get("pitch_status") or "pendiente"
+    if estado_pitch == "pitched":
+        estado_pitch = "pendiente"
+    estado_llamada = lead.get("call_status") or None
+    if estado_llamada == "rescheduled":
+        estado_llamada = "scheduled"
     return {
         "externoId": lead.get("id"), "prospecto": lead.get("name") or "Sin nombre",
         "pitchAt": lead.get("pitch_date"), "canal": lead.get("channel") or "dm",
@@ -662,7 +669,7 @@ def desde_setsystem(lead: dict) -> dict:
         "pitchEstado": estado_pitch if estado_pitch in PITCH_ESTADOS else "pendiente",
         "agendoAt": lead.get("booked_on"), "llamadaAt": lead.get("booked_for"),
         "reprogramadaAt": lead.get("rescheduled_for"), "reprogramaciones": lead.get("reschedule_count") or 0,
-        "llamadaEstado": lead.get("call_status"), "cierreAt": lead.get("close_date"),
+        "llamadaEstado": estado_llamada, "cierreAt": lead.get("close_date"),
         "seguimientos": lead.get("follow_ups") or 0, "llamadas": lead.get("calls") or 0,
         "valorUsd": lead.get("deal_value") or 0, "cashUsd": lead.get("cash_collected") or 0,
         "email": lead.get("email"), "telefono": lead.get("number"),
