@@ -826,7 +826,13 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "cashUsd": round(cash, 2),
         "deudaUsd": round(sum(_num(l["debe"]) for l in ventas), 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
+        # Close rate real: solo Cerrado / shows. La seña no cuenta: la venta no está hecha.
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
+        # Si las señas del mes también cierran: (cierres + señas) / shows. Es el techo
+        # que motiva al closer a convertirlas antes de fin de mes.
+        "closeRateProyectado": (
+            round((len(cierres) + len(senas)) / shows * 100, 1) if shows else None
+        ),
         # Lo mismo que el AOV del closer: cash sobre cierres, no sobre cierres más señas.
         "averageSaleUsd": round(cash / len(cierres), 2) if cierres else 0,
         # PIF rate, las dos lecturas, porque dan distinto y cada una dice algo:

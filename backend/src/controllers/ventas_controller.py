@@ -306,6 +306,26 @@ def instagram_marcar_cta(user: dict = Depends(get_current_user), payload: dict =
         raise HTTPException(status_code=500, detail=f"No se pudo marcar: {str(e)[:180]}")
 
 
+@router.post("/instagram/reels/chats")
+def instagram_marcar_reel_chats(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+    """Marca si un reel suma chats al contador manual, y cuántos."""
+    if user.get("rol") not in {"admin", "operaciones", "founder", "marketing", "ventas"}:
+        raise HTTPException(status_code=403, detail="Tu rol no puede marcar los chats de un reel.")
+    try:
+        chats = (payload or {}).get("chats")
+        return instagram.marcar_reel_chats(
+            str((payload or {}).get("mediaId") or (payload or {}).get("id") or ""),
+            bool((payload or {}).get("sumaChats", (payload or {}).get("suma", True))),
+            chats=None if chats is None else int(chats),
+            quien=str(user.get("nombre") or user.get("username") or ""),
+        )
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló marcar los chats del reel")
+        raise HTTPException(status_code=500, detail=f"No se pudo marcar: {str(e)[:180]}")
+
+
 @router.post("/reuniones/{evento_id}/ocultar")
 def ocultar_reunion(evento_id: str, user: dict = Depends(solo_interno),
                     payload: dict = Body(default={}), mostrar: bool = False):

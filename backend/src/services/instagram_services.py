@@ -275,8 +275,63 @@ def contenido(desde, hasta) -> dict:
     secuencias = [{**_secuencia(dia, items), "cta": dia in marcadas}
                   for dia, items in sorted(por_dia.items(), reverse=True)]
 
+    suma = reels_suma_chats()
+    for r in reels:
+        m = suma.get(r["id"])
+        r["sumaChats"] = bool(m)
+        r["chatsManual"] = int(m["chats"]) if m else None
+
     return {"reels": sorted(reels, key=lambda r: r["fecha"], reverse=True),
             "secuencias": secuencias, "conectado": True}
+
+
+def reels_suma_chats() -> dict[str, dict]:
+    """media_id → {chats}. Solo los marcados para sumar al contador manual."""
+    from pony.orm import db_session
+
+    from src.models import ReelSumaChats
+
+    try:
+        with db_session:
+            return {f.media_id: {"chats": int(f.chats or 0)}
+                    for f in list(ReelSumaChats.select())}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los reels que suman chats: %s", str(e)[:160])
+        return {}
+
+
+def marcar_reel_chats(media_id: str, suma: bool, chats: int | None = None, quien: str = "") -> dict:
+    """Prende o apaga si un reel suma chats, y opcionalmente cuántos.
+
+    Apagar borra la fila: sin fila = no suma. Igual que el CTA de historias.
+    """
+    from datetime import datetime as _dt
+
+    from pony.orm import db_session
+
+    from src.models import ReelSumaChats
+
+    mid = str(media_id or "").strip()
+    if not mid:
+        raise ValueError("Falta el id del reel.")
+    n_chats = 0 if chats is None else max(0, int(chats))
+
+    with db_session:
+        fila = ReelSumaChats.get(media_id=mid)
+        if suma:
+            if fila is None:
+                ReelSumaChats(media_id=mid, chats=n_chats,
+                              marcado_por=quien or "", marcado_at=_dt.utcnow())
+            else:
+                if chats is not None:
+                    fila.chats = n_chats
+                fila.marcado_por = quien or ""
+                fila.marcado_at = _dt.utcnow()
+                n_chats = int(fila.chats or 0)
+        elif fila is not None:
+            n_chats = int(fila.chats or 0)
+            fila.delete()
+    return {"mediaId": mid, "sumaChats": bool(suma), "chats": n_chats}
 
 
 def cta_marcadas() -> set[str]:

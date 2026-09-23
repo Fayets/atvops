@@ -805,6 +805,19 @@ export async function marcarCtaSecuencia(fecha, cta) {
   });
 }
 
+/** Marca si un reel suma chats al contador manual, y cuántos. */
+export async function marcarReelChats(mediaId, sumaChats, chats) {
+  return pedir('/api/ventas/instagram/reels/chats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mediaId,
+      sumaChats,
+      ...(chats == null ? {} : { chats }),
+    }),
+  });
+}
+
 /** Trae ahora lo último de Instagram, sin esperar la pasada de cada tres horas. */
 export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });

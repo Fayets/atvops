@@ -542,6 +542,22 @@ class SecuenciaCta(db.Entity):
     marcado_at = Required(datetime, default=datetime.utcnow)
 
 
+class ReelSumaChats(db.Entity):
+    """Qué reels suman chats al contador manual de Marketing.
+
+    Por ahora el CRM no trae bien cuántos chats abrió cada reel: se marca a mano
+    cuáles cuentan y cuántos chats se les atribuyen. Una fila = ese reel suma.
+    """
+
+    _table_ = _tabla("reels_suma_chats", "ReelSumaChats")
+
+    id = PrimaryKey(int, auto=True)
+    media_id = Required(str, unique=True)     # ig_id del reel
+    chats = Required(int, default=0)
+    marcado_por = Optional(str)
+    marcado_at = Required(datetime, default=datetime.utcnow)
+
+
 class ConversacionIg(db.Entity):
     """Cada vez que alguien abrió una conversación por Instagram, o que se le mandó el link.
 
