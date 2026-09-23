@@ -149,9 +149,8 @@ def chats(desde, hasta) -> dict:
     - **Historias con CTA.** Alguien contesta una historia que pedía algo. Instagram lo
       cuenta pieza por pieza; solo suman las secuencias marcadas con el botón CTA, porque
       un día de historias sin CTA también junta respuestas y esas no son leads.
-    - **Reels y bio.** Alguien comenta la palabra de un reel o la escribe desde la bio y
-      ManyChat le abre el DM. Lo cuenta ATV Ops si el flujo ya avisa a este webhook; si
-      todavía no, el `lead` del CRM de atv-mkt, que los viene contando desde siempre.
+    - **Reels.** Por ahora se marcan a mano en Marketing → Reels (solo los prendidos
+      suman). Si nadie marcó nada, se cae al webhook de ManyChat o al CRM de atv-mkt.
     - **Otras.** WhatsApp, cargadas a mano: lo que entre por un canal que no es Instagram.
 
     Se devuelven las partes además del total. Un solo número no deja ver que el mes fue
@@ -184,14 +183,17 @@ def chats(desde, hasta) -> dict:
     de_instagram = [c for c in propias if _canal(c.fuente) == "Instagram"]
     otras = [c for c in propias if _canal(c.fuente) != "Instagram"]
 
-    # --- Historias con CTA
+    # --- Historias con CTA + reels del período (una sola lectura de Instagram)
     secuencias: list[dict] = []
     con_cta: list[dict] = []
+    reels_mes: list[dict] = []
     try:
         from src.services import instagram_services
 
-        secuencias = instagram_services.contenido(desde, hasta).get("secuencias", [])
+        propio = instagram_services.contenido(desde, hasta)
+        secuencias = propio.get("secuencias", [])
         con_cta = [x for x in secuencias if x.get("cta")]
+        reels_mes = propio.get("reels", [])
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las historias del período: %s", str(e)[:160])
     por_historias = sum(x.get("respuestas") or 0 for x in con_cta)
@@ -205,13 +207,14 @@ def chats(desde, hasta) -> dict:
         for x in sorted(con_cta, key=lambda y: y["fecha"], reverse=True)
     ]
 
-    # --- Reels y bio. Las propias mandan cuando tienen algo de ESTE mes; si no, el CRM.
-    # Mirar el histórico en vez del mes era el bug viejo: ATV Ops tiene avisos de Calendly
-    # desde hace rato y ni una conversación, así que la condición daba verdadera y el
-    # tablero mostraba cero.
+    # --- Reels. Por ahora se marcan a mano en Marketing → Reels: solo los prendidos
+    # suman. Si nadie marcó nada este mes, se cae al webhook de ManyChat o al CRM.
+    reels_marcados = [r for r in reels_mes if r.get("sumaChats")]
+    por_reels_manual = sum(int(r.get("chatsManual") or 0) for r in reels_marcados)
+
     del_crm = 0
     palabras_crm: dict[str, int] = {}
-    if not de_instagram:
+    if not reels_marcados and not de_instagram:
         try:
             from src.services import marketing_services
 
@@ -220,22 +223,38 @@ def chats(desde, hasta) -> dict:
             palabras_crm = bot.get("porPalabra") or {}
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudo leer el CRM de atv-mkt: %s", str(e)[:160])
-    por_reels = len(de_instagram) or del_crm
 
-    # El reparto por palabra: es lo que dice qué contenido está trayendo gente. Sale de
-    # donde haya salido el total, para que las dos cosas no puedan contradecirse.
-    if de_instagram:
+    if reels_marcados:
+        por_reels = por_reels_manual
+        filas_reels = [
+            {"cuando": (r.get("fecha") or "")[:10],
+             "quien": (r.get("titulo") or r.get("keyword") or "Reel")[:80],
+             "cuantos": int(r.get("chatsManual") or 0),
+             "foto": r.get("thumbnail"),
+             "dato": (r.get("keyword") or "").strip() or None}
+            for r in sorted(reels_marcados,
+                            key=lambda x: int(x.get("chatsManual") or 0), reverse=True)
+        ]
+        detalle_reels = "marcados a mano en Marketing → Reels"
+    elif de_instagram:
+        por_reels = len(de_instagram)
         por_palabra: dict[str, int] = {}
         for x in de_instagram:
             por_palabra[(x.keyword or "").strip().lower() or "(sin palabra)"] = (
                 por_palabra.get((x.keyword or "").strip().lower() or "(sin palabra)", 0) + 1)
+        filas_reels = [{"quien": palabra, "cuantos": cuantos}
+                       for palabra, cuantos in sorted(por_palabra.items(), key=lambda kv: -kv[1])]
+        detalle_reels = "los abre el bot con la palabra"
     else:
+        por_reels = del_crm
         por_palabra = dict(palabras_crm)
         sin_palabra = max(0, del_crm - sum(palabras_crm.values()))
         if sin_palabra:
             por_palabra["(sin palabra)"] = sin_palabra
-    filas_reels = [{"quien": palabra, "cuantos": cuantos}
-                   for palabra, cuantos in sorted(por_palabra.items(), key=lambda kv: -kv[1])]
+        filas_reels = [{"quien": palabra, "cuantos": cuantos}
+                       for palabra, cuantos in sorted(por_palabra.items(), key=lambda kv: -kv[1])]
+        detalle_reels = ("los cuenta el CRM de atv-mkt" if del_crm
+                         else "sin chats por palabra este mes")
 
     filas_otras = [
         {"cuando": x.at.date().isoformat(), "quien": x.nombre or x.ig_usuario or "Sin nombre",
@@ -248,9 +267,8 @@ def chats(desde, hasta) -> dict:
          "detalle": (f"de {len(con_cta)} {'secuencia marcada' if len(con_cta) == 1 else 'secuencias marcadas'}"
                      f" sobre {len(secuencias)} del mes") if secuencias else "sin historias este mes",
          "unidad": "respuestas", "filas": filas_historias},
-        {"clave": "reels", "fuente": "Reels y bio", "cuantos": por_reels,
-         "detalle": "los abre el bot con la palabra" if de_instagram
-                    else ("los cuenta el CRM de atv-mkt" if del_crm else "sin chats por palabra este mes"),
+        {"clave": "reels", "fuente": "Reels", "cuantos": por_reels,
+         "detalle": detalle_reels,
          "unidad": "chats", "filas": filas_reels},
         {"clave": "otras", "fuente": "Otras", "cuantos": len(otras),
          "detalle": "WhatsApp y cargadas a mano",
@@ -261,7 +279,8 @@ def chats(desde, hasta) -> dict:
         "total": sum(p["cuantos"] for p in partes),
         "partes": partes,
         # Con qué nivel de confianza se mira el número de reels: propio, prestado o nada.
-        "reelsPropios": bool(de_instagram),
+        "reelsPropios": bool(de_instagram) or bool(reels_marcados),
+        "reelsManual": bool(reels_marcados),
         "webhookConectado": historico > 0,
         "secuenciasDelPeriodo": len(secuencias),
         "secuenciasConCta": len(con_cta),

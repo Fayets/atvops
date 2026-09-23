@@ -37,6 +37,7 @@ import {
   esShow,
   resumenCalendarioHoy,
 } from '../lib/dispositions.js';
+import { chatsDelMes } from '../lib/chats.js';
 import {
   cuotasCloserDesdeProyeccion,
   cuotasSetterDesdeProyeccion,
@@ -1824,17 +1825,22 @@ export async function getMetasMes(mesSel, opts = {}) {
 
 /**
  * Resumen comercial del mes con datos reales: el setting sale de los reportes diarios,
- * y las agendas, cierres y cash del CRM. Lo que no tenga fuente queda en cero.
+ * y las agendas, cierres y cash del CRM. Los chats son los mismos que ve Marketing:
+ * historias con CTA + reels marcados a mano (+ otras puertas).
  */
 export async function getMktResumen(mes) {
-  const [ventas, marketing] = await Promise.all([
+  const [ventas, marketing, conversaciones] = await Promise.all([
     getVentasReal(mes).catch(() => null),
     getMarketingReal(mes).catch(() => null),
+    getConversaciones(mes).catch(() => null),
   ]);
   const v = ventas?.actual ?? {};
+  const chats = chatsDelMes(conversaciones);
   return {
     mes: ventas?.mes ?? marketing?.mes ?? mes,
-    chats: marketing?.setting?.conversaciones ?? 0,
+    // Misma métrica que el resumen de Marketing / embudo de Ventas.
+    chats: chats.total,
+    chatsFuente: chats.fuente,
     conversaciones: marketing?.setting?.conversaciones ?? 0,
     aplicaciones: marketing?.setting?.linksEnviados ?? 0,
     agendas: v.agendados ?? 0,
@@ -1842,7 +1848,7 @@ export async function getMktResumen(mes) {
     cierres: v.cierres ?? 0,
     cash: v.cashUsd ?? 0,
     inversionAds: marketing?.ads?.gastoUsd ?? 0,
-    syncAt: ventas?.generadoAt ?? marketing?.generadoAt ?? null,
+    syncAt: ventas?.generadoAt ?? marketing?.generadoAt ?? conversaciones?.ultimaAt ?? null,
     fuente: 'Base de ATV Ops',
   };
 }

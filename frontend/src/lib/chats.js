@@ -4,10 +4,10 @@ import { formatValue } from './format.js';
  * Los chats del mes, tal como los compone el backend.
  *
  * Un chat es una conversación que arrancó porque el contenido la pidió, y entra por tres
- * puertas: respuestas a historias marcadas con CTA, la palabra de un reel o de la bio que
- * hace que ManyChat abra el DM, y lo que venga por otro canal. La suma y el reparto los
- * decide `conversaciones_services.chats()`; acá solo se leen, para que Marketing y el
- * embudo de Ventas no puedan mostrar números distintos de lo mismo.
+ * puertas: respuestas a historias marcadas con CTA, los reels marcados a mano en
+ * Marketing → Reels (o el bot/CRM si nadie marcó), y lo que venga por otro canal. La
+ * suma y el reparto los decide `conversaciones_services.chats()`; acá solo se leen, para
+ * que Marketing y el embudo de Ventas no puedan mostrar números distintos de lo mismo.
  *
  * Antes cada vista elegía su fuente por su cuenta y el mismo número salía 106 arriba y 0
  * abajo en la misma pantalla.
