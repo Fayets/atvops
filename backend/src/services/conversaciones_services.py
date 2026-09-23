@@ -151,6 +151,7 @@ def chats(desde, hasta) -> dict:
       un día de historias sin CTA también junta respuestas y esas no son leads.
     - **Reels.** Por ahora se marcan a mano en Marketing → Reels (solo los prendidos
       suman). Si nadie marcó nada, se cae al webhook de ManyChat o al CRM de atv-mkt.
+    - **YouTube.** Igual que reels: se marcan a mano en Marketing → YouTube.
     - **Otras.** WhatsApp, cargadas a mano: lo que entre por un canal que no es Instagram.
 
     Se devuelven las partes además del total. Un solo número no deja ver que el mes fue
@@ -262,6 +263,25 @@ def chats(desde, hasta) -> dict:
         for x in sorted(otras, key=lambda y: y.at, reverse=True)
     ]
 
+    # --- YouTube. Misma lógica que reels: se marcan a mano en Marketing → YouTube.
+    videos_marcados: list[dict] = []
+    try:
+        from src.services import youtube_services
+
+        videos_mes = youtube_services.contenido(desde, hasta).get("videos", [])
+        videos_marcados = [v for v in videos_mes if v.get("sumaChats")]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los videos del período: %s", str(e)[:160])
+    por_youtube = sum(int(v.get("chatsManual") or 0) for v in videos_marcados)
+    filas_youtube = [
+        {"cuando": (v.get("fecha") or "")[:10],
+         "quien": (v.get("titulo") or "Video")[:80],
+         "cuantos": int(v.get("chatsManual") or 0),
+         "foto": v.get("thumbnail")}
+        for v in sorted(videos_marcados,
+                        key=lambda x: int(x.get("chatsManual") or 0), reverse=True)
+    ]
+
     partes = [
         {"clave": "historias", "fuente": "Historias con CTA", "cuantos": por_historias,
          "detalle": (f"de {len(con_cta)} {'secuencia marcada' if len(con_cta) == 1 else 'secuencias marcadas'}"
@@ -270,6 +290,10 @@ def chats(desde, hasta) -> dict:
         {"clave": "reels", "fuente": "Reels", "cuantos": por_reels,
          "detalle": detalle_reels,
          "unidad": "chats", "filas": filas_reels},
+        {"clave": "youtube", "fuente": "YouTube", "cuantos": por_youtube,
+         "detalle": ("marcados a mano en Marketing → YouTube" if videos_marcados
+                     else "sin videos marcados este mes"),
+         "unidad": "chats", "filas": filas_youtube},
         {"clave": "otras", "fuente": "Otras", "cuantos": len(otras),
          "detalle": "WhatsApp y cargadas a mano",
          "unidad": "chats", "filas": filas_otras},
@@ -281,6 +305,7 @@ def chats(desde, hasta) -> dict:
         # Con qué nivel de confianza se mira el número de reels: propio, prestado o nada.
         "reelsPropios": bool(de_instagram) or bool(reels_marcados),
         "reelsManual": bool(reels_marcados),
+        "youtubeManual": bool(videos_marcados),
         "webhookConectado": historico > 0,
         "secuenciasDelPeriodo": len(secuencias),
         "secuenciasConCta": len(con_cta),

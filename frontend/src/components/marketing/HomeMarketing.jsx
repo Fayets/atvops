@@ -142,9 +142,9 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
             titulo="YouTube"
             volumen={yt.videos ?? 0}
             volumenLabel={yt.videos === 1 ? 'video' : 'videos'}
-            conversaciones={null}
+            conversaciones={yt.chats ?? null}
             nota={`${formatValue(yt.vistas ?? 0, 'count')} vistas · ${formatValue(yt.vistasPromedio ?? 0, 'count')} de promedio`}
-            sinFuente
+            sinFuente={(yt.chats ?? 0) === 0}
           />
         </div>
       </Card>

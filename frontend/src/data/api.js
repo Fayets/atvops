@@ -819,6 +819,19 @@ export async function marcarReelChats(mediaId, sumaChats, chats) {
   });
 }
 
+/** Marca si un video de YouTube suma chats al contador manual, y cuántos. */
+export async function marcarVideoChats(videoId, sumaChats, chats) {
+  return pedir('/api/ventas/youtube/videos/chats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      videoId,
+      sumaChats,
+      ...(chats == null ? {} : { chats }),
+    }),
+  });
+}
+
 /** Trae ahora lo último de Instagram, sin esperar la pasada de cada tres horas. */
 export async function sincronizarInstagram() {
   return pedir('/api/ventas/instagram/sincronizar', { method: 'POST' });

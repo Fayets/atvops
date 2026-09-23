@@ -558,6 +558,22 @@ class ReelSumaChats(db.Entity):
     marcado_at = Required(datetime, default=datetime.utcnow)
 
 
+class VideoSumaChats(db.Entity):
+    """Qué videos de YouTube suman chats al contador manual de Marketing.
+
+    Misma idea que los reels: YouTube no dice cuántos chats abrió cada video, así que
+    se marca a mano. Una fila = ese video suma.
+    """
+
+    _table_ = _tabla("videos_suma_chats", "VideoSumaChats")
+
+    id = PrimaryKey(int, auto=True)
+    video_id = Required(str, unique=True)     # yt_id del video
+    chats = Required(int, default=0)
+    marcado_por = Optional(str)
+    marcado_at = Required(datetime, default=datetime.utcnow)
+
+
 class ConversacionIg(db.Entity):
     """Cada vez que alguien abrió una conversación por Instagram, o que se le mandó el link.
 

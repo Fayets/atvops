@@ -229,7 +229,14 @@ def contenido(desde, hasta) -> dict:
         logger.warning("No se pudo leer el contenido de YouTube: %s", str(e)[:160])
         return {"videos": [], "conectado": False}
 
+    suma = videos_suma_chats()
+    for v in videos:
+        m = suma.get(v["id"])
+        v["sumaChats"] = bool(m)
+        v["chatsManual"] = int(m["chats"]) if m else None
+
     videos.sort(key=lambda v: v["fecha"], reverse=True)
+    chats_marcados = sum(int(v.get("chatsManual") or 0) for v in videos if v.get("sumaChats"))
     return {
         "videos": videos,
         "conectado": True,
@@ -239,8 +246,55 @@ def contenido(desde, hasta) -> dict:
             "likes": sum(v.get("likes") or 0 for v in videos),
             "comentarios": sum(v.get("comentarios") or 0 for v in videos),
             "vistasPromedio": round(sum(v.get("vistas") or 0 for v in videos) / len(videos)) if videos else 0,
+            "chats": chats_marcados,
         },
     }
+
+
+def videos_suma_chats() -> dict[str, dict]:
+    """yt_id → {chats}. Solo los marcados para sumar al contador manual."""
+    from pony.orm import db_session
+
+    from src.models import VideoSumaChats
+
+    try:
+        with db_session:
+            return {f.video_id: {"chats": int(f.chats or 0)}
+                    for f in list(VideoSumaChats.select())}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los videos que suman chats: %s", str(e)[:160])
+        return {}
+
+
+def marcar_video_chats(video_id: str, suma: bool, chats: int | None = None, quien: str = "") -> dict:
+    """Prende o apaga si un video de YouTube suma chats, y opcionalmente cuántos."""
+    from datetime import datetime as _dt
+
+    from pony.orm import db_session
+
+    from src.models import VideoSumaChats
+
+    vid = str(video_id or "").strip()
+    if not vid:
+        raise ValueError("Falta el id del video.")
+    n_chats = 0 if chats is None else max(0, int(chats))
+
+    with db_session:
+        fila = VideoSumaChats.get(video_id=vid)
+        if suma:
+            if fila is None:
+                VideoSumaChats(video_id=vid, chats=n_chats,
+                               marcado_por=quien or "", marcado_at=_dt.utcnow())
+            else:
+                if chats is not None:
+                    fila.chats = n_chats
+                fila.marcado_por = quien or ""
+                fila.marcado_at = _dt.utcnow()
+                n_chats = int(fila.chats or 0)
+        elif fila is not None:
+            n_chats = int(fila.chats or 0)
+            fila.delete()
+    return {"videoId": vid, "sumaChats": bool(suma), "chats": n_chats}
 
 
 def estado() -> dict:

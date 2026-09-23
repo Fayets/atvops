@@ -25,6 +25,7 @@ const TOPE = 10;
 const FILA = {
   historias: ['secuencia', 'secuencias'],
   reels: ['palabra', 'palabras'],
+  youtube: ['video', 'videos'],
   otras: ['chat', 'chats'],
 };
 
