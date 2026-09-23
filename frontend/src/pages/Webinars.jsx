@@ -1,153 +1,149 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import { borrarWebinar, duplicarWebinar, getWebinars } from '../data/api.js';
-import { formatValue } from '../lib/format.js';
-import { fasesDeWebinar } from '../lib/webinarFases.js';
+import WebinarEmbudo, { FunnelMathBar } from '../components/webinars/WebinarEmbudo.jsx';
+import { getWebinar, getWebinars } from '../data/api.js';
+import { BENCHMARKS_COLD, fasesDeWebinar, proyeccionDesdeMeta } from '../lib/webinarFases.js';
 
-const ESTADO = {
-  borrador: { tone: 'off', label: 'borrador' },
-  configurado: { tone: 'info', label: 'configurado' },
-  en_vivo: { tone: 'ok', label: 'en vivo' },
-  finalizado: { tone: 'warn', label: 'finalizado' },
-};
-
-const CTA = {
-  call_funnel: 'Call funnel',
-  checkout: 'Checkout directo',
-  formulario: 'Formulario',
-};
-
-function fechaCorta(iso) {
-  if (!iso) return 'Sin fecha';
-  const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('es-AR', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-}
+const LS_KEY = 'atv.webinar.activo';
 
 /**
- * Listado de webinars: estado, fecha y los números principales de cada uno.
- * Crear y duplicar viven acá; el detalle abre la config completa.
+ * Home de Webinars: selector de listado arriba → embudo del webinar elegido.
  */
 export default function Webinars() {
-  const navigate = useNavigate();
   const [lista, setLista] = useState([]);
+  const [activoId, setActivoId] = useState(null);
+  const [detalle, setDetalle] = useState(null);
+  const [metaCash, setMetaCash] = useState('');
   const [cargando, setCargando] = useState(true);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [error, setError] = useState(null);
-  const [ocupado, setOcupado] = useState(null);
 
-  const cargar = () => {
+  useEffect(() => {
+    let vivo = true;
     setCargando(true);
     getWebinars()
-      .then((w) => { setLista(w); setError(null); })
-      .catch((e) => setError(e))
-      .finally(() => setCargando(false));
-  };
+      .then((w) => {
+        if (!vivo) return;
+        setLista(w);
+        setError(null);
+        const guardado = Number(localStorage.getItem(LS_KEY) || 0);
+        const existe = w.some((x) => x.id === guardado);
+        setActivoId(existe ? guardado : (w[0]?.id ?? null));
+      })
+      .catch((e) => vivo && setError(e))
+      .finally(() => vivo && setCargando(false));
+    return () => { vivo = false; };
+  }, []);
 
-  useEffect(() => { cargar(); }, []);
-
-  const duplicar = async (id) => {
-    setOcupado(id);
-    try {
-      const nuevo = await duplicarWebinar(id);
-      navigate(`/webinars/${nuevo.id}`);
-    } catch (e) {
-      window.alert(e.message);
-    } finally {
-      setOcupado(null);
+  useEffect(() => {
+    if (!activoId) {
+      setDetalle(null);
+      return undefined;
     }
-  };
+    let vivo = true;
+    setCargandoDetalle(true);
+    localStorage.setItem(LS_KEY, String(activoId));
+    getWebinar(activoId)
+      .then((w) => { if (vivo) setDetalle(w); })
+      .catch((e) => vivo && setError(e))
+      .finally(() => vivo && setCargandoDetalle(false));
+    return () => { vivo = false; };
+  }, [activoId]);
 
-  const borrar = async (id, nombre) => {
-    if (!window.confirm(`¿Borrar “${nombre}”? Se esconde del listado.`)) return;
-    setOcupado(id);
-    try {
-      await borrarWebinar(id);
-      setLista((l) => l.filter((w) => w.id !== id));
-    } catch (e) {
-      window.alert(e.message);
-    } finally {
-      setOcupado(null);
-    }
-  };
+  const raw = useMemo(() => {
+    if (!detalle) return {};
+    return { ...(detalle.metricasCrudas || {}), ...(detalle.metricas || {}) };
+  }, [detalle]);
+
+  const fases = useMemo(
+    () => fasesDeWebinar(raw, {
+      gastoAdsUsd: raw.gastoAdsUsd ?? detalle?.metricas?.gastoAdsUsd,
+      benchmarks: detalle?.benchmarks,
+      metaCash: metaCash ? Number(metaCash) : undefined,
+    }),
+    [raw, detalle, metaCash],
+  );
+
+  const proyeccion = useMemo(() => {
+    if (!metaCash) return null;
+    const m = fases[0]?.valores || {};
+    return proyeccionDesdeMeta({
+      metaCash,
+      precio: detalle?.precioUsd,
+      closeRate: m.closeRate || BENCHMARKS_COLD.closeRateCalls.verdeMin,
+      bookingRate: m.bookingRate || 20,
+      showRate: m.showRate || 30,
+      costoPorRegistrante: m.costoPorRegistrante || 10,
+    });
+  }, [metaCash, detalle, fases]);
 
   if (error) {
     return <div className="page"><ErrorState error={error} /></div>;
   }
 
-  return (
-    <div className="page">
-      <PageHeader
-        title="Webinars"
-        desc="Tres fases: Registro, Día del webinar y Post. Cada una con su portada y semáforo."
-        actions={(
-          <Link to="/webinars/nuevo" className="btn primary">+ Crear webinar</Link>
-        )}
-      />
+  if (cargando) {
+    return <div className="page"><SkeletonBlock height={420} /></div>;
+  }
 
-      {cargando ? <SkeletonBlock height={280} /> : lista.length === 0 ? (
+  if (lista.length === 0) {
+    return (
+      <div className="page">
+        <PageHeader
+          title="Webinars"
+          actions={<Link to="/webinars/nuevo" className="btn primary">+ Crear</Link>}
+        />
         <Card>
           <div className="empty webinars-vacio">
             <p>Todavía no hay webinars.</p>
             <Link to="/webinars/nuevo" className="btn primary">Crear el primero</Link>
           </div>
         </Card>
-      ) : (
-        <div className="webinars-grid">
-          {lista.map((w) => {
-            const est = ESTADO[w.estado] || ESTADO.borrador;
-            const fases = (w.fases?.length === 3)
-              ? w.fases
-              : fasesDeWebinar(w.metricas || {}, { benchmarks: w.benchmarks });
-            return (
-              <article key={w.id} className="webinar-card">
-                <header className="webinar-card-head">
-                  <div>
-                    <Link to={`/webinars/${w.id}`} className="webinar-nombre">{w.nombre}</Link>
-                    {w.tema ? <p className="webinar-tema dim">{w.tema}</p> : null}
-                  </div>
-                  <Pill tone={est.tone} dot>{est.label}</Pill>
-                </header>
-                <div className="webinar-meta">
-                  <span>{fechaCorta(w.fechaHora)}</span>
-                  <span>{CTA[w.ctaTipo] || w.ctaTipo}</span>
-                  {w.precioUsd > 0 && <span className="num">{formatValue(w.precioUsd, 'usd')}</span>}
-                </div>
-                <div className="webinar-kpis webinar-kpis-fases">
-                  {fases.map((f) => {
-                    const valor = f.portadaValor ?? f.portada?.valor;
-                    const formato = f.portadaFormato || f.portada?.formato || 'count';
-                    const label = f.portadaLabel || f.portada?.label || f.titulo;
-                    const texto = valor == null
-                      ? '—'
-                      : formato === 'pct'
-                        ? `${valor}%`
-                        : formatValue(valor, formato === 'usd' ? 'usd' : 'count');
-                    return (
-                      <div key={f.id} className={`sem-${f.semaforo || 'off'}`}>
-                        <span className="webinar-semaforo mini" />
-                        <span className="num">{texto}</span>
-                        <span className="dim">{label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <footer className="webinar-card-foot">
-                  <Link to={`/webinars/${w.id}`} className="btn sm">Abrir</Link>
-                  <button type="button" className="btn ghost sm" disabled={ocupado === w.id}
-                    onClick={() => duplicar(w.id)}>Duplicar</button>
-                  <button type="button" className="btn ghost sm peligro" disabled={ocupado === w.id}
-                    onClick={() => borrar(w.id, w.nombre)}>Borrar</button>
-                </footer>
-              </article>
-            );
-          })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="page wb-home">
+      <div className="wb-topbar">
+        <label className="wb-listado-sel">
+          <span className="wb-listado-lab">Listado</span>
+          <select
+            value={activoId || ''}
+            onChange={(e) => setActivoId(Number(e.target.value))}
+            aria-label="Elegir webinar del listado"
+          >
+            {lista.map((w) => (
+              <option key={w.id} value={w.id}>{w.nombre}</option>
+            ))}
+          </select>
+        </label>
+        <div className="webinar-head-actions">
+          {activoId && (
+            <Link to={`/webinars/${activoId}`} className="btn ghost">Configurar</Link>
+          )}
+          <Link to="/webinars/nuevo" className="btn primary">+ Crear</Link>
         </div>
+      </div>
+
+      {cargandoDetalle || !detalle ? (
+        <SkeletonBlock height={360} />
+      ) : (
+        <>
+          <WebinarEmbudo fases={fases} webinarId={activoId} />
+          <Card
+            title="Funnel math"
+            sub="Desde la meta de cash, qué necesita cada fase para que el webinar llegue."
+          >
+            <FunnelMathBar
+              metaCash={metaCash}
+              onMetaCash={setMetaCash}
+              proyeccion={proyeccion}
+            />
+          </Card>
+        </>
       )}
     </div>
   );

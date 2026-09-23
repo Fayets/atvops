@@ -8,16 +8,18 @@
 /** @typedef {'ok' | 'warn' | 'alert' | 'off'} Semaforo */
 
 export const BENCHMARKS_COLD = {
-  // Fase 1 — portada: costo por registrante (USD)
+  // Fase 1 — portada: costo por registrante (USD). Verde < $10, amarillo $10–15, rojo > $15
   costoPorRegistrante: { verdeMax: 10, amarilloMax: 15 },
-  // Fase 2 — portada: show rate (% vivos / registrados)
-  showRate: { verdeMin: 25, amarilloMin: 20 },
-  // Retención al pitch: % del pico concurrente
-  retencionPitch: { verdeMin: 20, amarilloMin: 15 },
-  // Booking de los que llegaron al pitch
-  bookingRate: { verdeMin: 15, verdeMax: 25, amarilloMin: 10 },
-  // Fase 3 — close rate de las calls (referencia; portada es cash)
-  closeRateCalls: { verdeMin: 20, amarilloMin: 12 },
+  // Fase 2 — show rate. Verde > 40%, amarillo 25–40%, rojo < 25%
+  showRate: { verdeMin: 40, amarilloMin: 25 },
+  // Retención al pitch (% del pico). Verde > 30%, amarillo 20–30%, rojo < 20%
+  retencionPitch: { verdeMin: 30, amarilloMin: 20 },
+  // Booking de los que llegaron al pitch. Verde > 25%, amarillo 15–25%, rojo < 15%
+  bookingRate: { verdeMin: 25, amarilloMin: 15 },
+  // Fase 3 — close rate. Verde > 30%, amarillo 20–30%, rojo < 20%
+  closeRateCalls: { verdeMin: 30, amarilloMin: 20 },
+  // PIF rate. Verde > 60%, amarillo 30–60%, rojo < 30%
+  pifRate: { verdeMin: 60, amarilloMin: 30 },
 };
 
 const FASES_META = [
@@ -28,8 +30,8 @@ const FASES_META = [
     desde: 'Cuando el ad se sirve',
     hasta: 'Cuando agenda el webinar',
     portada: 'costoPorRegistrante',
-    portadaLabel: 'Costo por registrante',
-    cuello: 'El cuello más común es optin → registro. Si hay muchos optins y pocos registros, el problema está en la thank you page, no en el ad.',
+    portadaLabel: 'Costo / registrante',
+    cuello: 'El cuello más común es optin → registros. Si hay muchos optins y pocos registros, el problema está en la thank you page, no en el ad.',
   },
   {
     id: 'dia',
@@ -89,19 +91,33 @@ function money(a, b) {
   return b > 0 ? Math.round((a / b) * 100) / 100 : null;
 }
 
+function peorSemaforo(...vals) {
+  const orden = { alert: 0, warn: 1, ok: 2, off: 3 };
+  return vals.sort((a, b) => orden[a] - orden[b])[0];
+}
+
 /** Semáforo para métricas “más bajo = mejor” (costo). */
 function semaforoBajo(valor, { verdeMax, amarilloMax }) {
   if (valor == null) return 'off';
-  if (valor <= verdeMax) return 'ok';
+  if (valor < verdeMax) return 'ok';
   if (valor <= amarilloMax) return 'warn';
   return 'alert';
 }
 
-/** Semáforo para métricas “más alto = mejor” (tasas). */
+/** Semáforo para métricas “más alto = mejor” (tasas). Umbrales estrictos: verde > verdeMin. */
 function semaforoAlto(valor, { verdeMin, amarilloMin }) {
   if (valor == null) return 'off';
-  if (valor >= verdeMin) return 'ok';
+  if (valor > verdeMin) return 'ok';
   if (valor >= amarilloMin) return 'warn';
+  return 'alert';
+}
+
+/** Cash vs meta: verde ≥ meta, amarillo 50–100%, rojo < 50%. */
+function semaforoCash(cash, meta) {
+  if (meta == null || meta <= 0) return cash > 0 ? 'ok' : 'off';
+  if (cash == null) return 'off';
+  if (cash >= meta) return 'ok';
+  if (cash >= meta * 0.5) return 'warn';
   return 'alert';
 }
 
@@ -149,7 +165,6 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     cierres,
     cashUsd: cash,
     pif,
-    // Fase 1 derivadas
     ctr: tasa(clicks, impresiones),
     cpc: money(gasto, clicks),
     conversionLanding: tasa(optins, visitas),
@@ -157,11 +172,9 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     tasaRegistro: tasa(registros, optins),
     tasaWhatsapp: tasa(whatsapp, registros),
     costoPorRegistrante: money(gasto, registros),
-    // Fase 2
     showRate: tasa(vivos, registros),
     retencionPitch: tasa(retenidos, pico || vivos),
     bookingRate: tasa(booked, retenidos || vivos),
-    // Fase 3
     showRateCalls: tasa(showsCall, llamadas),
     closeRate: tasa(cierres, showsCall || llamadas),
     aov: money(cash, cierres),
@@ -172,11 +185,12 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
 /**
  * Arma las tres fases con métricas, portada y semáforo.
  * @param {Record<string, number>} raw
- * @param {{ gastoAdsUsd?: number, benchmarks?: object }} [opts]
+ * @param {{ gastoAdsUsd?: number, benchmarks?: object, metaCash?: number }} [opts]
  */
 export function fasesDeWebinar(raw = {}, opts = {}) {
   const bm = { ...BENCHMARKS_COLD, ...(opts.benchmarks || {}) };
   const m = derivarMetricas(raw, opts.gastoAdsUsd);
+  const metaCash = opts.metaCash != null ? n(opts.metaCash) : 0;
 
   const items = {
     registro: [
@@ -192,51 +206,52 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
     ],
     dia: [
       { key: 'registros', label: 'Registrados', valor: m.registros, formato: 'count' },
-      { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct', portada: true, ayuda: 'vivos / registrados' },
       { key: 'vivos', label: 'Vivos', valor: m.vivos, formato: 'count' },
       { key: 'picoConcurrentes', label: 'Pico concurrentes', valor: m.picoConcurrentes, formato: 'count' },
       { key: 'retencionPitch', label: 'Retención al pitch', valor: m.retencionPitch, formato: 'pct', ayuda: '% del pico' },
       { key: 'bookingRate', label: 'Booking rate', valor: m.bookingRate, formato: 'pct', ayuda: 'de los que llegaron al pitch' },
       { key: 'booked', label: 'Booked', valor: m.booked, formato: 'count' },
+      { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct', portada: true, ayuda: 'vivos / registrados' },
     ],
     post: [
       { key: 'llamadasAgendadas', label: 'Llamadas agendadas', valor: m.llamadasAgendadas, formato: 'count' },
       { key: 'showRateCalls', label: 'Show rate calls', valor: m.showRateCalls, formato: 'pct' },
       { key: 'closeRate', label: 'Close rate', valor: m.closeRate, formato: 'pct' },
       { key: 'aov', label: 'AOV', valor: m.aov, formato: 'usd' },
-      { key: 'cashUsd', label: 'Cash collected', valor: m.cashUsd, formato: 'usd', portada: true },
       { key: 'pifRate', label: 'PIF rate', valor: m.pifRate, formato: 'pct' },
+      { key: 'cashUsd', label: 'Cash collected', valor: m.cashUsd, formato: 'usd', portada: true },
     ],
   };
 
+  const tieneDiaExtra = m.retenidosPitch > 0 || m.picoConcurrentes > 0 || m.booked > 0;
   const semaforos = {
     registro: semaforoBajo(m.costoPorRegistrante, bm.costoPorRegistrante),
-    dia: (() => {
-      const show = semaforoAlto(m.showRate, bm.showRate);
-      const ret = semaforoAlto(m.retencionPitch, bm.retencionPitch);
-      const book = semaforoAlto(m.bookingRate, { verdeMin: bm.bookingRate.verdeMin, amarilloMin: bm.bookingRate.amarilloMin });
-      // La fase se pinta por el peor de los tres semáforos vivos.
-      const orden = { alert: 0, warn: 1, ok: 2, off: 3 };
-      return [show, ret, book].sort((a, b) => orden[a] - orden[b])[0];
-    })(),
-    post: m.cashUsd > 0 ? (semaforoAlto(m.closeRate, bm.closeRateCalls) === 'alert' && m.cashUsd < 5000 ? 'warn' : 'ok') : 'off',
+    dia: tieneDiaExtra
+      ? peorSemaforo(
+        semaforoAlto(m.showRate, bm.showRate),
+        semaforoAlto(m.retencionPitch, bm.retencionPitch),
+        semaforoAlto(m.bookingRate, bm.bookingRate),
+      )
+      : semaforoAlto(m.showRate, bm.showRate),
+    post: peorSemaforo(
+      semaforoCash(m.cashUsd, metaCash || null),
+      (m.llamadasAgendadas || m.cierres || m.cashUsd)
+        ? semaforoAlto(m.closeRate, bm.closeRateCalls)
+        : 'off',
+      m.cierres > 0 ? semaforoAlto(m.pifRate, bm.pifRate) : 'off',
+    ),
   };
-
-  // Post: si hay cash, verde si close no está en rojo extremo; sin cash = off.
-  // Ajuste: cash es portada — semáforo por cash vs meta si hay, si no por close rate.
-  if (m.llamadasAgendadas > 0 || m.cierres > 0 || m.cashUsd > 0) {
-    semaforos.post = semaforoAlto(m.closeRate, bm.closeRateCalls);
-    if (m.cashUsd <= 0 && m.cierres > 0) semaforos.post = 'alert';
-  }
 
   return FASES_META.map((meta) => {
     const metricas = items[meta.id];
     const portada = metricas.find((x) => x.portada) || metricas[0];
+    const secundarias = metricas.filter((x) => !x.portada);
     return {
       ...meta,
       semaforo: semaforos[meta.id],
       portada,
-      metricas,
+      metricas: secundarias,
+      todas: metricas,
       valores: m,
     };
   });
@@ -250,14 +265,14 @@ export function proyeccionDesdeMeta(p) {
   const metaCash = n(p.metaCash);
   if (!metaCash) return null;
   const precio = n(p.precio) || 2000;
-  const close = (n(p.closeRate) || 20) / 100;
+  const close = (n(p.closeRate) || 25) / 100;
   const booking = (n(p.bookingRate) || 20) / 100;
   const show = (n(p.showRate) || 30) / 100;
   const cpr = n(p.costoPorRegistrante) || 10;
 
   const cierresNecesarios = Math.ceil(metaCash / precio);
   const showsCall = close > 0 ? Math.ceil(cierresNecesarios / close) : null;
-  const booked = showsCall; // asumiendo 1 call por booked
+  const booked = showsCall;
   const retenidos = booking > 0 && booked != null ? Math.ceil(booked / booking) : null;
   const registrados = show > 0 && retenidos != null ? Math.ceil(retenidos / show) : null;
   const gastoAds = registrados != null ? Math.round(registrados * cpr) : null;
@@ -273,4 +288,4 @@ export function proyeccionDesdeMeta(p) {
   };
 }
 
-export { FASES_META };
+export { FASES_META, semaforoBajo, semaforoAlto, semaforoCash };

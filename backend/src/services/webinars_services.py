@@ -121,7 +121,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
 def _semaforo_bajo(valor, verde_max, amarillo_max):
     if valor is None:
         return "off"
-    if valor <= verde_max:
+    if valor < verde_max:
         return "ok"
     if valor <= amarillo_max:
         return "warn"
@@ -131,7 +131,7 @@ def _semaforo_bajo(valor, verde_max, amarillo_max):
 def _semaforo_alto(valor, verde_min, amarillo_min):
     if valor is None:
         return "off"
-    if valor >= verde_min:
+    if valor > verde_min:
         return "ok"
     if valor >= amarillo_min:
         return "warn"
@@ -142,10 +142,11 @@ def _fases(m: dict, benchmarks: dict | None = None) -> list[dict]:
     """Tres secciones del dashboard con portada y semáforo."""
     bm = {
         "costoPorRegistrante": {"verdeMax": 10, "amarilloMax": 15},
-        "showRate": {"verdeMin": 25, "amarilloMin": 20},
-        "retencionPitch": {"verdeMin": 20, "amarilloMin": 15},
-        "bookingRate": {"verdeMin": 15, "amarilloMin": 10},
-        "closeRateCalls": {"verdeMin": 20, "amarilloMin": 12},
+        "showRate": {"verdeMin": 40, "amarilloMin": 25},
+        "retencionPitch": {"verdeMin": 30, "amarilloMin": 20},
+        "bookingRate": {"verdeMin": 25, "amarilloMin": 15},
+        "closeRateCalls": {"verdeMin": 30, "amarilloMin": 20},
+        "pifRate": {"verdeMin": 60, "amarilloMin": 30},
         **(benchmarks or {}),
     }
     s1 = _semaforo_bajo(m.get("costoPorRegistrante"),
@@ -160,11 +161,15 @@ def _fases(m: dict, benchmarks: dict | None = None) -> list[dict]:
         s3 = _semaforo_alto(m.get("closeRate"), bm["closeRateCalls"]["verdeMin"], bm["closeRateCalls"]["amarilloMin"])
         if (m.get("cierres") or 0) > 0 and not m.get("cashUsd"):
             s3 = "alert"
+        pif = m.get("pifRate")
+        if pif is not None:
+            s_pif = _semaforo_alto(pif, bm["pifRate"]["verdeMin"], bm["pifRate"]["amarilloMin"])
+            s3 = sorted([s3, s_pif], key=lambda x: orden[x])[0]
 
     return [
         {
             "id": "registro", "n": 1, "titulo": "Registro",
-            "portadaKey": "costoPorRegistrante", "portadaLabel": "Costo por registrante",
+            "portadaKey": "costoPorRegistrante", "portadaLabel": "Costo / registrante",
             "portadaValor": m.get("costoPorRegistrante"), "portadaFormato": "usd",
             "semaforo": s1,
         },
@@ -259,7 +264,7 @@ class WebinarsServices:
 
         ahora = datetime.utcnow()
         with db_session:
-            filas = [w for w in Webinar.select() if w.borrado_at is None]
+            filas = [w for w in list(Webinar.select()) if w.borrado_at is None]
             filas.sort(key=lambda w: w.fecha_hora or w.creado_at, reverse=True)
             return [_a_dict(w, ahora) for w in filas]
 

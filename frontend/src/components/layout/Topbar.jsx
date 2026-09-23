@@ -16,6 +16,8 @@ const TITULOS = {
   '/marketing': 'Marketing',
   '/ads': 'Ads',
   '/webinars': 'Webinars',
+  '/webinars/listado': 'Webinars · Listado',
+  '/webinars/nuevo': 'Webinars · Nuevo',
   '/ventas': 'Ventas',
   '/ventas/operativa': 'Ventas · Operativa',
   '/ventas/lab-setting': 'Ventas · Laboratorio Setting',
@@ -39,6 +41,10 @@ function tituloDe(pathname) {
   if (TITULOS[pathname]) return TITULOS[pathname];
   if (pathname.startsWith('/fulfillment/clientes')) return 'Fulfillment · Ficha de cliente';
   if (pathname.startsWith('/fulfillment/chats')) return 'Fulfillment · Chats en vivo';
+  if (pathname.match(/^\/webinars\/\d+\/fase\//)) return 'Webinars · Fase';
+  if (pathname.startsWith('/webinars/') && pathname !== '/webinars/listado' && pathname !== '/webinars/nuevo') {
+    return 'Webinars · Config';
+  }
   return 'ATV Ops';
 }
 

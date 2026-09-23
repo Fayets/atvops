@@ -28,7 +28,9 @@ import Laboratorio from './pages/Laboratorio.jsx';
 import VentasDashboard from './pages/VentasDashboard.jsx';
 import VentasSetter from './pages/VentasSetter.jsx';
 import Webinars from './pages/Webinars.jsx';
+import WebinarsListado from './pages/WebinarsListado.jsx';
 import WebinarDetalle from './pages/WebinarDetalle.jsx';
+import WebinarFaseDetalle from './pages/WebinarFaseDetalle.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
 import Pendientes from './pages/fulfillment/Pendientes.jsx';
@@ -167,7 +169,9 @@ export default function App() {
             <Route path="ads" element={<Ads />} />
             <Route path="webinars">
               <Route index element={<Webinars />} />
+              <Route path="listado" element={<WebinarsListado />} />
               <Route path="nuevo" element={<WebinarDetalle modo="nuevo" />} />
+              <Route path=":id/fase/:faseId" element={<WebinarFaseDetalle />} />
               <Route path=":id" element={<WebinarDetalle />} />
             </Route>
             <Route path="ventas">

@@ -9,9 +9,7 @@ import {
 } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { formatValue } from '../lib/format.js';
-import {
-  CAMPOS_RAW, BENCHMARKS_COLD, fasesDeWebinar, proyeccionDesdeMeta,
-} from '../lib/webinarFases.js';
+import { CAMPOS_RAW } from '../lib/webinarFases.js';
 
 const CTA_OPTS = [
   { value: 'call_funnel', label: 'Call funnel' },
@@ -26,13 +24,6 @@ const ESTADO = {
   finalizado: { tone: 'warn', label: 'finalizado' },
 };
 
-const SEMAFORO_LABEL = {
-  ok: 'verde',
-  warn: 'amarillo',
-  alert: 'rojo',
-  off: 'sin datos',
-};
-
 const VACIO = {
   nombre: '',
   fechaHora: '',
@@ -44,7 +35,6 @@ const VACIO = {
   calendlyUrl: '',
   whatsappGrupo: '',
   campaniasAds: [],
-  notas: '',
 };
 
 function aInputDatetime(iso) {
@@ -61,7 +51,6 @@ function rawDesdeWebinar(w) {
     const v = crudas[c.key] ?? m[c.key];
     out[c.key] = v != null && v !== '' ? Number(v) : 0;
   }
-  // Compat: shows viejo → vivos
   if (!out.vivos && (crudas.shows || m.shows)) {
     out.vivos = Number(crudas.shows || m.shows) || 0;
   }
@@ -69,15 +58,9 @@ function rawDesdeWebinar(w) {
   return out;
 }
 
-function fmtMetrica(valor, formato) {
-  if (valor == null) return '—';
-  if (formato === 'pct') return `${valor}%`;
-  if (formato === 'usd') return formatValue(valor, 'usd');
-  return formatValue(valor, 'count');
-}
-
 /**
- * Crear o editar un webinar: config + ads + dashboard de 3 fases.
+ * Config de un webinar: datos, ads y carga de números.
+ * El embudo vive en el home `/webinars`.
  */
 export default function WebinarDetalle({ modo } = {}) {
   const { id } = useParams();
@@ -88,9 +71,7 @@ export default function WebinarDetalle({ modo } = {}) {
   const [form, setForm] = useState(VACIO);
   const [estado, setEstado] = useState('borrador');
   const [raw, setRaw] = useState({});
-  const [benchmarks, setBenchmarks] = useState({});
   const [campanias, setCampanias] = useState([]);
-  const [metaCash, setMetaCash] = useState('');
   const [cargando, setCargando] = useState(!esNuevo);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -120,11 +101,9 @@ export default function WebinarDetalle({ modo } = {}) {
           calendlyUrl: w.calendlyUrl || '',
           whatsappGrupo: w.whatsappGrupo || '',
           campaniasAds: w.campaniasAds || [],
-          notas: w.notas || '',
         });
         setEstado(w.estado || 'borrador');
         setRaw(rawDesdeWebinar(w));
-        setBenchmarks(w.benchmarks || {});
         setError(null);
       })
       .catch((e) => vivo && setError(e))
@@ -136,24 +115,6 @@ export default function WebinarDetalle({ modo } = {}) {
     () => new Set((form.campaniasAds || []).map((c) => String(c.id))),
     [form.campaniasAds],
   );
-
-  const fases = useMemo(
-    () => fasesDeWebinar(raw, { gastoAdsUsd: raw.gastoAdsUsd, benchmarks }),
-    [raw, benchmarks],
-  );
-
-  const proyeccion = useMemo(() => {
-    if (!metaCash) return null;
-    const m = fases[0]?.valores || {};
-    return proyeccionDesdeMeta({
-      metaCash,
-      precio: form.precioUsd,
-      closeRate: m.closeRate || BENCHMARKS_COLD.closeRateCalls.verdeMin,
-      bookingRate: m.bookingRate || 20,
-      showRate: m.showRate || 30,
-      costoPorRegistrante: m.costoPorRegistrante || 10,
-    });
-  }, [metaCash, form.precioUsd, fases]);
 
   const toggleCampania = (c) => {
     const cid = String(c.id);
@@ -175,7 +136,6 @@ export default function WebinarDetalle({ modo } = {}) {
     calendlyUrl: form.calendlyUrl.trim() || null,
     whatsappGrupo: form.whatsappGrupo.trim() || null,
     campaniasAds: form.campaniasAds,
-    notas: form.notas.trim() || null,
   });
 
   const guardar = async () => {
@@ -188,6 +148,7 @@ export default function WebinarDetalle({ modo } = {}) {
     try {
       if (esNuevo) {
         const w = await crearWebinar(payload());
+        localStorage.setItem('atv.webinar.activo', String(w.id));
         navigate(`/webinars/${w.id}`, { replace: true });
       } else {
         const w = await actualizarWebinar(id, payload());
@@ -240,7 +201,8 @@ export default function WebinarDetalle({ modo } = {}) {
         actions={(
           <div className="webinar-head-actions">
             {!esNuevo && <Pill tone={est.tone} dot>{est.label}</Pill>}
-            <Link to="/webinars" className="btn ghost">Listado</Link>
+            <Link to="/webinars" className="btn ghost">Embudo</Link>
+            <Link to="/webinars/listado" className="btn ghost">Listado</Link>
             <button type="button" className="btn primary" disabled={guardando} onClick={guardar}>
               {guardando ? 'Guardando…' : esNuevo ? 'Crear' : 'Guardar'}
             </button>
@@ -251,43 +213,6 @@ export default function WebinarDetalle({ modo } = {}) {
         <p className={`webinar-aviso${aviso.startsWith('Guard') || aviso.startsWith('Métr') ? '' : ' error'}`}>
           {aviso}
         </p>
-      )}
-
-      {!esNuevo && (
-        <section className="webinar-fases">
-          {fases.map((fase) => (
-            <FaseCard key={fase.id} fase={fase} />
-          ))}
-        </section>
-      )}
-
-      {!esNuevo && (
-        <Card
-          title="Funnel math"
-          sub="Desde la meta de cash, qué necesita cada fase para que el webinar llegue."
-        >
-          <div className="webinar-funnel-math">
-            <label>Meta de cash (USD)
-              <input
-                type="number"
-                min="0"
-                step="100"
-                value={metaCash}
-                onChange={(e) => setMetaCash(e.target.value)}
-                placeholder="Ej: 40000"
-              />
-            </label>
-            {proyeccion && (
-              <div className="webinar-proyeccion">
-                <div><span className="num">{proyeccion.cierresNecesarios}</span><span className="dim">cierres</span></div>
-                <div><span className="num">{proyeccion.booked ?? '—'}</span><span className="dim">booked / calls</span></div>
-                <div><span className="num">{proyeccion.retenidosPitch ?? '—'}</span><span className="dim">retenidos pitch</span></div>
-                <div><span className="num">{proyeccion.registros ?? '—'}</span><span className="dim">registros</span></div>
-                <div><span className="num">{proyeccion.gastoAdsUsd != null ? formatValue(proyeccion.gastoAdsUsd, 'usd') : '—'}</span><span className="dim">gasto ads</span></div>
-              </div>
-            )}
-          </div>
-        </Card>
       )}
 
       <div className="webinar-layout">
@@ -301,18 +226,14 @@ export default function WebinarDetalle({ modo } = {}) {
               <input type="datetime-local" value={form.fechaHora}
                 onChange={(e) => set({ fechaHora: e.target.value })} />
             </label>
-            <label className="ancho">Tema / ángulo
-              <input value={form.tema} onChange={(e) => set({ tema: e.target.value })}
-                placeholder="Qué se vende y con qué ángulo" />
+            <label className="ancho">Comunicación del webinar
+              <textarea rows={4} value={form.tema} onChange={(e) => set({ tema: e.target.value })}
+                placeholder="Mensaje, ángulo y cómo se comunica el evento" />
             </label>
             <label>Tipo de CTA
               <select value={form.ctaTipo} onChange={(e) => set({ ctaTipo: e.target.value })}>
                 {CTA_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-            </label>
-            <label>Precio de la oferta (USD)
-              <input type="number" min="0" step="1" value={form.precioUsd}
-                onChange={(e) => set({ precioUsd: e.target.value })} />
             </label>
             <label className="ancho">Landing URL
               <input type="url" value={form.landingUrl} onChange={(e) => set({ landingUrl: e.target.value })}
@@ -329,9 +250,6 @@ export default function WebinarDetalle({ modo } = {}) {
             <label className="ancho">Grupo de WhatsApp
               <input value={form.whatsappGrupo} onChange={(e) => set({ whatsappGrupo: e.target.value })}
                 placeholder="Link o nombre del grupo" />
-            </label>
-            <label className="ancho">Notas internas
-              <textarea rows={3} value={form.notas} onChange={(e) => set({ notas: e.target.value })} />
             </label>
           </div>
         </Card>
@@ -371,43 +289,12 @@ export default function WebinarDetalle({ modo } = {}) {
       {!esNuevo && (
         <Card
           title="Cargar números"
-          sub="Raw de cada fase. Las tasas y el semáforo se calculan solos."
+          sub="Raw de cada fase. Las tasas y el semáforo se calculan solos en el embudo."
         >
           <MetricasForm initial={raw} disabled={guardando} onGuardar={guardarMetricas} />
         </Card>
       )}
     </div>
-  );
-}
-
-function FaseCard({ fase }) {
-  const portada = fase.portada;
-  return (
-    <article className={`webinar-fase sem-${fase.semaforo}`}>
-      <header className="webinar-fase-head">
-        <div className="webinar-fase-titulos">
-          <span className="webinar-fase-n">Fase {fase.n}</span>
-          <h2>{fase.titulo}</h2>
-          <p className="dim">{fase.desde} → {fase.hasta}</p>
-        </div>
-        <div className="webinar-fase-portada">
-          <span className="webinar-semaforo" title={SEMAFORO_LABEL[fase.semaforo]} aria-label={SEMAFORO_LABEL[fase.semaforo]} />
-          <div>
-            <span className="num">{fmtMetrica(portada?.valor, portada?.formato)}</span>
-            <span className="dim">{portada?.label || fase.portadaLabel}</span>
-          </div>
-        </div>
-      </header>
-      <ul className="webinar-fase-metricas">
-        {fase.metricas.map((m) => (
-          <li key={m.key} className={m.portada ? 'portada' : ''}>
-            <span className="num">{fmtMetrica(m.valor, m.formato)}</span>
-            <span className="dim" title={m.ayuda || undefined}>{m.label}</span>
-          </li>
-        ))}
-      </ul>
-      {fase.cuello && <p className="webinar-fase-cuello dim">{fase.cuello}</p>}
-    </article>
   );
 }
 
