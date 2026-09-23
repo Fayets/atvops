@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import DeDondeVienenLosChats from '../marketing/DeDondeVienenLosChats.jsx';
 import { formatValue } from '../../lib/format.js';
 
 /**
@@ -39,13 +41,18 @@ function veredicto(valor, rango) {
   return ' es-alert';
 }
 
-function Ficha({ etapa, n, pie, atenuado }) {
+function Ficha({ etapa, n, pie, atenuado, onVer }) {
+  const Tag = onVer ? 'button' : 'div';
   return (
-    <div className={`embudo-ficha${atenuado ? ' atenuada' : ''}`}>
+    <Tag
+      type={onVer ? 'button' : undefined}
+      className={`embudo-ficha${atenuado ? ' atenuada' : ''}${onVer ? ' clickable' : ''}`}
+      onClick={onVer}
+    >
       <span className="embudo-etapa">{etapa}</span>
       <span className="embudo-n">{n == null ? '—' : formatValue(n, 'count')}</span>
       <span className="embudo-pie">{pie}</span>
-    </div>
+    </Tag>
   );
 }
 
@@ -70,14 +77,13 @@ function Salto({ valor, rango, label }) {
  * @param {{ setting: object }} props El objeto que devuelve GET /api/ventas/setting.
  */
 export default function EmbudoOps({ setting = {} }) {
+  const [verChats, setVerChats] = useState(false);
   const chats = Number(setting.chats ?? 0);
   const pitches = Number(setting.pitches ?? 0);
   const agendas = Number(setting.agendas ?? 0);
   const shows = Number(setting.shows ?? 0);
-  // De qué se compone: historias con CTA, la palabra de un reel o de la bio, y lo que
-  // entre por otro canal. El reparto importa tanto como el total.
-  const partes = (setting.chatsPartes ?? []).filter((p) => Number(p.cuantos) > 0);
-  const fuente = partes.map((p) => `${p.fuente.toLowerCase()} ${formatValue(p.cuantos, 'count')}`).join(' · ');
+  const partes = setting.chatsPartes ?? [];
+  const conChats = partes.some((p) => Number(p.cuantos) > 0);
 
   // El show rate lo calcula ventas contra las llamadas que YA pasaron, no contra todas
   // las agendas del mes: dividir por las futuras da rojo hasta el día 30.
@@ -91,8 +97,13 @@ export default function EmbudoOps({ setting = {} }) {
   return (
     <section className="card embudo-card">
       <div className="embudo-fila">
-        <Ficha etapa="Chats" n={partes.length ? chats : null}
-          pie={fuente || 'ninguna puerta trajo chats'} atenuado={!partes.length} />
+        <Ficha
+          etapa="Chats"
+          n={conChats ? chats : null}
+          pie={conChats ? 'tocá para ver de dónde' : 'ninguna puerta trajo chats'}
+          atenuado={!conChats}
+          onVer={conChats ? () => setVerChats(true) : undefined}
+        />
         <Salto valor={tasa(pitches, chats)} rango={RANGOS.pitch} label="a pitch" />
         <Ficha etapa="Pitches" n={pitches} pie={pitches ? 'del reporte del setter' : 'sin cargar'} />
         <Salto valor={tasa(agendas, pitches)} rango={RANGOS.booking} label="booking" />
@@ -102,7 +113,7 @@ export default function EmbudoOps({ setting = {} }) {
       </div>
 
       {/* Un solo aviso, el primero que rompe: dos carteles juntos no los lee nadie. */}
-      {!partes.length && sinMarcar ? (
+      {!conChats && sinMarcar ? (
         <div className="embudo-aviso">
           <i className="dot warn" />
           <span>
@@ -113,24 +124,22 @@ export default function EmbudoOps({ setting = {} }) {
             Solo suman chats las que pedían algo: se marcan con el botón CTA en Marketing → Historias.
           </span>
         </div>
-      ) : !partes.length ? (
+      ) : !conChats ? (
         <div className="embudo-aviso">
           <i className="dot warn" />
           <span>
-            <strong>Ninguna puerta trajo chats este mes.</strong> Entran por tres: respuestas a
-            historias marcadas con CTA, la palabra de un reel o de la bio que hace que ManyChat
-            abra el DM, y lo que venga por otro canal.
-          </span>
-        </div>
-      ) : !pitches ? (
-        <div className="embudo-aviso">
-          <i className="dot warn" />
-          <span>
-            <strong>Nadie cargó pitches este mes.</strong> El pitch lo reporta quien manda el link
-            de agenda: sin eso, no se ve dónde se cae el embudo entre el chat y la agenda.
+            <strong>Ninguna puerta trajo chats este mes.</strong> Entran por historias con CTA,
+            reels marcados a mano, YouTube y lo que venga por otro canal.
           </span>
         </div>
       ) : null}
+
+      {verChats && (
+        <DeDondeVienenLosChats
+          chats={{ total: chats, partes }}
+          onCerrar={() => setVerChats(false)}
+        />
+      )}
     </section>
   );
 }

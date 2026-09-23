@@ -49,7 +49,6 @@ export default function VentasDashboard() {
       <section className="ventas-dash-bloque">
         <header>
           <h2>Setting</h2>
-          <span className="dim">se llena solo · el detalle de conversaciones vive en la vista del setter</span>
         </header>
         {embudo.error ? (
           <ErrorState error={embudo.error} />
@@ -63,7 +62,6 @@ export default function VentasDashboard() {
       <section className="ventas-dash-bloque">
         <header>
           <h2>Closing</h2>
-          <span className="dim">del registro de llamadas · se llena solo con Fathom</span>
         </header>
         <BloqueClosing data={actual} />
       </section>

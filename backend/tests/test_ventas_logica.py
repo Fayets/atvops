@@ -256,11 +256,10 @@ def test_no_contesta_se_pliega_sobre_no_show():
     assert "No contesta" not in tajada
 
 
-def test_la_barra_tiene_siete_tajadas():
+def test_la_barra_tiene_cinco_tajadas():
     d = v.disposiciones([], [])
     assert [t["disposicion"] for t in d["tajadas"]] == [
-        "Cerrado", "Seña", "No show", "Descalificado",
-        "No tiene la plata", "Lo voy a pensar", "Seguimiento",
+        "Cerrado", "Seña", "No show", "Descalificado", "Seguimiento",
     ]
 
 
@@ -274,14 +273,15 @@ def test_las_sin_reportar_no_se_reparten():
     assert sum(t["n"] for t in d["tajadas"]) == 1
 
 
-def test_los_estados_de_plata_y_duda_salen_de_seguimiento():
-    """Son las dos tajadas que antes vivían colapsadas y que dan el diagnóstico."""
+def test_plata_y_duda_se_pliegan_en_descalificado_y_seguimiento():
+    """En el formulario siguen existiendo; en el embudo se leen como lo que son."""
     leads = [_lead("No tiene la plata"), _lead("Lo voy a pensar"), _lead("Seguimiento")]
     d = v.disposiciones(leads, ["show"] * 3)
     tajada = {t["disposicion"]: t["n"] for t in d["tajadas"]}
-    assert tajada["No tiene la plata"] == 1
-    assert tajada["Lo voy a pensar"] == 1
-    assert tajada["Seguimiento"] == 1
+    assert tajada["Descalificado"] == 1
+    assert tajada["Seguimiento"] == 2
+    assert "No tiene la plata" not in tajada
+    assert "Lo voy a pensar" not in tajada
 
 
 def test_la_reagenda_cuenta_como_seguimiento():

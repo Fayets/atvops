@@ -913,12 +913,10 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
 
 
 
-# Las siete tajadas de la disposición en llamada. Es la métrica más diagnóstica que hay:
+# Las cinco tajadas de la disposición en llamada. Es la métrica más diagnóstica que hay:
 # dice DÓNDE se cae el embudo sin tener que adivinar. Mucho No show es setting o
-# follow-up previo; mucho Descalificado es setting; mucho "No tiene la plata" es
-# calificación u oferta; mucho "Lo voy a pensar" es el closer.
-DISPOSICIONES = ("Cerrado", "Seña", "No show", "Descalificado",
-                 "No tiene la plata", "Lo voy a pensar", "Seguimiento")
+# follow-up previo; mucho Descalificado es setting; mucho Seguimiento es el closer.
+DISPOSICIONES = ("Cerrado", "Seña", "No show", "Descalificado", "Seguimiento")
 
 # Los estados que no son una tajada propia se pliegan sobre la que corresponde. No son
 # disposiciones distintas: son la misma cosa escrita de otra forma.
@@ -927,6 +925,9 @@ _PLIEGUE = {
     "cancelada": "No show", "cancelado": "No show",
     "re-agenda": "Seguimiento", "reagenda": "Seguimiento",  # pasó y el paso siguiente es otra llamada
     "sena": "Seña",
+    # En el formulario siguen existiendo, pero en el embudo se leen como lo que son.
+    "no tiene la plata": "Descalificado",
+    "lo voy a pensar": "Seguimiento",
 }
 
 

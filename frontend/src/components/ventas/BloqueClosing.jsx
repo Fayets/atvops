@@ -14,8 +14,6 @@ const COLOR = {
   'Seña': '#4d9c6d',
   'No show': '#b91c1c',
   Descalificado: '#b45309',
-  'No tiene la plata': '#d97706',
-  'Lo voy a pensar': '#57534e',
   Seguimiento: '#a8a29e',
 };
 const TINTA_CLARA = new Set(['Seguimiento']);
