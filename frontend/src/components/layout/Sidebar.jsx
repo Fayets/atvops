@@ -72,6 +72,13 @@ const NAV = [
   { to: '/reporte', icon: 'check', label: 'Reporte semanal', grupo: 'Dirección' },
   { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
+  {
+    to: '/integraciones',
+    icon: 'integraciones',
+    label: 'Integraciones',
+    grupo: 'Sistema',
+    roles: ['admin', 'founder', 'operaciones', 'marketing'],
+  },
   { to: '/cobranza', icon: 'cobranza', label: 'Cobranza', grupo: 'Áreas' },
   { to: '/ideas', icon: 'ideas', label: 'Ideas', grupo: 'Sistema' },
   { to: '/configuracion', icon: 'config', label: 'Configuración', grupo: 'Sistema' },

@@ -71,10 +71,11 @@ export const RUTAS_POR_ROL = {
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
   operaciones: ['/', '/reporte', '/asistente', '/calendario', '/fulfillment', '/marketing',
-                '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars'],
+                '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
+                '/integraciones'],
   ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
-  marketing: ['/', '/marketing', '/metas', '/ideas', '/webinars'],
+  marketing: ['/', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
   founder: [
     '/',
     '/reporte',
@@ -89,6 +90,7 @@ export const RUTAS_POR_ROL = {
     '/ideas',
     '/sistemas',
     '/webinars',
+    '/integraciones',
   ],
   admin: [
     '/',
@@ -104,6 +106,7 @@ export const RUTAS_POR_ROL = {
     '/ideas',
     '/sistemas',
     '/webinars',
+    '/integraciones',
     '/configuracion',
   ],
 };

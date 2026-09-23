@@ -103,7 +103,8 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
         "cierres": cierres, "cashUsd": cash, "pif": pif,
         "gastoAdsUsd": round(gasto, 2),
         "ctr": tasa(clicks, impresiones), "cpc": money(gasto, clicks),
-        "conversionLanding": tasa(optins, visitas),
+        # Optins = registros cuando no hay contador aparte (landing de webinar).
+        "conversionLanding": tasa(optins or registros, visitas),
         "dropoffOptinTy": tasa(max(optins - thank_you, 0), optins),
         "tasaRegistro": tasa(registros, optins),
         "tasaWhatsapp": tasa(whatsapp, registros),
@@ -318,7 +319,15 @@ class WebinarsServices:
             if _esta_configurado(w) and w.estado == "borrador":
                 w.estado = "configurado"
             w.flush()
-            return _a_dict(w, ahora, con_detalle=True)
+            data = _a_dict(w, ahora, con_detalle=True)
+        # Token de tracking listo apenas se crea el webinar.
+        try:
+            from src.services.integraciones_services import IntegracionesServices
+            IntegracionesServices().asegurar_para_webinar(data["id"], usuario)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("No se pudo crear tracking del webinar: %s", str(e)[:160])
+        data["metricas"] = self._enriquecer_ads(data)
+        return data
 
     def actualizar(self, webinar_id: int, datos: dict, usuario: dict) -> dict:
         from src.models import Webinar
@@ -413,7 +422,7 @@ class WebinarsServices:
             return {"ok": True, "id": webinar_id}
 
     def _enriquecer_ads(self, data: dict) -> dict:
-        """Suma gasto/leads de las campañas Meta vinculadas, si el token responde."""
+        """Suma gasto, impresiones y clicks de las campañas Meta vinculadas."""
         campanias = data.get("campaniasAds") or []
         ids = {str(c.get("id")) for c in campanias if c.get("id")}
         crudas = dict(data.get("metricasCrudas") or {})
@@ -427,7 +436,10 @@ class WebinarsServices:
                           "cierres", "cashUsd", "pif", "gastoAdsUsd",
                       )}
         gasto = 0.0
+        impresiones = 0
+        clicks = 0
         leads_ads = 0
+        sync_ok = False
         if ids:
             try:
                 from src.services.meta_services import MetaServices
@@ -438,13 +450,37 @@ class WebinarsServices:
                 for c in resumen.get("campanias") or []:
                     if str(c.get("id")) in ids:
                         gasto += float(c.get("gastoUsd") or 0)
+                        impresiones += int(c.get("impresiones") or 0)
+                        clicks += int(c.get("clicks") or 0)
                         leads_ads += int(c.get("leads") or 0)
+                sync_ok = True
             except Exception as e:  # noqa: BLE001
                 logger.warning("No se pudieron leer ads del webinar: %s", str(e)[:160])
-        if not gasto:
+        if sync_ok:
+            crudas["impresiones"] = impresiones
+            crudas["clicks"] = clicks
+        elif not gasto:
             gasto = float(crudas.get("gastoAdsUsd") or (data.get("metricas") or {}).get("gastoAdsUsd") or 0)
         if leads_ads:
             crudas["leadsAds"] = leads_ads
+
+        # Visitas / optins / TY / WhatsApp desde el script de tracking.
+        try:
+            from src.services.integraciones_services import IntegracionesServices
+            tracking = IntegracionesServices().metricas_tracking_webinar(int(data["id"]))
+            if tracking is not None:
+                crudas["visitasLanding"] = tracking["visitasLanding"]
+                if tracking["optins"]:
+                    crudas["optins"] = tracking["optins"]
+                elif not int(crudas.get("optins") or 0) and int(crudas.get("registros") or 0):
+                    crudas["optins"] = int(crudas["registros"])
+                if tracking["thankYou"]:
+                    crudas["thankYou"] = tracking["thankYou"]
+                if tracking["entradasWhatsapp"]:
+                    crudas["entradasWhatsapp"] = tracking["entradasWhatsapp"]
+        except Exception as e:  # noqa: BLE001
+            logger.warning("No se pudieron leer visitas de tracking: %s", str(e)[:160])
+
         completas = _metricas_completas(crudas, gasto)
         data["metricas"] = completas
         data["fases"] = _fases(completas, data.get("benchmarks"))

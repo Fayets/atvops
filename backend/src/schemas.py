@@ -240,3 +240,24 @@ class WebinarDuplicar(BaseModel):
     tema: str | None = None
     calendlyUrl: str | None = None
     campaniasAds: list[WebinarCampania] | None = None
+
+
+class IntegracionCreate(BaseModel):
+    nombre: str | None = None
+    tipo: str = "landing"
+    webinarId: int
+
+
+class IntegracionUpdate(BaseModel):
+    nombre: str | None = None
+    webinarId: int | None = None
+    activo: bool | None = None
+    # True = desvincular webinar aunque webinarId venga None
+    quitarWebinar: bool = False
+
+
+class TrackPageview(BaseModel):
+    token: str
+    url: str | None = None
+    referrer: str | None = None
+    sessionId: str | None = None

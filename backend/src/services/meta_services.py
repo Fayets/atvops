@@ -209,7 +209,7 @@ class MetaServices:
             token,
             {
                 "fields": (
-                    "campaign_id,campaign_name,spend,impressions,reach,frequency,"
+                    "campaign_id,campaign_name,spend,impressions,clicks,reach,frequency,"
                     "actions,cost_per_action_type,purchase_roas"
                 ),
                 "level": "campaign",
@@ -237,6 +237,8 @@ class MetaServices:
             spend = float(row.get("spend") or 0)
             leads = _leads_de_actions(row.get("actions"))
             freq = float(row.get("frequency") or 0)
+            impresiones = int(row.get("impressions") or 0)
+            clicks = int(row.get("clicks") or 0)
             campanias.append(
                 {
                     "id": cid or row.get("campaign_name"),
@@ -245,6 +247,8 @@ class MetaServices:
                     "objetivo": _objetivo_campania(meta.get("objective")),
                     "estado": _estado_campania(meta.get("effective_status") or meta.get("status")),
                     "gastoUsd": round(spend, 2),
+                    "impresiones": impresiones,
+                    "clicks": clicks,
                     "leads": leads,
                     "cplUsd": round(_costo_lead(row.get("cost_per_action_type"), leads, spend), 2),
                     "roas": round(_roas_de_row(row), 2),
@@ -264,6 +268,8 @@ class MetaServices:
                         "objetivo": _objetivo_campania(meta.get("objective")),
                         "estado": _estado_campania(meta.get("effective_status") or meta.get("status")),
                         "gastoUsd": 0,
+                        "impresiones": 0,
+                        "clicks": 0,
                         "leads": 0,
                         "cplUsd": 0,
                         "roas": 0,
@@ -275,6 +281,8 @@ class MetaServices:
         campanias.sort(key=lambda c: (c["frecuencia"], c["gastoUsd"]), reverse=True)
 
         gasto = sum(c["gastoUsd"] for c in campanias)
+        impresiones = sum(c.get("impresiones") or 0 for c in campanias)
+        clicks = sum(c.get("clicks") or 0 for c in campanias)
         leads = sum(c["leads"] for c in campanias)
         activas = [c for c in campanias if c["estado"] == "activa"]
         quemadas = [c for c in campanias if c["frecuencia"] >= FRECUENCIA_QUEMADO]
@@ -337,6 +345,26 @@ class MetaServices:
                 "updatedAt": sync_at,
                 "good": "neutral",
                 "serie": [d["gastoUsd"] for d in gasto_diario],
+            },
+            {
+                "id": "ctr",
+                "label": "CTR",
+                "value": round(clicks / impresiones * 100, 2) if impresiones else 0,
+                "format": "pct",
+                "previous": None,
+                "sourceId": "ads_manager",
+                "updatedAt": sync_at,
+                "good": "up",
+            },
+            {
+                "id": "cpc",
+                "label": "CPC",
+                "value": round(gasto / clicks, 2) if clicks else 0,
+                "format": "usd",
+                "previous": None,
+                "sourceId": "ads_manager",
+                "updatedAt": sync_at,
+                "good": "down",
             },
             {
                 "id": "campanias_activas",

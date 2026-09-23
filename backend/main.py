@@ -5,7 +5,9 @@ from pathlib import Path
 from decouple import config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.controllers.activacion_ia_controller import router as activacion_ia_router
 from src.controllers.asistente_controller import router as asistente_router
@@ -19,6 +21,8 @@ from src.controllers.webhooks_controller import router as webhooks_router
 from src.controllers.cobranza_controller import router as cobranza_router
 from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.webinars_controller import router as webinars_router
+from src.controllers.integraciones_controller import router as integraciones_router
+from src.controllers.track_controller import router as track_router
 from src.controllers.integrantes_controller import router as integrantes_router
 from src.controllers.mkt_controller import router as mkt_router
 from src.controllers.meta_controller import router as meta_router
@@ -79,6 +83,27 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="atv-ops", lifespan=lifespan)
 
+
+class TrackCorsMiddleware(BaseHTTPMiddleware):
+    """CORS abierto solo para /api/track: las landings viven en cualquier dominio."""
+
+    async def dispatch(self, request, call_next):
+        if not request.url.path.startswith("/api/track"):
+            return await call_next(request)
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=headers)
+        response = await call_next(request)
+        for k, v in headers.items():
+            response.headers[k] = v
+        return response
+
+
 origins = [
     origin.strip()
     for origin in config(
@@ -95,6 +120,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Después del CORS general: en Starlette el último middleware entra primero.
+app.add_middleware(TrackCorsMiddleware)
 
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(transcripts_router, prefix="/api/transcripts", tags=["transcripts"])
@@ -104,6 +131,9 @@ app.include_router(mkt_router, prefix="/api/mkt", tags=["mkt"])
 app.include_router(meta_router, prefix="/api/meta", tags=["meta"])
 app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(webinars_router, prefix="/api/webinars", tags=["webinars"])
+app.include_router(integraciones_router, prefix="/api/integraciones", tags=["integraciones"])
+# Sin sesión: el script/pixel de la landing se autentica con el token de la integración.
+app.include_router(track_router, prefix="/api/track", tags=["track"])
 app.include_router(integrantes_router, prefix="/api/integrantes", tags=["integrantes"])
 app.include_router(reuniones_router, prefix="/api/reuniones", tags=["reuniones"])
 app.include_router(activacion_ia_router, prefix="/api/activacion-ia", tags=["activacion-ia"])

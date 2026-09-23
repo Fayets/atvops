@@ -68,7 +68,6 @@ export default function WebinarFaseDetalle() {
   }
 
   const portada = fase.portada;
-  const otras = fases.filter((f) => f.id !== faseId);
 
   return (
     <div className={`page wb-fase-page fase-${faseId}`}>
@@ -121,16 +120,6 @@ export default function WebinarFaseDetalle() {
           Editar números
         </Link>
       </Card>
-
-      <div className="wb-fase-otras">
-        {otras.map((f) => (
-          <Link key={f.id} to={`/webinars/${id}/fase/${f.id}`} className={`wb-fase-mini fase-${f.id}`}>
-            <span className="dim">Fase {f.n}</span>
-            <strong>{f.titulo}</strong>
-            <span className="num">{fmtMetrica(f.portada?.valor, f.portada?.formato)}</span>
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }

@@ -658,3 +658,40 @@ class Webinar(db.Entity):
     creado_at = Required(datetime, default=datetime.utcnow)
     actualizado_at = Required(datetime, default=datetime.utcnow)
     borrado_at = Optional(datetime, nullable=True)
+
+
+class Integracion(db.Entity):
+    """Conector público para que una landing (propia o de un cliente) mande eventos acá.
+
+    Cada integración tiene un token: el script o el pixel lo usa sin sesión de usuario.
+    Hoy el tipo `landing` cuenta pageviews; después se suman otros conectores sin
+    inventar otra pantalla.
+    """
+
+    _table_ = _tabla("integraciones", "Integracion")
+
+    id = PrimaryKey(int, auto=True)
+    nombre = Required(str)
+    # landing | (futuro: thank_you, calendly, …)
+    tipo = Required(str, default="landing", index=True)
+    token = Required(str, unique=True, index=True)
+    webinar_id = Optional(int, nullable=True, index=True)
+    activo = Required(bool, default=True)
+    creado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    eventos = Set("TrackingEvento")
+
+
+class TrackingEvento(db.Entity):
+    """Un hit recibido por una integración (pageview de landing, etc.)."""
+
+    _table_ = _tabla("tracking_eventos", "TrackingEvento")
+
+    id = PrimaryKey(int, auto=True)
+    integracion = Required(Integracion)
+    tipo = Required(str, default="pageview", index=True)
+    url = Optional(str, nullable=True)
+    referrer = Optional(str, nullable=True)
+    session_id = Optional(str, nullable=True, index=True)
+    creado_at = Required(datetime, default=datetime.utcnow, index=True)

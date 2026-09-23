@@ -2413,6 +2413,41 @@ export async function borrarWebinar(id) {
   return pedir(`/api/webinars/${id}`, { method: 'DELETE' });
 }
 
+/* ----------------------------------------------------------- integraciones */
+
+export async function getIntegracionesPanel() {
+  return pedir('/api/integraciones/panel');
+}
+
+export async function getIntegraciones() {
+  const d = await pedir('/api/integraciones');
+  return d.integraciones ?? [];
+}
+
+export async function asegurarTrackingWebinar(webinarId) {
+  return pedir(`/api/integraciones/asegurar/${webinarId}`, { method: 'POST' });
+}
+
+export async function crearIntegracion(payload) {
+  return pedir('/api/integraciones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function actualizarIntegracion(id, patch) {
+  return pedir(`/api/integraciones/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function borrarIntegracion(id) {
+  return pedir(`/api/integraciones/${id}`, { method: 'DELETE' });
+}
+
 /** Campañas Meta con id real (para vincular a un webinar). */
 export async function getCampaniasMeta(mes) {
   const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
