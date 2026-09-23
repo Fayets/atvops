@@ -43,13 +43,18 @@ function Kpi({ titulo, valor, pie, tono, onVer, verLabel }) {
   );
 }
 
-/** Proyección si las señas del mes también cierran. */
+/** Proyección si las señas del mes también cierran, con la lista de quién dejó cuánto. */
 function ProyeccionCloseRate({ d, onCerrar }) {
   const cierres = d.cierres ?? 0;
   const senas = d.senas ?? 0;
   const shows = d.shows ?? 0;
   const proyectado = d.closeRateProyectado;
   const real = d.closeRate;
+  const detalle = d.senasDetalle ?? [];
+
+  const fecha = (iso) => (iso
+    ? new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+    : '—');
 
   return (
     <div className="modal-backdrop" onClick={onCerrar} role="presentation">
@@ -60,13 +65,7 @@ function ProyeccionCloseRate({ d, onCerrar }) {
         aria-label="Proyección close rate"
       >
         <header className="modal-cab">
-          <div>
-            <h3>Proyección close rate</h3>
-            <p className="dim">
-              Si se cierran las señas que hay este mes. El close rate de la tarjeta solo
-              cuenta llamadas Cerrado: la seña todavía no es una venta hecha.
-            </p>
-          </div>
+          <h3>Proyección close rate</h3>
           <button type="button" className="btn sm" onClick={onCerrar}>Cerrar</button>
         </header>
 
@@ -78,37 +77,30 @@ function ProyeccionCloseRate({ d, onCerrar }) {
             </div>
             <div className="kpi-closing-pie">
               {senas > 0
-                ? `${cierres + senas} cierres (${cierres} + ${senas} ${senas === 1 ? 'seña' : 'señas'}) sobre ${shows} shows`
-                : `Sin señas abiertas · igual al close rate (${real == null ? '—' : `${formatValue(real, 'num')}%`})`}
+                ? `${cierres + senas} cierres (${cierres} + ${senas} ${senas === 1 ? 'seña' : 'señas'}) sobre ${shows} shows · hoy ${real == null ? '—' : `${formatValue(real, 'num')}%`}`
+                : `Sin señas · igual al close rate (${real == null ? '—' : `${formatValue(real, 'num')}%`})`}
             </div>
           </div>
 
-          <div className="close-proyeccion-vs">
-            <div>
-              <span className="dim">Hoy (solo Cerrado)</span>
-              <strong className="num">{real == null ? '—' : `${formatValue(real, 'num')}%`}</strong>
+          {detalle.length === 0 ? (
+            <div className="empty">No hay señas este mes.</div>
+          ) : (
+            <div className="close-proyeccion-lista">
+              <div className="close-proyeccion-fila cabecera">
+                <span>Fecha</span>
+                <span>Prospecto</span>
+                <span>Closer</span>
+                <span>Dejó</span>
+              </div>
+              {detalle.map((s) => (
+                <div key={s.id || `${s.nombre}-${s.fecha}`} className="close-proyeccion-fila">
+                  <span className="num dim">{fecha(s.fecha)}</span>
+                  <span className="strong">{s.nombre}</span>
+                  <span className="dim">{s.closer || '—'}</span>
+                  <span className="num valor">{formatValue(s.pagoUsd ?? 0, 'usd')}</span>
+                </div>
+              ))}
             </div>
-            <div>
-              <span className="dim">Señas del mes</span>
-              <strong className="num">{senas}</strong>
-            </div>
-            <div>
-              <span className="dim">Si cierran</span>
-              <strong className="num">
-                {proyectado == null || real == null
-                  ? '—'
-                  : `+${formatValue(Math.max(0, proyectado - real), 'num')} pts`}
-              </strong>
-            </div>
-          </div>
-
-          {senas > 0 && (
-            <p className="close-proyeccion-nota">
-              Hay {senas} {senas === 1 ? 'seña' : 'señas'} en juego. Convertirlas antes de
-              fin de mes sube el close rate de{' '}
-              <b>{real == null ? '—' : `${formatValue(real, 'num')}%`}</b> a{' '}
-              <b>{proyectado == null ? '—' : `${formatValue(proyectado, 'num')}%`}</b>.
-            </p>
           )}
         </div>
       </div>

@@ -822,6 +822,17 @@ def _bloque(leads: list[dict], ahora: datetime) -> dict:
         "sinCrm": sin_crm,
         "cierres": len(cierres),
         "senas": len(senas),
+        "senasDetalle": [
+            {
+                "id": str(l.get("id") or ""),
+                "nombre": (l.get("nombre") or "Sin nombre").strip(),
+                "closer": _persona(l.get("closer"), "closer"),
+                "fecha": l["call"].date().isoformat() if l.get("call") else None,
+                "pagoUsd": round(_num(l.get("pago")), 2),
+                "programa": (l.get("programa_ofrecido") or "").strip(),
+            }
+            for l in sorted(senas, key=lambda x: x.get("call") or datetime.min, reverse=True)
+        ],
         "ventas": len(ventas),
         "cashUsd": round(cash, 2),
         "deudaUsd": round(sum(_num(l["debe"]) for l in ventas), 2),
