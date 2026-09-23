@@ -25,8 +25,9 @@ def resumen(_user: dict = Depends(solo_interno), mes: str | None = None, refresc
         return ventas.resumen(mes=mes, refrescar=refrescar)
     except HTTPException as e:
         raise e
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error inesperado al calcular las métricas de ventas.")
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló calcular las métricas de ventas")
+        raise HTTPException(status_code=500, detail=f"Error al calcular ventas: {str(e)[:180]}")
 
 
 @router.get("/estado")

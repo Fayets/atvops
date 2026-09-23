@@ -820,13 +820,19 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
     def _fila(l: dict, **extra) -> dict:
         call = l.get("call")
         es_venta = id(l) in ids_venta
+        deuda = _saldo(l) if es_venta else _num(l.get("debe"))
+        # `inf` no es JSON: FastAPI lo revienta con 500. Sin precio conocido → null.
+        if deuda == float("inf") or deuda != deuda:
+            deuda_out = None
+        else:
+            deuda_out = round(float(deuda), 2)
         return {
             "id": str(l.get("id") or ""),
             "nombre": (l.get("nombre") or "Sin nombre").strip(),
             "closer": _persona(l.get("closer"), "closer"),
             "fecha": call.date().isoformat() if call else None,
             "pagoUsd": round(_num(l.get("pago")), 2),
-            "deudaUsd": round(_saldo(l), 2) if es_venta else round(_num(l.get("debe")), 2),
+            "deudaUsd": deuda_out,
             "programa": (l.get("programa_ofrecido") or "").strip(),
             "resultado": (l.get("resultado") or "").strip(),
             **extra,
@@ -836,6 +842,13 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
     estado_venta = lambda l: (
         "Cerrado" if _norm(l["resultado"]) == _norm("Cerrado") else "Seña"
     )
+
+    # Solo saldos finitos: una seña sin precio de programa da inf y tumba el JSON.
+    deuda_finita = 0.0
+    for l in ventas:
+        s = _saldo(l)
+        if s != float("inf") and s == s:
+            deuda_finita += s
 
     out = {
         "agendados": agendados,
@@ -849,7 +862,7 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
         "senas": len(senas),
         "ventas": len(ventas),
         "cashUsd": round(cash, 2),
-        "deudaUsd": round(sum(_saldo(l) for l in ventas), 2),
+        "deudaUsd": round(deuda_finita, 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         # Close rate real: solo Cerrado / shows. La seña no cuenta: la venta no está hecha.
         "closeRate": round(len(cierres) / shows * 100, 1) if shows else None,
