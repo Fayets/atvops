@@ -37,9 +37,9 @@ def test_el_beacon_no_va_como_json():
     """
     sendBeacon manda en modo credenciales. Con content-type application/json el
     navegador exige un preflight, y un preflight con credenciales contra un
-    Allow-Origin "*" no sale nunca: el evento se pierde entero y en silencio.
-    text/plain es content-type safelisted, así que no hay preflight. El servidor
-    parsea el cuerpo con json.loads sin mirar el header.
+    Allow-Origin "*" lo rechaza antes de despachar: el evento se pierde entero y en
+    silencio. text/plain es safelisted, así que no hay preflight. El servidor parsea
+    el cuerpo con json.loads, que no mira el header.
     """
     codigo = "\n".join(
         linea for linea in _SDK_JS.splitlines() if not linea.lstrip().startswith("//")
@@ -49,16 +49,42 @@ def test_el_beacon_no_va_como_json():
 
 
 def test_el_cors_devuelve_el_origen_pedido():
-    """El comodín rompe cualquier pedido con credenciales, y sendBeacon lo es."""
-    from src.controllers.track_controller import _cors
+    """
+    El comodín rompe cualquier pedido con credenciales, y sendBeacon lo es.
+
+    Se prueba el middleware y no el `_cors` del controlador a propósito: el middleware
+    pisa lo que el controlador haya puesto, así que es el único que decide. Un arreglo
+    hecho en el controlador se ve bien en el código y no llega al navegador.
+    """
+    import asyncio
+    from types import SimpleNamespace
+
     from fastapi.responses import Response
 
-    con = _cors(Response(), "https://atvos.io")
-    assert con.headers["Access-Control-Allow-Origin"] == "https://atvos.io"
+    from main import TrackCorsMiddleware
+
+    async def responder(_request):
+        return Response()
+
+    def pedir(path, origen):
+        mid = TrackCorsMiddleware(app=None)
+        pedido = SimpleNamespace(
+            url=SimpleNamespace(path=path),
+            method="POST",
+            headers={"origin": origen} if origen else {},
+        )
+        return asyncio.run(mid.dispatch(pedido, responder))
+
+    con = pedir("/api/track/event", "https://landing-del-cliente.com")
+    assert con.headers["Access-Control-Allow-Origin"] == "https://landing-del-cliente.com"
     assert con.headers["Access-Control-Allow-Credentials"] == "true"
     assert con.headers["Vary"] == "Origin"
 
-    # Sin Origin —un <img> del pixel, un curl— el comodín alcanza.
-    sin = _cors(Response())
+    # Sin Origin —el <img> del pixel, un curl— el comodín alcanza y no hay credenciales.
+    sin = pedir("/api/track/pixel.gif", None)
     assert sin.headers["Access-Control-Allow-Origin"] == "*"
     assert "Access-Control-Allow-Credentials" not in sin.headers
+
+    # Fuera de /api/track el middleware no toca nada: ese CORS es el de la app.
+    otro = pedir("/api/ventas/resumen", "https://landing-del-cliente.com")
+    assert "Access-Control-Allow-Origin" not in otro.headers

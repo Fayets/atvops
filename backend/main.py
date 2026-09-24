@@ -85,17 +85,30 @@ app = FastAPI(title="atv-ops", lifespan=lifespan)
 
 
 class TrackCorsMiddleware(BaseHTTPMiddleware):
-    """CORS abierto solo para /api/track: las landings viven en cualquier dominio."""
+    """CORS abierto solo para /api/track: las landings viven en cualquier dominio.
+
+    Se devuelve el origen que pidió en vez de "*" porque navigator.sendBeacon —el
+    transporte del SDK— manda en modo credenciales, y ahí el navegador rechaza el
+    comodín y ni siquiera despacha el pedido. Abierto sigue siendo abierto: lo que
+    autoriza a escribir es el token de la integración, no el dominio.
+
+    Este middleware es el único dueño del CORS de /api/track: pisa lo que haya puesto
+    el controlador. Si hay que tocar una cabecera, se toca acá.
+    """
 
     async def dispatch(self, request, call_next):
         if not request.url.path.startswith("/api/track"):
             return await call_next(request)
+        origen = request.headers.get("origin")
         headers = {
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": origen or "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Max-Age": "86400",
         }
+        if origen:
+            headers["Access-Control-Allow-Credentials"] = "true"
+            headers["Vary"] = "Origin"
         if request.method == "OPTIONS":
             return Response(status_code=204, headers=headers)
         response = await call_next(request)

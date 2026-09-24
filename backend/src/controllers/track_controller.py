@@ -48,9 +48,9 @@ _SDK_JS = r"""(function () {
       });
       var endpoint = base + "/event";
       // text/plain a propósito, en los dos caminos. Con application/json el navegador
-      // manda antes un preflight, y el preflight de un sendBeacon viaja en modo
-      // credenciales: contra un Allow-Origin "*" el pedido no sale nunca. El servidor
-      // parsea el cuerpo igual, no mira el content-type.
+      // pide antes un preflight, y el preflight de un sendBeacon viaja en modo
+      // credenciales: ahí el comodín "*" lo rechaza y el evento no sale nunca. El
+      // servidor parsea el cuerpo con json.loads, que no mira el content-type.
       try {
         if (navigator.sendBeacon) {
           navigator.sendBeacon(endpoint, new Blob([body], { type: "text/plain" }));
@@ -83,17 +83,8 @@ _SDK_JS = r"""(function () {
 """
 
 
-def _cors(response: Response, origen: str | None = None) -> Response:
-    """CORS abierto: la landing de cada cliente vive en su propio dominio.
-
-    Se devuelve el origen que pidió en vez de "*" porque sendBeacon manda en modo
-    credenciales, y ahí el navegador rechaza el comodín. Abierto es abierto igual:
-    lo que autoriza a escribir es el token, no el dominio.
-    """
-    response.headers["Access-Control-Allow-Origin"] = origen or "*"
-    if origen:
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Vary"] = "Origin"
+def _cors(response: Response) -> Response:
+    response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     response.headers["Access-Control-Max-Age"] = "86400"
@@ -107,8 +98,8 @@ def _leer_body(raw: dict) -> dict:
 
 
 @router.options("/{path:path}")
-def options_any(request: Request, path: str = ""):
-    return _cors(Response(status_code=204), request.headers.get("origin"))
+def options_any(path: str = ""):
+    return _cors(Response(status_code=204))
 
 
 @router.get("/sdk.js")
@@ -121,7 +112,6 @@ def sdk_js():
 
 
 async def _registrar_desde_request(request: Request, tipo_default: str = "pageview"):
-    origen = request.headers.get("origin")
     try:
         raw = _leer_body(await request.json())
     except Exception:  # noqa: BLE001
@@ -135,9 +125,9 @@ async def _registrar_desde_request(request: Request, tipo_default: str = "pagevi
             referrer=raw.get("referrer"),
             session_id=raw.get("sessionId") or raw.get("session_id"),
         )
-        return _cors(JSONResponse(result), origen)
+        return _cors(JSONResponse(result))
     except HTTPException as e:
-        return _cors(JSONResponse({"detail": e.detail}, status_code=e.status_code), origen)
+        return _cors(JSONResponse({"detail": e.detail}, status_code=e.status_code))
 
 
 @router.post("/event")
