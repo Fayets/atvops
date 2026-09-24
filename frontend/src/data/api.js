@@ -2473,8 +2473,12 @@ export async function borrarIntegracion(id) {
 }
 
 /** Campañas Meta con id real (para vincular a un webinar). */
+/**
+ * Campañas para elegir cuáles alimentan un webinar. Pide también las que todavía no
+ * gastaron: una campaña se vincula antes de largarla, no después.
+ */
 export async function getCampaniasMeta(mes) {
-  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  const q = mes ? `?month=${encodeURIComponent(mes)}&todas=1` : '?todas=1';
   const d = await pedir(`/api/meta/ads${q}`);
   return d.campanias ?? [];
 }

@@ -115,6 +115,21 @@ export default function WebinarDetalle({ modo } = {}) {
     return () => { vivo = false; };
   }, [id, esNuevo]);
 
+  // Orden del selector: primero las que ya están vinculadas —para no perderlas de vista
+  // entre doce pausadas—, después las activas, y al final por gasto. El backend ordena
+  // por gasto para el tablero de Ads, que es otra pregunta.
+  const campaniasOrdenadas = useMemo(() => {
+    const vinculadas = new Set((form.campaniasAds || []).map((c) => String(c.id)));
+    const peso = (c) => {
+      if (vinculadas.has(String(c.id))) return 0;
+      if (c.estado === 'activa') return 1;
+      return 2;
+    };
+    return [...campanias].sort(
+      (a, b) => peso(a) - peso(b) || (b.gastoUsd || 0) - (a.gastoUsd || 0),
+    );
+  }, [campanias, form.campaniasAds]);
+
   const elegidas = useMemo(
     () => new Set((form.campaniasAds || []).map((c) => String(c.id))),
     [form.campaniasAds],
@@ -322,7 +337,7 @@ export default function WebinarDetalle({ modo } = {}) {
             <p className="dim">No hay campañas disponibles este mes (o falta el token de Meta Ads).</p>
           ) : (
             <ul className="webinar-ads">
-              {campanias.map((c) => {
+              {campaniasOrdenadas.map((c) => {
                 const on = elegidas.has(String(c.id));
                 return (
                   <li key={c.id}>

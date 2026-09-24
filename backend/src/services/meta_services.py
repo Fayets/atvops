@@ -175,7 +175,15 @@ class MetaServices:
 
     # ------------------------------------------------------------------ ads
 
-    def ads_resumen(self, month: str | None = None) -> dict:
+    def ads_resumen(self, month: str | None = None, incluir_sin_gasto: bool = False) -> dict:
+        """Campañas del mes con sus números.
+
+        `incluir_sin_gasto` agrega también las que todavía no gastaron nada. Lo usa el
+        selector de campañas de un webinar: ahí se vincula una campaña **antes** de que
+        empiece a correr, justo para que el gasto caiga en el webinar correcto desde el
+        primer día. El tablero de Ads no lo pide, porque una lista de campañas en cero
+        no dice nada sobre el mes.
+        """
         token = self._ads_token()
         account = self._ad_account()
         ver = self._ads_ver()
@@ -257,9 +265,13 @@ class MetaServices:
                 }
             )
 
-        # Mes sin spend (p.ej. campañas pausadas): igual listar el ad account.
-        if not campanias:
+        # Las que no aparecen en los insights: o el mes entero no tuvo spend, o son las
+        # que todavía no arrancaron y hay que poder elegirlas igual.
+        if not campanias or incluir_sin_gasto:
+            ya = {str(c["id"]) for c in campanias}
             for cid, meta in camp_meta.items():
+                if str(cid) in ya:
+                    continue
                 campanias.append(
                     {
                         "id": cid,

@@ -10,10 +10,11 @@ service = MetaServices()
 @router.get("/ads")
 def meta_ads(
     month: str | None = Query(default=None, description="Mes YYYY-MM"),
+    todas: bool = Query(default=False, description="Incluir las que todavía no gastaron"),
     _user=Depends(get_current_user),
 ):
     try:
-        return service.ads_resumen(month)
+        return service.ads_resumen(month, incluir_sin_gasto=todas)
     except HTTPException:
         raise
     except Exception:
