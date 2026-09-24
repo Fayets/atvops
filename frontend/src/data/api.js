@@ -2447,6 +2447,11 @@ export async function reiniciarTracking(integracionId) {
   return pedir(`/api/integraciones/${integracionId}/reiniciar`, { method: 'POST' });
 }
 
+/** Deja en cero lo que el script cuenta para ese webinar. Lo cargado a mano no se toca. */
+export async function reiniciarTrackingWebinar(webinarId) {
+  return pedir(`/api/integraciones/webinar/${webinarId}/reiniciar`, { method: 'POST' });
+}
+
 export async function crearIntegracion(payload) {
   return pedir('/api/integraciones', {
     method: 'POST',

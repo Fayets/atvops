@@ -484,6 +484,17 @@ class WebinarsServices:
                     crudas["entradasWhatsapp"] = tracking["entradasWhatsapp"]
                 if tracking["agendasWebinar"]:
                     crudas["agendasWebinar"] = tracking["agendasWebinar"]
+                # Cuántos eventos hay de verdad, sin las deducciones de arriba. Lo usa el
+                # botón de poner en cero: contar sobre los números mostrados lo haría
+                # ofrecer borrar siete eventos que no existen, porque `optins` puede
+                # venir deducido de los registros.
+                data["trackingEventos"] = (
+                    int(tracking["visitasLanding"])
+                    + int(tracking["optins"])
+                    + int(tracking["thankYou"])
+                    + int(tracking["entradasWhatsapp"])
+                    + int(tracking["agendasWebinar"])
+                )
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudieron leer visitas de tracking: %s", str(e)[:160])
 

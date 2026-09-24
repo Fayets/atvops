@@ -244,6 +244,28 @@ class IntegracionesServices:
             i.actualizado_at = datetime.utcnow()
             return {"ok": True, "id": i.id, "borrados": int(cuantos)}
 
+    def reiniciar_eventos_de_webinar(self, webinar_id: int) -> dict:
+        """Lo mismo que `reiniciar_eventos`, pero entrando por el webinar.
+
+        La vista de la fase habla de webinars y no sabe que existen las integraciones:
+        obligarla a resolver un id para poder pedir el borrado sería pedirle que conozca
+        un detalle que no le importa.
+        """
+        from src.models import Integracion
+
+        with db_session:
+            ids = [
+                i.id for i in list(Integracion.select())
+                if i.webinar_id == int(webinar_id) and i.tipo == "landing"
+            ]
+        if not ids:
+            raise HTTPException(
+                status_code=404,
+                detail="Ese webinar todavía no tiene tracking.",
+            )
+        borrados = sum(self.reiniciar_eventos(i)["borrados"] for i in ids)
+        return {"ok": True, "webinarId": int(webinar_id), "borrados": borrados}
+
     def borrar(self, integracion_id: int) -> dict:
         from src.models import Integracion
 

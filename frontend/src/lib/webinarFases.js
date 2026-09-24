@@ -83,17 +83,19 @@ const FASES_META = [
   },
 ];
 
+// `origen: 'script'` marca los que entran solos por el tracking de la landing. Los
+// demás los carga alguien a mano, y por eso el botón de poner en cero no los toca.
 export const CAMPOS_RAW = [
   // Fase 1
   { key: 'impresiones', label: 'Impresiones', fase: 'registro', tipo: 'count' },
   { key: 'clicks', label: 'Clicks', fase: 'registro', tipo: 'count' },
   { key: 'gastoAdsUsd', label: 'Gasto ads (USD)', fase: 'registro', tipo: 'usd' },
-  { key: 'visitasLanding', label: 'Visitas landing', fase: 'registro', tipo: 'count' },
-  { key: 'optins', label: 'Opt-ins', fase: 'registro', tipo: 'count' },
-  { key: 'thankYou', label: 'Thank you page', fase: 'registro', tipo: 'count' },
+  { key: 'visitasLanding', label: 'Visitas landing', fase: 'registro', tipo: 'count', origen: 'script' },
+  { key: 'optins', label: 'Opt-ins', fase: 'registro', tipo: 'count', origen: 'script' },
+  { key: 'thankYou', label: 'Thank you page', fase: 'registro', tipo: 'count', origen: 'script' },
   { key: 'registros', label: 'Registros webinar', fase: 'registro', tipo: 'count' },
-  { key: 'entradasWhatsapp', label: 'Entradas WhatsApp', fase: 'registro', tipo: 'count' },
-  { key: 'agendasWebinar', label: 'Agendó el webinar', fase: 'registro', tipo: 'count' },
+  { key: 'entradasWhatsapp', label: 'Entradas WhatsApp', fase: 'registro', tipo: 'count', origen: 'script' },
+  { key: 'agendasWebinar', label: 'Agendó el webinar', fase: 'registro', tipo: 'count', origen: 'script' },
   // Fase 2
   { key: 'vivos', label: 'Vivos (show)', fase: 'dia', tipo: 'count' },
   { key: 'picoConcurrentes', label: 'Pico concurrentes', fase: 'dia', tipo: 'count' },
