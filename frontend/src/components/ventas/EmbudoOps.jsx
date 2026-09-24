@@ -105,7 +105,17 @@ export default function EmbudoOps({ setting = {} }) {
           onVer={conChats ? () => setVerChats(true) : undefined}
         />
         <Salto valor={tasa(pitches, chats)} rango={RANGOS.pitch} label="a pitch" />
-        <Ficha etapa="Pitches" n={pitches} pie={pitches ? 'del reporte del setter' : 'sin cargar'} />
+        <Ficha
+          etapa="Pitches"
+          n={pitches}
+          pie={
+            pitches
+              ? (setting.pitchesFuente === 'registro'
+                ? 'cargados en la vista del setter'
+                : 'del reporte del setter')
+              : 'sin cargar'
+          }
+        />
         <Salto valor={tasa(agendas, pitches)} rango={RANGOS.booking} label="booking" />
         <Ficha etapa="Agendas" n={agendas} pie="del calendario" />
         <Salto valor={showRate} rango={RANGOS.show} label="show" />

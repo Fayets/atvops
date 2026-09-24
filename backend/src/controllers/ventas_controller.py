@@ -194,10 +194,13 @@ def setting_embudo(_user: dict = Depends(solo_interno), mes: str | None = None):
         v = ventas.resumen(mes).get("actual", {})
         # Cada etapa, de donde de verdad sale: el pitch lo reporta quien lo manda, la
         # agenda es un Calendly completado y el show es la reunión que ocurrió.
-        pitches = ventas.pitches_del_reporte(mes)
+        pitches, fuente_pitches = ventas.pitches_del_mes(mes)
         agendas = ventas.agendas_del_calendario(mes)
         shows = ventas.reuniones_del_mes(mes).get("shows", [])
         return {"mes": mes,
+                # De cuál de los dos registros salió el número, para que la vista lo diga
+                # en vez de dejar al que mira adivinando por qué cambió.
+                "pitchesFuente": fuente_pitches,
                 # El show rate sale de ventas: shows sobre las que ya pasaron, no sobre
                 # todas las agendas del mes. Dividir por las futuras da un rojo falso.
                 "showRate": v.get("showRate"),

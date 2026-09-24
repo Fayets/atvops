@@ -2146,13 +2146,21 @@ def semanas_de_setting(hasta_mes: str, cuantas: int = 6) -> list[dict]:
         logger.warning("No se pudieron leer las semanas de setting: %s", str(e)[:160])
         filas = []
 
-    # Los pitches los reporta el setter: se cuentan por día y se agrupan por semana.
+    # Los pitches salen de donde estén cargados uno por uno; si esa semana no hay
+    # ninguno, del reporte diario. La misma regla que el total del mes, o la tabla
+    # semanal diría cero debajo de un número que no lo es.
     pitches_por_semana: dict[date, int] = {}
+    domingo_final = lunes_final + timedelta(days=6)
+    for f, cuantos in _pitches_por_fecha(lunes_inicial, domingo_final).items():
+        pitches_por_semana[_semana(f)] = pitches_por_semana.get(_semana(f), 0) + cuantos
     for r in _reportes_propios("setter", lunes_inicial):
-        if r["fecha"] > lunes_final + timedelta(days=6):
+        if r["fecha"] > domingo_final:
             continue
-        pitches_por_semana[_semana(r["fecha"])] = (
-            pitches_por_semana.get(_semana(r["fecha"]), 0) + int(_num(r.get("links_enviados"))))
+        semana = _semana(r["fecha"])
+        if pitches_por_semana.get(semana):
+            continue  # esa semana ya tiene pitches cargados: sumar el reporte los duplica
+        pitches_por_semana[semana] = (
+            pitches_por_semana.get(semana, 0) + int(_num(r.get("links_enviados"))))
 
     salida = []
     for i in range(cuantas):
@@ -2202,6 +2210,69 @@ def pitches_del_reporte(mes: str) -> list[dict]:
                            "dato": f"{cuantos} {'link' if cuantos == 1 else 'links'}",
                            "cuantos": cuantos})
     return sorted(salida, key=lambda x: x["cuando"], reverse=True)
+
+
+def _pitches_por_fecha(desde: date, hasta: date) -> dict[date, int]:
+    """Cuántos pitches cargados hay cada día del rango, con `hasta` incluido."""
+    from pony.orm import db_session
+
+    from src.models import PitchSetting
+
+    por_dia: dict[date, int] = {}
+    with db_session:
+        for p in list(PitchSetting.select()):
+            if p.borrado_at is not None or not p.pitch_at:
+                continue
+            if desde <= p.pitch_at <= hasta:
+                por_dia[p.pitch_at] = por_dia.get(p.pitch_at, 0) + 1
+    return por_dia
+
+
+def pitches_del_registro(mes: str) -> list[dict]:
+    """Los pitches cargados uno por uno en la vista del setter, agrupados por día.
+
+    Misma forma que `pitches_del_reporte` para que el detalle del embudo no distinga de
+    cuál de los dos viene.
+    """
+    from pony.orm import db_session
+
+    from src.models import PitchSetting
+
+    anio, m = int(mes[:4]), int(mes[5:7])
+    desde = date(anio, m, 1)
+    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+
+    por_dia: dict[tuple, int] = {}
+    with db_session:
+        for p in list(PitchSetting.select()):
+            if p.borrado_at is not None or not p.pitch_at:
+                continue
+            if not (desde <= p.pitch_at < hasta):
+                continue
+            clave = (p.pitch_at, (p.setter or "").strip() or "sin asignar")
+            por_dia[clave] = por_dia.get(clave, 0) + 1
+
+    salida = [
+        {"cuando": fecha.isoformat(), "quien": quien,
+         "dato": f"{cuantos} {'pitch' if cuantos == 1 else 'pitches'}", "cuantos": cuantos}
+        for (fecha, quien), cuantos in por_dia.items()
+    ]
+    return sorted(salida, key=lambda x: x["cuando"], reverse=True)
+
+
+def pitches_del_mes(mes: str) -> tuple[list[dict], str]:
+    """Los pitches del mes y de dónde salieron.
+
+    Son dos registros del mismo acto, no dos puertas distintas como los chats: el setter
+    que carga el pitch uno por uno también lo contaría en su reporte diario, y sumarlos
+    lo duplicaría. Manda el registro detallado cuando ese mes tiene filas; si no, el
+    reporte. Se mira el mes y no el histórico a propósito: preguntar "¿hay algo alguna
+    vez?" es lo que hacía que el tablero mostrara cero teniendo datos.
+    """
+    registro = pitches_del_registro(mes)
+    if registro:
+        return registro, "registro"
+    return pitches_del_reporte(mes), "reporte"
 
 
 def reuniones_del_mes(mes: str) -> dict:
