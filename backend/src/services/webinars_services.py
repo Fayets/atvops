@@ -98,6 +98,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
     return {
         "impresiones": impresiones, "clicks": clicks, "visitasLanding": visitas,
         "optins": optins, "thankYou": thank_you, "registros": registros,
+        "registrosDerivados": bool(m.get("registrosDerivados")),
         "entradasWhatsapp": whatsapp, "agendasWebinar": agendas,
         "vivos": vivos, "shows": vivos,
         "picoConcurrentes": pico, "retenidosPitch": retenidos, "booked": booked,
@@ -108,7 +109,9 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
         # Optins = registros cuando no hay contador aparte (landing de webinar).
         "conversionLanding": tasa(optins or registros, visitas),
         "dropoffOptinTy": tasa(max(optins - thank_you, 0), optins),
-        "tasaRegistro": tasa(registros, optins),
+        # Sin un registro cargado aparte no hubo segundo paso que medir. Mostrar el
+        # 100% que da dividir un número por sí mismo es peor que no mostrar nada.
+        "tasaRegistro": None if m.get("registrosDerivados") else tasa(registros, optins),
         "tasaWhatsapp": tasa(whatsapp, registros),
         "tasaAgendaWebinar": tasa(agendas, registros),
         "costoPorRegistrante": money(gasto, registros),
@@ -434,7 +437,8 @@ class WebinarsServices:
             crudas = {k: v for k, v in (data["metricas"] or {}).items()
                       if k in (
                           "impresiones", "clicks", "visitasLanding", "optins", "thankYou",
-                          "registros", "entradasWhatsapp", "agendasWebinar", "vivos", "shows",
+                          "registros", "registrosDerivados", "entradasWhatsapp",
+                          "agendasWebinar", "vivos", "shows",
                           "picoConcurrentes",
                           "retenidosPitch", "booked", "llamadasAgendadas", "showsLlamadas",
                           "cierres", "cashUsd", "pif", "gastoAdsUsd",
@@ -478,6 +482,15 @@ class WebinarsServices:
                     crudas["optins"] = tracking["optins"]
                 elif not int(crudas.get("optins") or 0) and int(crudas.get("registros") or 0):
                     crudas["optins"] = int(crudas["registros"])
+                # En una landing de un paso —completás el formulario y ya estás
+                # registrado— el opt-in ES el registro. Si nadie cargó un número aparte,
+                # se toma ese: si no, todo lo que divide por registros (costo por
+                # registrante, show rate, entrada a WhatsApp) queda mudo para siempre
+                # esperando un dato que nadie va a escribir. Un número cargado a mano
+                # siempre gana, que es el caso del embudo con confirmación aparte.
+                if not int(crudas.get("registros") or 0) and int(crudas.get("optins") or 0):
+                    crudas["registros"] = int(crudas["optins"])
+                    crudas["registrosDerivados"] = True
                 if tracking["thankYou"]:
                     crudas["thankYou"] = tracking["thankYou"]
                 if tracking["entradasWhatsapp"]:
