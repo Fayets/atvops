@@ -129,6 +129,7 @@ export default function WebinarFaseDetalle() {
             <li key={m.key} className={m.portada ? 'es-portada' : ''}>
               <span className="num">{fmtMetrica(m.valor, m.formato)}</span>
               <span className="dim" title={m.ayuda || undefined}>{m.label}</span>
+              {m.detalle ? <span className="wb-cuenta">{m.detalle}</span> : null}
               {m.ayuda ? <span className="wb-ayuda">{m.ayuda}</span> : null}
             </li>
           ))}

@@ -122,6 +122,20 @@ function money(a, b) {
   return b > 0 ? Math.round((a / b) * 100) / 100 : null;
 }
 
+/** "22 de 40" — de dónde sale el porcentaje de arriba. Sin divisor no hay nada que decir. */
+function de(a, b) {
+  return b > 0 ? `${fmtN(a)} de ${fmtN(b)}` : null;
+}
+
+/** "sobre 40 registros" — para los costos, donde el de arriba no es una fracción. */
+function sobre(b, unidad) {
+  return b > 0 ? `sobre ${fmtN(b)} ${unidad}` : null;
+}
+
+function fmtN(v) {
+  return new Intl.NumberFormat('es-AR').format(Math.round(n(v)));
+}
+
 function peorSemaforo(...vals) {
   const orden = { alert: 0, warn: 1, ok: 2, off: 3 };
   return vals.sort((a, b) => orden[a] - orden[b])[0];
@@ -202,7 +216,10 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     cpc: money(gasto, clicks),
     conversionLanding: tasa(optins || registros, visitas),
     dropoffOptinTy: tasa(Math.max(optins - thankYou, 0), optins),
-    tasaRegistro: tasa(registros, optins),
+    // El backend avisa cuando `registros` salió del opt-in porque la landing es de un
+    // solo paso. Ahí no se midió ningún segundo momento: el 100% que da dividir un
+    // número por sí mismo sería inventado. La cantidad igual se ve abajo del cartel.
+    tasaRegistro: raw.registrosDerivados ? null : tasa(registros, optins),
     tasaWhatsapp: tasa(whatsapp, registros),
     tasaAgendaWebinar: tasa(agendas, registros),
     costoPorRegistrante: money(gasto, registros),
@@ -243,34 +260,43 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
   const m = derivarMetricas(raw, opts.gastoAdsUsd);
   const metaCash = opts.metaCash != null ? n(opts.metaCash) : 0;
 
+  // `detalle` son los dos números que produjeron el porcentaje. Un "0%" sin eso no
+  // distingue 0 de 3 —ruido— de 0 de 300, que es un problema.
   const items = {
     registro: [
       { key: 'impresiones', label: 'Impresiones', valor: m.impresiones, formato: 'count' },
-      { key: 'ctr', label: 'CTR', valor: m.ctr, formato: 'pct' },
-      { key: 'cpc', label: 'CPC', valor: m.cpc, formato: 'usd' },
+      { key: 'ctr', label: 'CTR', valor: m.ctr, formato: 'pct', detalle: de(m.clicks, m.impresiones) },
+      { key: 'cpc', label: 'CPC', valor: m.cpc, formato: 'usd', detalle: sobre(m.clicks, 'clicks') },
       { key: 'visitasLanding', label: 'Tráfico landing', valor: m.visitasLanding, formato: 'count' },
-      { key: 'conversionLanding', label: 'Conv. landing', valor: m.conversionLanding, formato: 'pct', ayuda: 'optins (registros) / visitas' },
-      { key: 'dropoffOptinTy', label: 'Drop-off optin → TY', valor: m.dropoffOptinTy, formato: 'pct' },
-      { key: 'tasaRegistro', label: 'Registro / optin', valor: m.tasaRegistro, formato: 'pct' },
-      { key: 'tasaWhatsapp', label: 'Entrada WhatsApp', valor: m.tasaWhatsapp, formato: 'pct' },
-      { key: 'tasaAgendaWebinar', label: 'Agendó el webinar', valor: m.tasaAgendaWebinar, formato: 'pct', ayuda: 'clicks en agendar / registros' },
-      { key: 'costoPorRegistrante', label: 'Costo / registrante', valor: m.costoPorRegistrante, formato: 'usd', portada: true },
+      { key: 'conversionLanding', label: 'Conv. landing', valor: m.conversionLanding, formato: 'pct', detalle: de(m.optins || m.registros, m.visitasLanding), ayuda: 'optins (registros) / visitas' },
+      { key: 'dropoffOptinTy', label: 'Drop-off optin → TY', valor: m.dropoffOptinTy, formato: 'pct', detalle: de(Math.max(m.optins - m.thankYou, 0), m.optins) },
+      {
+        key: 'tasaRegistro',
+        label: 'Registro / optin',
+        valor: m.tasaRegistro,
+        formato: 'pct',
+        detalle: de(m.registros, m.optins),
+        ayuda: raw.registrosDerivados ? 'el opt-in es el registro: la landing es de un paso' : undefined,
+      },
+      { key: 'tasaWhatsapp', label: 'Entrada WhatsApp', valor: m.tasaWhatsapp, formato: 'pct', detalle: de(m.entradasWhatsapp, m.registros) },
+      { key: 'tasaAgendaWebinar', label: 'Agendó el webinar', valor: m.tasaAgendaWebinar, formato: 'pct', detalle: de(m.agendasWebinar, m.registros), ayuda: 'clicks en agendar / registros' },
+      { key: 'costoPorRegistrante', label: 'Costo / registrante', valor: m.costoPorRegistrante, formato: 'usd', detalle: sobre(m.registros, 'registros'), portada: true },
     ],
     dia: [
       { key: 'registros', label: 'Registrados', valor: m.registros, formato: 'count' },
       { key: 'vivos', label: 'Vivos', valor: m.vivos, formato: 'count' },
       { key: 'picoConcurrentes', label: 'Pico concurrentes', valor: m.picoConcurrentes, formato: 'count' },
-      { key: 'retencionPitch', label: 'Retención al pitch', valor: m.retencionPitch, formato: 'pct', ayuda: '% del pico' },
-      { key: 'bookingRate', label: 'Booking rate', valor: m.bookingRate, formato: 'pct', ayuda: 'de los que llegaron al pitch' },
+      { key: 'retencionPitch', label: 'Retención al pitch', valor: m.retencionPitch, formato: 'pct', detalle: de(m.retenidosPitch, m.picoConcurrentes || m.vivos), ayuda: '% del pico' },
+      { key: 'bookingRate', label: 'Booking rate', valor: m.bookingRate, formato: 'pct', detalle: de(m.booked, m.retenidosPitch || m.vivos), ayuda: 'de los que llegaron al pitch' },
       { key: 'booked', label: 'Booked', valor: m.booked, formato: 'count' },
-      { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct', portada: true, ayuda: 'vivos / registrados' },
+      { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct', detalle: de(m.vivos, m.registros), portada: true, ayuda: 'vivos / registrados' },
     ],
     post: [
       { key: 'llamadasAgendadas', label: 'Llamadas agendadas', valor: m.llamadasAgendadas, formato: 'count' },
-      { key: 'showRateCalls', label: 'Show rate calls', valor: m.showRateCalls, formato: 'pct' },
-      { key: 'closeRate', label: 'Close rate', valor: m.closeRate, formato: 'pct' },
-      { key: 'aov', label: 'AOV', valor: m.aov, formato: 'usd' },
-      { key: 'pifRate', label: 'PIF rate', valor: m.pifRate, formato: 'pct' },
+      { key: 'showRateCalls', label: 'Show rate calls', valor: m.showRateCalls, formato: 'pct', detalle: de(m.showsLlamadas, m.llamadasAgendadas) },
+      { key: 'closeRate', label: 'Close rate', valor: m.closeRate, formato: 'pct', detalle: de(m.cierres, m.showsLlamadas || m.llamadasAgendadas) },
+      { key: 'aov', label: 'AOV', valor: m.aov, formato: 'usd', detalle: sobre(m.cierres, 'cierres') },
+      { key: 'pifRate', label: 'PIF rate', valor: m.pifRate, formato: 'pct', detalle: de(m.pif, m.cierres) },
       { key: 'cashUsd', label: 'Cash collected', valor: m.cashUsd, formato: 'usd', portada: true },
     ],
   };

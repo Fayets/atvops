@@ -6972,6 +6972,16 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   border-radius: var(--radius-sm); border: 1px solid var(--border-soft);
   font-size: 13px;
 }
+/* Los dos números detrás del porcentaje. Van más marcados que la ayuda —son un dato,
+   no una aclaración— pero sin competir con la cifra grande. */
+.wb-cuenta {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Marca "auto": este número lo cuenta el script, nadie lo escribió. Va en gris —no
    opina sobre el valor, solo dice de dónde viene— y por eso no usa un semántico. */
 .wb-raw-origen {
