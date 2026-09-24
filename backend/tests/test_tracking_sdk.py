@@ -31,3 +31,34 @@ def test_track_queda_expuesto_aunque_no_se_cuente_la_visita():
 
 def test_la_thank_you_manda_thank_you_y_el_resto_pageview():
     assert 'page === "ty" || page === "thank_you" ? "thank_you" : "pageview"' in _SDK_JS
+
+
+def test_el_beacon_no_va_como_json():
+    """
+    sendBeacon manda en modo credenciales. Con content-type application/json el
+    navegador exige un preflight, y un preflight con credenciales contra un
+    Allow-Origin "*" no sale nunca: el evento se pierde entero y en silencio.
+    text/plain es content-type safelisted, así que no hay preflight. El servidor
+    parsea el cuerpo con json.loads sin mirar el header.
+    """
+    codigo = "\n".join(
+        linea for linea in _SDK_JS.splitlines() if not linea.lstrip().startswith("//")
+    )
+    assert "application/json" not in codigo
+    assert 'new Blob([body], { type: "text/plain" })' in codigo
+
+
+def test_el_cors_devuelve_el_origen_pedido():
+    """El comodín rompe cualquier pedido con credenciales, y sendBeacon lo es."""
+    from src.controllers.track_controller import _cors
+    from fastapi.responses import Response
+
+    con = _cors(Response(), "https://atvos.io")
+    assert con.headers["Access-Control-Allow-Origin"] == "https://atvos.io"
+    assert con.headers["Access-Control-Allow-Credentials"] == "true"
+    assert con.headers["Vary"] == "Origin"
+
+    # Sin Origin —un <img> del pixel, un curl— el comodín alcanza.
+    sin = _cors(Response())
+    assert sin.headers["Access-Control-Allow-Origin"] == "*"
+    assert "Access-Control-Allow-Credentials" not in sin.headers
