@@ -17,7 +17,7 @@ _PIXEL = (
     b"\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
 )
 
-# data-page: landing | ty
+# data-page: landing | ty  ·  data-auto="off" carga sin contar la visita
 # window.AtvOps.track('optin' | 'whatsapp' | 'thank_you' | 'pageview')
 _SDK_JS = r"""(function () {
   try {
@@ -62,8 +62,12 @@ _SDK_JS = r"""(function () {
       }).catch(function () {});
     }
 
-    var auto = page === "ty" || page === "thank_you" ? "thank_you" : "pageview";
-    send(auto);
+    // data-auto="off" carga el SDK sin anunciar nada: window.AtvOps queda listo
+    // para los eventos a mano, pero la carga no cuenta como visita. Es para una
+    // visita repetida que ya se contó, o para una ruta interna que no se mide.
+    if (s.getAttribute("data-auto") !== "off") {
+      send(page === "ty" || page === "thank_you" ? "thank_you" : "pageview");
+    }
 
     window.AtvOps = window.AtvOps || {};
     window.AtvOps.track = send;
