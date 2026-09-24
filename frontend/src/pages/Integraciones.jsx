@@ -13,6 +13,11 @@ import {
 } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
 
+// Los contadores se mueven solos mientras la pestaña está a la vista. En segundo
+// plano no se pide nada: nadie está mirando y el navegador igual estrangula los
+// timers. Al volver se refresca de una, que es cuando se nota.
+const INTERVALO_MS = 10000;
+
 const STATUS = {
   recibiendo: { tone: 'ok', label: 'Recibiendo eventos' },
   inactivo: { tone: 'warn', label: 'Sin eventos recientes' },
@@ -55,7 +60,44 @@ export default function Integraciones() {
   const [errorAccion, setErrorAccion] = useState('');
   const [docsOpen, setDocsOpen] = useState(false);
 
-  const { data, loading, error } = useResource(getIntegracionesPanel, [tick]);
+  const { data: fresco, loading, error } = useResource(getIntegracionesPanel, [tick]);
+
+  // Se retiene el último panel bueno: `useResource` deja `data` en null cuando falla, y
+  // con una recarga cada diez segundos un parpadeo de red borraría la pantalla entera.
+  // Un contador de hace diez segundos es mejor que ningún contador.
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (fresco) setData(fresco);
+  }, [fresco]);
+
+  useEffect(() => {
+    const refrescar = () => setTick((n) => n + 1);
+    let id = null;
+    const arrancar = () => {
+      if (id === null) id = setInterval(refrescar, INTERVALO_MS);
+    };
+    const parar = () => {
+      if (id !== null) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+    const alCambiarVisibilidad = () => {
+      if (document.visibilityState === 'visible') {
+        refrescar();
+        arrancar();
+      } else {
+        parar();
+      }
+    };
+
+    if (document.visibilityState === 'visible') arrancar();
+    document.addEventListener('visibilitychange', alCambiarVisibilidad);
+    return () => {
+      parar();
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+    };
+  }, []);
 
   const items = data?.webinars ?? [];
   const plataformas = data?.plataformas ?? {};
@@ -116,7 +158,7 @@ export default function Integraciones() {
         }
       />
 
-      {error ? <ErrorState error={error} /> : null}
+      {error && !data ? <ErrorState error={error} /> : null}
       {loading && !data ? <SkeletonBlock height={280} /> : null}
       {errorAccion ? <p className="error">{errorAccion}</p> : null}
 

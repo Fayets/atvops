@@ -15,12 +15,58 @@ TIPOS_EVENTO = frozenset({"pageview", "optin", "thank_you", "whatsapp"})
 VENTANA_CONECTADO = timedelta(hours=48)
 
 
+def _resumen_eventos(ids: list[int]) -> dict[int, dict]:
+    """Contadores y último evento de varias integraciones, en una sola consulta.
+
+    Antes cada integración recorría `i.eventos` en Python, o sea una fila traída al
+    proceso por cada hit recibido. Con diez visitas de prueba daba lo mismo; con una
+    landing en campaña son miles, y la vista se refresca sola cada pocos segundos.
+    Los ids salen de nuestra propia base y pasan por int(), así que la interpolación
+    es segura.
+    """
+    from src.db import DB_SCHEMA, ES_POSTGRES, db
+
+    vacio = {"counts": {t: 0 for t in TIPOS_EVENTO}, "ultimo": None}
+    if not ids:
+        return {}
+
+    tabla = f'"{DB_SCHEMA}"."tracking_eventos"' if ES_POSTGRES else '"TrackingEvento"'
+    lista = ", ".join(str(int(i)) for i in ids)
+    filas = db.select(
+        f'select "integracion", "tipo", count(*), max("creado_at") from {tabla}'
+        f' where "integracion" in ({lista}) group by "integracion", "tipo"'
+    )
+
+    salida = {int(i): {"counts": dict(vacio["counts"]), "ultimo": None} for i in ids}
+    for integracion_id, tipo, cuantos, ultimo in filas:
+        fila = salida.get(int(integracion_id))
+        if fila is None:
+            continue
+        if tipo in fila["counts"]:
+            fila["counts"][tipo] = int(cuantos)
+        ultimo = _como_fecha(ultimo)
+        if ultimo and (fila["ultimo"] is None or ultimo > fila["ultimo"]):
+            fila["ultimo"] = ultimo
+    return salida
+
+
+def _como_fecha(valor):
+    """SQLite devuelve el max() como texto; Postgres, como datetime."""
+    if valor is None or isinstance(valor, datetime):
+        return valor
+    try:
+        return datetime.fromisoformat(str(valor))
+    except ValueError:
+        return None
+
+
 class IntegracionesServices:
     def listar(self) -> list[dict]:
         from src.models import Integracion, Webinar
 
         with db_session:
             rows = list(Integracion.select().order_by(Integracion.id.desc()))
+            resumenes = _resumen_eventos([i.id for i in rows])
             out = []
             for i in rows:
                 webinar_nombre = None
@@ -30,7 +76,12 @@ class IntegracionesServices:
                     if w is not None and w.borrado_at is None:
                         webinar_nombre = w.nombre
                         calendly_url = w.calendly_url
-                out.append(self._to_dict(i, webinar_nombre=webinar_nombre, calendly_url=calendly_url))
+                out.append(self._to_dict(
+                    i,
+                    webinar_nombre=webinar_nombre,
+                    calendly_url=calendly_url,
+                    resumen=resumenes.get(i.id),
+                ))
             return out
 
     def panel(self) -> dict:
@@ -43,6 +94,7 @@ class IntegracionesServices:
             webinars.sort(key=lambda w: w.fecha_hora or w.creado_at, reverse=True)
             ints = list(Integracion.select())
             por_webinar = {i.webinar_id: i for i in ints if i.webinar_id}
+            resumenes = _resumen_eventos([i.id for i in ints])
 
             items = []
             for w in webinars:
@@ -62,7 +114,10 @@ class IntegracionesServices:
                         "calendlyUrl": w.calendly_url,
                         "campaniasAds": _cargar_campanias(w.campanias_ads),
                         "integracion": self._to_dict(
-                            i, webinar_nombre=w.nombre, calendly_url=w.calendly_url
+                            i,
+                            webinar_nombre=w.nombre,
+                            calendly_url=w.calendly_url,
+                            resumen=resumenes.get(i.id),
                         ),
                     })
 
@@ -219,12 +274,12 @@ class IntegracionesServices:
                 return None
             counts = {t: 0 for t in TIPOS_EVENTO}
             ultimo = None
-            for i in ints:
-                for e in i.eventos:
-                    if e.tipo in counts:
-                        counts[e.tipo] += 1
-                    if ultimo is None or (e.creado_at and e.creado_at > ultimo):
-                        ultimo = e.creado_at
+            for resumen in _resumen_eventos([i.id for i in ints]).values():
+                for tipo, cuantos in (resumen.get("counts") or {}).items():
+                    counts[tipo] = counts.get(tipo, 0) + cuantos
+                suyo = resumen.get("ultimo")
+                if suyo and (ultimo is None or suyo > ultimo):
+                    ultimo = suyo
             return {
                 "visitasLanding": counts["pageview"],
                 "optins": counts["optin"],
@@ -240,14 +295,19 @@ class IntegracionesServices:
         return int(m["visitasLanding"])
 
     @staticmethod
-    def _to_dict(i, *, webinar_nombre: str | None, calendly_url: str | None = None) -> dict:
-        counts = {t: 0 for t in TIPOS_EVENTO}
-        ultimo = None
-        for e in i.eventos:
-            if e.tipo in counts:
-                counts[e.tipo] += 1
-            if ultimo is None or (e.creado_at and e.creado_at > ultimo):
-                ultimo = e.creado_at
+    def _to_dict(
+        i,
+        *,
+        webinar_nombre: str | None,
+        calendly_url: str | None = None,
+        resumen: dict | None = None,
+    ) -> dict:
+        # `resumen` viene precalculado cuando se arma una lista: así el panel entero
+        # sale de una consulta en vez de una por integración.
+        if resumen is None:
+            resumen = _resumen_eventos([i.id]).get(i.id) or {}
+        counts = resumen.get("counts") or {t: 0 for t in TIPOS_EVENTO}
+        ultimo = resumen.get("ultimo")
         ahora = datetime.utcnow()
         if ultimo and (ahora - ultimo) <= VENTANA_CONECTADO:
             status = "recibiendo"
