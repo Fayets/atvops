@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Modal from '../ui/Modal.jsx';
 import Icon from '../ui/Icon.jsx';
-import { API_BASE } from '../../data/api.js';
+import { urlPublica } from '../../data/api.js';
 
 /**
  * Documentación de tracking para clientes (lenguaje simple).
@@ -9,8 +9,8 @@ import { API_BASE } from '../../data/api.js';
  */
 export default function TrackingDocsModal({ open, onClose, token }) {
   const t = token || 'TU_TOKEN';
-  const scriptLanding = `<script src="${API_BASE}/api/track/sdk.js" data-token="${t}" data-page="landing" async></script>`;
-  const scriptTy = `<script src="${API_BASE}/api/track/sdk.js" data-token="${t}" data-page="ty" async></script>`;
+  const scriptLanding = `<script src="${urlPublica()}/api/track/sdk.js" data-token="${t}" data-page="landing" async></script>`;
+  const scriptTy = `<script src="${urlPublica()}/api/track/sdk.js" data-token="${t}" data-page="ty" async></script>`;
   const scriptOptin = `<!-- Cuando el formulario se envía con éxito -->
 <script>
   window.AtvOps && AtvOps.track('optin');

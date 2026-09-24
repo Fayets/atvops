@@ -2216,6 +2216,20 @@ export async function getHome(mesSel) {
 export const API_BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:8010';
 
 /**
+ * La URL absoluta de ATV Ops, para los snippets que se pegan en OTRO dominio.
+ *
+ * `API_BASE` va vacío en producción a propósito: el frontend y la API comparten origen y
+ * nginx resuelve `/api`. Pero un script de tracking pegado en una landing de otro dominio
+ * con `src="/api/track/sdk.js"` lo busca en esa landing, no acá —da 404 y no se trackea
+ * nada—. Para eso hay que decirle dónde vive ATV Ops, y `window.location.origin` lo sabe:
+ * quien está mirando el panel lo está mirando desde este dominio.
+ */
+export function urlPublica() {
+  if (API_BASE) return API_BASE.replace(/\/+$/, '');
+  return typeof window !== 'undefined' ? window.location.origin : '';
+}
+
+/**
  * @param {string} path
  * @returns {Promise<any>}
  */

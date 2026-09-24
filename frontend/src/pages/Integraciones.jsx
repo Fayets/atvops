@@ -7,7 +7,7 @@ import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import {
-  API_BASE,
+  urlPublica,
   asegurarTrackingWebinar,
   getIntegracionesPanel,
 } from '../data/api.js';
@@ -20,11 +20,11 @@ const STATUS = {
 };
 
 function snippetLanding(token) {
-  return `<script src="${API_BASE}/api/track/sdk.js" data-token="${token}" data-page="landing" async></script>`;
+  return `<script src="${urlPublica()}/api/track/sdk.js" data-token="${token}" data-page="landing" async></script>`;
 }
 
 function snippetTy(token) {
-  return `<script src="${API_BASE}/api/track/sdk.js" data-token="${token}" data-page="ty" async></script>`;
+  return `<script src="${urlPublica()}/api/track/sdk.js" data-token="${token}" data-page="ty" async></script>`;
 }
 
 function snippetOptin() {
