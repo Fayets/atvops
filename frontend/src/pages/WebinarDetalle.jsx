@@ -9,7 +9,7 @@ import {
 } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { formatValue } from '../lib/format.js';
-import { CAMPOS_RAW } from '../lib/webinarFases.js';
+import { BENCHMARKS_COLD, BENCHMARKS_META, CAMPOS_RAW, umbralesDe } from '../lib/webinarFases.js';
 
 const CTA_OPTS = [
   { value: 'call_funnel', label: 'Call funnel' },
@@ -35,6 +35,9 @@ const VACIO = {
   calendlyUrl: '',
   whatsappGrupo: '',
   campaniasAds: [],
+  // Solo lo que este webinar pisa del estándar. Vacío = usar el de tráfico frío, así que
+  // si mañana cambia el estándar, los webinars que no lo tocaron se actualizan solos.
+  benchmarks: {},
 };
 
 function aInputDatetime(iso) {
@@ -96,6 +99,7 @@ export default function WebinarDetalle({ modo } = {}) {
           tema: w.tema || '',
           ctaTipo: w.ctaTipo || 'call_funnel',
           precioUsd: w.precioUsd || 0,
+          benchmarks: w.benchmarks || {},
           landingUrl: w.landingUrl || '',
           thankYouUrl: w.thankYouUrl || '',
           calendlyUrl: w.calendlyUrl || '',
@@ -125,6 +129,20 @@ export default function WebinarDetalle({ modo } = {}) {
     set({ campaniasAds: next });
   };
 
+  /** Guarda un umbral. Vaciar el campo borra el override y vuelve al estándar: guardar
+   *  cero ahí significaría "el verde arranca en 0", que es otra cosa muy distinta. */
+  const setBenchmark = (clave, umbral, valor) => {
+    setForm((f) => {
+      const bm = { ...(f.benchmarks || {}) };
+      const suyo = { ...(bm[clave] || {}) };
+      if (String(valor).trim() === '') delete suyo[umbral];
+      else suyo[umbral] = Number(valor);
+      if (Object.keys(suyo).length) bm[clave] = suyo;
+      else delete bm[clave];
+      return { ...f, benchmarks: bm };
+    });
+  };
+
   const payload = () => ({
     nombre: form.nombre.trim(),
     fechaHora: form.fechaHora ? form.fechaHora.replace('T', ' ') : null,
@@ -136,6 +154,7 @@ export default function WebinarDetalle({ modo } = {}) {
     calendlyUrl: form.calendlyUrl.trim() || null,
     whatsappGrupo: form.whatsappGrupo.trim() || null,
     campaniasAds: form.campaniasAds,
+    benchmarks: form.benchmarks,
   });
 
   const guardar = async () => {
@@ -251,6 +270,47 @@ export default function WebinarDetalle({ modo } = {}) {
               <input value={form.whatsappGrupo} onChange={(e) => set({ whatsappGrupo: e.target.value })}
                 placeholder="Link o nombre del grupo" />
             </label>
+          </div>
+        </Card>
+
+        <Card
+          title="Benchmarks"
+          sub="Contra qué se pinta cada número de este webinar"
+          foot="Lo que dejes vacío usa el estándar de tráfico frío. Un webinar a lista caliente
+                o de otro rubro tiene otros números: cambialos acá, no en el código."
+        >
+          <div className="bm-grid">
+            {BENCHMARKS_META.map((meta) => {
+              const u = umbralesDe(meta);
+              const propio = form.benchmarks?.[meta.key] || {};
+              const base = BENCHMARKS_COLD[meta.key] || {};
+              const sufijo = meta.unidad === 'usd' ? 'US$' : '%';
+              return (
+                <div key={meta.key} className="bm-fila">
+                  <span className="bm-nombre">{meta.label}</span>
+                  <label className="bm-campo">
+                    <span className="dim">{u.ayudaVerde}</span>
+                    <input
+                      type="number" min="0" inputMode="decimal"
+                      value={propio[u.verde] ?? ''}
+                      placeholder={String(base[u.verde] ?? '')}
+                      onChange={(e) => setBenchmark(meta.key, u.verde, e.target.value)}
+                    />
+                    <span className="dim">{sufijo}</span>
+                  </label>
+                  <label className="bm-campo">
+                    <span className="dim">{u.ayudaAmarillo}</span>
+                    <input
+                      type="number" min="0" inputMode="decimal"
+                      value={propio[u.amarillo] ?? ''}
+                      placeholder={String(base[u.amarillo] ?? '')}
+                      onChange={(e) => setBenchmark(meta.key, u.amarillo, e.target.value)}
+                    />
+                    <span className="dim">{sufijo}</span>
+                  </label>
+                </div>
+              );
+            })}
           </div>
         </Card>
 

@@ -7340,3 +7340,17 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
     border: 0;
   }
 }
+
+
+/* Benchmarks de un webinar: una fila por métrica con sus dos umbrales.
+   El placeholder muestra el estándar, así se ve de qué se está apartando. */
+.bm-grid { display: flex; flex-direction: column; }
+/* Flex con wrap y no grilla: la tarjeta vive en una columna angosta y su ancho no depende
+   del viewport, así que una media query no la ayuda. Cuando el nombre y los dos campos no
+   entran en una línea, los campos bajan solos. */
+.bm-fila { display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px var(--space-4); padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+.bm-fila:last-child { border-bottom: 0; }
+.bm-nombre { flex: 1 1 150px; font-size: 13.5px; font-weight: 500; }
+.bm-campo { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.bm-campo input { width: 68px; text-align: right; font-variant-numeric: tabular-nums; }

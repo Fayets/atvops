@@ -7,6 +7,34 @@
 
 /** @typedef {'ok' | 'warn' | 'alert' | 'off'} Semaforo */
 
+/**
+ * Qué significa cada benchmark, para poder editarlos sin adivinar.
+ *
+ * `sentido` es lo único que no se ve en el número: en el costo por registrante menos es
+ * mejor, en todos los demás más es mejor. Sin eso, un formulario de umbrales invita a
+ * cargarlos al revés.
+ *
+ * Los valores de `BENCHMARKS_COLD` son de tráfico frío y sirven como punto de partida:
+ * cada webinar puede pisar los que quiera y dejar el resto en el estándar. Un webinar a
+ * lista caliente o de otro rubro tiene otros números, y esto es lo que deja cambiarlos
+ * sin tocar código.
+ */
+export const BENCHMARKS_META = [
+  { key: 'costoPorRegistrante', label: 'Costo por registrante', unidad: 'usd', sentido: 'menos' },
+  { key: 'showRate', label: 'Show rate', unidad: 'pct', sentido: 'mas' },
+  { key: 'retencionPitch', label: 'Retención al pitch', unidad: 'pct', sentido: 'mas' },
+  { key: 'bookingRate', label: 'Booking rate', unidad: 'pct', sentido: 'mas' },
+  { key: 'closeRateCalls', label: 'Close rate de llamadas', unidad: 'pct', sentido: 'mas' },
+  { key: 'pifRate', label: 'PIF rate', unidad: 'pct', sentido: 'mas' },
+];
+
+/** Los dos umbrales de un benchmark, con el nombre que le toca según su sentido. */
+export function umbralesDe(meta) {
+  return meta.sentido === 'menos'
+    ? { verde: 'verdeMax', amarillo: 'amarilloMax', ayudaVerde: 'verde por debajo de', ayudaAmarillo: 'amarillo hasta' }
+    : { verde: 'verdeMin', amarillo: 'amarilloMin', ayudaVerde: 'verde desde', ayudaAmarillo: 'amarillo desde' };
+}
+
 export const BENCHMARKS_COLD = {
   // Fase 1 — portada: costo por registrante (USD). Verde < $10, amarillo $10–15, rojo > $15
   costoPorRegistrante: { verdeMax: 10, amarilloMax: 15 },
@@ -187,8 +215,25 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
  * @param {Record<string, number>} raw
  * @param {{ gastoAdsUsd?: number, benchmarks?: object, metaCash?: number }} [opts]
  */
+/**
+ * El estándar, con lo que este webinar haya pisado encima — umbral por umbral.
+ *
+ * La mezcla tiene que ser profunda. Con un spread plano, un webinar que solo define el
+ * verde del show rate perdía el amarillo del estándar y ese umbral quedaba en
+ * `undefined`: el semáforo dejaba de pintar amarillo nunca, en silencio. Se puede tocar
+ * un solo umbral y que el otro siga siendo el de siempre.
+ */
+export function mezclarBenchmarks(propios) {
+  const salida = {};
+  for (const clave of Object.keys(BENCHMARKS_COLD)) {
+    salida[clave] = { ...BENCHMARKS_COLD[clave], ...((propios || {})[clave] || {}) };
+  }
+  return salida;
+}
+
+
 export function fasesDeWebinar(raw = {}, opts = {}) {
-  const bm = { ...BENCHMARKS_COLD, ...(opts.benchmarks || {}) };
+  const bm = mezclarBenchmarks(opts.benchmarks);
   const m = derivarMetricas(raw, opts.gastoAdsUsd);
   const metaCash = opts.metaCash != null ? n(opts.metaCash) : 0;
 
