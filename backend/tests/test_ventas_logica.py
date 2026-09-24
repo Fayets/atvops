@@ -47,9 +47,20 @@ def test_llamada_pasada_sin_resultado_es_deuda_del_closer():
     assert v._clasificar("", "", AYER, AHORA) == "sin_reportar"
 
 
-def test_llamada_futura_es_agendada_aunque_traiga_resultado_viejo():
-    # El sync de atv-mkt le mueve la fecha a la llamada vieja: el resultado no es de esta.
-    assert v._clasificar("descalificado", "", MANANA, AHORA) == "agendado"
+def test_llamada_futura_sin_cargar_es_una_agenda():
+    assert v._clasificar("", "", MANANA, AHORA) == "agendado"
+
+
+def test_el_resultado_cargado_gana_sobre_la_hora_del_calendario():
+    """El closer adelanta la llamada y la toma antes: lo que cargó vale.
+
+    Antes la fecha futura pisaba el resultado siempre, para defenderse de que el sync de
+    atv-mkt le moviera la fecha al lead y le trajera el resultado de otra reunión. Con
+    atv-mkt desconectado cada fila es su propia reunión, así que esa defensa solo servía
+    para que una venta cerrada antes de hora se siguiera viendo como agendada.
+    """
+    assert v._clasificar("cerrado", "", MANANA, AHORA) == "cierre"
+    assert v._clasificar("no show", "", MANANA, AHORA) == "no_show"
 
 
 def test_solo_calendario_y_duplicada_tienen_su_clase():

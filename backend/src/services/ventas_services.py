@@ -74,9 +74,14 @@ def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora:
     r = _norm(resultado)
     if r in _DESCARTE_N:
         return "descartada"
-    # Una reunión que todavía no pasó no tiene resultado, aunque el lead traiga uno de
-    # una reunión anterior: el sync de atv-mkt le mueve la fecha a la llamada vieja.
-    if call is not None and call > ahora:
+    # Una reunión que todavía no pasó y que nadie cargó es, simplemente, una agenda.
+    #
+    # Pero si alguien cargó el resultado, manda ese aunque la hora del calendario no haya
+    # llegado: pasa cada vez que el closer adelanta una llamada y la toma antes. Antes
+    # esta guarda pisaba el resultado SIEMPRE, y tenía sentido mientras el sync de atv-mkt
+    # le movía la fecha al lead y le traía el resultado de otra reunión. Desconectado
+    # atv-mkt, cada fila es su propia reunión y el resultado que tiene es suyo.
+    if call is not None and call > ahora and not r:
         return "agendado"
     if r in [_norm(x) for x in DESCARTE]:
         return "descartada"
@@ -507,7 +512,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "eventoId": evento,
             "prospecto": (f.get("nombre") or "").strip(),
             "fechaAt": f["call"].isoformat(),
-            "resultado": "" if f["call"] > ahora else (f.get("resultado") or "").strip(),
+            "resultado": (f.get("resultado") or "").strip(),
             "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
                                   f.get("soloCalendario", False), f.get("duplicada", False),
                                   f.get("reprogramada", False)),
@@ -530,7 +535,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "id": f["id"], "eventoId": f"manual:{f['id']}",
             "prospecto": (f.get("nombre") or "").strip(),
             "fechaAt": f["call"].isoformat(),
-            "resultado": "" if f["call"] > ahora else (f.get("resultado") or "").strip(),
+            "resultado": (f.get("resultado") or "").strip(),
             "estado": _clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
                                   f.get("soloCalendario", False), f.get("duplicada", False),
                                   f.get("reprogramada", False)),
@@ -1473,7 +1478,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "fechaAt": l["call"].isoformat(), "closer": l["closer"], "setter": l["setter"] or "",
             "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
             "facturaHoy": (l["ingresos_rango"] or "").strip(),
-            "resultado": "" if l["call"] > ahora else (l["resultado"] or "").strip(),
+            "resultado": (l["resultado"] or "").strip(),
             "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
                                   l.get("soloCalendario", False), l.get("duplicada", False),
                                   l.get("reprogramada", False)),

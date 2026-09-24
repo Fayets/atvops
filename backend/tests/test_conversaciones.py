@@ -138,7 +138,9 @@ def test_sin_historias_ni_crm_el_total_es_cero(monkeypatch):
     """Un mes de verdad vacío tiene que dar cero, no un error ni un número prestado."""
     r = _chats_con([], del_crm=0, monkeypatch=monkeypatch)
     assert r["total"] == 0
-    assert [p["cuantos"] for p in r["partes"]] == [0, 0, 0]
+    # Sin contar cuántas puertas hay: agregar una no tiene por qué romper este test.
+    assert all(p["cuantos"] == 0 for p in r["partes"])
+    assert r["partes"], "las puertas se muestran aunque estén en cero"
 
 
 def test_cada_puerta_trae_sus_filas(monkeypatch):
