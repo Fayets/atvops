@@ -10,6 +10,7 @@ import {
   urlPublica,
   asegurarTrackingWebinar,
   getIntegracionesPanel,
+  reiniciarTracking,
 } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
 
@@ -40,6 +41,10 @@ function snippetWhatsapp() {
   return `<!-- En el click del botón de WhatsApp -->\n<a href="…" onclick="window.AtvOps && AtvOps.track('whatsapp')">WhatsApp</a>`;
 }
 
+function snippetCalendario() {
+  return `<!-- En el click del botón de agendar -->\n<a href="…" onclick="window.AtvOps && AtvOps.track('calendario')">Agendar</a>`;
+}
+
 function hace(iso) {
   if (!iso) return null;
   const t = new Date(iso).getTime();
@@ -56,6 +61,7 @@ export default function Integraciones() {
   const [tick, setTick] = useState(0);
   const [webinarId, setWebinarId] = useState('');
   const [asegurando, setAsegurando] = useState(false);
+  const [reiniciando, setReiniciando] = useState(false);
   const [copiado, setCopiado] = useState(null);
   const [errorAccion, setErrorAccion] = useState('');
   const [docsOpen, setDocsOpen] = useState(false);
@@ -113,6 +119,13 @@ export default function Integraciones() {
     [items, webinarId],
   );
   const integ = selected?.integracion || null;
+  const totalEventos = integ
+    ? (integ.eventos?.pageview ?? 0) +
+      (integ.eventos?.optin ?? 0) +
+      (integ.eventos?.thankYou ?? 0) +
+      (integ.eventos?.whatsapp ?? 0) +
+      (integ.eventos?.calendario ?? 0)
+    : 0;
   const statusMeta = STATUS[integ?.status] || STATUS.sin_datos;
 
   async function generarToken() {
@@ -126,6 +139,29 @@ export default function Integraciones() {
       setErrorAccion(err.message || 'No se pudo generar el token.');
     } finally {
       setAsegurando(false);
+    }
+  }
+
+  async function reiniciar() {
+    if (!integ || !totalEventos) return;
+    const total = totalEventos;
+    // Se dice el número: "borrar los eventos" no deja ver si son las cuatro pruebas
+    // de ayer o la campaña entera de la semana pasada.
+    const ok = window.confirm(
+      `¿Poner los contadores de “${selected.webinarNombre}” en cero?\n\n` +
+        `Se borran ${total} eventos y no se pueden recuperar. El token y los scripts ` +
+        `que ya pegaste en la landing siguen funcionando igual.`,
+    );
+    if (!ok) return;
+    setErrorAccion('');
+    setReiniciando(true);
+    try {
+      await reiniciarTracking(integ.id);
+      setTick((n) => n + 1);
+    } catch (err) {
+      setErrorAccion(err.message || 'No se pudieron reiniciar los contadores.');
+    } finally {
+      setReiniciando(false);
     }
   }
 
@@ -225,6 +261,13 @@ export default function Integraciones() {
                   copiado={copiado === 'wa'}
                   onCopiar={() => copiar(snippetWhatsapp(), 'wa')}
                 />
+                <Snippet
+                  titulo="Click Agendar"
+                  ayuda="Opcional: cuenta quién se guardó el webinar en el calendario."
+                  codigo={snippetCalendario()}
+                  copiado={copiado === 'cal'}
+                  onCopiar={() => copiar(snippetCalendario(), 'cal')}
+                />
               </div>
             )}
           </Card>
@@ -233,7 +276,22 @@ export default function Integraciones() {
           <Card
             title="2. Estado de conexión"
             sub="Si el script está bien pegado, acá se mueven los contadores."
-            actions={integ ? <Pill tone={statusMeta.tone} dot>{statusMeta.label}</Pill> : null}
+            actions={
+              integ ? (
+                <div className="int-card-actions">
+                  <Pill tone={statusMeta.tone} dot>{statusMeta.label}</Pill>
+                  <button
+                    type="button"
+                    className="btn sm alerta"
+                    onClick={reiniciar}
+                    disabled={reiniciando || !totalEventos}
+                    title={totalEventos ? 'Borra los eventos y deja los contadores en cero' : 'No hay eventos para borrar'}
+                  >
+                    {reiniciando ? 'Reiniciando…' : 'Poner en cero'}
+                  </button>
+                </div>
+              ) : null
+            }
           >
             {!integ ? (
               <p className="dim">Sin token no hay eventos que mostrar.</p>
@@ -244,6 +302,7 @@ export default function Integraciones() {
                   <Stat label="Optins" value={integ.eventos?.optin ?? 0} />
                   <Stat label="Thank you" value={integ.eventos?.thankYou ?? 0} />
                   <Stat label="WhatsApp" value={integ.eventos?.whatsapp ?? 0} />
+                  <Stat label="Agendó" value={integ.eventos?.calendario ?? 0} />
                 </div>
                 <p className="dim" style={{ marginTop: 12, marginBottom: 0 }}>
                   {integ.ultimoEventoAt

@@ -2442,6 +2442,11 @@ export async function asegurarTrackingWebinar(webinarId) {
   return pedir(`/api/integraciones/asegurar/${webinarId}`, { method: 'POST' });
 }
 
+/** Deja los contadores de tracking en cero. El token y los scripts pegados no se tocan. */
+export async function reiniciarTracking(integracionId) {
+  return pedir(`/api/integraciones/${integracionId}/reiniciar`, { method: 'POST' });
+}
+
 export async function crearIntegracion(payload) {
   return pedir('/api/integraciones', {
     method: 'POST',

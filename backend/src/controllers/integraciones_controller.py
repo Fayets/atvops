@@ -50,6 +50,17 @@ def asegurar(webinar_id: int, user: dict = Depends(_puede)):
         raise HTTPException(status_code=500, detail=f"No se pudo asegurar el tracking: {e}") from e
 
 
+@router.post("/{integracion_id}/reiniciar")
+def reiniciar(integracion_id: int, user: dict = Depends(_puede)):
+    """Borra los eventos de la integración y deja los contadores en cero."""
+    try:
+        return service.reiniciar_eventos(integracion_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"No se pudo reiniciar: {e}") from e
+
+
 @router.get("/{integracion_id}")
 def obtener(integracion_id: int, user: dict = Depends(_puede)):
     try:

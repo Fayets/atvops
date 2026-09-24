@@ -84,6 +84,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
     thank_you = int(num("thankYou"))
     registros = int(num("registros"))
     whatsapp = int(num("entradasWhatsapp"))
+    agendas = int(num("agendasWebinar"))
     vivos = int(num("vivos") or num("shows"))
     pico = int(num("picoConcurrentes"))
     retenidos = int(num("retenidosPitch") or num("retenidos"))
@@ -97,7 +98,8 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
     return {
         "impresiones": impresiones, "clicks": clicks, "visitasLanding": visitas,
         "optins": optins, "thankYou": thank_you, "registros": registros,
-        "entradasWhatsapp": whatsapp, "vivos": vivos, "shows": vivos,
+        "entradasWhatsapp": whatsapp, "agendasWebinar": agendas,
+        "vivos": vivos, "shows": vivos,
         "picoConcurrentes": pico, "retenidosPitch": retenidos, "booked": booked,
         "llamadasAgendadas": llamadas, "showsLlamadas": shows_call,
         "cierres": cierres, "cashUsd": cash, "pif": pif,
@@ -108,6 +110,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
         "dropoffOptinTy": tasa(max(optins - thank_you, 0), optins),
         "tasaRegistro": tasa(registros, optins),
         "tasaWhatsapp": tasa(whatsapp, registros),
+        "tasaAgendaWebinar": tasa(agendas, registros),
         "costoPorRegistrante": money(gasto, registros),
         "showRate": tasa(vivos, registros),
         "retencionPitch": tasa(retenidos, pico or vivos),
@@ -431,7 +434,8 @@ class WebinarsServices:
             crudas = {k: v for k, v in (data["metricas"] or {}).items()
                       if k in (
                           "impresiones", "clicks", "visitasLanding", "optins", "thankYou",
-                          "registros", "entradasWhatsapp", "vivos", "shows", "picoConcurrentes",
+                          "registros", "entradasWhatsapp", "agendasWebinar", "vivos", "shows",
+                          "picoConcurrentes",
                           "retenidosPitch", "booked", "llamadasAgendadas", "showsLlamadas",
                           "cierres", "cashUsd", "pif", "gastoAdsUsd",
                       )}
@@ -478,6 +482,8 @@ class WebinarsServices:
                     crudas["thankYou"] = tracking["thankYou"]
                 if tracking["entradasWhatsapp"]:
                     crudas["entradasWhatsapp"] = tracking["entradasWhatsapp"]
+                if tracking["agendasWebinar"]:
+                    crudas["agendasWebinar"] = tracking["agendasWebinar"]
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudieron leer visitas de tracking: %s", str(e)[:160])
 

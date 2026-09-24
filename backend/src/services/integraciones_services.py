@@ -9,8 +9,11 @@ from fastapi import HTTPException
 from pony.orm import db_session, flush
 
 TIPOS_INTEGRACION = frozenset({"landing"})
-# pageview = visita landing · optin · thank_you · whatsapp
-TIPOS_EVENTO = frozenset({"pageview", "optin", "thank_you", "whatsapp"})
+# pageview = visita landing · optin · thank_you · whatsapp · calendario
+# `calendario` es el click en "agendá el webinar" de la thank you. Se llama así y no
+# "agenda" porque en ATV Ops una agenda es una llamada de ventas reservada: dos cosas
+# distintas con el mismo nombre en el mismo tablero se confunden solas.
+TIPOS_EVENTO = frozenset({"pageview", "optin", "thank_you", "whatsapp", "calendario"})
 # Si hubo un evento en esta ventana, el status es "recibiendo".
 VENTANA_CONECTADO = timedelta(hours=48)
 
@@ -212,6 +215,35 @@ class IntegracionesServices:
                     calendly_url = w.calendly_url
             return self._to_dict(i, webinar_nombre=webinar_nombre, calendly_url=calendly_url)
 
+    def reiniciar_eventos(self, integracion_id: int) -> dict:
+        """Deja los contadores en cero sin tocar el token.
+
+        Es para el día que se publica una landing nueva: lo que se midió con la versión
+        vieja —y las visitas de prueba de antes de largar— no describen a la que está
+        arriba, y arrastrarlas ensucia las tasas del webinar para siempre. El token, los
+        scripts ya pegados y la integración quedan iguales: no hay que volver a tocar la
+        landing.
+
+        Se borra de verdad. Los eventos solo se leen agregados —ninguna vista mira las
+        filas una por una— así que no hay nada que se pueda reconstruir después.
+        """
+        from src.db import DB_SCHEMA, ES_POSTGRES, db
+        from src.models import Integracion
+
+        with db_session:
+            i = Integracion.get(id=integracion_id)
+            if i is None:
+                raise HTTPException(status_code=404, detail="Esa integración no existe.")
+            tabla = f'"{DB_SCHEMA}"."tracking_eventos"' if ES_POSTGRES else '"TrackingEvento"'
+            # Un DELETE y listo: cargar miles de filas en Pony para borrarlas de a una
+            # es trabajo al pedo.
+            cuantos = db.select(
+                f'select count(*) from {tabla} where "integracion" = {int(i.id)}'
+            )[0]
+            db.execute(f'delete from {tabla} where "integracion" = {int(i.id)}')
+            i.actualizado_at = datetime.utcnow()
+            return {"ok": True, "id": i.id, "borrados": int(cuantos)}
+
     def borrar(self, integracion_id: int) -> dict:
         from src.models import Integracion
 
@@ -285,6 +317,7 @@ class IntegracionesServices:
                 "optins": counts["optin"],
                 "thankYou": counts["thank_you"],
                 "entradasWhatsapp": counts["whatsapp"],
+                "agendasWebinar": counts["calendario"],
                 "ultimoEventoAt": ultimo.isoformat() + "Z" if ultimo else None,
             }
 
@@ -330,6 +363,7 @@ class IntegracionesServices:
                 "optin": counts["optin"],
                 "thankYou": counts["thank_you"],
                 "whatsapp": counts["whatsapp"],
+                "calendario": counts["calendario"],
             },
             "ultimoEventoAt": ultimo.isoformat() + "Z" if ultimo else None,
             "status": status,

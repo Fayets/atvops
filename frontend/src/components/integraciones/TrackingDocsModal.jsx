@@ -19,6 +19,10 @@ export default function TrackingDocsModal({ open, onClose, token }) {
    onclick="window.AtvOps && AtvOps.track('whatsapp')">
   Unirse al grupo
 </a>`;
+  const scriptCal = `<a href="https://calendar.google.com/..."
+   onclick="window.AtvOps && AtvOps.track('calendario')">
+  Agendar el webinar
+</a>`;
 
   return (
     <Modal
@@ -86,6 +90,16 @@ export default function TrackingDocsModal({ open, onClose, token }) {
           Esto es opcional pero recomendado. Sin esto no podemos medir la tasa de entrada al
           grupo de WhatsApp.
         </p>
+      </section>
+
+      <section className="docs-sec">
+        <h3>Paso 5 — Trackear el click en “agendar” (opcional)</h3>
+        <p>
+          Si en tu thank you page ofrecés guardar el webinar en el calendario, este código
+          cuenta cuánta gente lo hace. Es la señal más temprana de que alguien piensa
+          asistir de verdad: sirve para estimar el show del día antes de que llegue.
+        </p>
+        <CodeBlock codigo={scriptCal} />
       </section>
 
       <section className="docs-sec">

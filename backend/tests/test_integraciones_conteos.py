@@ -68,3 +68,12 @@ def test_la_fecha_de_sqlite_llega_como_texto():
     assert s._como_fecha(esperado) == esperado
     assert s._como_fecha(None) is None
     assert s._como_fecha("cualquier cosa") is None
+
+
+def test_los_tipos_son_los_cinco_que_muestra_el_panel():
+    """
+    La vista pinta una tarjeta por tipo y el webinar deriva sus tasas de estos nombres.
+    Agregar un tipo sin tocar el panel deja eventos que entran y no se ven en ningún
+    lado; sacarlo rompe las tarjetas. Este test es el recordatorio de que van juntos.
+    """
+    assert s.TIPOS_EVENTO == {"pageview", "optin", "thank_you", "whatsapp", "calendario"}

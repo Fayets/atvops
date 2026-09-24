@@ -7137,7 +7137,8 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 }
 .int-status-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Cinco eventos: landing, optin, thank you, whatsapp y el click en agendar. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-3);
 }
 .int-stat {
@@ -7192,12 +7193,18 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .int-status-grid,
   .int-plataformas { grid-template-columns: 1fr; }
 }
+@media (max-width: 1180px) and (min-width: 861px) {
+  /* Antes de romper a dos columnas, tres entran mejor que cinco apretadas. */
+  .int-status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 .int-card-actions {
   display: flex;
   align-items: center;
   gap: 10px;
 }
+/* El botón de reinicio no se parte en dos líneas al lado del chip de estado. */
+.int-card-actions .btn { white-space: nowrap; }
 .int-docs-link {
   display: inline-flex;
   align-items: center;

@@ -93,6 +93,7 @@ export const CAMPOS_RAW = [
   { key: 'thankYou', label: 'Thank you page', fase: 'registro', tipo: 'count' },
   { key: 'registros', label: 'Registros webinar', fase: 'registro', tipo: 'count' },
   { key: 'entradasWhatsapp', label: 'Entradas WhatsApp', fase: 'registro', tipo: 'count' },
+  { key: 'agendasWebinar', label: 'Agendó el webinar', fase: 'registro', tipo: 'count' },
   // Fase 2
   { key: 'vivos', label: 'Vivos (show)', fase: 'dia', tipo: 'count' },
   { key: 'picoConcurrentes', label: 'Pico concurrentes', fase: 'dia', tipo: 'count' },
@@ -164,6 +165,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
   const thankYou = n(m.thankYou);
   const registros = n(m.registros);
   const whatsapp = n(m.entradasWhatsapp);
+  const agendas = n(m.agendasWebinar);
   const vivos = n(m.vivos || m.shows);
   const pico = n(m.picoConcurrentes);
   const retenidos = n(m.retenidosPitch);
@@ -184,6 +186,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     thankYou,
     registros,
     entradasWhatsapp: whatsapp,
+    agendasWebinar: agendas,
     vivos,
     picoConcurrentes: pico,
     retenidosPitch: retenidos,
@@ -199,6 +202,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     dropoffOptinTy: tasa(Math.max(optins - thankYou, 0), optins),
     tasaRegistro: tasa(registros, optins),
     tasaWhatsapp: tasa(whatsapp, registros),
+    tasaAgendaWebinar: tasa(agendas, registros),
     costoPorRegistrante: money(gasto, registros),
     showRate: tasa(vivos, registros),
     retencionPitch: tasa(retenidos, pico || vivos),
@@ -247,6 +251,7 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'dropoffOptinTy', label: 'Drop-off optin → TY', valor: m.dropoffOptinTy, formato: 'pct' },
       { key: 'tasaRegistro', label: 'Registro / optin', valor: m.tasaRegistro, formato: 'pct' },
       { key: 'tasaWhatsapp', label: 'Entrada WhatsApp', valor: m.tasaWhatsapp, formato: 'pct' },
+      { key: 'tasaAgendaWebinar', label: 'Agendó el webinar', valor: m.tasaAgendaWebinar, formato: 'pct', ayuda: 'clicks en agendar / registros' },
       { key: 'costoPorRegistrante', label: 'Costo / registrante', valor: m.costoPorRegistrante, formato: 'usd', portada: true },
     ],
     dia: [
