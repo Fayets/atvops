@@ -79,6 +79,13 @@ const NAV = [
     grupo: 'Sistema',
     roles: ['admin', 'founder', 'operaciones', 'marketing'],
   },
+  {
+    to: '/claves',
+    icon: 'config',
+    label: 'Claves API',
+    grupo: 'Sistema',
+    roles: ['admin', 'founder', 'operaciones'],
+  },
   { to: '/cobranza', icon: 'cobranza', label: 'Cobranza', grupo: 'Áreas' },
   { to: '/ideas', icon: 'ideas', label: 'Ideas', grupo: 'Sistema' },
   { to: '/configuracion', icon: 'config', label: 'Configuración', grupo: 'Sistema' },

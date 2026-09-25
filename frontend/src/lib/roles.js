@@ -72,7 +72,7 @@ export const RUTAS_POR_ROL = {
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
   operaciones: ['/', '/reporte', '/asistente', '/calendario', '/fulfillment', '/marketing',
                 '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
-                '/integraciones'],
+                '/integraciones', '/claves'],
   ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
   marketing: ['/', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
@@ -91,6 +91,8 @@ export const RUTAS_POR_ROL = {
     '/sistemas',
     '/webinars',
     '/integraciones',
+    // Las credenciales de las plataformas. Marketing y ventas no entran.
+    '/claves',
   ],
   admin: [
     '/',
@@ -107,6 +109,7 @@ export const RUTAS_POR_ROL = {
     '/sistemas',
     '/webinars',
     '/integraciones',
+    '/claves',
     '/configuracion',
   ],
 };

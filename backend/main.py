@@ -13,6 +13,7 @@ from src.controllers.activacion_ia_controller import router as activacion_ia_rou
 from src.controllers.asistente_controller import router as asistente_router
 from src.controllers.pendientes_controller import router as pendientes_router
 from src.controllers.auth_controller import router as auth_router
+from src.controllers.claves_controller import router as claves_router
 from src.controllers.clientes_controller import router as clientes_router
 from src.controllers.eventos_controller import router as eventos_router
 from src.controllers.gcal_controller import router as gcal_router
@@ -145,6 +146,8 @@ app.include_router(meta_router, prefix="/api/meta", tags=["meta"])
 app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(webinars_router, prefix="/api/webinars", tags=["webinars"])
 app.include_router(integraciones_router, prefix="/api/integraciones", tags=["integraciones"])
+# Las credenciales de las plataformas. Solo dirección, y nunca devuelve un secreto entero.
+app.include_router(claves_router, prefix="/api/claves", tags=["claves"])
 # Sin sesión: el script/pixel de la landing se autentica con el token de la integración.
 app.include_router(track_router, prefix="/api/track", tags=["track"])
 app.include_router(integrantes_router, prefix="/api/integrantes", tags=["integrantes"])

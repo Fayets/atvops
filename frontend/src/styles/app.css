@@ -7388,3 +7388,58 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .bm-nombre { flex: 1 1 150px; font-size: 13.5px; font-weight: 500; }
 .bm-campo { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .bm-campo input { width: 68px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Claves API ──────────────────────────────────────────────────────────────
+   Un formulario por plataforma. El valor actual va enmascarado arriba del campo
+   vacío: se compara de un vistazo lo que hay con lo que se va a pegar. */
+.claves-acciones { display: flex; align-items: center; gap: 10px; }
+.claves-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+.claves-campo { display: grid; gap: 4px; }
+.claves-campo.es-largo { grid-column: 1 / -1; }
+.claves-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500; color: var(--text);
+}
+/* No opina sobre un número, solo avisa que ese valor no se muestra entero. */
+.claves-secreto {
+  font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-3); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 5px;
+}
+.claves-actual {
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Mismo tratamiento que el resto de los formularios del sistema (`.campo`), pero en
+   monoespaciada: un token se lee carácter por carácter, no como palabra. */
+.claves-campo input,
+.claves-campo textarea {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  resize: vertical;
+}
+.claves-campo input:focus,
+.claves-campo textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.claves-ayuda { font-size: 11.5px; }
+.claves-pie {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: var(--space-3); flex-wrap: wrap;
+}
+.claves-aviso { font-size: 13px; }
+.claves-aviso.tono-ok { color: var(--ok); }
+.claves-aviso.tono-alert { color: var(--alert); }
+.claves-aviso.tono-off { color: var(--text-3); }
+.claves-nota { font-size: 13px; margin-top: var(--space-3); }

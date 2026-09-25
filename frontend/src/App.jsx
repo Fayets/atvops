@@ -32,6 +32,7 @@ import WebinarsListado from './pages/WebinarsListado.jsx';
 import WebinarDetalle from './pages/WebinarDetalle.jsx';
 import WebinarFaseDetalle from './pages/WebinarFaseDetalle.jsx';
 import Integraciones from './pages/Integraciones.jsx';
+import ClavesApi from './pages/ClavesApi.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
 import Pendientes from './pages/fulfillment/Pendientes.jsx';
@@ -190,6 +191,7 @@ export default function App() {
             <Route path="metas" element={<Metas />} />
             <Route path="sistemas" element={<Sistemas />} />
             <Route path="integraciones" element={<Integraciones />} />
+            <Route path="claves" element={<ClavesApi />} />
             <Route path="cobranza" element={<Cobranza />} />
         <Route path="asistente" element={<Asistente />} />
             <Route path="ideas" element={<Ideas />} />

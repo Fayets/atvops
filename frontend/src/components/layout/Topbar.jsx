@@ -33,6 +33,7 @@ const TITULOS = {
   '/cobranza': 'Cobranza',
   '/asistente': 'ATV AI',
   '/ideas': 'Ideas',
+  '/claves': 'Claves API',
   '/configuracion': 'Configuración',
 };
 

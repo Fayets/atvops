@@ -2284,6 +2284,22 @@ async function pedir(path, options = {}) {
   return r;
 }
 
+/**
+ * El `detail` de FastAPI no siempre es un string: una validación fallida manda una lista
+ * de objetos, y tirarla dentro de `new Error` la convierte en "[object Object]", que no
+ * le dice nada a nadie. Acá se arma una frase legible con lo que haya.
+ */
+function comoTexto(detalle) {
+  if (!detalle) return '';
+  if (typeof detalle === 'string') return detalle;
+  if (Array.isArray(detalle)) {
+    return detalle
+      .map((d) => (typeof d === 'string' ? d : d?.msg || JSON.stringify(d)))
+      .join(' · ');
+  }
+  return detalle.msg || JSON.stringify(detalle);
+}
+
 async function pedirDeVerdad(path, options = {}) {
   const token = getToken();
   let respuesta;
@@ -2302,7 +2318,7 @@ async function pedirDeVerdad(path, options = {}) {
   }
   if (!respuesta.ok) {
     const detalle = await respuesta.json().catch(() => null);
-    throw new Error(detalle?.detail ?? `El backend respondió ${respuesta.status}`);
+    throw new Error(comoTexto(detalle?.detail) || `El backend respondió ${respuesta.status}`);
   }
   return respuesta.json();
 }
@@ -2440,6 +2456,26 @@ export async function getIntegraciones() {
 
 export async function asegurarTrackingWebinar(webinarId) {
   return pedir(`/api/integraciones/asegurar/${webinarId}`, { method: 'POST' });
+}
+
+// ── Claves API ────────────────────────────────────────────────────────────────────
+// El servidor nunca devuelve un secreto entero: solo los últimos caracteres y el largo.
+
+export async function getClaves() {
+  return pedir('/api/claves');
+}
+
+/** Solo los campos con algo se pisan; los vacíos quedan como estaban. */
+export async function guardarClave(plataforma, campos) {
+  return pedir(`/api/claves/${plataforma}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(campos),
+  });
+}
+
+export async function probarClave(plataforma) {
+  return pedir(`/api/claves/${plataforma}/probar`, { method: 'POST' });
 }
 
 /** Deja los contadores de tracking en cero. El token y los scripts pegados no se tocan. */

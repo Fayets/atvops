@@ -21,6 +21,45 @@ logger = logging.getLogger("atv_ops.conexiones")
 # Lo que se copia de atv-mkt. Lo demás de esa tabla no lo usa ATV Ops.
 PLATAFORMAS = ("instagram", "manychat", "youtube", "meta_ads", "google_calendar")
 
+# Qué campos tiene cada plataforma y cuáles son secretos. Es la fuente única: la pantalla
+# dibuja el formulario con esto y el guardado rechaza cualquier campo que no esté acá, así
+# no se llena la credencial de basura tipeada.
+CAMPOS = {
+    "meta_ads": [
+        {"clave": "access_token", "label": "Access token", "secreto": True,
+         "ayuda": "Token del Ads Manager. Vence a los ~60 días."},
+        {"clave": "ad_account_id", "label": "Ad account ID", "secreto": False,
+         "ayuda": "Con el prefijo act_ si lo lleva."},
+    ],
+    "instagram": [
+        {"clave": "access_token", "label": "Access token", "secreto": True},
+        {"clave": "instagram_user_id", "label": "Instagram user ID", "secreto": False},
+        {"clave": "webhook_verify_token", "label": "Webhook verify token", "secreto": True},
+    ],
+    "manychat": [
+        {"clave": "api_key", "label": "API key", "secreto": True},
+        {"clave": "bio_keyword", "label": "Palabra de la bio", "secreto": False},
+        {"clave": "webhook_token", "label": "Webhook token", "secreto": True},
+    ],
+    "youtube": [
+        {"clave": "api_key", "label": "API key", "secreto": True},
+        {"clave": "channel_id", "label": "Channel ID", "secreto": False},
+    ],
+    "google_calendar": [
+        {"clave": "calendar_id", "label": "Calendar ID", "secreto": False},
+        {"clave": "service_account_json", "label": "Service account (JSON)", "secreto": True,
+         "largo": True},
+    ],
+}
+
+ETIQUETAS = {
+    "meta_ads": "Meta Ads Manager",
+    "instagram": "Instagram",
+    "manychat": "ManyChat",
+    "youtube": "YouTube",
+    "google_calendar": "Google Calendar",
+}
+
 _cache: dict = {}
 _lock = threading.Lock()
 CACHE_SEGUNDOS = 300
@@ -101,6 +140,25 @@ def obtener(plataforma: str) -> dict:
     return datos if isinstance(datos, dict) else {}
 
 
+def editada_aca(plataforma: str) -> bool:
+    """Si esa credencial se guardó desde ATV Ops y no es la copia vieja de atv-mkt.
+
+    Importa porque algunos servicios tienen el valor también en el `.env`. La copia
+    heredada puede estar vencida —se copió una vez y nadie la tocó más—, así que no puede
+    ganarle al `.env`; la que alguien escribió acá a propósito, sí.
+    """
+    from pony.orm import db_session
+
+    from src.models import ConexionApi
+
+    try:
+        with db_session:
+            fila = ConexionApi.get(plataforma=plataforma)
+            return fila is not None and (fila.origen or "") == "ATV Ops"
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def guardar(plataforma: str, credenciales: dict, quien: str = "") -> None:
     """Actualiza una credencial a mano (por ejemplo, un token que venció)."""
     from pony.orm import db_session
@@ -121,15 +179,25 @@ def guardar(plataforma: str, credenciales: dict, quien: str = "") -> None:
         _cache.pop(plataforma, None)
 
 
+def enmascarar(valor) -> str:
+    """Nunca el valor entero.
+
+    Los últimos cuatro alcanzan para la única pregunta que se hace mirando la pantalla:
+    "¿esta es la que renové o la que venció?". Con "39 caracteres" a secas no se
+    distinguen, y con el valor completo la pantalla pasa a ser un lugar de donde copiar
+    tokens.
+    """
+    texto = str(valor)
+    if len(texto) <= 8:
+        return texto
+    return f"…{texto[-4:]} · {len(texto)} caracteres"
+
+
 def estado() -> list[dict]:
     """Qué credenciales tiene ATV Ops, sin mostrar ningún secreto."""
     from pony.orm import db_session
 
     from src.models import ConexionApi
-
-    def _seguro(v) -> str:
-        texto = str(v)
-        return f"{len(texto)} caracteres" if len(texto) > 24 else texto
 
     try:
         with db_session:
@@ -137,7 +205,7 @@ def estado() -> list[dict]:
                 "plataforma": c.plataforma,
                 "origen": c.origen or "",
                 "actualizadoAt": c.actualizado_at.isoformat() if c.actualizado_at else None,
-                "campos": {k: _seguro(v) for k, v in json.loads(c.credenciales or "{}").items()
+                "campos": {k: enmascarar(v) for k, v in json.loads(c.credenciales or "{}").items()
                            if not isinstance(v, (list, dict))},
                 # En Python 3.13 el decompilador de Pony se rompe con `select(c for c in …)`:
                 # la lista sale de la entidad y se ordena acá.
@@ -145,3 +213,54 @@ def estado() -> list[dict]:
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el estado de las conexiones: %s", str(e)[:160])
         return []
+
+
+def para_la_vista() -> list[dict]:
+    """Las plataformas con sus campos, el valor enmascarado y cuándo se tocó.
+
+    Devuelve todas las de CAMPOS, tenga o no fila en la base: una plataforma sin cargar
+    tiene que verse como un formulario vacío, no desaparecer de la pantalla.
+    """
+    guardado = {c["plataforma"]: c for c in estado()}
+    salida = []
+    for plataforma, campos in CAMPOS.items():
+        fila = guardado.get(plataforma) or {}
+        valores = fila.get("campos") or {}
+        salida.append({
+            "plataforma": plataforma,
+            "etiqueta": ETIQUETAS.get(plataforma, plataforma),
+            "origen": fila.get("origen") or "",
+            "actualizadoAt": fila.get("actualizadoAt"),
+            "campos": [{**c, "valor": valores.get(c["clave"], "")} for c in campos],
+            "cargada": bool(valores),
+        })
+    return salida
+
+
+def actualizar(plataforma: str, cambios: dict, quien: str = "") -> dict:
+    """Pisa solo los campos que vinieron con algo.
+
+    Un campo vacío significa "no lo toques", no "borralo": el formulario muestra los
+    secretos enmascarados, así que si guardara lo que ve en pantalla los borraría todos.
+    Para vaciar uno a propósito se manda la palabra BORRAR.
+    """
+    if plataforma not in CAMPOS:
+        raise ValueError(f"Plataforma desconocida: {plataforma}")
+    permitidos = {c["clave"] for c in CAMPOS[plataforma]}
+    desconocidos = set(cambios) - permitidos
+    if desconocidos:
+        raise ValueError(f"Campos que no existen en {plataforma}: {', '.join(sorted(desconocidos))}")
+
+    actuales = dict(obtener(plataforma))
+    tocados = []
+    for clave, valor in cambios.items():
+        texto = str(valor or "").strip()
+        if not texto:
+            continue
+        actuales[clave] = "" if texto == "BORRAR" else texto
+        tocados.append(clave)
+    if not tocados:
+        return {"ok": True, "cambiados": []}
+
+    guardar(plataforma, actuales, quien)
+    return {"ok": True, "cambiados": tocados}

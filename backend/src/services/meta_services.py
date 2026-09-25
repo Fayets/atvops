@@ -114,20 +114,41 @@ def _estado_campania(status: str | None) -> str:
 
 
 class MetaServices:
+    @staticmethod
+    def _cred(plataforma: str, clave: str, variable: str, default: str = "") -> str:
+        """Primero la base, después el `.env`.
+
+        Las credenciales se editan desde Sistema → Claves API, que escribe en la tabla
+        `conexiones_api`. Pero la fila solo gana si alguien la guardó desde acá: las que
+        quedaron copiadas de atv-mkt pueden estar vencidas, y hacerlas ganar le cambiaría
+        el token a Ads sin que nadie lo pida. Hasta la primera edición manda el `.env`,
+        que es exactamente como funciona hoy.
+        """
+        from src.services import conexiones_services
+
+        try:
+            if conexiones_services.editada_aca(plataforma):
+                valor = str((conexiones_services.obtener(plataforma) or {}).get(clave) or "").strip()
+                if valor:
+                    return valor
+        except Exception:  # noqa: BLE001
+            pass
+        return config(variable, default=default).strip()
+
     def _ads_token(self) -> str:
-        return config("META_ADS_ACCESS_TOKEN", default="").strip()
+        return self._cred("meta_ads", "access_token", "META_ADS_ACCESS_TOKEN")
 
     def _ad_account(self) -> str:
-        return config("META_AD_ACCOUNT_ID", default="").strip()
+        return self._cred("meta_ads", "ad_account_id", "META_AD_ACCOUNT_ID")
 
     def _ads_ver(self) -> str:
         return config("META_GRAPH_ADS_VERSION", default="v19.0").strip()
 
     def _ig_token(self) -> str:
-        return config("META_IG_ACCESS_TOKEN", default="").strip()
+        return self._cred("instagram", "access_token", "META_IG_ACCESS_TOKEN")
 
     def _ig_user(self) -> str:
-        return config("META_IG_USER_ID", default="").strip()
+        return self._cred("instagram", "instagram_user_id", "META_IG_USER_ID")
 
     def _ig_ver(self) -> str:
         return config("META_GRAPH_IG_VERSION", default="v25.0").strip()
