@@ -140,6 +140,50 @@ def marcar_pitch(datos: dict, usuario: dict) -> dict:
         return {"ok": True, "id": fila.id, "canal": _canal(canal)}
 
 
+def _del_periodo(inicio, fin) -> list:
+    """Las conversaciones entre dos fechas, recortadas por la base.
+
+    Existe porque las tres vistas que las leen —el embudo, los chats y el estado del
+    webhook— hacían lo mismo: traer la tabla completa y descartar el mes en Python. Con
+    veintidós mil filas eso es medio segundo por pantalla, y la columna `at` está
+    indexada desde siempre. `select_by_sql` devuelve entidades, así que quien la llama no
+    cambia en nada.
+    """
+    from pony.orm import db_session
+
+    from src.db import DB_SCHEMA, ES_POSTGRES
+    from src.models import ConversacionIg
+
+    tabla = f'"{DB_SCHEMA}"."conversaciones_ig"' if ES_POSTGRES else '"ConversacionIg"'
+    with db_session:
+        return list(ConversacionIg.select_by_sql(
+            f'SELECT * FROM {tabla} WHERE "at" >= $inicio AND "at" < $fin'))
+
+
+def _ultima_conversacion():
+    """Cuándo entró la última, preguntándoselo a la base.
+
+    `max()` sobre la lista entera traía las veintidós mil filas para mirar una sola
+    columna. La variante con lambda de Pony no existe en esta versión —devuelve un
+    TypeError que el `except` de arriba se comía en silencio y dejaba la vista en cero—,
+    así que va por SQL, que además es lo que hace el índice de `at`.
+    """
+    from pony.orm import db_session
+
+    from src.db import DB_SCHEMA, ES_POSTGRES, db
+
+    tabla = f'"{DB_SCHEMA}"."conversaciones_ig"' if ES_POSTGRES else '"ConversacionIg"'
+    with db_session:
+        fila = db.select(f'SELECT MAX("at") FROM {tabla}')
+    valor = fila[0] if fila else None
+    if valor is None or isinstance(valor, datetime):
+        return valor
+    try:
+        return datetime.fromisoformat(str(valor))
+    except ValueError:
+        return None
+
+
 def chats(desde, hasta) -> dict:
     """Los chats del mes, sumando todas las puertas por las que entra una conversación.
 
@@ -180,10 +224,7 @@ def chats(desde, hasta) -> dict:
             # 22.000, y a fin de año son 22.000: es la diferencia entre 400 ms y 30 ms
             # cada vez que alguien abre Ventas. `select_by_sql` devuelve entidades, así
             # que el resto del código no se entera.
-            tabla = (f'"{DB_SCHEMA}"."conversaciones_ig"' if ES_POSTGRES
-                     else '"ConversacionIg"')
-            filas = list(ConversacionIg.select_by_sql(
-                f'SELECT * FROM {tabla} WHERE "at" >= $inicio AND "at" < $fin'))
+            filas = _del_periodo(inicio, fin)
             historico = ConversacionIg.select().count()
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las conversaciones: %s", str(e)[:160])
@@ -349,7 +390,7 @@ def embudo(desde, hasta, pitches: int = 0, agendas: int = 0, shows: int = 0,
     fin = datetime.combine(hasta, datetime.min.time())
     try:
         with db_session:
-            filas = [c for c in list(ConversacionIg.select()) if inicio <= c.at < fin]
+            filas = _del_periodo(inicio, fin)
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el embudo: %s", str(e)[:160])
         filas = []
@@ -396,9 +437,9 @@ def resumen(desde, hasta) -> dict:
     fin = datetime.combine(hasta, datetime.min.time())
     try:
         with db_session:
-            filas = [c for c in list(ConversacionIg.select()) if inicio <= c.at < fin]
+            filas = _del_periodo(inicio, fin)
             total_historico = ConversacionIg.select().count()
-            ultima = max((c.at for c in list(ConversacionIg.select())), default=None)
+            ultima = _ultima_conversacion()
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer las conversaciones: %s", str(e)[:160])
         return {"conectado": False, "conversaciones": 0, "calendlys": 0,
