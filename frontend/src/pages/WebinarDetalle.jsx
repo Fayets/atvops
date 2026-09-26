@@ -413,10 +413,20 @@ function MetricasForm({ initial, disabled, onGuardar }) {
         className="btn sm"
         disabled={disabled}
         onClick={() => {
+          // Solo se mandan los campos que alguien tocó.
+          //
+          // Los del script se guardan como piso —el número escrito menos lo contado— así
+          // que mandarlos todos en cada guardado los volvería a fijar en lo que el
+          // formulario tenía cargado al abrirlo. Si entretanto entraron visitas, ese
+          // guardado las borraría sin que nadie lo pida: venís a corregir un campo y te
+          // llevás puestos los otros cuatro.
           const patch = {};
           for (const c of CAMPOS_RAW) {
-            patch[c.key] = Number(f[c.key]) || 0;
+            const ahora = Number(f[c.key]) || 0;
+            const antes = Number(initial[c.key]) || 0;
+            if (ahora !== antes) patch[c.key] = ahora;
           }
+          if (!Object.keys(patch).length) return;
           onGuardar(patch);
         }}
       >
