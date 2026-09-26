@@ -683,6 +683,14 @@ class Integracion(db.Entity):
     token = Required(str, unique=True, index=True)
     webinar_id = Optional(int, nullable=True, index=True)
     activo = Required(bool, default=True)
+    # El piso desde el que cuenta el script, como JSON {"pageview": 290, "optin": 11, …}.
+    #
+    # Existe porque una landing suele venir midiendo con su propio contador antes de que
+    # le peguen el script. Sin esto, la única forma de reflejar lo que ya pasó sería
+    # escribir a mano los números —y el primer evento nuevo los pisa— o inventar filas de
+    # eventos que nadie recibió. El piso se suma a lo contado: lo de antes queda dicho,
+    # lo nuevo se apila encima, y las dos cosas siguen siendo distinguibles.
+    base = Optional(str, nullable=True)
     creado_por = Optional(str, nullable=True)
     creado_at = Required(datetime, default=datetime.utcnow)
     actualizado_at = Required(datetime, default=datetime.utcnow)

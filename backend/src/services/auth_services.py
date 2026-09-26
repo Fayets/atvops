@@ -161,6 +161,11 @@ def ensure_reunion_usuario_column() -> None:
         con.close()
 
 
+def ensure_integracion_columns() -> None:
+    """`base` llegó después: es el piso desde el que el script empieza a sumar."""
+    _agregar_columnas("integraciones", "Integracion", [("base", "TEXT")])
+
+
 def ensure_reunion_crm_columns() -> None:
     """La tabla de llamadas de ATV Ops nació solo con la referencia al CRM. Se le agregan
     las columnas del resultado, que es lo que ahora guarda el sistema por su cuenta."""

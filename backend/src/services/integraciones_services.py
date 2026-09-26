@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import datetime, timedelta
 
@@ -16,6 +17,22 @@ TIPOS_INTEGRACION = frozenset({"landing"})
 TIPOS_EVENTO = frozenset({"pageview", "optin", "thank_you", "whatsapp", "calendario"})
 # Si hubo un evento en esta ventana, el status es "recibiendo".
 VENTANA_CONECTADO = timedelta(hours=48)
+
+
+def _piso(fila) -> dict[str, int]:
+    """Lo que la landing ya había medido antes de que le pegaran el script.
+
+    Se guarda como JSON en la integración y se suma a lo contado. Sin esto, reflejar el
+    pasado obligaba a escribir los números a mano —y el primer evento nuevo los pisaba—
+    o a inventar filas de eventos que nadie recibió.
+    """
+    try:
+        datos = json.loads(fila.base or "{}")
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(datos, dict):
+        return {}
+    return {k: int(v) for k, v in datos.items() if k in TIPOS_EVENTO and str(v).lstrip("-").isdigit()}
 
 
 def _resumen_eventos(ids: list[int]) -> dict[int, dict]:
@@ -328,8 +345,14 @@ class IntegracionesServices:
                 return None
             counts = {t: 0 for t in TIPOS_EVENTO}
             ultimo = None
-            for resumen in _resumen_eventos([i.id for i in ints]).values():
+            resumenes = _resumen_eventos([i.id for i in ints])
+            for i in ints:
+                resumen = resumenes.get(i.id) or {}
                 for tipo, cuantos in (resumen.get("counts") or {}).items():
+                    counts[tipo] = counts.get(tipo, 0) + cuantos
+                # El piso también cuenta acá: si no, el webinar mostraría un número y la
+                # pantalla de Integraciones otro, para el mismo evento.
+                for tipo, cuantos in _piso(i).items():
                     counts[tipo] = counts.get(tipo, 0) + cuantos
                 suyo = resumen.get("ultimo")
                 if suyo and (ultimo is None or suyo > ultimo):
@@ -361,7 +384,10 @@ class IntegracionesServices:
         # sale de una consulta en vez de una por integración.
         if resumen is None:
             resumen = _resumen_eventos([i.id]).get(i.id) or {}
-        counts = resumen.get("counts") or {t: 0 for t in TIPOS_EVENTO}
+        counts = dict(resumen.get("counts") or {t: 0 for t in TIPOS_EVENTO})
+        piso = _piso(i)
+        for clave, cuantos in piso.items():
+            counts[clave] = counts.get(clave, 0) + cuantos
         ultimo = resumen.get("ultimo")
         ahora = datetime.utcnow()
         if ultimo and (ahora - ultimo) <= VENTANA_CONECTADO:

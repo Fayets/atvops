@@ -68,3 +68,26 @@ def test_el_enmascarado_no_devuelve_el_secreto():
     assert "Ag8Q" in salida, "sin los últimos caracteres no se distingue una clave de otra"
     # Lo corto no es secreto: un channel_id o una palabra de la bio se leen enteros.
     assert c.enmascarar("info") == "info"
+
+
+def test_el_piso_se_suma_a_lo_que_conto_el_script():
+    """
+    Lo que alguien escribe a mano en un campo del script no se puede guardar en el campo:
+    el próximo evento lo pisa. Se guarda como piso —la diferencia contra lo contado— y el
+    tablero muestra la suma. Así el número escrito queda y los eventos nuevos se apilan
+    encima en vez de reemplazarlo.
+    """
+    from types import SimpleNamespace
+
+    from src.services.integraciones_services import _piso
+
+    assert _piso(SimpleNamespace(base='{"pageview": 290, "optin": 11}')) == {
+        "pageview": 290, "optin": 11,
+    }
+    # Un piso negativo es válido: el script contó de más (reenvíos, pruebas) y la
+    # corrección tiene que sobrevivir a los eventos que vengan.
+    assert _piso(SimpleNamespace(base='{"pageview": -40}')) == {"pageview": -40}
+    # Basura o campos que no son eventos no entran.
+    assert _piso(SimpleNamespace(base='{"inventado": 5, "pageview": "x"}')) == {}
+    assert _piso(SimpleNamespace(base=None)) == {}
+    assert _piso(SimpleNamespace(base="no es json")) == {}

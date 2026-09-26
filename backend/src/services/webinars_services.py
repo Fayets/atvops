@@ -62,6 +62,60 @@ def _estado_sugerido(w, ahora: datetime) -> str:
     return "configurado"
 
 
+
+# Qué campo del webinar corresponde a cada evento del script.
+PISO_POR_CAMPO = {
+    "visitasLanding": "pageview",
+    "optins": "optin",
+    "thankYou": "thank_you",
+    "entradasWhatsapp": "whatsapp",
+    "agendasWebinar": "calendario",
+}
+
+
+def _fijar_piso_del_script(webinar_id: int, metricas: dict) -> None:
+    """Deja el contador del script en el número que alguien escribió a mano.
+
+    No borra eventos ni inventa: guarda la diferencia entre lo tipeado y lo contado. El
+    tablero muestra `contado + piso`, así que queda exactamente el número escrito, y cada
+    evento nuevo se apila encima en vez de reemplazarlo.
+
+    Si alguien escribe menos de lo ya contado, el piso queda negativo: es correcto, quiere
+    decir que el script contó de más —reenvíos del formulario, pruebas— y esa corrección
+    también tiene que sobrevivir a los eventos que vengan.
+    """
+    import json as _json_mod
+
+    from pony.orm import db_session
+
+    from src.models import Integracion
+    from src.services.integraciones_services import _resumen_eventos
+
+    pedidos = {PISO_POR_CAMPO[k]: v for k, v in metricas.items() if k in PISO_POR_CAMPO}
+    if not pedidos:
+        return
+    try:
+        with db_session:
+            filas = [i for i in list(Integracion.select())
+                     if i.webinar_id == int(webinar_id) and i.tipo == "landing"]
+            if not filas:
+                return  # sin script pegado, el número escrito vale tal cual
+            fila = filas[0]
+            contado = (_resumen_eventos([fila.id]).get(fila.id) or {}).get("counts") or {}
+            try:
+                piso = _json_mod.loads(fila.base or "{}")
+                piso = piso if isinstance(piso, dict) else {}
+            except (TypeError, ValueError):
+                piso = {}
+            for evento, valor in pedidos.items():
+                try:
+                    piso[evento] = int(valor) - int(contado.get(evento, 0))
+                except (TypeError, ValueError):
+                    continue
+            fila.base = _json_mod.dumps(piso)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo fijar el piso del script: %s", str(e)[:160])
+
 def _metricas_completas(m: dict, gasto: float) -> dict:
     """Raw + derivadas del funnel de 3 fases."""
     def num(k, default=0):
@@ -374,6 +428,13 @@ class WebinarsServices:
                 actual = _json(w.metricas, {})
                 actual.update(datos["metricas"])
                 w.metricas = _dump(actual)
+                # Los campos que cuenta el script no se pueden escribir a mano: el
+                # siguiente evento los vuelve a pisar. Lo que se escribe se guarda como
+                # piso de la integración —la diferencia entre lo tipeado y lo que el
+                # script lleva contado— así el tablero muestra ese número y sigue
+                # sumando encima. Es el caso de una landing que ya venía midiendo con
+                # su propio contador antes de que le pegaran el script.
+                _fijar_piso_del_script(w.id, datos["metricas"])
             if "notas" in datos:
                 w.notas = str(datos.get("notas") or "").strip() or None
             if "estado" in datos:
