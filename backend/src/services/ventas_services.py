@@ -1353,20 +1353,41 @@ def _sembrar_programas() -> None:
 
 def programas() -> list[dict]:
     """Catálogo de programas con su precio: el precio es la facturación de cada venta.
-    Vive en la base de ATV Ops; el CRM viejo solo sirvió para sembrarlo."""
+    Vive en la base de ATV Ops; el CRM viejo solo sirvió para sembrarlo.
+
+    Va con caché porque se lee muchísimas veces en un mismo pedido: el precio de cada
+    venta sale de acá, así que armar el resumen del mes la consultaba una vez por fila
+    —32 lecturas de una tabla de seis programas—. En SQLite eso no se nota; contra Neon
+    son 32 idas y vueltas por la red, casi un segundo de espera para responder siempre lo
+    mismo. Guardar o borrar un programa limpia el caché, así que un precio nuevo se ve
+    enseguida y no a los cinco minutos.
+    """
     from pony.orm import db_session, select
 
     from src.models import Programa
 
+    with _lock:
+        guardado = _cache.get("programas")
+        if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
     try:
         _sembrar_programas()
         with db_session:
-            return [{"id": p.id, "nombre": p.nombre, "precioUsd": p.precio_usd, "orden": p.orden}
-                    for p in sorted([p for p in list(Programa.select()) if p.activo],
-                                    key=lambda p: (p.orden, p.nombre))]
+            catalogo = [{"id": p.id, "nombre": p.nombre, "precioUsd": p.precio_usd,
+                         "orden": p.orden}
+                        for p in sorted([p for p in list(Programa.select()) if p.activo],
+                                        key=lambda p: (p.orden, p.nombre))]
+        with _lock:
+            _cache["programas"] = {"at": datetime.utcnow(), "data": catalogo}
+        return catalogo
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el catálogo de programas: %s", str(e)[:160])
         return []
+
+
+def _olvidar_programas() -> None:
+    with _lock:
+        _cache.pop("programas", None)
 
 
 def guardar_programa(datos: dict, usuario: dict) -> list[dict]:
@@ -1397,6 +1418,7 @@ def guardar_programa(datos: dict, usuario: dict) -> list[dict]:
             p.actualizado_por, p.actualizado_at = quien, datetime.utcnow()
     logger.info("Programa '%s' guardado por %s a %s USD", nombre, usuario.get("username"), precio)
     _olvidar_meses()
+    _olvidar_programas()
     return programas()
 
 
@@ -1415,6 +1437,7 @@ def borrar_programa(pid: int, usuario: dict) -> list[dict]:
             p.actualizado_por = (usuario.get("username") or "")[:80]
             p.actualizado_at = datetime.utcnow()
     _olvidar_meses()
+    _olvidar_programas()
     return programas()
 
 
