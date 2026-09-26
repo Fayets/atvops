@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
+import Modal from '../components/ui/Modal.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { fmtMetrica, SEMAFORO_LABEL } from '../components/webinars/WebinarEmbudo.jsx';
@@ -18,6 +19,7 @@ export default function WebinarFaseDetalle() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
+  const [verCampanias, setVerCampanias] = useState(false);
   const [tick, setTick] = useState(0);
   const [reiniciando, setReiniciando] = useState(false);
   const [errorAccion, setErrorAccion] = useState('');
@@ -49,6 +51,7 @@ export default function WebinarFaseDetalle() {
   const fase = fases.find((f) => f.id === faseId);
   const camposRaw = CAMPOS_RAW.filter((c) => c.fase === faseId);
   // Solo se puede poner en cero lo que entra solo. Lo cargado a mano se edita.
+  const campanias = webinar?.campaniasMetricas ?? [];
   const delScript = camposRaw.filter((c) => c.origen === 'script');
   // El total lo dice el backend, no la pantalla: `optins` puede venir deducido de los
   // registros cuando el script no contó ninguno, y entonces ofreceríamos borrar
@@ -126,7 +129,15 @@ export default function WebinarFaseDetalle() {
       <Card title="Métricas de la fase">
         <ul className="wb-fase-detalle-grid">
           {(fase.todas || [portada, ...fase.metricas].filter(Boolean)).map((m) => (
-            <li key={m.key} className={m.portada ? 'es-portada' : ''}>
+            <li
+              key={m.key}
+              className={`${m.portada ? 'es-portada' : ''}${
+                m.key === 'frecuencia' && campanias.length ? ' se-abre' : ''}`}
+              onClick={m.key === 'frecuencia' && campanias.length
+                ? () => setVerCampanias(true) : undefined}
+              title={m.key === 'frecuencia' && campanias.length
+                ? 'Ver la frecuencia de cada campaña' : undefined}
+            >
               <span className="num">{fmtMetrica(m.valor, m.formato)}</span>
               <span className="dim" title={m.ayuda || undefined}>{m.label}</span>
               {m.detalle ? <span className="wb-cuenta">{m.detalle}</span> : null}
@@ -180,6 +191,36 @@ export default function WebinarFaseDetalle() {
           Editar números
         </Link>
       </Card>
+      <Modal
+        open={verCampanias}
+        onClose={() => setVerCampanias(false)}
+        title="Frecuencia por campaña"
+        wide
+      >
+        <p className="dim" style={{ marginTop: 0 }}>
+          La frecuencia del cuadro no es el promedio de estas: se recalcula como
+          impresiones sobre alcance del conjunto. Promediar frecuencias le daría el mismo
+          peso a una campaña que alcanzó a cien personas que a una que alcanzó a diez mil.
+        </p>
+        <ul className="camp-frec">
+          {campanias.map((c) => (
+            <li key={c.id}>
+              <span className="camp-frec-nombre">
+                {c.nombre}
+                {c.estado ? <span className="dim"> · {c.estado}</span> : null}
+              </span>
+              <span className="num">{c.frecuencia != null
+                ? c.frecuencia.toLocaleString('es-AR', { maximumFractionDigits: 2 })
+                : '—'}</span>
+              <span className="dim">
+                {fmtMetrica(c.impresiones, 'count')} impresiones ·{' '}
+                {fmtMetrica(c.alcance, 'count')} personas ·{' '}
+                {fmtMetrica(c.gastoUsd, 'usd')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Modal>
     </div>
   );
 }

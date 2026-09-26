@@ -516,6 +516,8 @@ class WebinarsServices:
         alcance = 0
         clicks = 0
         leads_ads = 0
+        # Campaña por campaña, para poder abrir el número combinado y ver de dónde sale.
+        detalle_campanias: list[dict] = []
         sync_ok = False
         if ids:
             try:
@@ -530,6 +532,16 @@ class WebinarsServices:
                         impresiones += int(c.get("impresiones") or 0)
                         alcance += int(c.get("alcance") or 0)
                         clicks += int(c.get("clicks") or 0)
+                        detalle_campanias.append({
+                            "id": str(c.get("id")),
+                            "nombre": c.get("nombre") or str(c.get("id")),
+                            "estado": c.get("estado") or "",
+                            "impresiones": int(c.get("impresiones") or 0),
+                            "alcance": int(c.get("alcance") or 0),
+                            "clicks": int(c.get("clicks") or 0),
+                            "gastoUsd": float(c.get("gastoUsd") or 0),
+                            "frecuencia": float(c.get("frecuencia") or 0) or None,
+                        })
                         leads_ads += int(c.get("leads") or 0)
                 sync_ok = True
             except Exception as e:  # noqa: BLE001
@@ -538,6 +550,8 @@ class WebinarsServices:
             crudas["impresiones"] = impresiones
             crudas["alcance"] = alcance
             crudas["clicks"] = clicks
+            data["campaniasMetricas"] = sorted(
+                detalle_campanias, key=lambda c: -(c["impresiones"] or 0))
         elif not gasto:
             gasto = float(crudas.get("gastoAdsUsd") or (data.get("metricas") or {}).get("gastoAdsUsd") or 0)
         if leads_ads:
