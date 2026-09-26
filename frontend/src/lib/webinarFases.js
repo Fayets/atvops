@@ -286,7 +286,11 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
         valor: m.tasaRegistro,
         formato: 'pct',
         detalle: de(m.registros, m.optins),
-        ayuda: raw.registrosDerivados ? 'el opt-in es el registro: la landing es de un paso' : undefined,
+        // Solo existe cuando hay un segundo paso que medir. En una landing donde el
+        // formulario te deja registrado, registro y opt-in son el mismo momento: el
+        // cuadro quedaba vacío ocupando lugar, o peor, marcando 100% eterno. Vuelve
+        // solo el día que alguien cargue los registros por su cuenta.
+        oculto: !!raw.registrosDerivados,
       },
       { key: 'tasaWhatsapp', label: 'Entrada WhatsApp', valor: m.tasaWhatsapp, formato: 'pct', detalle: de(m.entradasWhatsapp, m.registros) },
       { key: 'tasaAgendaWebinar', label: 'Agendó el webinar', valor: m.tasaAgendaWebinar, formato: 'pct', detalle: de(m.agendasWebinar, m.registros), ayuda: 'clicks en agendar / registros' },
@@ -337,7 +341,7 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
   };
 
   return FASES_META.map((meta) => {
-    const metricas = items[meta.id];
+    const metricas = items[meta.id].filter((x) => !x.oculto);
     const portada = metricas.find((x) => x.portada) || metricas[0];
     const secundarias = metricas.filter((x) => !x.portada);
     return {
