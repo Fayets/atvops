@@ -784,6 +784,18 @@ export async function guardarResultadoLlamada(leadId, payload, mes, { lista = tr
  * Saca del calendario una reunión que no es de venta (un 1a1, una weekly), o la devuelve.
  * No borra nada en Google: solo deja de mostrarse en ATV Ops.
  */
+/**
+ * Deja la llamada en otro día dentro de ATV Ops. No toca Google Calendar: allá sigue
+ * siendo cierto que se había agendado ese día.
+ */
+export async function moverReunion(eventoId, fecha) {
+  return pedir(`/api/ventas/reuniones/${encodeURIComponent(eventoId)}/mover`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fecha }),
+  });
+}
+
 export async function ocultarReunion(eventoId, { titulo, fechaAt, mostrar = false } = {}) {
   return pedir(`/api/ventas/reuniones/${encodeURIComponent(eventoId)}/ocultar${mostrar ? '?mostrar=true' : ''}`, {
     method: 'POST',

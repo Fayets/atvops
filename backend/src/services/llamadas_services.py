@@ -165,6 +165,16 @@ def sincronizar(desde: date | None = None, hasta: date | None = None) -> dict:
 
 # ------------------------------------------------------------------ lectura
 
+def cuando(r):
+    """Cuándo cuenta la llamada: la fecha a la que se movió, o la del calendario.
+
+    Es el único lugar que lo decide. Todo lo que muestra o cuenta llamadas pasa por acá
+    —el calendario, el embudo, la tabla semanal, las métricas del mes—, así que mover una
+    llamada la mueve en todos lados a la vez y no hay forma de que dos vistas discrepen.
+    """
+    return r.movida_at or r.inicio_at
+
+
 def _a_dict(r) -> dict:
     """La llamada con el mismo shape que antes armaba el cruce en vivo."""
     if r.lead_id:
@@ -179,7 +189,10 @@ def _a_dict(r) -> dict:
         "nombre": r.prospecto or "Sin nombre",
         "email": r.email or "", "telefono": r.telefono or "", "ig": r.ig or "",
         "origen": r.origen or "", "closer": (r.closer or "").strip(), "setter": r.setter or "",
-        "call": r.inicio_at, "agendo": r.agendo_at, "agendo_en": r.agendo_en or "",
+        "call": cuando(r), "agendo": r.agendo_at, "agendo_en": r.agendo_en or "",
+        # Para que la tarjeta pueda decir que no está donde la puso el calendario.
+        "movida": bool(r.movida_at),
+        "fechaOriginal": r.inicio_at,
         "pago": r.cash_usd or 0.0, "debe": r.saldo_usd or 0.0,
         "ingresos_rango": r.ingresos_rango or "", "programa_ofrecido": (r.programa or "").strip(),
         "vino_de_ads": bool(r.vino_de_ads), "notas": r.titulo or "",
@@ -203,8 +216,10 @@ def listar(desde: date, hasta: date) -> list[dict]:
 
     inicio, fin = datetime.combine(desde, time.min), datetime.combine(hasta, time.min)
     with db_session:
+        # Se filtra por la fecha efectiva: si no, una llamada movida a este mes se
+        # seguiría buscando en el anterior y no aparecería en ninguno de los dos.
         return [_a_dict(r) for r in list(ReunionCrm.select())
-                if r.es_venta and r.inicio_at is not None and inicio <= r.inicio_at < fin]
+                if r.es_venta and cuando(r) is not None and inicio <= cuando(r) < fin]
 
 
 def hay_datos() -> bool:

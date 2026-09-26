@@ -40,10 +40,12 @@ function parseAt(iso) {
  *           onRango?: (desde: string, hasta: string) => void,
  *           estados?: Record<string, object>, onEditar?: (l: object, estado: object) => void,
  *           onOcultar?: (l: object) => void, ocultos?: Record<string, boolean>,
+ *           onMover?: (l: object, fecha: string) => void,
  }} props
  */
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
-                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos }) {
+                                           estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos,
+                                           onMover }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -66,23 +68,33 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     });
   }, [ancla]);
 
+  // Dónde va la tarjeta: la fecha que manda el servidor en el estado —que ya tiene
+  // adentro la mudanza si alguien arrastró la llamada— y si no, la del calendario de
+  // Google. Es la misma fecha con la que el embudo la cuenta, así que lo que se ve y lo
+  // que se mide no pueden discrepar.
+  const fechaDe = (l) => estados?.[l.id]?.fechaAt || l.fechaAt;
+
   const porDia = useMemo(() => {
     /** @type {Record<string, object[]>} */
     const map = {};
     for (const l of llamados) {
       if (ocultos?.[l.id]) continue;   // el equipo la sacó del calendario
-      const d = parseAt(l.fechaAt);
+      const d = parseAt(estados?.[l.id]?.fechaAt || l.fechaAt);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!map[key]) map[key] = [];
       map[key].push(l);
     }
     for (const k of Object.keys(map)) {
-      map[k].sort((a, b) => a.fechaAt.localeCompare(b.fechaAt));
+      map[k].sort((a, b) => (estados?.[a.id]?.fechaAt || a.fechaAt)
+        .localeCompare(estados?.[b.id]?.fechaAt || b.fechaAt));
     }
     return map;
-  }, [llamados, ocultos]);
+  }, [llamados, ocultos, estados]);
 
   const keyDe = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  // Se pide desde el 1° del mes más temprano visible: el contador de agendas es del
+  // mes entero, no solo de la semana en pantalla.
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   // Cada reunión se pinta según lo que le pasó: celeste la que ya tiene resultado
   // cargado, roja la descartada (no cuenta para las agendas), punteada la que todavía
@@ -115,6 +127,40 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   const numeroDe = (l) => estadoDe(l)?.numeroAgenda ?? null;
   // Un click abre el detalle y dos abren el editor, así que el simple espera un momento
   // para no dispararse también cuando en realidad fue doble click.
+  // Arrastrar una llamada a otro día. Mueve solo dentro de ATV Ops: el evento de Google
+  // no se toca, porque allá sigue siendo cierto que se había agendado ese día.
+  const [arrastrando, setArrastrando] = useState(null);   // id de la que se está moviendo
+  const [encima, setEncima] = useState(null);             // día sobre el que está el cursor
+
+  const alSoltar = (dia) => {
+    const l = arrastrando;
+    setArrastrando(null);
+    setEncima(null);
+    if (!l || !onMover) return;
+    // Soltarla en su mismo día no es un movimiento: evita un pedido al servidor por cada
+    // arrastre que en realidad se arrepintió a mitad de camino.
+    if (mismaFecha(parseAt(fechaDe(l)), dia)) return;
+    onMover(l, iso(dia));
+  };
+
+  const propsDelDia = (d) => (onMover ? {
+    onDragOver: (e) => { e.preventDefault(); setEncima(keyDe(d)); },
+    onDragLeave: () => setEncima((k) => (k === keyDe(d) ? null : k)),
+    onDrop: (e) => { e.preventDefault(); alSoltar(d); },
+  } : {});
+
+  const propsDeLaTarjeta = (l) => (onMover ? {
+    draggable: true,
+    onDragStart: (e) => {
+      cancelarClick();                       // arrastrar no es hacer click
+      setArrastrando(l);
+      e.dataTransfer.effectAllowed = 'move';
+      // Firefox no arranca el arrastre si no hay datos puestos.
+      e.dataTransfer.setData('text/plain', String(l.id));
+    },
+    onDragEnd: () => { setArrastrando(null); setEncima(null); },
+  } : {});
+
   const clickPendiente = useRef(null);
   const cancelarClick = () => {
     if (clickPendiente.current) {
@@ -140,9 +186,6 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     else onOcultar?.(l);
   };
 
-  // Pedimos desde el 1° del mes más temprano visible: el contador de agendas
-  // es del mes entero, no solo de la semana en pantalla.
-  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   // Se pide el mes entero, no hasta el último día visible: el número de agenda lo calcula
   // el servidor sobre el mes, y si acá falta la última semana, las reuniones que ya tienen
   // número no llegan y el correlativo se ve con saltos.
@@ -225,7 +268,11 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
             {semana.map((d) => {
               const items = porDia[keyDe(d)] ?? [];
               return (
-                <div key={keyDe(d)} className="ventas-cal-dia">
+                <div
+                  key={keyDe(d)}
+                  className={`ventas-cal-dia${encima === keyDe(d) ? ' recibe' : ''}`}
+                  {...propsDelDia(d)}
+                >
                   <div className="ventas-cal-dia-head">
                     <span>{DIAS[(d.getDay() + 6) % 7]}</span>
                     <strong>{d.getDate()}</strong>
@@ -240,7 +287,10 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                         <button
                           key={l.id}
                           type="button"
-                          className={`ventas-cal-ev estado-${l.estado}${clasesDe(l)}`}
+                          className={`ventas-cal-ev estado-${l.estado}${clasesDe(l)}`
+                            + (estadoDe(l)?.movida ? ' movida' : '')
+                            + (arrastrando?.id === l.id ? ' arrastrando' : '')}
+                          {...propsDeLaTarjeta(l)}
                           onClick={() => alClick(l)}
                           onDoubleClick={() => abrirEditor(l)}
                           title={estadoDe(l)?.estado === 'descartada'
@@ -287,7 +337,9 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
               return (
                 <div
                   key={keyDe(d)}
-                  className={`ventas-cal-mes-celda${fuera ? ' fuera' : ''}${mismaFecha(d, ancla) ? ' hoy' : ''}`}
+                  className={`ventas-cal-mes-celda${fuera ? ' fuera' : ''}${mismaFecha(d, ancla) ? ' hoy' : ''}`
+                    + (encima === keyDe(d) ? ' recibe' : '')}
+                  {...propsDelDia(d)}
                 >
                   <div className="num-dia">{d.getDate()}</div>
                   {items.slice(0, 3).map((l) => {
@@ -296,7 +348,10 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                     <button
                       key={l.id}
                       type="button"
-                      className={`ventas-cal-ev mini estado-${l.estado}${clasesDe(l)}`}
+                      className={`ventas-cal-ev mini estado-${l.estado}${clasesDe(l)}`
+                        + (estadoDe(l)?.movida ? ' movida' : '')
+                        + (arrastrando?.id === l.id ? ' arrastrando' : '')}
+                      {...propsDeLaTarjeta(l)}
                       onClick={() => alClick(l)}
                       onDoubleClick={() => abrirEditor(l)}
                       title={`${n != null ? `#${n} · ` : ''}${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}

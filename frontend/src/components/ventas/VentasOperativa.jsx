@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import EditorReunion from './EditorReunion.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
-import { ocultarReunion } from '../../data/api.js';
+import { moverReunion, ocultarReunion } from '../../data/api.js';
 import CalendarioEquipo, { ESTADO } from './CalendarioEquipo.jsx';
 import PanelOps from './PanelOps.jsx';
 import DetalleLlamada from './DetalleLlamada.jsx';
@@ -135,6 +135,10 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
           }}
           onMostrar={async (l) => {
             await ocultarReunion(l.id, { mostrar: true });
+            onCargado?.();
+          }}
+          onMover={async (l, fecha) => {
+            await moverReunion(l.id, fecha);
             onCargado?.();
           }}
         />

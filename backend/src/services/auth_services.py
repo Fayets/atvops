@@ -182,6 +182,8 @@ def ensure_reunion_crm_columns() -> None:
         ("lead_creado_at", "TIMESTAMP"),
         ("fuente", "TEXT DEFAULT 'calendario' NOT NULL"),
         ("sincronizado_at", "TIMESTAMP"),
+        # Arrastrar una llamada a otro día en el calendario de ATV Ops.
+        ("movida_at", "TIMESTAMP"), ("movida_por", "TEXT"),
         # El reporte que arma Fathom al terminar la llamada, aparte de lo que carga
         # el equipo: la IA propone y no pisa, así que conviven.
         ("fathom_url", "TEXT"), ("reporte_ia", "TEXT"), ("reporte_mensaje", "TEXT"),

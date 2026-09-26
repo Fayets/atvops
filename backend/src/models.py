@@ -273,6 +273,12 @@ class ReunionCrm(db.Entity):
     lead_id = Required(int, index=True, default=0)   # id en el CRM viejo; 0 = solo de acá
     prospecto = Optional(str)
     inicio_at = Optional(datetime)           # cuándo es la reunión, en hora de Argentina
+    # Cuándo ocurrió de verdad, si no fue cuando decía el calendario. Una llamada del
+    # sábado que se terminó tomando el viernes se arrastra en el calendario de ATV Ops y
+    # queda acá. No se toca el evento de Google: allá sigue siendo cierto que se había
+    # agendado para el sábado. `inicio_at` lo pisa el sync en cada corrida; esto no.
+    movida_at = Optional(datetime, nullable=True)
+    movida_por = Optional(str, nullable=True)
     creado_por = Optional(str)
     creado_at = Required(datetime, default=datetime.utcnow)
 

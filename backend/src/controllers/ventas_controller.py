@@ -350,6 +350,19 @@ def youtube_marcar_video_chats(user: dict = Depends(get_current_user), payload: 
         raise HTTPException(status_code=500, detail=f"No se pudo marcar: {str(e)[:180]}")
 
 
+@router.post("/reuniones/{evento_id}/mover")
+def mover_reunion(evento_id: str, user: dict = Depends(solo_interno),
+                  payload: dict = Body(default={})):
+    """Deja la llamada en otro día dentro de ATV Ops. No toca Google Calendar."""
+    try:
+        return ventas.mover_llamada(evento_id, (payload or {}).get("fecha") or "", user)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló mover la reunión %s", evento_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo mover la llamada: {str(e)[:180]}")
+
+
 @router.post("/reuniones/{evento_id}/ocultar")
 def ocultar_reunion(evento_id: str, user: dict = Depends(solo_interno),
                     payload: dict = Body(default={}), mostrar: bool = False):

@@ -39,7 +39,7 @@ class _Fila:
                     url=None, link_llamada=None, agendo_at=None, agendo_en=None,
                     ingresos_rango=None, vino_de_ads=False, lead_creado_at=None,
                     resultado="", closer="", programa="", cash_usd=0.0, saldo_usd=0.0,
-                    nota="", descartada=False)
+                    nota="", descartada=False, movida_at=None, movida_por=None)
         base.update(kw)
         for k, val in base.items():
             setattr(self, k, val)
@@ -181,3 +181,23 @@ def test_sin_filas_del_lead_no_devuelve_nada(monkeypatch):
                         type("m", (), {"ReunionCrm": _Modelo})())
     assert v._fila_del_lead(42) is None
     assert v._fila_del_lead(0) is None
+
+
+def test_una_llamada_movida_cuenta_el_dia_al_que_se_movio():
+    """
+    Arrastrar una llamada en el calendario de ATV Ops no toca Google: guarda la fecha
+    nueva aparte. Si el resto del sistema siguiera leyendo `inicio_at`, el calendario
+    la mostraría un día y el embudo la contaría otro. Por eso la fecha efectiva se
+    decide en un solo lugar y todos pasan por ahí.
+    """
+    sabado = datetime(2026, 9, 26, 8, 30)
+    viernes = datetime(2026, 9, 25, 8, 30)
+
+    sin_mover = ll._a_dict(_Fila(inicio_at=sabado))
+    assert sin_mover["call"] == sabado
+    assert sin_mover["movida"] is False
+
+    movida = ll._a_dict(_Fila(inicio_at=sabado, movida_at=viernes))
+    assert movida["call"] == viernes, "el resto del sistema seguiría contándola el sábado"
+    assert movida["movida"] is True
+    assert movida["fechaOriginal"] == sabado, "se pierde de dónde venía"

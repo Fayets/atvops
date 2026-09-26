@@ -523,6 +523,8 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "reporte": (f.get("closer_report") or "").strip(),
             "segunda": bool(f.get("segunda")),
             "reprogramada": bool(f.get("reprogramada")),
+            # La arrastraron a otro día dentro de ATV Ops: `fechaAt` ya es la nueva.
+            "movida": bool(f.get("movida")),
         }
     # Las cargadas a mano no tienen evento de Google: el calendario las dibuja con esto.
     manuales = []
@@ -545,6 +547,7 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
             "cashUsd": _num(f.get("pago")), "saldoUsd": _num(f.get("debe")),
             "reporte": (f.get("closer_report") or "").strip(), "segunda": False,
             "reprogramada": bool(f.get("reprogramada")),
+            "movida": bool(f.get("movida")),
         }
         por_evento[dato["eventoId"]] = dato
         manuales.append({**dato, "manual": True})
@@ -1635,6 +1638,56 @@ def _ficha_para(lead_id, usuario: dict) -> tuple[int, str]:
         if r and r.evento_id and not str(r.evento_id).startswith("lead:"):
             evento = r.evento_id
     return numero, evento
+
+
+def mover_llamada(evento_id: str, fecha: str, usuario: dict) -> dict:
+    """Deja una llamada en otro día dentro de ATV Ops.
+
+    Es para la que se tomó cuando no era: la del sábado que terminó siendo el viernes.
+    **No toca Google Calendar** —el acceso es de solo lectura y, además, allá sigue siendo
+    cierto que se había agendado para el sábado—. Lo que cambia es cuándo cuenta.
+
+    Se guarda aparte de `inicio_at` porque el sync pisa esa columna cada diez minutos:
+    escribir ahí haría que el arrastre se deshiciera solo. La hora se conserva; lo único
+    que se mueve es el día. Arrastrarla de vuelta a su día original borra la marca en vez
+    de dejar una igual a la del calendario, así queda claro cuáles se tocaron.
+    """
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    evento_id = (evento_id or "").strip()
+    if not evento_id:
+        raise HTTPException(status_code=400, detail="Falta la llamada que se movió.")
+    try:
+        nueva = date.fromisoformat(str(fecha)[:10])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="La fecha no tiene el formato AAAA-MM-DD.") from e
+
+    with db_session:
+        fila = ReunionCrm.get(evento_id=evento_id)
+        if fila is None and evento_id.startswith("manual:"):
+            fila = ReunionCrm.get(id=int(evento_id.split(":", 1)[1] or 0))
+        if fila is None:
+            raise HTTPException(status_code=404, detail="Esa llamada no está en ATV Ops.")
+        if fila.inicio_at is None:
+            raise HTTPException(status_code=400, detail="Esa llamada no tiene hora: no se puede mover.")
+
+        destino = datetime.combine(nueva, fila.inicio_at.time())
+        if destino.date() == fila.inicio_at.date():
+            fila.movida_at = None          # volvió a su día: no hay nada que recordar
+            fila.movida_por = None
+        else:
+            fila.movida_at = destino
+            fila.movida_por = (usuario or {}).get("username")
+        fila.actualizado_at = datetime.utcnow()
+        return {
+            "ok": True,
+            "eventoId": fila.evento_id,
+            "fechaAt": (fila.movida_at or fila.inicio_at).isoformat(),
+            "movida": fila.movida_at is not None,
+            "fechaOriginal": fila.inicio_at.isoformat(),
+        }
 
 
 def ocultar_evento(evento_id: str, datos: dict, usuario: dict, mostrar: bool = False) -> dict:

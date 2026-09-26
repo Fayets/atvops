@@ -7443,3 +7443,23 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .claves-aviso.tono-alert { color: var(--alert); }
 .claves-aviso.tono-off { color: var(--text-3); }
 .claves-nota { font-size: 13px; margin-top: var(--space-3); }
+
+/* ── Arrastrar una llamada a otro día ───────────────────────────────────────
+   El día que va a recibir se marca con la marca, que acá es una acción y no un
+   juicio sobre ningún número. La que se está moviendo se desvanece para que se
+   vea dónde va a caer. */
+.ventas-cal-dia.recibe,
+.ventas-cal-mes-celda.recibe {
+  background: var(--brand-dim);
+  outline: 2px dashed var(--brand-line);
+  outline-offset: -2px;
+}
+.ventas-cal-ev[draggable="true"] { cursor: grab; }
+.ventas-cal-ev.arrastrando { opacity: 0.35; cursor: grabbing; }
+/* Una llamada que no está donde la puso el calendario lleva una marca discreta:
+   si no, el día que alguien compare con Google no va a entender la diferencia. */
+.ventas-cal-ev.movida .hora::after {
+  content: ' ·movida';
+  color: var(--text-3);
+  font-size: 9.5px;
+}
