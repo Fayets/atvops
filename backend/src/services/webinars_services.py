@@ -132,6 +132,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
 
     gasto = float(gasto or 0)
     impresiones = int(num("impresiones"))
+    alcance = int(num("alcance"))
     clicks = int(num("clicks"))
     visitas = int(num("visitasLanding"))
     optins = int(num("optins"))
@@ -150,7 +151,8 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
     pif = int(num("pif"))
 
     return {
-        "impresiones": impresiones, "clicks": clicks, "visitasLanding": visitas,
+        "impresiones": impresiones, "alcance": alcance, "clicks": clicks,
+        "visitasLanding": visitas,
         "optins": optins, "thankYou": thank_you, "registros": registros,
         "registrosDerivados": bool(m.get("registrosDerivados")),
         "entradasWhatsapp": whatsapp, "agendasWebinar": agendas,
@@ -162,7 +164,11 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
         "ctr": tasa(clicks, impresiones), "cpc": money(gasto, clicks),
         # Optins = registros cuando no hay contador aparte (landing de webinar).
         "conversionLanding": tasa(optins or registros, visitas),
-        "dropoffOptinTy": tasa(max(optins - thank_you, 0), optins),
+        # Frecuencia: cuántas veces vio el anuncio la misma persona. Cuando sube, el
+        # costo por registro sube detrás sin que cambie nada más. Se recalcula sobre el
+        # total y no se promedia entre campañas; con varias, el alcance se superpone y
+        # el número sale algo bajo.
+        "frecuencia": round(impresiones / alcance, 2) if alcance else None,
         # Sin un registro cargado aparte no hubo segundo paso que medir. Mostrar el
         # 100% que da dividir un número por sí mismo es peor que no mostrar nada.
         "tasaRegistro": None if m.get("registrosDerivados") else tasa(registros, optins),
@@ -497,7 +503,8 @@ class WebinarsServices:
         if not crudas and data.get("metricas"):
             crudas = {k: v for k, v in (data["metricas"] or {}).items()
                       if k in (
-                          "impresiones", "clicks", "visitasLanding", "optins", "thankYou",
+                          "impresiones", "alcance", "clicks", "visitasLanding", "optins",
+                          "thankYou",
                           "registros", "registrosDerivados", "entradasWhatsapp",
                           "agendasWebinar", "vivos", "shows",
                           "picoConcurrentes",
@@ -506,6 +513,7 @@ class WebinarsServices:
                       )}
         gasto = 0.0
         impresiones = 0
+        alcance = 0
         clicks = 0
         leads_ads = 0
         sync_ok = False
@@ -520,6 +528,7 @@ class WebinarsServices:
                     if str(c.get("id")) in ids:
                         gasto += float(c.get("gastoUsd") or 0)
                         impresiones += int(c.get("impresiones") or 0)
+                        alcance += int(c.get("alcance") or 0)
                         clicks += int(c.get("clicks") or 0)
                         leads_ads += int(c.get("leads") or 0)
                 sync_ok = True
@@ -527,6 +536,7 @@ class WebinarsServices:
                 logger.warning("No se pudieron leer ads del webinar: %s", str(e)[:160])
         if sync_ok:
             crudas["impresiones"] = impresiones
+            crudas["alcance"] = alcance
             crudas["clicks"] = clicks
         elif not gasto:
             gasto = float(crudas.get("gastoAdsUsd") or (data.get("metricas") or {}).get("gastoAdsUsd") or 0)

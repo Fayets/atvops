@@ -277,6 +277,10 @@ class MetaServices:
                     "estado": _estado_campania(meta.get("effective_status") or meta.get("status")),
                     "gastoUsd": round(spend, 2),
                     "impresiones": impresiones,
+                    # El alcance viaja para poder combinar la frecuencia de varias
+                    # campañas: la frecuencia no se suma ni se promedia, se recalcula
+                    # como impresiones sobre alcance.
+                    "alcance": int(row.get("reach") or 0),
                     "clicks": clicks,
                     "leads": leads,
                     "cplUsd": round(_costo_lead(row.get("cost_per_action_type"), leads, spend), 2),
@@ -302,6 +306,7 @@ class MetaServices:
                         "estado": _estado_campania(meta.get("effective_status") or meta.get("status")),
                         "gastoUsd": 0,
                         "impresiones": 0,
+                        "alcance": 0,
                         "clicks": 0,
                         "leads": 0,
                         "cplUsd": 0,

@@ -38,6 +38,9 @@ export function umbralesDe(meta) {
 export const BENCHMARKS_COLD = {
   // Fase 1 — portada: costo por registrante (USD). Verde < $10, amarillo $10–15, rojo > $15
   costoPorRegistrante: { verdeMax: 10, amarilloMax: 15 },
+  // Frecuencia de ads: cuántas veces vio el anuncio la misma persona. Verde < 2,
+  // amarillo 2–3, rojo > 3: pasado ese punto el costo por registro sube solo.
+  frecuencia: { verdeMax: 2, amarilloMax: 3 },
   // Fase 2 — show rate. Verde > 40%, amarillo 25–40%, rojo < 25%
   showRate: { verdeMin: 40, amarilloMin: 25 },
   // Retención al pitch (% del pico). Verde > 30%, amarillo 20–30%, rojo < 20%
@@ -89,6 +92,7 @@ export const CAMPOS_RAW = [
   // Fase 1
   { key: 'impresiones', label: 'Impresiones', fase: 'registro', tipo: 'count' },
   { key: 'clicks', label: 'Clicks', fase: 'registro', tipo: 'count' },
+  { key: 'alcance', label: 'Alcance', fase: 'registro', tipo: 'count' },
   { key: 'gastoAdsUsd', label: 'Gasto ads (USD)', fase: 'registro', tipo: 'usd' },
   { key: 'visitasLanding', label: 'Visitas landing', fase: 'registro', tipo: 'count', origen: 'script' },
   { key: 'optins', label: 'Opt-ins', fase: 'registro', tipo: 'count', origen: 'script' },
@@ -175,6 +179,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
   const m = { ...raw };
   const gasto = gastoAdsOverride != null ? n(gastoAdsOverride) : n(m.gastoAdsUsd);
   const impresiones = n(m.impresiones);
+  const alcance = n(m.alcance);
   const clicks = n(m.clicks);
   const visitas = n(m.visitasLanding);
   const optins = n(m.optins);
@@ -196,6 +201,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     ...m,
     gastoAdsUsd: gasto,
     impresiones,
+    alcance,
     clicks,
     visitasLanding: visitas,
     optins,
@@ -213,9 +219,11 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     cashUsd: cash,
     pif,
     ctr: tasa(clicks, impresiones),
+    // No se promedia entre campañas: se recalcula sobre el total.
+    frecuencia: alcance > 0 ? Math.round((impresiones / alcance) * 100) / 100 : null,
     cpc: money(gasto, clicks),
     conversionLanding: tasa(optins || registros, visitas),
-    dropoffOptinTy: tasa(Math.max(optins - thankYou, 0), optins),
+
     // El backend avisa cuando `registros` salió del opt-in porque la landing es de un
     // solo paso. Ahí no se midió ningún segundo momento: el 100% que da dividir un
     // número por sí mismo sería inventado. La cantidad igual se ve abajo del cartel.
@@ -267,9 +275,11 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'impresiones', label: 'Impresiones', valor: m.impresiones, formato: 'count' },
       { key: 'ctr', label: 'CTR', valor: m.ctr, formato: 'pct', detalle: de(m.clicks, m.impresiones) },
       { key: 'cpc', label: 'CPC', valor: m.cpc, formato: 'usd', detalle: sobre(m.clicks, 'clicks') },
+      { key: 'frecuencia', label: 'Frecuencia', valor: m.frecuencia, formato: 'num',
+        detalle: de(m.impresiones, m.alcance),
+        ayuda: 'veces que vio el anuncio la misma persona' },
       { key: 'visitasLanding', label: 'Tráfico landing', valor: m.visitasLanding, formato: 'count' },
       { key: 'conversionLanding', label: 'Conv. landing', valor: m.conversionLanding, formato: 'pct', detalle: de(m.optins || m.registros, m.visitasLanding), ayuda: 'optins (registros) / visitas' },
-      { key: 'dropoffOptinTy', label: 'Drop-off optin → TY', valor: m.dropoffOptinTy, formato: 'pct', detalle: de(Math.max(m.optins - m.thankYou, 0), m.optins) },
       {
         key: 'tasaRegistro',
         label: 'Registro / optin',
@@ -303,7 +313,13 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
 
   const tieneDiaExtra = m.retenidosPitch > 0 || m.picoConcurrentes > 0 || m.booked > 0;
   const semaforos = {
-    registro: semaforoBajo(m.costoPorRegistrante, bm.costoPorRegistrante),
+    // El costo por registrante dice dónde estás; la frecuencia, hacia dónde vas. Un
+    // costo todavía verde con la frecuencia por las nubes es una fase en problemas que
+    // el costo va a mostrar recién dentro de dos días.
+    registro: m.frecuencia != null
+      ? peorSemaforo(semaforoBajo(m.costoPorRegistrante, bm.costoPorRegistrante),
+                     semaforoBajo(m.frecuencia, bm.frecuencia))
+      : semaforoBajo(m.costoPorRegistrante, bm.costoPorRegistrante),
     dia: tieneDiaExtra
       ? peorSemaforo(
         semaforoAlto(m.showRate, bm.showRate),

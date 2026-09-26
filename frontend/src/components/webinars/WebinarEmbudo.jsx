@@ -12,6 +12,9 @@ function fmtMetrica(valor, formato) {
   if (valor == null) return '—';
   if (formato === 'pct') return `${valor}%`;
   if (formato === 'usd') return formatValue(valor, 'usd');
+  // La frecuencia se mueve entre 1 y 4: redondearla a entero borra justo el cambio
+  // que importa, que es pasar de 1,8 a 2,3.
+  if (formato === 'num') return valor.toLocaleString('es-AR', { maximumFractionDigits: 2 });
   return formatValue(valor, 'count');
 }
 
