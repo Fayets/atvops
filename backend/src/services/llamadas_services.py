@@ -214,12 +214,25 @@ def listar(desde: date, hasta: date) -> list[dict]:
 
     from src.models import ReunionCrm
 
+    from src.db import DB_SCHEMA, ES_POSTGRES
+
     inicio, fin = datetime.combine(desde, time.min), datetime.combine(hasta, time.min)
+    tabla = f'"{DB_SCHEMA}"."reuniones_crm"' if ES_POSTGRES else '"ReunionCrm"'
     with db_session:
-        # Se filtra por la fecha efectiva: si no, una llamada movida a este mes se
-        # seguiría buscando en el anterior y no aparecería en ninguno de los dos.
-        return [_a_dict(r) for r in list(ReunionCrm.select())
-                if r.es_venta and cuando(r) is not None and inicio <= cuando(r) < fin]
+        # El período lo recorta la base. Esta lista la piden el embudo, la tabla semanal,
+        # el calendario y las métricas del mes —cuatro veces por carga de Ventas—, así que
+        # traer la tabla entera cada vez y descartar en Python era el grueso del tiempo de
+        # la pantalla: 8.000 filas materializadas por Pony para usar 150.
+        #
+        # Se filtra por la fecha efectiva —COALESCE— y no por `inicio_at`: una llamada
+        # arrastrada a otro día tiene que aparecer en el mes al que se movió, no en el
+        # que decía el calendario.
+        return [_a_dict(r) for r in ReunionCrm.select_by_sql(
+            f'SELECT * FROM {tabla}'
+            f' WHERE "es_venta" = $True'
+            f'   AND COALESCE("movida_at", "inicio_at") >= $inicio'
+            f'   AND COALESCE("movida_at", "inicio_at") < $fin'
+        )]
 
 
 def hay_datos() -> bool:

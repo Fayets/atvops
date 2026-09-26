@@ -1040,8 +1040,15 @@ def _nombres_canonicos() -> dict[str, str]:
         from src.models import ReunionCrm
 
         with db_session:
-            vistos = sorted({(r.closer or "").strip() for r in list(ReunionCrm.select()) if (r.closer or "").strip()}
-                            | {(r.setter or "").strip() for r in list(ReunionCrm.select()) if (r.setter or "").strip()})
+            # Una sola pasada: antes se recorría la tabla entera dos veces, una por
+            # closers y otra por setters, para sacar el mismo puñado de nombres.
+            nombres: set[str] = set()
+            for r in ReunionCrm.select():
+                for quien in (r.closer, r.setter):
+                    limpio = (quien or "").strip()
+                    if limpio:
+                        nombres.add(limpio)
+            vistos = sorted(nombres)
         equipo = equipo_services.nombres()
         por_pila: dict[str, str] = {}
         for n in sorted(vistos, key=len, reverse=True):  # el más largo primero
@@ -1064,9 +1071,23 @@ def _nombres_canonicos() -> dict[str, str]:
 
 
 def _unico_del_rol(rol: str) -> str:
-    """Si hay una sola persona en ese rol, es esa. Si hay más, no se adivina."""
+    """Si hay una sola persona en ese rol, es esa. Si hay más, no se adivina.
+
+    Va con caché porque lo llama `_persona` una vez por fila sin nombre cargado, y las
+    agendas del CRM vienen casi todas así: en un mes cualquiera eran dos mil lecturas del
+    equipo entero para responder siempre lo mismo. El equipo no cambia entre dos filas de
+    la misma consulta, y con el TTL de siempre un alta se ve a los cinco minutos.
+    """
+    clave = f"unico:{rol}"
+    with _lock:
+        guardado = _cache.get(clave)
+        if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
     gente = equipo_services.listar(rol)
-    return gente[0]["nombre"] if len(gente) == 1 else ""
+    valor = gente[0]["nombre"] if len(gente) == 1 else ""
+    with _lock:
+        _cache[clave] = {"at": datetime.utcnow(), "data": valor}
+    return valor
 
 
 def _persona(nombre: str | None, rol: str = "") -> str:
