@@ -407,7 +407,23 @@ class WebinarsServices:
             if w is None:
                 raise HTTPException(status_code=404, detail="No existe ese webinar.")
             zoom_id = w.zoom_webinar_id
-            registros = int(_json(w.metricas, {}).get("registros") or 0)
+            crudas = _json(w.metricas, {})
+
+        # Cuántos registrados tiene este webinar, con la misma cuenta que muestra la
+        # Fase 2. El campo crudo `registros` está en cero a propósito en una landing de
+        # un solo paso —el opt-in ES el registro— y lo que se ve en el tablero lo cuenta
+        # el script de tracking. Leer solo el JSON daba 14 butacas donde el embudo dice
+        # 348 registrados, y dos números distintos para lo mismo en la misma pantalla.
+        registros = int(crudas.get("registros") or 0)
+        if not registros:
+            try:
+                from src.services.integraciones_services import IntegracionesServices
+
+                tracking = IntegracionesServices().metricas_tracking_webinar(webinar_id)
+                registros = int((tracking or {}).get("optins") or 0)
+            except Exception as e:  # noqa: BLE001 — sin esto la sala igual se dibuja
+                logger.info("Registrados del vivo: %s", str(e)[:160])
+            registros = registros or int(crudas.get("optins") or 0)
 
         if not zoom_id:
             raise HTTPException(status_code=400,
