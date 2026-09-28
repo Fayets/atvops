@@ -64,11 +64,6 @@ export default function DeQueEsLaCaja({ caja, mes, onCerrar }) {
             </div>
           ))}
         </div>
-
-        <footer className="dim">
-          Las dos cajas salen de ATV Clients, que es donde se decide qué cobro es una
-          cuota de venta y cuál es un upsell. ATV Ops las muestra, no las clasifica.
-        </footer>
       </div>
     </div>
   );
