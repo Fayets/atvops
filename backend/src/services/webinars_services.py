@@ -410,20 +410,26 @@ class WebinarsServices:
             crudas = _json(w.metricas, {})
 
         # Cuántos registrados tiene este webinar, con la misma cuenta que muestra la
-        # Fase 2. El campo crudo `registros` está en cero a propósito en una landing de
-        # un solo paso —el opt-in ES el registro— y lo que se ve en el tablero lo cuenta
-        # el script de tracking. Leer solo el JSON daba 14 butacas donde el embudo dice
-        # 348 registrados, y dos números distintos para lo mismo en la misma pantalla.
-        registros = int(crudas.get("registros") or 0)
-        if not registros:
-            try:
-                from src.services.integraciones_services import IntegracionesServices
+        # Los dos números de arriba del embudo, que no son el mismo.
+        #
+        # Opt-ins: dejaron el mail en la landing. Los cuenta el script de tracking, no
+        # están guardados en el webinar, así que hay que pedírselos.
+        #
+        # Confirmados: reservaron lugar en el evento. Es manual, porque esa confirmación
+        # pasa fuera del sistema. Cuando está cargado manda ese: es el denominador
+        # honesto de la sala y del show rate, porque son los que dijeron que venían.
+        # Cuando no —una landing de un paso, donde el opt-in ES el registro— se toma el
+        # opt-in, que ahí sí es la misma gente.
+        optins = 0
+        try:
+            from src.services.integraciones_services import IntegracionesServices
 
-                tracking = IntegracionesServices().metricas_tracking_webinar(webinar_id)
-                registros = int((tracking or {}).get("optins") or 0)
-            except Exception as e:  # noqa: BLE001 — sin esto la sala igual se dibuja
-                logger.info("Registrados del vivo: %s", str(e)[:160])
-            registros = registros or int(crudas.get("optins") or 0)
+            tracking = IntegracionesServices().metricas_tracking_webinar(webinar_id)
+            optins = int((tracking or {}).get("optins") or 0)
+        except Exception as e:  # noqa: BLE001 — sin esto la sala igual se dibuja
+            logger.info("Opt-ins del vivo: %s", str(e)[:160])
+        optins = optins or int(crudas.get("optins") or 0)
+        registros = int(crudas.get("registros") or 0) or optins
 
         if not zoom_id:
             raise HTTPException(status_code=400,
@@ -449,7 +455,10 @@ class WebinarsServices:
                          if minuto_pitch and x["minuto"] == minuto_pitch), None)
         booked = int(crudas.get("booked") or 0)
         embudo = [
-            {"label": "Opt-ins", "n": registros, "nota": "dejaron el mail en la landing"},
+            {"label": "Opt-ins", "n": optins, "nota": "dejaron el mail en la landing"},
+            *([{"label": "Confirmados", "n": registros,
+                "nota": "reservaron lugar en el evento"}]
+              if registros and registros != optins else []),
             {"label": "Inscriptos", "n": r.get("inscriptos") or 0, "nota": "confirmaron lugar en Zoom"},
             {"label": "Entraron", "n": r.get("distintos") or 0, "nota": "pisaron el vivo"},
             *([{"label": "Al pitch", "n": en_pitch,
@@ -457,7 +466,8 @@ class WebinarsServices:
             {"label": "Agendaron", "n": booked, "nota": "tomaron el CTA"},
         ]
         return {**r, "butacas": butacas, "registros": registros, "embudo": embudo,
-                "minutoPitch": minuto_pitch, "enElPitch": en_pitch, "booked": booked}
+                "minutoPitch": minuto_pitch, "enElPitch": en_pitch, "booked": booked,
+                "optins": optins}
 
     def sincronizar_zoom(self, webinar_id: int, usuario: dict) -> dict:
         """Trae la asistencia real de Zoom y llena los números de la Fase 2.
