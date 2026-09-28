@@ -205,6 +205,7 @@ class WebinarCreate(BaseModel):
     fechaHora: str | None = None
     tema: str | None = None
     ctaTipo: str = "call_funnel"
+    zoomWebinarId: str | None = None
     precioUsd: float = 0
     landingUrl: str | None = None
     thankYouUrl: str | None = None
@@ -222,6 +223,7 @@ class WebinarUpdate(BaseModel):
     fechaHora: str | None = None
     tema: str | None = None
     ctaTipo: str | None = None
+    zoomWebinarId: str | None = None
     precioUsd: float | None = None
     landingUrl: str | None = None
     thankYouUrl: str | None = None

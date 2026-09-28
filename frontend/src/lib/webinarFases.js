@@ -105,6 +105,10 @@ export const CAMPOS_RAW = [
   { key: 'picoConcurrentes', label: 'Pico concurrentes', fase: 'dia', tipo: 'count' },
   { key: 'retenidosPitch', label: 'Retenidos al pitch', fase: 'dia', tipo: 'count' },
   { key: 'booked', label: 'Booked / compraron', fase: 'dia', tipo: 'count' },
+  // A los cuántos minutos del arranque empieza el pitch. Es un dato del guion, no de
+  // Zoom: lo marca quien condujo, después del vivo. Con esto, "retenidos al pitch" se
+  // cuenta solo contra el reporte de asistencia.
+  { key: 'minutoPitch', label: 'Minuto en que arrancó el pitch', fase: 'dia', tipo: 'count' },
   // Fase 3
   { key: 'llamadasAgendadas', label: 'Llamadas agendadas', fase: 'post', tipo: 'count' },
   { key: 'showsLlamadas', label: 'Shows de llamadas', fase: 'post', tipo: 'count' },

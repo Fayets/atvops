@@ -166,6 +166,11 @@ def ensure_integracion_columns() -> None:
     _agregar_columnas("integraciones", "Integracion", [("base", "TEXT")])
 
 
+def ensure_webinar_columns() -> None:
+    """`zoom_webinar_id` llegó cuando se compró Zoom Webinars, con webinars ya cargados."""
+    _agregar_columnas("webinars", "Webinar", [("zoom_webinar_id", "TEXT")])
+
+
 def ensure_reunion_crm_columns() -> None:
     """La tabla de llamadas de ATV Ops nació solo con la referencia al CRM. Se le agregan
     las columnas del resultado, que es lo que ahora guarda el sistema por su cuenta."""

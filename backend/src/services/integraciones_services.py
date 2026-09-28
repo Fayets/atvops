@@ -15,6 +15,8 @@ TIPOS_INTEGRACION = frozenset({"landing"})
 # "agenda" porque en ATV Ops una agenda es una llamada de ventas reservada: dos cosas
 # distintas con el mismo nombre en el mismo tablero se confunden solas.
 TIPOS_EVENTO = frozenset({"pageview", "optin", "thank_you", "whatsapp", "calendario"})
+# Lo que SoftWebinar escribe en las métricas del webinar el día del vivo.
+CAMPOS_DIA_WEBINAR = ("vivos", "picoConcurrentes", "retenidosPitch")
 # Si hubo un evento en esta ventana, el status es "recibiendo".
 VENTANA_CONECTADO = timedelta(hours=48)
 
@@ -328,6 +330,35 @@ class IntegracionesServices:
                 session_id=(session_id or "")[:120] or None,
             )
             return {"ok": True, "tipo": tipo}
+
+    def registrar_dia_webinar(self, token: str, metricas: dict) -> dict:
+        """Números del día del webinar que manda SoftWebinar (sale de Zoom).
+
+        Solo escribe los tres campos que SoftWebinar sabe medir; Booked sigue a mano.
+        """
+        from src.models import Integracion, Webinar
+        from src.services.webinars_services import _dump, _json
+
+        limpios = {}
+        for campo in CAMPOS_DIA_WEBINAR:
+            if campo in metricas:
+                try:
+                    limpios[campo] = max(0, int(metricas[campo]))
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=400, detail=f"{campo} tiene que ser un número.")
+        if not limpios:
+            raise HTTPException(status_code=400, detail="No vino ningún número del día del webinar.")
+        with db_session:
+            i = Integracion.get(token=(token or "").strip())
+            if i is None or i.activo is not True:
+                raise HTTPException(status_code=401, detail="Token inválido o integración inactiva.")
+            w = Webinar.get(id=i.webinar_id) if i.webinar_id else None
+            if w is None:
+                raise HTTPException(status_code=404, detail="La integración no tiene un webinar vinculado.")
+            actual = _json(w.metricas, {})
+            actual.update(limpios)
+            w.metricas = _dump(actual)
+            return {"ok": True, "webinarId": w.id, **limpios}
 
     def registrar_pageview(self, token: str, **kwargs) -> dict:
         return self.registrar_evento(token, "pageview", **kwargs)

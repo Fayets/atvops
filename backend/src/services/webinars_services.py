@@ -276,6 +276,7 @@ def _a_dict(w, ahora: datetime | None = None, con_detalle: bool = False) -> dict
         "fechaHora": w.fecha_hora.isoformat(sep=" ") if w.fecha_hora else None,
         "tema": w.tema or "",
         "ctaTipo": w.cta_tipo,
+        "zoomWebinarId": w.zoom_webinar_id,
         "precioUsd": float(w.precio_usd or 0),
         "landingUrl": w.landing_url or "",
         "thankYouUrl": w.thank_you_url or "",
@@ -374,6 +375,7 @@ class WebinarsServices:
                 whatsapp_grupo=(str(datos.get("whatsappGrupo") or "").strip() or None),
                 campanias_ads=_dump(campanias),
                 benchmarks=_dump(datos.get("benchmarks") or {}),
+                zoom_webinar_id=(str(datos.get("zoomWebinarId") or "").strip() or None),
                 metricas=_dump(datos.get("metricas") or {}),
                 plantilla_de_id=int(datos["plantillaDeId"]) if datos.get("plantillaDeId") else None,
                 notas=(str(datos.get("notas") or "").strip() or None),
@@ -394,6 +396,53 @@ class WebinarsServices:
             logger.warning("No se pudo crear tracking del webinar: %s", str(e)[:160])
         data["metricas"] = self._enriquecer_ads(data)
         return data
+
+    def sincronizar_zoom(self, webinar_id: int, usuario: dict) -> dict:
+        """Trae la asistencia real de Zoom y llena los números de la Fase 2.
+
+        Pisa vivos y pico porque son medidos y nadie los sabe mejor que el reporte. No
+        toca `booked`, que sale del cierre y no de la asistencia. Y si todavía no está
+        cargado el minuto del pitch, deja retenidos como estaba: mejor el número viejo
+        que uno calculado contra un momento inventado.
+        """
+        from src.models import Webinar
+        from src.services import zoom_services
+
+        with db_session:
+            w = Webinar.get(id=webinar_id, borrado_at=None)
+            if w is None:
+                raise HTTPException(status_code=404, detail="No existe ese webinar.")
+            zoom_id = w.zoom_webinar_id
+            minuto = _json(w.metricas, {}).get("minutoPitch")
+
+        if not zoom_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Falta el ID del webinar en Zoom. Se carga en Configurar.",
+            )
+
+        minuto = int(minuto) if str(minuto or "").strip().isdigit() and int(minuto) > 0 else None
+        r = zoom_services.resumen_del_dia(zoom_id, minuto)
+
+        nuevos = {"vivos": r["vivos"], "picoConcurrentes": r["picoConcurrentes"]}
+        if r["retenidosPitch"] is not None:
+            nuevos["retenidosPitch"] = r["retenidosPitch"]
+
+        with db_session:
+            w = Webinar.get(id=webinar_id, borrado_at=None)
+            actual = _json(w.metricas, {})
+            actual.update(nuevos)
+            w.metricas = _dump(actual)
+            w.actualizado_por = usuario.get("username") or ""
+            w.actualizado_at = datetime.utcnow()
+
+        data = self.obtener(webinar_id)
+        return {
+            **data,
+            "zoom": r,
+            "aviso": None if minuto else
+            "Cargá el minuto en que arrancó el pitch para que se calcule la retención.",
+        }
 
     def actualizar(self, webinar_id: int, datos: dict, usuario: dict) -> dict:
         from src.models import Webinar
@@ -430,6 +479,11 @@ class WebinarsServices:
                 w.campanias_ads = _dump(_limpiar_campanias(datos.get("campaniasAds")))
             if "benchmarks" in datos and isinstance(datos.get("benchmarks"), dict):
                 w.benchmarks = _dump(datos["benchmarks"])
+            if "zoomWebinarId" in datos:
+                # Zoom lo muestra con guiones y espacios ("123 4567 8901"): se limpia acá
+                # y no en la pantalla, así vale para cualquiera que pegue por API.
+                crudo = "".join(ch for ch in str(datos.get("zoomWebinarId") or "") if ch.isdigit())
+                w.zoom_webinar_id = crudo or None
             if "metricas" in datos and isinstance(datos.get("metricas"), dict):
                 actual = _json(w.metricas, {})
                 actual.update(datos["metricas"])
@@ -471,6 +525,7 @@ class WebinarsServices:
                 "tema": overrides.get("tema", origen.tema),
                 "fechaHora": overrides.get("fechaHora"),
                 "ctaTipo": origen.cta_tipo,
+                "zoomWebinarId": None,  # cada evento tiene el suyo: no se hereda al duplicar
                 "precioUsd": origen.precio_usd,
                 "landingUrl": origen.landing_url,
                 "thankYouUrl": origen.thank_you_url,

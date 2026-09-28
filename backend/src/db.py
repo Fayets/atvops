@@ -84,7 +84,8 @@ def init_db() -> None:
     from src.services.auth_services import (ensure_conversacion_columns, ensure_idea_usuario_column,
                                             ensure_integracion_columns,
                                             ensure_pitch_setting_columns, ensure_reunion_crm_columns,
-                                            ensure_reunion_usuario_column, ensure_usuario_rol_column)
+                                            ensure_reunion_usuario_column, ensure_usuario_rol_column,
+                                            ensure_webinar_columns)
 
     if ES_POSTGRES:
         _bind_postgres()
@@ -98,6 +99,7 @@ def init_db() -> None:
     ensure_conversacion_columns()
     ensure_pitch_setting_columns()
     ensure_integracion_columns()
+    ensure_webinar_columns()
 
     if db.entities:
         db.generate_mapping(create_tables=True)

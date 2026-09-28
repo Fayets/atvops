@@ -5,7 +5,7 @@ import Modal from '../components/ui/Modal.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { fmtMetrica, SEMAFORO_LABEL } from '../components/webinars/WebinarEmbudo.jsx';
-import { getWebinar, reiniciarTrackingWebinar } from '../data/api.js';
+import { getWebinar, reiniciarTrackingWebinar, sincronizarZoom } from '../data/api.js';
 import { CAMPOS_RAW, fasesDeWebinar } from '../lib/webinarFases.js';
 
 const FASE_IDS = new Set(['registro', 'dia', 'post']);
@@ -22,6 +22,8 @@ export default function WebinarFaseDetalle() {
   const [verCampanias, setVerCampanias] = useState(false);
   const [tick, setTick] = useState(0);
   const [reiniciando, setReiniciando] = useState(false);
+  const [trayendo, setTrayendo] = useState(false);
+  const [avisoZoom, setAvisoZoom] = useState('');
   const [errorAccion, setErrorAccion] = useState('');
 
   useEffect(() => {
@@ -57,6 +59,24 @@ export default function WebinarFaseDetalle() {
   // registros cuando el script no contó ninguno, y entonces ofreceríamos borrar
   // eventos que no existen.
   const totalScript = Number(webinar?.trackingEventos) || 0;
+
+  async function traerDeZoom() {
+    setTrayendo(true);
+    setErrorAccion('');
+    setAvisoZoom('');
+    try {
+      const r = await sincronizarZoom(id);
+      setAvisoZoom(
+        r.aviso
+          || `Listo: ${r.zoom.vivos} entraron, pico de ${r.zoom.picoConcurrentes}.`,
+      );
+      setTick((n) => n + 1);
+    } catch (e) {
+      setErrorAccion(e.message);
+    } finally {
+      setTrayendo(false);
+    }
+  }
 
   async function reiniciarScript() {
     if (!totalScript) return;
@@ -151,7 +171,23 @@ export default function WebinarFaseDetalle() {
         title="Números cargados"
         sub="Raw que alimentan esta fase. Se editan en Configurar."
         actions={
-          delScript.length ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {faseId === 'dia' ? (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={traerDeZoom}
+              disabled={trayendo || !webinar?.zoomWebinarId}
+              title={
+                webinar?.zoomWebinarId
+                  ? 'Lee el reporte de asistencia y llena vivos, pico y retenidos.'
+                  : 'Falta el ID del webinar en Zoom, se carga en Configurar'
+              }
+            >
+              {trayendo ? 'Trayendo…' : 'Traer de Zoom'}
+            </button>
+          ) : null}
+          {delScript.length ? (
             <button
               type="button"
               className="btn sm alerta"
@@ -165,7 +201,8 @@ export default function WebinarFaseDetalle() {
             >
               {reiniciando ? 'Reiniciando…' : 'Poner en cero el script'}
             </button>
-          ) : null
+          ) : null}
+          </div>
         }
       >
         <ul className="wb-fase-raw">
@@ -187,6 +224,7 @@ export default function WebinarFaseDetalle() {
           })}
         </ul>
         {errorAccion ? <p className="error">{errorAccion}</p> : null}
+        {avisoZoom ? <p className="dim" style={{ fontSize: 12.5 }}>{avisoZoom}</p> : null}
         <Link to={`/webinars/${id}`} className="btn sm" style={{ marginTop: 12 }}>
           Editar números
         </Link>

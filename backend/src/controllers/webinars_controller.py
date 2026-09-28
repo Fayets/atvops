@@ -59,6 +59,17 @@ def actualizar(webinar_id: int, body: schemas.WebinarUpdate, user: dict = Depend
         raise HTTPException(status_code=500, detail=f"No se pudo actualizar el webinar: {e}") from e
 
 
+@router.post("/{webinar_id}/sincronizar-zoom")
+def sincronizar_zoom(webinar_id: int, user: dict = Depends(_puede_webinars)):
+    """Lee el reporte de asistencia de Zoom y llena los números del día."""
+    try:
+        return service.sincronizar_zoom(webinar_id, user)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"No se pudo sincronizar con Zoom: {e}") from e
+
+
 @router.post("/{webinar_id}/duplicar")
 def duplicar(webinar_id: int, body: schemas.WebinarDuplicar | None = Body(None),
              user: dict = Depends(_puede_webinars)):

@@ -157,3 +157,17 @@ def pixel(
         media_type="image/gif",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
     ))
+
+
+@router.post("/webinar-dia")
+async def webinar_dia(request: Request):
+    """SoftWebinar manda vivos, pico de concurrentes y retenidos al pitch (datos de Zoom)."""
+    try:
+        raw = _leer_body(await request.json())
+    except Exception:  # noqa: BLE001
+        raw = {}
+    try:
+        result = service.registrar_dia_webinar(str(raw.get("token") or ""), raw)
+        return _cors(JSONResponse(result))
+    except HTTPException as e:
+        return _cors(JSONResponse({"detail": e.detail}, status_code=e.status_code))

@@ -29,6 +29,7 @@ const VACIO = {
   fechaHora: '',
   tema: '',
   ctaTipo: 'call_funnel',
+  zoomWebinarId: '',
   precioUsd: 0,
   landingUrl: '',
   thankYouUrl: '',
@@ -98,6 +99,7 @@ export default function WebinarDetalle({ modo } = {}) {
           fechaHora: aInputDatetime(w.fechaHora),
           tema: w.tema || '',
           ctaTipo: w.ctaTipo || 'call_funnel',
+          zoomWebinarId: w.zoomWebinarId || '',
           precioUsd: w.precioUsd || 0,
           benchmarks: w.benchmarks || {},
           landingUrl: w.landingUrl || '',
@@ -163,6 +165,7 @@ export default function WebinarDetalle({ modo } = {}) {
     fechaHora: form.fechaHora ? form.fechaHora.replace('T', ' ') : null,
     tema: form.tema.trim() || null,
     ctaTipo: form.ctaTipo,
+    zoomWebinarId: form.zoomWebinarId.trim() || null,
     precioUsd: Number(form.precioUsd) || 0,
     landingUrl: form.landingUrl.trim() || null,
     thankYouUrl: form.thankYouUrl.trim() || null,
@@ -268,6 +271,11 @@ export default function WebinarDetalle({ modo } = {}) {
               <select value={form.ctaTipo} onChange={(e) => set({ ctaTipo: e.target.value })}>
                 {CTA_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+            </label>
+            <label>ID del webinar en Zoom
+              <input value={form.zoomWebinarId} onChange={(e) => set({ zoomWebinarId: e.target.value })}
+                placeholder="123 4567 8901" inputMode="numeric" />
+              <span className="dim">Con o sin espacios. Es lo que trae la asistencia real.</span>
             </label>
             <label className="ancho">Landing URL
               <input type="url" value={form.landingUrl} onChange={(e) => set({ landingUrl: e.target.value })}

@@ -651,6 +651,9 @@ class Webinar(db.Entity):
     thank_you_url = Optional(str, nullable=True)
     calendly_url = Optional(str, nullable=True)
     whatsapp_grupo = Optional(str, nullable=True)
+    # Id numérico del webinar en Zoom. Es lo que ata este evento con su reporte de
+    # asistencia: sin esto no se puede traer quién entró ni cuánto se quedó.
+    zoom_webinar_id = Optional(str, nullable=True)
     # JSON: [{id, nombre}] campañas Meta que mandan tráfico a este webinar
     campanias_ads = Required(str, default="[]")
     # JSON: benchmarks / metas del funnel de este evento
