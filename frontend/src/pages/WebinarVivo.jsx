@@ -87,13 +87,13 @@ export default function WebinarVivo() {
         desc={
           d?.enVivo
             ? `Arrancó ${hora(d.arranqueAt)} · va ${desdeHace(d.arranqueAt)}`
-            : d?.finAt
-              ? `Terminó ${hora(d.finAt)} · duró ${desdeHace(d.arranqueAt)}`
-              : 'Todavía no arrancó'
+            : d?.arranqueAt
+              ? `Arrancó ${hora(d.arranqueAt)} · no queda nadie conectado`
+              : 'Todavía no entró nadie'
         }
         actions={
           <Pill tone={d?.enVivo ? 'alert' : 'off'} dot>
-            {d?.enVivo ? 'en vivo' : d?.finAt ? 'terminado' : 'sin arrancar'}
+            {d?.enVivo ? 'en vivo' : d?.arranqueAt ? 'sin nadie adentro' : 'sin arrancar'}
           </Pill>
         }
       />
@@ -103,7 +103,7 @@ export default function WebinarVivo() {
       {d ? (
         <div className="vivo-kpis">
           <Kpi label="Conectados ahora" valor={d.conectados} tono={d.enVivo ? 'ok' : null}
-            nota={d.enVivo ? 'adentro en este momento' : 'el webinar no está en curso'} />
+            nota={d.enVivo ? 'adentro en este momento' : 'no hay nadie conectado'} />
           <Kpi label="Pico" valor={d.picoConcurrentes}
             nota={d.picoAt ? `el máximo fue ${hora(d.picoAt)}` : 'todavía sin pico'} />
           <Kpi label="Queda del pico" valor={retencion == null ? '—' : `${retencion}%`}

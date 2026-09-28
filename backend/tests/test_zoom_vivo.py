@@ -90,5 +90,21 @@ def test_cuando_termina_deja_de_estar_en_vivo():
     assert r["picoConcurrentes"] == 1
 
 
+def test_sin_evento_de_inicio_igual_se_sabe_que_esta_en_vivo():
+    """La cuenta de ATV solo puede suscribir entradas y salidas: los eventos de inicio
+    y fin del webinar no están disponibles. Con alguien adentro, está pasando."""
+    evento("entra", "a", "a@x.com", 1)
+    r = z.vivo(W)
+    assert r["enVivo"] is True
+    assert r["arranqueAt"] is not None
+    assert r["conectados"] == 1
+
+
+def test_sin_evento_de_inicio_y_sin_nadie_adentro_no_esta_en_vivo():
+    evento("entra", "a", "a@x.com", 1)
+    evento("sale", "a", "a@x.com", 30)
+    assert z.vivo(W)["enVivo"] is False
+
+
 def test_un_evento_que_no_conocemos_no_rompe_nada():
     assert z.registrar_evento({"event": "recording.completed"})["ok"] is True

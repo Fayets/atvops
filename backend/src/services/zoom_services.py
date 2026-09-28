@@ -500,15 +500,25 @@ def vivo(webinar_zoom_id: str) -> dict:
     # se fue —que es todo el mundo mientras el webinar está pasando—.
     tramos.extend((desde, ahora) for desde in entradas.values())
     pico, pico_at = pico_concurrentes(tramos)
-    serie = _curva(tramos, arranque or (filas[0][4] if filas else None), fin or ahora)
+
+    # Los eventos "webinar iniciado/finalizado" no están disponibles en todas las
+    # cuentas: en la de ATV solo se pueden suscribir las entradas y salidas. Así que el
+    # arranque es el primer ingreso y "está en vivo" es que haya alguien adentro. Es la
+    # misma pregunta contestada con lo que sí llega, en vez de una pantalla apagada
+    # esperando un evento que esa cuenta nunca va a mandar.
+    primer_evento = filas[0][4] if filas else None
+    arranque = arranque or primer_evento
+    en_vivo = fin is None and bool(adentro)
+    serie = _curva(tramos, arranque, fin or ahora)
 
     return {
         "webinarId": str(webinar_zoom_id),
-        "enVivo": bool(arranque and not fin),
+        "enVivo": en_vivo,
         "conectados": len(adentro),
         "picoConcurrentes": pico,
         "picoAt": pico_at.isoformat() if pico_at else None,
         "distintos": len(personas),
+        "ultimoEventoAt": filas[-1][4].isoformat() if filas else None,
         "arranqueAt": arranque.isoformat() if arranque else None,
         "finAt": fin.isoformat() if fin else None,
         "serie": serie,
