@@ -110,7 +110,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "delMes": {"cuotas": 0, "totalUsd": 0, "cobradoUsd": 0, "pendienteUsd": 0,
                    "pendienteVencidoUsd": 0, "pendientePorVencerUsd": 0,
                    "vencidoUsd": 0, "pctCobrado": 0},
-        "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0, "cobradoHistoricoUsd": 0},
+        "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0,
+                    "cobradoHistoricoUsd": 0, "deudores": []},
         "caja": {"usd": 0, "pagos": 0, "caja1": None, "caja2": None, "otros": 0},
         "cuotas": [], "vencidas": [], "proximas": [],
     }
@@ -127,6 +128,13 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     clientes = clients_db.consultar(
         "SELECT estado_cliente, count(*) AS n, coalesce(sum(total_adeudado_usd), 0) AS deuda, "
         "coalesce(sum(total_pagado_usd), 0) AS pagado FROM {esquema}.clientes GROUP BY estado_cliente"
+    )
+    # Quién debe, para poder abrir el total de la deuda. Un número de deuda que no se
+    # puede desarmar en nombres no sirve para reclamar nada.
+    deudores = clients_db.consultar(
+        "SELECT nombre, plan_actual, estado_cliente, total_adeudado_usd "
+        "FROM {esquema}.clientes WHERE coalesce(total_adeudado_usd, 0) > 0 "
+        "ORDER BY total_adeudado_usd DESC"
     )
     # La caja: la plata que entró en el mes, con fecha de pago, venza la cuota cuando
     # venza. Es otra pregunta que la de abajo y por eso se lee de otra tabla.
@@ -189,11 +197,20 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "inactivos": int(_num((por_estado.get("inactivo") or {}).get("n"))),
             "deudaUsd": round(sum(_num(c["deuda"]) for c in clientes), 2),
             "cobradoHistoricoUsd": round(sum(_num(c["pagado"]) for c in clientes), 2),
+            "deudores": [
+                {
+                    "cliente": (d["nombre"] or "").strip() or "Sin nombre",
+                    "plan": (d["plan_actual"] or "").strip(),
+                    "estado": (d["estado_cliente"] or "").strip(),
+                    "deudaUsd": round(_num(d["total_adeudado_usd"]), 2),
+                }
+                for d in deudores
+            ],
         },
         "cuotas": del_mes,
-        "vencidas": sorted([q for q in todas if q["estado"] == "vencida"], key=lambda q: -q["diasVencida"])[:40],
+        "vencidas": sorted([q for q in todas if q["estado"] == "vencida"], key=lambda q: -q["diasVencida"]),
         "proximas": sorted([q for q in todas if q["estado"] == "pendiente" and q["venceAt"] and q["venceAt"] >= hoy.isoformat()],
-                           key=lambda q: q["venceAt"])[:40],
+                           key=lambda q: q["venceAt"]),
     }
     with _lock:
         _cache[mes] = {"at": datetime.utcnow(), "data": data}

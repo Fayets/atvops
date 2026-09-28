@@ -5408,6 +5408,23 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-venta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); align-items: end; }
 .llamada-precio { grid-column: 1 / -1; font-size: 12px; }
 .llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }
+.detalle-cobranza { max-width: 680px; display: grid; gap: var(--space-4); }
+.detalle-grupos { display: grid; gap: var(--space-4); max-height: 58vh; overflow-y: auto; }
+.detalle-grupo > header { display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-3); padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
+.detalle-grupo h4 { margin: 0; font-size: 13.5px; }
+.detalle-grupo header .dim { font-size: 12px; }
+.detalle-grupo-n { text-align: right; white-space: nowrap; }
+.detalle-grupo-n .num { display: block; font-size: 15px; font-weight: 600; }
+.detalle-filas { display: grid; gap: 1px; margin-top: 6px; }
+.detalle-fila { display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px auto; gap: var(--space-3);
+  align-items: center; padding: 7px var(--space-3); border-radius: var(--radius-sm); font-size: 12.5px; }
+.detalle-fila:nth-child(odd) { background: var(--surface-2); }
+.detalle-quien { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalle-total { display: flex; justify-content: space-between; align-items: baseline;
+  padding-top: var(--space-3); border-top: 1px solid var(--border); font-size: 13px; }
+.detalle-total .num { font-size: 18px; font-weight: 700; }
+
 .caja-detalle { max-width: 560px; display: grid; gap: var(--space-4); }
 .caja-partes { display: grid; gap: 2px; }
 .caja-parte { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: var(--space-3);

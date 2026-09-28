@@ -39,6 +39,8 @@ def _falso(monkeypatch, pagos_usd, pagos_n, split=None):
     def consultar(sql, params=None):
         if "FROM {esquema}.pagos" in sql:
             return [{"n": pagos_n, "usd": pagos_usd}]
+        if "total_adeudado_usd, 0) > 0" in sql:
+            return []
         if "GROUP BY estado_cliente" in sql:
             return CLIENTES
         return CUOTAS
@@ -110,3 +112,39 @@ def test_sin_conexion_la_caja_va_en_cero_y_no_falta(monkeypatch):
     assert r["caja"]["usd"] == 0 and r["caja"]["pagos"] == 0
     assert r["caja"]["caja1"] is None
     assert r["conectado"] is False
+
+
+def test_falta_cobrar_se_parte_en_vencido_y_por_vencer(monkeypatch):
+    """Las partes del desglose tienen que sumar la tarjeta, siempre.
+
+    Las tarjetas de Cobranza se abren y muestran las filas que las componen. Si las
+    partes no dan el total, el tablero pasa de herramienta a tema de discusión.
+    """
+    _falso(monkeypatch, pagos_usd=12000, pagos_n=4)
+    m = cs.resumen(MES, refrescar=True)["delMes"]
+    assert m["pendienteVencidoUsd"] + m["pendientePorVencerUsd"] == m["pendienteUsd"]
+    assert m["cobradoUsd"] + m["pendienteUsd"] == m["totalUsd"]
+
+
+def test_los_deudores_suman_la_deuda_de_la_cartera(monkeypatch):
+    def consultar(sql, params=None):
+        if "FROM {esquema}.pagos" in sql:
+            return [{"n": 0, "usd": 0}]
+        if "total_adeudado_usd, 0) > 0" in sql:
+            return [
+                {"nombre": "Uno", "plan_actual": "boost", "estado_cliente": "vigente",
+                 "total_adeudado_usd": 1500},
+                {"nombre": "Dos", "plan_actual": "mentoria", "estado_cliente": "inactivo",
+                 "total_adeudado_usd": 500},
+            ]
+        if "GROUP BY estado_cliente" in sql:
+            return [{"estado_cliente": "vigente", "n": 2, "deuda": 2000, "pagado": 0}]
+        return CUOTAS
+
+    monkeypatch.setattr(clients_db, "disponible", lambda: True)
+    monkeypatch.setattr(clients_db, "consultar", consultar)
+    monkeypatch.setattr(cs, "_split_de_caja", lambda mes: None)
+    cs._cache.clear()
+
+    cartera = cs.resumen(MES, refrescar=True)["cartera"]
+    assert sum(d["deudaUsd"] for d in cartera["deudores"]) == cartera["deudaUsd"]

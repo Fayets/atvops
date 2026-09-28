@@ -3,6 +3,7 @@ import Bars from '../charts/Bars.jsx';
 import LineArea from '../charts/LineArea.jsx';
 import Card from '../ui/Card.jsx';
 import DeQueEsLaCaja from './DeQueEsLaCaja.jsx';
+import DetalleCobranza from './DetalleCobranza.jsx';
 import PanelArea, { n, pct } from '../ui/PanelArea.jsx';
 
 /**
@@ -30,6 +31,7 @@ const dia = (iso) => (iso ? iso.slice(8, 10) : null);
 
 export default function PanelCobranza({ data }) {
   const [verCaja, setVerCaja] = useState(false);
+  const [detalle, setDetalle] = useState(null);
   // `getCobranza` ya dejó los números del mes en la raíz y la lista de vencidas aparte.
   const cartera = data?.cartera ?? {};
   const cuotas = data?.cuotas ?? [];
@@ -65,6 +67,28 @@ export default function PanelCobranza({ data }) {
       });
   }, [cuotas]);
 
+  // Las tres partes en que se corta el mes. Las tres salen de la misma lista, así que
+  // cobrado + vencido + por vencer siempre da el total del mes: se puede comprobar
+  // abriendo las tarjetas una al lado de la otra.
+  const delMes = useMemo(() => ({
+    pagadas: cuotas.filter((c) => c.estado === 'pagada'),
+    vencidas: cuotas.filter((c) => c.estado === 'vencida'),
+    porVencer: cuotas.filter((c) => c.estado === 'pendiente'),
+  }), [cuotas]);
+
+  const vencidasPorTramo = useMemo(
+    () => TRAMOS.map((t) => ({
+      clave: t.label,
+      label: t.label,
+      nota: t.label === 'más de 60' ? 'lo que hay que decidir si se reclama o se da por perdido' : undefined,
+      filas: vencidas.filter((c) => {
+        const d = c.diasVencida ?? c.diasAtraso ?? 0;
+        return d >= t.min && d <= t.max;
+      }),
+    })),
+    [vencidas],
+  );
+
   const porTramo = useMemo(
     () => TRAMOS.map((t) => {
       const suyas = vencidas.filter((c) => (c.diasVencida ?? c.diasAtraso ?? 0) >= t.min
@@ -83,18 +107,61 @@ export default function PanelCobranza({ data }) {
           // Clients no devolvió el desglose, la tarjeta no promete un detalle que no hay.
           onVer: caja.caja1 == null ? undefined : () => setVerCaja(true) },
         { label: 'De lo que vencía, entró', valor: n(cobrado, 'usd'),
-          nota: `${pct(data?.pctSobreVencido)} de las ${n(cuotas.length)} cuotas que vencen este mes` },
+          nota: `${pct(data?.pctSobreVencido)} de las ${n(cuotas.length)} cuotas que vencen este mes`,
+          onVer: () => setDetalle({
+            titulo: 'Las cuotas del mes que ya se cobraron',
+            sub: 'Vencían en el mes y están pagadas. La fecha es la del pago, que puede caer en otro mes.',
+            total: cobrado, columna: 'pagada',
+            grupos: [{ clave: 'pagadas', label: 'Cobradas', filas: delMes.pagadas }],
+          }) },
         { label: 'Falta cobrar', valor: n(pendiente, 'usd'), tono: pendiente > 0 ? 'warn' : null,
-          nota: `${n(data?.faltaVencido, 'usd')} ya vencido · ${n(data?.faltaPorVencer, 'usd')} todavía por vencer` },
+          nota: `${n(data?.faltaVencido, 'usd')} ya vencido · ${n(data?.faltaPorVencer, 'usd')} todavía por vencer`,
+          onVer: () => setDetalle({
+            titulo: 'Lo que falta cobrar del mes',
+            sub: 'Dos cosas distintas: lo que ya se pasó de fecha se va a buscar hoy; lo otro todavía no se debe.',
+            total: pendiente, columna: 'vence',
+            grupos: [
+              { clave: 'vencidas', label: 'Ya vencidas', nota: 'pasadas de fecha', filas: delMes.vencidas },
+              { clave: 'porVencer', label: 'Todavía por vencer', filas: delMes.porVencer },
+            ],
+          }) },
         { label: 'Vencido', valor: n(vencidoUsd, 'usd'), tono: vencidoUsd > 0 ? 'alert' : null,
-          nota: `${n(vencidas.length)} cuotas pasadas de fecha, de todos los meses` },
+          nota: `${n(vencidas.length)} cuotas pasadas de fecha, de todos los meses`,
+          onVer: () => setDetalle({
+            titulo: 'Todo lo vencido, por antigüedad',
+            sub: 'De todos los meses. Una cuota de hace tres meses y una de ayer no se cobran igual.',
+            total: vencidoUsd, columna: 'atraso', grupos: vencidasPorTramo,
+          }) },
         { label: 'Total del mes', valor: n(totalMes, 'usd'),
-          nota: 'todo lo que vencía en el mes, cobrado o no' },
+          nota: 'todo lo que vencía en el mes, cobrado o no',
+          onVer: () => setDetalle({
+            titulo: 'Todas las cuotas que vencen este mes',
+            sub: 'Cobradas o no. Es el denominador de todo lo demás.',
+            total: totalMes, columna: 'vence',
+            grupos: [
+              { clave: 'pagadas', label: 'Cobradas', filas: delMes.pagadas },
+              { clave: 'vencidas', label: 'Vencidas sin cobrar', filas: delMes.vencidas },
+              { clave: 'porVencer', label: 'Todavía por vencer', filas: delMes.porVencer },
+            ],
+          }) },
         { label: 'Deuda de la cartera', valor: n(cartera.deudaUsd, 'usd'),
-          nota: `${n(cartera.vigentes)} clientes vigentes de ${n(cartera.clientes)}` },
+          nota: `${n(cartera.vigentes)} clientes vigentes de ${n(cartera.clientes)}`,
+          onVer: () => setDetalle({
+            titulo: 'Quién debe la deuda de la cartera',
+            sub: 'Todo lo que cada cliente todavía no pagó de su plan, venza cuando venza.',
+            total: cartera.deudaUsd ?? 0, columna: 'ninguna',
+            grupos: [
+              { clave: 'vigentes', label: 'Clientes vigentes', nota: 'los que siguen activos',
+                filas: (cartera.deudores ?? []).filter((d) => d.estado === 'vigente') },
+              { clave: 'otros', label: 'Inactivos y dados de baja',
+                nota: 'deuda de gente que ya no está: es la que se decide reclamar o perder',
+                filas: (cartera.deudores ?? []).filter((d) => d.estado !== 'vigente') },
+            ],
+          }) },
       ]}
     >
       {verCaja && <DeQueEsLaCaja caja={caja} mes={data?.mes} onCerrar={() => setVerCaja(false)} />}
+      {detalle && <DetalleCobranza {...detalle} onCerrar={() => setDetalle(null)} />}
 
       <Card
         title="Lo que vencía y lo que entró"
