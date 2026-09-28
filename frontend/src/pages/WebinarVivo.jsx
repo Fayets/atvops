@@ -186,7 +186,9 @@ export default function WebinarVivo() {
       {d ? (
         <div className="vivo-kpis">
           <Kpi grande label="Conectados ahora" valor={d.conectados} tono={d.enVivo ? 'ok' : null}
-            nota={d.enVivo ? 'adentro en este momento' : 'no hay nadie conectado'} />
+            nota={d.sinEscuchar
+              ? `${d.sinEscuchar} ya estaban cuando empezamos a escuchar`
+              : d.enVivo ? 'adentro en este momento' : 'no hay nadie conectado'} />
           <Kpi label="Pico" valor={d.picoConcurrentes}
             nota={d.picoAt ? `el máximo fue ${hora(d.picoAt)}` : 'todavía sin pico'} />
           <Kpi label="Queda del pico" valor={retencion == null ? '—' : `${retencion}%`}

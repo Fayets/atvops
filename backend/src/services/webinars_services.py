@@ -444,6 +444,26 @@ class WebinarsServices:
         # siguen estando, en el show rate y en el embudo, que es donde ese número dice algo.
         butacas = list(r.get("butacas") or [])
 
+        # Piso de asistentes. Los webhooks solo avisan de quien entra DESPUÉS de que la
+        # suscripción existe: si se activa con el webinar empezado, los que ya estaban
+        # adentro no generan ningún evento y el contador arranca en cero con la sala
+        # llena. El número que se carga a mano en "Vivos (show)" tapa ese agujero: los
+        # que no escuchamos se cuentan como presentes, porque lo están.
+        vivos_a_mano = int(crudas.get("vivos") or 0)
+        sin_escuchar = max(0, vivos_a_mano - int(r.get("distintos") or 0))
+        if sin_escuchar:
+            r = {
+                **r,
+                "distintos": vivos_a_mano,
+                "conectados": int(r.get("conectados") or 0) + sin_escuchar,
+                "picoConcurrentes": int(r.get("picoConcurrentes") or 0) + sin_escuchar,
+                "sinEscuchar": sin_escuchar,
+            }
+            butacas.extend(
+                {"nombre": None, "email": None, "estado": "adentro", "inscripto": False}
+                for _ in range(sin_escuchar)
+            )
+
         # El embudo del vivo: los cinco saltos, con lo que hay. `booked` es manual y
         # puede estar en cero durante el vivo; se muestra igual para que el último
         # escalón no aparezca recién cuando alguien lo carga.
