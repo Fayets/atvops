@@ -29,7 +29,7 @@ const NOMBRES = [
 export function vivoDemo() {
   const r = azar(20260928);
   const optins = 348;
-  const inscriptos = 96;
+  const inscriptos = 180;
   const duracion = 78;
   const minutoPitch = 52;
   const arranque = new Date(Date.now() - duracion * 60000);
@@ -40,11 +40,15 @@ export function vivoDemo() {
   const gente = [];
   for (let i = 0; i < inscriptos; i += 1) {
     const nombre = `${NOMBRES[i % NOMBRES.length]}${i >= NOMBRES.length ? ` ${Math.floor(i / NOMBRES.length) + 1}` : ''}`;
-    const vino = r() < 0.58;
-    if (!vino) { gente.push({ nombre, entra: null, sale: null }); continue; }
-    const entra = Math.floor(r() * 16);
-    const seVa = r() < 0.38;
-    gente.push({ nombre, entra, sale: seVa ? entra + 8 + Math.floor(r() * 45) : null });
+    if (r() >= 0.69) { gente.push({ nombre, entra: null, sale: null }); continue; }
+    const entra = Math.floor(r() * 14);
+    const suerte = r();
+    // La mayoría se queda hasta el final; los que se van, se van casi todos después
+    // del pitch. Es un webinar que salió bien, que es lo que la maqueta tiene que mostrar.
+    let sale = null;
+    if (suerte < 0.1) sale = entra + 12 + Math.floor(r() * (minutoPitch - entra - 14));
+    else if (suerte < 0.22) sale = minutoPitch + 4 + Math.floor(r() * 20);
+    gente.push({ nombre, entra, sale });
   }
 
   const dentroEn = (min) =>
@@ -90,7 +94,7 @@ export function vivoDemo() {
   }));
 
   const enElPitch = dentroEn(minutoPitch);
-  const booked = 11;
+  const booked = 34;
 
   const embudo = [
     { label: 'Opt-ins', n: optins, nota: 'dejaron el mail en la landing' },
@@ -107,8 +111,8 @@ export function vivoDemo() {
   const listas = [
     {
       clave: 'no_vinieron', titulo: 'No se presentaron',
-      nota: 'Se anotaron y no entraron. Van al grupo de WhatsApp con la grabación.',
-      n: optins - distintos, personas: noVinieron.slice(0, 8).map((g) => g.nombre),
+      nota: 'Confirmaron lugar y no entraron. Van al grupo de WhatsApp con la grabación.',
+      n: inscriptos - distintos, personas: noVinieron.slice(0, 8).map((g) => g.nombre),
     },
     {
       clave: 'sin_cta', titulo: 'Vinieron y no siguieron el CTA',
@@ -118,12 +122,12 @@ export function vivoDemo() {
     {
       clave: 'descalificados', titulo: 'Descalificados y semi',
       nota: 'Del formulario de la landing. No entran a llamada.',
-      n: 319, personas: ['Lucía Prado', 'Tomás Rey', 'Nadia Coria', 'Iván Sosa'],
+      n: 251, personas: ['Lucía Prado', 'Tomás Rey', 'Nadia Coria', 'Iván Sosa'],
     },
     {
       clave: 'calificados', titulo: 'Calificados',
       nota: 'Facturación y respuestas que califican. Prioridad de contacto.',
-      n: 29, personas: ['Marcos Ferrero', 'Jeferson Canate', 'Fer Canovas', 'Ayrton Alemán'],
+      n: 97, personas: ['Marcos Ferrero', 'Jeferson Canate', 'Fer Canovas', 'Ayrton Alemán'],
     },
   ];
 
