@@ -478,7 +478,39 @@ def _inscriptos_cacheados(webinar_zoom_id: str) -> list[dict]:
     return filas
 
 
-def vivo(webinar_zoom_id: str) -> dict:
+def _tramos(tramos: list[tuple[datetime, datetime]], desde: datetime | None,
+            hasta: datetime | None, pico: int, minuto_pitch: int | None) -> list[dict]:
+    """Cuánta gente quedaba en cada tramo del webinar, contra el pico.
+
+    Los cortes son cuartos del tiempo transcurrido, más el minuto del pitch cuando está
+    cargado. No se inventan nombres de secciones —"contenido", "caso"— porque el guion
+    no lo sabe el sistema: cada tramo se llama por su minuto, que es verificable.
+
+    Los tramos anteriores al pico se marcan: ahí todavía está entrando gente y un número
+    bajo no es una fuga. Pintarlo como problema haría sonar una alarma donde no pasa nada.
+    """
+    if not (tramos and desde and hasta and hasta > desde and pico):
+        return []
+    total = max(1, int((hasta - desde).total_seconds() // 60))
+    cortes = sorted({max(1, round(total * f)) for f in (0.15, 0.4, 0.65, 0.9, 1.0)}
+                    | ({int(minuto_pitch)} if minuto_pitch and 0 < int(minuto_pitch) <= total else set()))
+
+    _p, pico_at = pico_concurrentes(tramos)
+    pico_min = int((pico_at - desde).total_seconds() // 60) if pico_at else 0
+
+    return [
+        {
+            "label": f"{m}′" + (" · pitch" if minuto_pitch and m == int(minuto_pitch) else ""),
+            "minuto": m,
+            "conectados": conectados_en(tramos, desde + timedelta(minutes=m)),
+            "pct": round(conectados_en(tramos, desde + timedelta(minutes=m)) / pico * 100),
+            "antesDelPico": m < pico_min,
+        }
+        for m in cortes
+    ]
+
+
+def vivo(webinar_zoom_id: str, minuto_pitch: int | None = None) -> dict:
     """Cómo viene el webinar ahora mismo, según los avisos que fue mandando Zoom.
 
     Se reconstruye de los eventos en vez de llevar un contador: si el contenedor se
@@ -579,7 +611,9 @@ def vivo(webinar_zoom_id: str) -> dict:
     return {
         "webinarId": str(webinar_zoom_id),
         "enVivo": en_vivo,
+        "inscriptos": sum(1 for b in butacas if b["inscripto"]),
         "butacas": butacas,
+        "tramos": _tramos(tramos, arranque, fin or ahora, pico, minuto_pitch),
         "ultimos": ultimos,
         "conectados": len(adentro),
         "picoConcurrentes": pico,

@@ -428,7 +428,9 @@ class WebinarsServices:
         if not zoom_id:
             raise HTTPException(status_code=400,
                                 detail="Falta el ID del webinar en Zoom. Se carga en Configurar.")
-        r = zoom_services.vivo(zoom_id)
+        minuto_pitch = crudas.get("minutoPitch")
+        minuto_pitch = int(minuto_pitch) if str(minuto_pitch or "").strip().isdigit() else None
+        r = zoom_services.vivo(zoom_id, minuto_pitch)
 
         # La sala se completa hasta la cantidad de registrados. Zoom solo conoce a los
         # que se inscribieron por Zoom; los que se anotaron en la landing no tienen
@@ -440,7 +442,21 @@ class WebinarsServices:
             {"nombre": None, "email": None, "estado": "vacia", "inscripto": True}
             for _ in range(faltan)
         )
-        return {**r, "butacas": butacas, "registros": registros}
+        # El embudo del vivo: los cinco saltos, con lo que hay. `booked` es manual y
+        # puede estar en cero durante el vivo; se muestra igual para que el último
+        # escalón no aparezca recién cuando alguien lo carga.
+        en_pitch = next((x["conectados"] for x in (r.get("tramos") or [])
+                         if minuto_pitch and x["minuto"] == minuto_pitch), None)
+        booked = int(crudas.get("booked") or 0)
+        embudo = [
+            {"label": "Opt-ins", "n": registros, "nota": "dejaron el mail en la landing"},
+            {"label": "Inscriptos", "n": r.get("inscriptos") or 0, "nota": "confirmaron lugar en Zoom"},
+            {"label": "Entraron", "n": r.get("distintos") or 0, "nota": "pisaron el vivo"},
+            *([{"label": "Al pitch", "n": en_pitch,
+                "nota": f"seguían al minuto {minuto_pitch}"}] if en_pitch is not None else []),
+            {"label": "Agendaron", "n": booked, "nota": "tomaron el CTA"},
+        ]
+        return {**r, "butacas": butacas, "registros": registros, "embudo": embudo}
 
     def sincronizar_zoom(self, webinar_id: int, usuario: dict) -> dict:
         """Trae la asistencia real de Zoom y llena los números de la Fase 2.
