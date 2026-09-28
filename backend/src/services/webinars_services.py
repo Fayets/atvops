@@ -444,27 +444,38 @@ class WebinarsServices:
         # siguen estando, en el show rate y en el embudo, que es donde ese número dice algo.
         butacas = list(r.get("butacas") or [])
 
-        # Piso de asistentes. Los webhooks solo avisan de quien entra DESPUÉS de que la
-        # suscripción existe: si se activa con el webinar empezado, los que ya estaban
-        # adentro no generan ningún evento y el contador arranca en cero con la sala
-        # llena. El número que se carga a mano en "Vivos (show)" tapa ese agujero: los
-        # que no escuchamos se cuentan como presentes, porque lo están.
+        # Los webhooks solo avisan de quien entra DESPUÉS de que la suscripción existe:
+        # si se activa con el webinar empezado, los que ya estaban adentro no generan
+        # ningún evento y el contador arranca en cero con la sala llena.
+        #
+        # `conectadosOffset` tapa ese agujero. Es un ajuste, no un número fijo: se
+        # calcula cuando alguien corrige "conectados ahora" —lo que puso menos lo que
+        # estábamos midiendo en ese momento— y se suma de ahí en adelante. Por eso las
+        # salidas siguen restando: lo medido cambia, el ajuste no.
         vivos_a_mano = int(crudas.get("vivos") or 0)
         pico_a_mano = int(crudas.get("picoConcurrentes") or 0)
-        sin_escuchar = max(0, vivos_a_mano - int(r.get("distintos") or 0))
-        pico = max(int(r.get("picoConcurrentes") or 0) + sin_escuchar, pico_a_mano)
+        offset = int(crudas.get("conectadosOffset") or 0)
+
+        medidos_dentro = int(r.get("conectados") or 0)
+        medidos_distintos = int(r.get("distintos") or 0)
+        medido_pico = int(r.get("picoConcurrentes") or 0)
+
+        sin_escuchar = max(offset, vivos_a_mano - medidos_distintos, 0)
         if sin_escuchar or pico_a_mano:
             r = {
                 **r,
-                "distintos": max(vivos_a_mano, int(r.get("distintos") or 0)),
-                "conectados": int(r.get("conectados") or 0) + sin_escuchar,
-                "picoConcurrentes": pico,
+                "conectados": medidos_dentro + sin_escuchar,
+                "distintos": max(vivos_a_mano, medidos_distintos + sin_escuchar),
+                "picoConcurrentes": max(medido_pico + sin_escuchar, pico_a_mano),
                 "sinEscuchar": sin_escuchar,
             }
             butacas.extend(
                 {"nombre": None, "email": None, "estado": "adentro", "inscripto": False}
                 for _ in range(sin_escuchar)
             )
+        # Lo que se está midiendo de verdad, para que la pantalla pueda calcular el
+        # ajuste cuando alguien corrija el número.
+        r = {**r, "medidosDentro": medidos_dentro}
 
         # El embudo del vivo: los cinco saltos, con lo que hay. `booked` es manual y
         # puede estar en cero durante el vivo; se muestra igual para que el último

@@ -65,7 +65,7 @@ function Kpi({ label, valor, nota, tono, grande, editable }) {
  * el que está conduciendo es el único que sabe el número de verdad: lo tiene en
  * pantalla. Escribirlo acá lo deja como piso y la medición sigue desde ahí.
  */
-function PisoEditable({ webinarId, clave, valor, tono, onGuardado }) {
+function PisoEditable({ webinarId, clave, valor, tono, onGuardado, transformar }) {
   const [editando, setEditando] = useState(false);
   const [borrador, setBorrador] = useState('');
   const [optimista, setOptimista] = useState(null);
@@ -80,8 +80,12 @@ function PisoEditable({ webinarId, clave, valor, tono, onGuardado }) {
     if (!Number.isFinite(n) || n < 0) return;
     enVuelo.current = true;
     setOptimista(Math.round(n));
+    // `transformar` existe para "conectados ahora": ese número no se guarda, se guarda
+    // la diferencia contra lo que estamos midiendo. Si guardáramos el número, las
+    // salidas no restarían nunca y el contador quedaría clavado toda la hora.
+    const aGuardar = transformar ? transformar(Math.round(n)) : Math.round(n);
     try {
-      await actualizarWebinar(webinarId, { metricas: { [clave]: Math.round(n) } });
+      await actualizarWebinar(webinarId, { metricas: { [clave]: aGuardar } });
       onGuardado?.();
     } catch {
       setOptimista(null);
@@ -250,8 +254,16 @@ export default function WebinarVivo() {
       {d ? (
         <div className="vivo-kpis">
           <Kpi grande label="Conectados ahora" valor={d.conectados} tono={d.enVivo ? 'ok' : null}
+            editable={{
+              webinarId: id,
+              clave: 'conectadosOffset',
+              // Se guarda la diferencia contra lo medido, no el número: así lo que
+              // Zoom sí escucha —entradas y salidas— sigue moviendo el contador.
+              transformar: (n) => Math.max(0, n - (d.medidosDentro ?? 0)),
+              onGuardado: () => setRefresco((x) => x + 1),
+            }}
             nota={d.sinEscuchar
-              ? `${d.sinEscuchar} ya estaban cuando empezamos a escuchar`
+              ? `${d.sinEscuchar} cargados a mano · ${d.medidosDentro ?? 0} medidos por Zoom`
               : d.enVivo ? 'adentro en este momento' : 'no hay nadie conectado'} />
           <Kpi label="Pico" valor={d.picoConcurrentes}
             editable={{ webinarId: id, clave: 'picoConcurrentes', onGuardado: () => setRefresco((n) => n + 1) }}
