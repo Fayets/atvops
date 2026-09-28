@@ -79,6 +79,16 @@ function Sala({ butacas }) {
     vacia: butacas.filter((b) => b.estado === 'vacia').length,
   }), [butacas]);
 
+  // La sala se ocupa desde adelante, como un cine: primero los que están adentro,
+  // después los que se fueron, y al fondo las butacas que nunca se llenaron. Con el
+  // orden de la lista de inscriptos, los que entran quedan salpicados entre los grises
+  // y no se ve llenarse nada, que es justamente lo que hay que ver.
+  const ORDEN = { adentro: 0, estuvo: 1, vacia: 2 };
+  const enFila = useMemo(
+    () => [...butacas].sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado]),
+    [butacas],
+  );
+
   return (
     <>
       <div className="sala-leyenda">
@@ -89,7 +99,7 @@ function Sala({ butacas }) {
       {/* La barra de arriba es el escenario: sin ella la grilla es una grilla, con ella es una sala. */}
         <div className="sala-pantalla" aria-hidden="true" />
       <div className="sala">
-        {butacas.map((b, i) => {
+        {enFila.map((b, i) => {
           const llave = b.email || b.nombre || i;
           return (
             <span
