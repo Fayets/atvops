@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Bars from '../charts/Bars.jsx';
 import LineArea from '../charts/LineArea.jsx';
 import Card from '../ui/Card.jsx';
+import DeQueEsLaCaja from './DeQueEsLaCaja.jsx';
 import PanelArea, { n, pct } from '../ui/PanelArea.jsx';
 
 /**
@@ -28,6 +29,7 @@ const TRAMOS = [
 const dia = (iso) => (iso ? iso.slice(8, 10) : null);
 
 export default function PanelCobranza({ data }) {
+  const [verCaja, setVerCaja] = useState(false);
   // `getCobranza` ya dejó los números del mes en la raíz y la lista de vencidas aparte.
   const cartera = data?.cartera ?? {};
   const cuotas = data?.cuotas ?? [];
@@ -76,7 +78,10 @@ export default function PanelCobranza({ data }) {
     <PanelArea
       kpis={[
         { label: 'Entró en el mes', valor: n(caja.usd, 'usd'), tono: caja.usd > 0 ? 'ok' : null,
-          nota: `${n(caja.pagos)} pagos con fecha en el mes · es la caja, igual que ATV Clients` },
+          nota: `${n(caja.pagos)} pagos con fecha en el mes · es la caja, igual que ATV Clients`,
+          // Son dos negocios sumados: cuotas de ventas nuevas y upsell/recompra. Si ATV
+          // Clients no devolvió el desglose, la tarjeta no promete un detalle que no hay.
+          onVer: caja.caja1 == null ? undefined : () => setVerCaja(true) },
         { label: 'De lo que vencía, entró', valor: n(cobrado, 'usd'),
           nota: `${pct(data?.pctSobreVencido)} de las ${n(cuotas.length)} cuotas que vencen este mes` },
         { label: 'Falta cobrar', valor: n(pendiente, 'usd'), tono: pendiente > 0 ? 'warn' : null,
@@ -89,6 +94,8 @@ export default function PanelCobranza({ data }) {
           nota: `${n(cartera.vigentes)} clientes vigentes de ${n(cartera.clientes)}` },
       ]}
     >
+      {verCaja && <DeQueEsLaCaja caja={caja} mes={data?.mes} onCerrar={() => setVerCaja(false)} />}
+
       <Card
         title="Lo que vencía y lo que entró"
         sub="Acumulado del mes, día por día"

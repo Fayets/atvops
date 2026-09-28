@@ -26,9 +26,11 @@ cobranza, de `cuotas`). La primera es la que tiene que coincidir con ATV Clients
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from datetime import date, datetime, timedelta
+from urllib.request import Request, urlopen
 
 from decouple import config
 
@@ -55,6 +57,44 @@ def _rango(mes: str) -> tuple[date, date]:
     return date(anio, m, 1), date(anio + (m == 12), (m % 12) + 1, 1)
 
 
+def _armar_caja(usd: float, pagos: int, split: dict | None) -> dict:
+    """El total con su desglose, cuando lo hay, y siempre cerrando.
+
+    `otros` es lo que el desglose no explica. Existe para que las partes sumen el total
+    aunque las dos fuentes se desincronicen: preferimos mostrar un resto raro a mostrar
+    un desglose que no da, que es como se pierde la confianza en un tablero de plata.
+    """
+    if not split:
+        return {"usd": usd, "pagos": pagos, "caja1": None, "caja2": None, "otros": 0}
+    otros = round(usd - split["caja1"] - split["caja2"], 2)
+    return {"usd": usd, "pagos": pagos, **split, "otros": otros}
+
+
+def _split_de_caja(mes: str) -> dict | None:
+    """Cómo se parte la caja del mes entre caja 1 y caja 2, según ATV Clients.
+
+    La partición no está en la base compartida: la decide ATV Clients y la publica en
+    `/api/agent/cobrado-mes`. Se pide aparte y en best effort —si no contesta, el total
+    sigue saliendo de `pagos` y la pantalla simplemente no ofrece abrirlo—. Un tablero
+    que se cae porque el desglose no llegó es peor que un tablero sin desglose.
+    """
+    base = (config("ATV_CLIENTS_API_URL", default="") or "").strip().rstrip("/")
+    key = (config("ATV_CLIENTS_AGENT_KEY", default="") or "").strip()
+    if not base or not key:
+        return None
+    req = Request(f"{base}/api/agent/cobrado-mes?month={mes}",
+                  headers={"X-Agent-Key": key, "Accept": "application/json"})
+    try:
+        with urlopen(req, timeout=5) as r:
+            d = json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001 — sin red, 401, timeout: todo es "no hay desglose"
+        logger.info("Split de caja: %s", str(e)[:200])
+        return None
+    if not isinstance(d, dict) or "caja_1" not in d:
+        return None
+    return {"caja1": round(_num(d.get("caja_1")), 2), "caja2": round(_num(d.get("caja_2")), 2)}
+
+
 def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     hoy = datetime.now(AR_TZ).date()
     mes = mes or hoy.strftime("%Y-%m")
@@ -69,7 +109,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "detalle": "No hay conexión con la base de ATV Clients.",
         "delMes": {"cuotas": 0, "totalUsd": 0, "cobradoUsd": 0, "pendienteUsd": 0, "vencidoUsd": 0, "pctCobrado": 0},
         "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0, "cobradoHistoricoUsd": 0},
-        "caja": {"usd": 0, "pagos": 0},
+        "caja": {"usd": 0, "pagos": 0, "caja1": None, "caja2": None, "otros": 0},
         "cuotas": [], "vencidas": [], "proximas": [],
     }
     if not clients_db.disponible():
@@ -129,10 +169,11 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "vencidoUsd": round(vencido, 2),
             "pctCobrado": round(cobrado / total * 100, 1) if total else 0,
         },
-        "caja": {
-            "usd": round(_num((caja[0] if caja else {}).get("usd")), 2),
-            "pagos": int(_num((caja[0] if caja else {}).get("n"))),
-        },
+        "caja": _armar_caja(
+            round(_num((caja[0] if caja else {}).get("usd")), 2),
+            int(_num((caja[0] if caja else {}).get("n"))),
+            _split_de_caja(mes),
+        ),
         "cartera": {
             "clientes": sum(int(_num(c["n"])) for c in clientes),
             "vigentes": int(_num((por_estado.get("vigente") or {}).get("n"))),

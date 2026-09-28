@@ -5408,6 +5408,17 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-venta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); align-items: end; }
 .llamada-precio { grid-column: 1 / -1; font-size: 12px; }
 .llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }
+.caja-detalle { max-width: 560px; display: grid; gap: var(--space-4); }
+.caja-partes { display: grid; gap: 2px; }
+.caja-parte { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: var(--space-3);
+  align-items: center; padding: 10px var(--space-3); border-radius: var(--radius-sm); }
+.caja-parte:nth-child(odd) { background: var(--surface-2); }
+.caja-parte-punto { width: 10px; height: 10px; border-radius: 3px; }
+.caja-parte strong { display: block; font-size: 13.5px; }
+.caja-parte .dim { font-size: 12px; }
+.caja-parte-n { text-align: right; }
+.caja-parte-n .num { display: block; font-size: 15px; font-weight: 600; }
+
 .tabla-paginas { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
   padding: 10px var(--space-4); border-top: 1px solid var(--border-soft); font-size: 12.5px; }
 .tabla-paginas-botones { display: flex; align-items: center; gap: 10px; }

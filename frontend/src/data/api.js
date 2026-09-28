@@ -1990,7 +1990,7 @@ export async function getCobranza(mes) {
     // La caja es la plata que entró en el mes, por fecha de pago: es el número que
     // tiene que coincidir con "Plata del mes" de ATV Clients. `cobrado` contesta otra
     // cosa —de lo que vencía este mes, cuánto está pagado— y por eso no dan igual.
-    caja: raw.caja ?? { usd: 0, pagos: 0 },
+    caja: raw.caja ?? { usd: 0, pagos: 0, caja1: null, caja2: null, otros: 0 },
     esperadoHoy: Math.round((m.totalUsd * ctx.diaHoy) / ctx.diasMes),
     totalMes: m.totalUsd,
     ritmoCobro: ritmo({ meta: m.totalUsd, actual: m.cobradoUsd, diasMes: ctx.diasMes, diaHoy: ctx.diaHoy }),
