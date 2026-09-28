@@ -437,12 +437,21 @@ class WebinarsServices:
             w.actualizado_at = datetime.utcnow()
 
         data = self.obtener(webinar_id)
-        return {
-            **data,
-            "zoom": r,
-            "aviso": None if minuto else
-            "Cargá el minuto en que arrancó el pitch para que se calcule la retención.",
-        }
+        # Un solo aviso, el más urgente primero: sin minuto no hay retención; con el
+        # arranque estimado la retención existe pero puede estar corrida.
+        if not minuto:
+            aviso = "Cargá el minuto en que arrancó el pitch para que se calcule la retención."
+        elif r.get("arranqueEstimado"):
+            aviso = ("Zoom no dio el arranque real de la sesión: se tomó el primer ingreso, "
+                     "que suele ser el del anfitrión. La retención puede estar corrida.")
+        elif r.get("sinEmail"):
+            aviso = (f"{r['sinEmail']} de los {r['vivos']} que entraron no tienen email en Zoom: "
+                     "entraron por link directo en vez de registrarse, así que no se pueden "
+                     "cruzar contra los leads.")
+        else:
+            aviso = None
+
+        return {**data, "zoom": r, "aviso": aviso}
 
     def actualizar(self, webinar_id: int, datos: dict, usuario: dict) -> dict:
         from src.models import Webinar

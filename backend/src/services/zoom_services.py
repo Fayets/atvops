@@ -265,6 +265,21 @@ def inscribir(webinar_id: str, email: str, nombre: str = "") -> dict:
     return {"email": email, "joinUrl": d.get("join_url"), "registrantId": d.get("registrant_id")}
 
 
+def arranque_real(webinar_id: str) -> datetime | None:
+    """Cuándo arrancó la sesión de verdad, según Zoom.
+
+    No sirve el primer ingreso: el anfitrión entra antes a acomodar cámara y slides, y
+    entonces "el minuto 45 del pitch" caería media hora antes de donde va. Tampoco sirve
+    la hora agendada, porque los webinars arrancan tarde. Esto es el arranque medido.
+
+    Si el scope de este reporte no está, devuelve None y el que llama decide.
+    """
+    try:
+        return _momento(_get(f"/report/webinars/{webinar_id}").get("start_time"))
+    except HTTPException:
+        return None
+
+
 def resumen_del_dia(webinar_id: str, minuto_pitch: int | None = None) -> dict:
     """Las métricas de la Fase 2, calculadas del reporte real.
 
@@ -277,7 +292,12 @@ def resumen_del_dia(webinar_id: str, minuto_pitch: int | None = None) -> dict:
     tramos = [t for f in gente for t in f["tramos"]]
     pico, pico_at = pico_concurrentes(tramos)
 
-    arranque = min((f["entraAt"] for f in gente if f["entraAt"]), default=None)
+    primer_ingreso = min((f["entraAt"] for f in gente if f["entraAt"]), default=None)
+    arranque = arranque_real(webinar_id) or primer_ingreso
+    # Cuando hay que caer al primer ingreso, se dice: el número sigue siendo útil pero
+    # la retención puede estar corrida por lo que el anfitrión entró antes.
+    arranque_estimado = arranque is not None and arranque == primer_ingreso
+
     retenidos = None
     pitch_at = None
     if arranque and minuto_pitch is not None:
@@ -292,14 +312,41 @@ def resumen_del_dia(webinar_id: str, minuto_pitch: int | None = None) -> dict:
         "retenidosPitch": retenidos,
         "pitchAt": pitch_at.isoformat() if pitch_at else None,
         "arranqueAt": arranque.isoformat() if arranque else None,
+        "arranqueEstimado": arranque_estimado,
         "minutosPromedio": round(sum(f["minutos"] for f in gente) / len(gente), 1) if gente else 0.0,
         "conEmail": sum(1 for f in gente if f["email"]),
+        "sinEmail": sum(1 for f in gente if not f["email"]),
     }
 
 
+def listar_webinars(tipo: str = "past") -> list[dict]:
+    """Los webinars de la cuenta, para elegir de una lista en vez de copiar el ID.
+
+    `tipo`: "past" los que ya pasaron —que son los que tienen reporte— o "upcoming".
+    """
+    filas = _paginado("/users/me/webinars", "webinars", {"type": tipo})
+    return [
+        {
+            "id": str(w.get("id") or ""),
+            "tema": (w.get("topic") or "").strip(),
+            "inicioAt": w.get("start_time"),
+            "duracionMin": w.get("duration"),
+        }
+        for w in filas
+    ]
+
+
 def probar() -> dict:
-    """Para el botón Probar de Claves API."""
+    """Para el botón Probar de Claves API.
+
+    Lista webinars en vez de leer el usuario: prueba exactamente el permiso que el
+    sistema usa, y evita pedir un scope de lectura de usuarios que no necesitamos para
+    nada. Una prueba que pasa con permisos que la función real no tiene no sirve.
+    """
     if not _configurado():
         return {"ok": None, "detalle": "Faltan las claves de Zoom."}
-    d = _get("/users/me")
-    return {"ok": True, "detalle": f"Conectado como {d.get('email') or d.get('id')} ({d.get('type_name') or 'plan sin nombre'})."}
+    pasados = listar_webinars("past")
+    if not pasados:
+        return {"ok": True, "detalle": "Conectado. Todavía no hay webinars pasados en la cuenta."}
+    ultimo = pasados[0]
+    return {"ok": True, "detalle": f"Conectado. {len(pasados)} webinar(s) pasados; el último: “{ultimo['tema']}”."}
