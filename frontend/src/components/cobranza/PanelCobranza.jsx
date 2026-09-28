@@ -87,8 +87,6 @@ export default function PanelCobranza({ data }) {
           nota: 'todo lo que vencía en el mes, cobrado o no' },
         { label: 'Deuda de la cartera', valor: n(cartera.deudaUsd, 'usd'),
           nota: `${n(cartera.vigentes)} clientes vigentes de ${n(cartera.clientes)}` },
-        { label: 'Cobrado histórico', valor: n(cartera.cobradoHistoricoUsd, 'usd'),
-          nota: 'todo lo que entró desde que se lleva registro' },
       ]}
     >
       <Card
