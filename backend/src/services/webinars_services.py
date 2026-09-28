@@ -397,6 +397,24 @@ class WebinarsServices:
         data["metricas"] = self._enriquecer_ads(data)
         return data
 
+    def vivo(self, webinar_id: int) -> dict:
+        """Cómo viene el webinar ahora, según los avisos que Zoom fue mandando."""
+        from src.models import Webinar
+        from src.services import zoom_services
+
+        with db_session:
+            w = Webinar.get(id=webinar_id, borrado_at=None)
+            if w is None:
+                raise HTTPException(status_code=404, detail="No existe ese webinar.")
+            zoom_id = w.zoom_webinar_id
+            registros = int(_json(w.metricas, {}).get("registros") or 0)
+
+        if not zoom_id:
+            raise HTTPException(status_code=400,
+                                detail="Falta el ID del webinar en Zoom. Se carga en Configurar.")
+        r = zoom_services.vivo(zoom_id)
+        return {**r, "registros": registros}
+
     def sincronizar_zoom(self, webinar_id: int, usuario: dict) -> dict:
         """Trae la asistencia real de Zoom y llena los números de la Fase 2.
 

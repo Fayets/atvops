@@ -350,3 +350,141 @@ def probar() -> dict:
         return {"ok": True, "detalle": "Conectado. Todavía no hay webinars pasados en la cuenta."}
     ultimo = pasados[0]
     return {"ok": True, "detalle": f"Conectado. {len(pasados)} webinar(s) pasados; el último: “{ultimo['tema']}”."}
+
+
+# ----------------------------------------------------------------- el vivo
+
+TIPO_POR_EVENTO = {
+    "webinar.participant_joined": "entra",
+    "webinar.participant_left": "sale",
+    "webinar.started": "inicio",
+    "webinar.ended": "fin",
+    # Un webinar mal configurado llega como meeting: se acepta igual antes que perder
+    # el dato por una diferencia de nombre.
+    "meeting.participant_joined": "entra",
+    "meeting.participant_left": "sale",
+    "meeting.started": "inicio",
+    "meeting.ended": "fin",
+}
+
+
+def _secret_token() -> str:
+    return _cred("secret_token", "ZOOM_SECRET_TOKEN")
+
+
+def firma_valida(cuerpo: bytes, firma: str, timestamp: str) -> bool:
+    """Que el aviso lo haya mandado Zoom y no cualquiera.
+
+    El endpoint es público —Zoom no manda credenciales— así que lo único que separa un
+    evento real de uno inventado es esta firma. Sin secret token cargado se rechaza
+    todo: es preferible no tener el vivo a tener un contador que cualquiera puede mover.
+    """
+    import hmac
+    from hashlib import sha256
+
+    secreto = _secret_token()
+    if not (secreto and firma and timestamp):
+        return False
+    mensaje = b"v0:" + timestamp.encode() + b":" + cuerpo
+    esperada = "v0=" + hmac.new(secreto.encode(), mensaje, sha256).hexdigest()
+    return hmac.compare_digest(esperada, firma)
+
+
+def respuesta_de_validacion(plain_token: str) -> dict:
+    """Zoom valida la URL una vez: manda un token y espera verlo firmado de vuelta."""
+    import hmac
+    from hashlib import sha256
+
+    secreto = _secret_token()
+    if not secreto:
+        raise HTTPException(status_code=503, detail="Falta el secret token de Zoom en Claves API.")
+    return {
+        "plainToken": plain_token,
+        "encryptedToken": hmac.new(secreto.encode(), plain_token.encode(), sha256).hexdigest(),
+    }
+
+
+def registrar_evento(payload: dict) -> dict:
+    """Guarda una entrada o salida. Lo que no reconoce, lo ignora sin romperse."""
+    from pony.orm import db_session
+
+    from src.models import ZoomEvento
+
+    tipo = TIPO_POR_EVENTO.get(str(payload.get("event") or ""))
+    if not tipo:
+        return {"ok": True, "ignorado": str(payload.get("event") or "")[:60]}
+
+    objeto = (payload.get("payload") or {}).get("object") or {}
+    quien = objeto.get("participant") or {}
+    cuando = (_momento(quien.get("join_time") or quien.get("leave_time"))
+              or _momento(objeto.get("start_time") or objeto.get("end_time"))
+              or datetime.utcnow())
+
+    with db_session:
+        ZoomEvento(
+            webinar_zoom_id=str(objeto.get("id") or ""),
+            participante_id=str(quien.get("user_id") or quien.get("participant_uuid") or quien.get("id") or ""),
+            email=(quien.get("email") or "").strip().lower() or None,
+            nombre=(quien.get("user_name") or "").strip() or None,
+            tipo=tipo,
+            at=cuando,
+        )
+    return {"ok": True, "tipo": tipo}
+
+
+def vivo(webinar_zoom_id: str) -> dict:
+    """Cómo viene el webinar ahora mismo, según los avisos que fue mandando Zoom.
+
+    Se reconstruye de los eventos en vez de llevar un contador: si el contenedor se
+    reinicia en medio del vivo, el número sigue siendo el correcto.
+    """
+    from pony.orm import db_session
+
+    from src.models import ZoomEvento
+
+    with db_session:
+        filas = sorted(
+            ((e.tipo, e.participante_id, e.email, e.nombre, e.at)
+             for e in ZoomEvento.select(lambda e: e.webinar_zoom_id == str(webinar_zoom_id))),
+            key=lambda f: f[4],
+        )
+
+    adentro: dict[str, dict] = {}
+    entradas: dict[str, datetime] = {}
+    tramos: list[tuple[datetime, datetime]] = []
+    personas: set[str] = set()
+    arranque = fin = None
+
+    for tipo, pid, email, nombre, at in filas:
+        if tipo == "inicio":
+            arranque = arranque or at
+        elif tipo == "fin":
+            fin = at
+        elif tipo == "entra":
+            personas.add(email or pid)
+            adentro[pid] = {"email": email, "nombre": nombre, "desdeAt": at.isoformat()}
+            entradas[pid] = at
+        elif tipo == "sale":
+            adentro.pop(pid, None)
+            desde = entradas.pop(pid, None)
+            if desde:
+                tramos.append((desde, at))
+
+    ahora = datetime.utcnow()
+    # Los que siguen adentro cuentan hasta ahora, si no el pico ignoraría al que nunca
+    # se fue —que es todo el mundo mientras el webinar está pasando—.
+    tramos.extend((desde, ahora) for desde in entradas.values())
+    pico, pico_at = pico_concurrentes(tramos)
+
+    return {
+        "webinarId": str(webinar_zoom_id),
+        "enVivo": bool(arranque and not fin),
+        "conectados": len(adentro),
+        "picoConcurrentes": pico,
+        "picoAt": pico_at.isoformat() if pico_at else None,
+        "distintos": len(personas),
+        "arranqueAt": arranque.isoformat() if arranque else None,
+        "finAt": fin.isoformat() if fin else None,
+        "gente": sorted(adentro.values(), key=lambda p: p["desdeAt"]),
+        "eventos": len(filas),
+    }

@@ -4,11 +4,15 @@ Script único para todos los clientes. Lo que cambia es el token (webinar vincul
 Eventos: pageview (landing), optin, thank_you, whatsapp.
 """
 
+import json
+import logging
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from src.services.integraciones_services import IntegracionesServices
 
+logger = logging.getLogger("atv_ops.track")
 router = APIRouter()
 service = IntegracionesServices()
 
@@ -171,3 +175,45 @@ async def webinar_dia(request: Request):
         return _cors(JSONResponse(result))
     except HTTPException as e:
         return _cors(JSONResponse({"detail": e.detail}, status_code=e.status_code))
+
+
+@router.post("/zoom")
+async def zoom_webhook(request: Request):
+    """Los avisos de Zoom cuando alguien entra o sale del webinar.
+
+    Es la vía al tiempo real sin plan Business: la API de métricas en vivo lo pide, los
+    webhooks no. Va acá, en el router público, porque Zoom no manda sesión de usuario;
+    lo que autentica el aviso es la firma con el secret token de la app.
+
+    Zoom espera respuesta en tres segundos o reintenta, así que se guarda y se contesta:
+    cualquier cuenta se hace después, al leer.
+    """
+    from src.services import zoom_services
+
+    crudo = await request.body()
+    try:
+        cuerpo = json.loads(crudo.decode("utf-8") or "{}")
+    except ValueError:
+        return JSONResponse({"detail": "cuerpo ilegible"}, status_code=400)
+
+    # El apretón de manos de la URL: Zoom manda un token y espera verlo firmado. Llega
+    # sin firma propia, así que se contesta antes de validarla.
+    if cuerpo.get("event") == "endpoint.url_validation":
+        plain = str(((cuerpo.get("payload") or {}).get("plainToken")) or "")
+        try:
+            return JSONResponse(zoom_services.respuesta_de_validacion(plain))
+        except HTTPException as e:
+            return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+
+    if not zoom_services.firma_valida(
+        crudo,
+        request.headers.get("x-zm-signature") or "",
+        request.headers.get("x-zm-request-timestamp") or "",
+    ):
+        return JSONResponse({"detail": "firma inválida"}, status_code=401)
+
+    try:
+        return JSONResponse(zoom_services.registrar_evento(cuerpo))
+    except Exception as e:  # noqa: BLE001 — un error acá haría que Zoom reintente en loop
+        logger.info("Webhook de Zoom: %s", str(e)[:200])
+        return JSONResponse({"ok": False})

@@ -57,6 +57,8 @@ CAMPOS = {
          "ayuda": "De la app Server-to-Server OAuth, no el número de cuenta de la factura."},
         {"clave": "client_id", "label": "Client ID", "secreto": False},
         {"clave": "client_secret", "label": "Client secret", "secreto": True},
+        {"clave": "secret_token", "label": "Secret token (webhooks)", "secreto": True,
+         "ayuda": "De la solapa Feature. Con esto se verifica que el aviso del vivo lo mandó Zoom."},
     ],
 }
 

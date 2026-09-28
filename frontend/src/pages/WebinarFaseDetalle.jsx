@@ -5,6 +5,7 @@ import Modal from '../components/ui/Modal.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { fmtMetrica, SEMAFORO_LABEL } from '../components/webinars/WebinarEmbudo.jsx';
+import WebinarEnVivo from '../components/webinars/WebinarEnVivo.jsx';
 import { getWebinar, reiniciarTrackingWebinar, sincronizarZoom } from '../data/api.js';
 import { CAMPOS_RAW, fasesDeWebinar } from '../lib/webinarFases.js';
 
@@ -24,6 +25,7 @@ export default function WebinarFaseDetalle() {
   const [reiniciando, setReiniciando] = useState(false);
   const [trayendo, setTrayendo] = useState(false);
   const [avisoZoom, setAvisoZoom] = useState('');
+  const [verVivo, setVerVivo] = useState(false);
   const [errorAccion, setErrorAccion] = useState('');
 
   useEffect(() => {
@@ -167,11 +169,30 @@ export default function WebinarFaseDetalle() {
         </ul>
       </Card>
 
+      {verVivo ? (
+        <WebinarEnVivo webinarId={id} onCerrar={() => setVerVivo(false)} />
+      ) : null}
+
       <Card
         title="Números cargados"
         sub="Raw que alimentan esta fase. Se editan en Configurar."
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {faseId === 'dia' ? (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => setVerVivo((v) => !v)}
+              disabled={!webinar?.zoomWebinarId}
+              title={
+                webinar?.zoomWebinarId
+                  ? 'Cuántos hay conectados ahora, mientras el webinar pasa.'
+                  : 'Falta el ID del webinar en Zoom, se carga en Configurar'
+              }
+            >
+              {verVivo ? 'Ocultar el vivo' : 'Webinar en vivo'}
+            </button>
+          ) : null}
           {faseId === 'dia' ? (
             <button
               type="button"

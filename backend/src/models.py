@@ -669,6 +669,33 @@ class Webinar(db.Entity):
     borrado_at = Optional(datetime, nullable=True)
 
 
+class ZoomEvento(db.Entity):
+    """Cada entrada y salida de un webinar, como la avisa Zoom en el momento.
+
+    Es la otra puerta al tiempo real. La API de métricas en vivo de Zoom pide plan
+    Business; los webhooks los manda igual y cuentan lo mismo: quién está adentro ahora,
+    cuánto fue el pico y a qué hora arrancó.
+
+    Se guarda el evento crudo y no un contador. Un contador en memoria se pierde cuando
+    el contenedor se reinicia en medio del webinar, que es justo cuando no se puede
+    perder; con los eventos, el estado se vuelve a armar leyendo la tabla.
+    """
+
+    _table_ = _tabla("zoom_eventos", "ZoomEvento")
+
+    id = PrimaryKey(int, auto=True)
+    webinar_zoom_id = Required(str, index=True)
+    # Id que Zoom le da a la persona en ESA conexión. Quien se cae y vuelve entra con
+    # otro, por eso el cruce fino se hace por email cuando hay. Va opcional porque el
+    # inicio y el fin del webinar no son de nadie.
+    participante_id = Optional(str)
+    email = Optional(str, nullable=True)
+    nombre = Optional(str, nullable=True)
+    tipo = Required(str)  # entra | sale | inicio | fin
+    at = Required(datetime, index=True)
+    recibido_at = Required(datetime, default=datetime.utcnow)
+
+
 class Integracion(db.Entity):
     """Conector público para que una landing (propia o de un cliente) mande eventos acá.
 

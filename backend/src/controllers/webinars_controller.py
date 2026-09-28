@@ -59,6 +59,17 @@ def actualizar(webinar_id: int, body: schemas.WebinarUpdate, user: dict = Depend
         raise HTTPException(status_code=500, detail=f"No se pudo actualizar el webinar: {e}") from e
 
 
+@router.get("/{webinar_id}/vivo")
+def vivo(webinar_id: int, user: dict = Depends(_puede_webinars)):
+    """Estado del webinar en curso, armado con los webhooks de Zoom."""
+    try:
+        return service.vivo(webinar_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"No se pudo leer el vivo: {e}") from e
+
+
 @router.post("/{webinar_id}/sincronizar-zoom")
 def sincronizar_zoom(webinar_id: int, user: dict = Depends(_puede_webinars)):
     """Lee el reporte de asistencia de Zoom y llena los números del día."""
