@@ -52,6 +52,13 @@ CAMPOS = {
     ],
     # App "Server-to-Server OAuth" de Zoom. No vence: el token se pide en cada llamada
     # con estas tres claves, así que no hay que renovarlo a mano como el de Meta.
+    # El formulario donde se agenda la llamada: es el CTA del webinar.
+    "typeform": [
+        {"clave": "access_token", "label": "Personal token", "secreto": True,
+         "ayuda": "De typeform.com → Account → Personal tokens, con permiso de lectura."},
+        {"clave": "form_id", "label": "ID del formulario", "secreto": False,
+         "ayuda": "El código de la URL: form.typeform.com/to/XXXXXXXX"},
+    ],
     "zoom": [
         {"clave": "account_id", "label": "Account ID", "secreto": False,
          "ayuda": "De la app Server-to-Server OAuth, no el número de cuenta de la factura."},
@@ -68,6 +75,7 @@ ETIQUETAS = {
     "manychat": "ManyChat",
     "youtube": "YouTube",
     "google_calendar": "Google Calendar",
+    "typeform": "Typeform · agendas",
     "zoom": "Zoom Webinars",
 }
 

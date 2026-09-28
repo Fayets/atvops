@@ -49,6 +49,12 @@ const NAV = [
     label: 'Webinars',
     grupo: 'Áreas',
     roles: ['admin', 'founder', 'operaciones', 'marketing', 'ventas'],
+    sub: [
+      // El CTA del webinar es un Typeform: el que lo completa es el que agendó. Va como
+      // subpantalla del área y no adentro de un webinar, porque el formulario es uno
+      // solo y las respuestas llegan también días después del vivo.
+      { to: '/webinars/agendas', label: 'Agendas' },
+    ],
   },
   {
     to: '/ventas',

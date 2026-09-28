@@ -28,6 +28,24 @@ def listar(user: dict = Depends(_puede_webinars)):
         raise HTTPException(status_code=500, detail=f"No se pudieron listar los webinars: {e}") from e
 
 
+@router.get("/agendas")
+def agendas(user: dict = Depends(_puede_webinars)):
+    """Quién agendó la llamada en el Typeform del CTA.
+
+    Antes que /{webinar_id}, por lo mismo que zoom/disponibles: si no, FastAPI lee
+    "agendas" como un id y contesta 422.
+    """
+    from src.services import typeform_services
+
+    try:
+        filas = typeform_services.agendas()
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo leer Typeform: {e}") from e
+    return {"agendas": filas, "conEmail": sum(1 for a in filas if a["conEmail"])}
+
+
 @router.get("/zoom/disponibles")
 def zoom_disponibles(user: dict = Depends(_puede_webinars)):
     """Los webinars que hay en la cuenta de Zoom, para elegir de una lista.
