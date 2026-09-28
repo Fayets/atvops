@@ -1,14 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { fmtMetrica, SEMAFORO_LABEL } from '../components/webinars/WebinarEmbudo.jsx';
-import { getWebinar, reiniciarTrackingWebinar, sincronizarZoom } from '../data/api.js';
+import { actualizarWebinar, getWebinar, reiniciarTrackingWebinar, sincronizarZoom } from '../data/api.js';
 import { CAMPOS_RAW, fasesDeWebinar } from '../lib/webinarFases.js';
 
 const FASE_IDS = new Set(['registro', 'dia', 'post']);
+
+/* Las métricas que son un número cargado a mano y no una cuenta.
+ *
+ * Solo estas llevan lápiz: editar una tasa no tendría sentido —sale de dividir otras
+ * dos— y editar lo que trae Zoom lo pisaría el próximo sync. Estos cambian seguido
+ * porque pasan fuera del sistema, y hacer tres clics para corregir un número que se
+ * mueve todos los días termina en que nadie lo corrige. */
+const A_MANO = {
+  registros: 'Confirmados al webinar',
+  booked: 'Booked / compraron',
+};
 
 /**
  * Detalle de una fase del embudo: portada, métricas, raw y cuello típico.
@@ -25,14 +36,19 @@ export default function WebinarFaseDetalle() {
   const [trayendo, setTrayendo] = useState(false);
   const [avisoZoom, setAvisoZoom] = useState('');
   const [errorAccion, setErrorAccion] = useState('');
+  const webinarRef = useRef(null);
 
   useEffect(() => {
     let vivo = true;
-    setCargando(true);
+    // El esqueleto solo la primera vez. Cuando la recarga viene de corregir un número
+    // o de traer Zoom, la pantalla ya tiene contenido: vaciarla para volver a
+    // dibujarla la hace parpadear entera por cambiar un dígito.
+    setCargando((antes) => antes || webinarRef.current === null);
     getWebinar(id)
       .then((w) => {
         if (!vivo) return;
         setWebinar(w);
+        webinarRef.current = w;
         setError(null);
         localStorage.setItem('atv.webinar.activo', String(w.id));
       })
@@ -158,7 +174,16 @@ export default function WebinarFaseDetalle() {
               title={m.key === 'frecuencia' && campanias.length
                 ? 'Ver la frecuencia de cada campaña' : undefined}
             >
-              <span className="num">{fmtMetrica(m.valor, m.formato)}</span>
+              {A_MANO[m.key] ? (
+                <MetricaEditable
+                  webinarId={id}
+                  clave={m.key}
+                  valor={m.valor}
+                  onGuardado={() => setTick((n) => n + 1)}
+                />
+              ) : (
+                <span className="num">{fmtMetrica(m.valor, m.formato)}</span>
+              )}
               <span className="dim" title={m.ayuda || undefined}>{m.label}</span>
               {m.detalle ? <span className="wb-cuenta">{m.detalle}</span> : null}
               {m.ayuda ? <span className="wb-ayuda">{m.ayuda}</span> : null}
@@ -276,5 +301,79 @@ export default function WebinarFaseDetalle() {
         </ul>
       </Modal>
     </div>
+  );
+}
+
+
+/**
+ * Un número cargado a mano, editable en el lugar.
+ *
+ * Los confirmados se mueven todos los días hasta el webinar y el booked se carga
+ * después: mandar a otra pantalla a editar un formulario para cambiar un dígito
+ * termina en que el número queda viejo. Con Enter se guarda, con Escape se cancela.
+ */
+function MetricaEditable({ webinarId, clave, valor, onGuardado }) {
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  // Lo último que se guardó desde acá. Se muestra hasta que la recarga traiga el
+  // número del servidor: si no, al guardar se ve un momento el valor viejo, que es
+  // exactamente lo que uno acaba de corregir y da la sensación de que no funcionó.
+  const [optimista, setOptimista] = useState(null);
+  // Enter dispara el guardado y el blur del input al desmontarse lo dispara otra vez.
+  // Dos PATCH y dos recargas compitiendo: la que llega segunda puede traer el valor
+  // de antes. Con esto, el segundo intento no hace nada.
+  const enVuelo = useRef(false);
+
+  useEffect(() => { setOptimista(null); }, [valor]);
+
+  const abrir = () => { setBorrador(String(valor ?? 0)); setEditando(true); };
+
+  const guardar = async () => {
+    if (enVuelo.current) return;
+    const n = Number(borrador);
+    if (!Number.isFinite(n) || n < 0) { setEditando(false); return; }
+    if (n === Number(valor ?? 0)) { setEditando(false); return; }
+    enVuelo.current = true;
+    setGuardando(true);
+    setOptimista(Math.round(n));
+    setEditando(false);
+    try {
+      await actualizarWebinar(webinarId, { metricas: { [clave]: Math.round(n) } });
+      onGuardado?.();
+    } catch {
+      setOptimista(null);  // no se guardó: mejor el número viejo que uno que no existe
+    } finally {
+      setGuardando(false);
+      enVuelo.current = false;
+    }
+  };
+
+  const mostrado = optimista ?? valor;
+
+  if (!editando) {
+    return (
+      <span className={`wb-editable${guardando ? ' guardando' : ''}`}>
+        <span className="num">{fmtMetrica(mostrado, 'count')}</span>
+        <button type="button" className="wb-lapiz" onClick={abrir} title="Cambiar este número">
+          ✎
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="wb-editable editando">
+      <input
+        type="number" min="0" inputMode="numeric" autoFocus
+        value={borrador}
+        onChange={(e) => setBorrador(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') guardar();
+          if (e.key === 'Escape') setEditando(false);
+        }}
+        onBlur={guardar}
+      />
+    </span>
   );
 }
