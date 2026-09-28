@@ -438,16 +438,12 @@ class WebinarsServices:
         minuto_pitch = int(minuto_pitch) if str(minuto_pitch or "").strip().isdigit() else None
         r = zoom_services.vivo(zoom_id, minuto_pitch)
 
-        # La sala se completa hasta la cantidad de registrados. Zoom solo conoce a los
-        # que se inscribieron por Zoom; los que se anotaron en la landing no tienen
-        # butaca con nombre, pero existen y son justamente los que hay que ver: una
-        # sala con la mitad de las butacas apagadas dice algo que "48%" no dice.
+        # La sala es la gente de Zoom: los inscriptos ahí más los que entraron. No se
+        # completa hasta los confirmados —eran ciento ochenta y siete butacas grises sin
+        # nombre, que ocupan toda la pantalla y no se pueden mirar—. Los confirmados
+        # siguen estando, en el show rate y en el embudo, que es donde ese número dice algo.
         butacas = list(r.get("butacas") or [])
-        faltan = max(0, registros - len(butacas))
-        butacas.extend(
-            {"nombre": None, "email": None, "estado": "vacia", "inscripto": True}
-            for _ in range(faltan)
-        )
+
         # El embudo del vivo: los cinco saltos, con lo que hay. `booked` es manual y
         # puede estar en cero durante el vivo; se muestra igual para que el último
         # escalón no aparezca recién cuando alguien lo carga.

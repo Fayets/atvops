@@ -206,7 +206,7 @@ export default function WebinarVivo() {
       {butacas.length ? (
         <Card
           title="La sala"
-          sub={`${butacas.length} butacas · una por inscripto en Zoom`}
+          sub={`${butacas.length} butacas · la gente de Zoom`}
           foot="Cada butaca es una persona. Las que se apagan durante el contenido son las que no van a estar cuando llegue el pitch."
         >
           <Sala butacas={butacas} />
