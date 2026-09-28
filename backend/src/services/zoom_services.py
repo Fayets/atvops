@@ -420,9 +420,15 @@ def reporte_completo(webinar_id: str, minuto_pitch: int | None = None) -> dict:
         "picoAt": pico_at.isoformat() if pico_at else None,
         "arranqueAt": arranque.isoformat(),
         "finAt": fin.isoformat(),
-        # Cuánto se quedó la gente, en minutos y contra lo que duró el webinar. Es la
-        # retención que importa cuando ya terminó: el pico dice cuánta gente llegó a
-        # entrar, esto dice cuánto se quedaron.
+        # Cuánta sala se sostuvo: la concurrencia promedio contra el pico.
+        #
+        # La cuenta obvia —minutos promedio sobre la duración— da mucho más bajo y
+        # engaña: castiga al que entró tarde. Alguien que se mete en el minuto 100 de
+        # 125 y se queda hasta el final marca 20%, cuando se quedó todo el tiempo que
+        # tenía. Con 436 personas entrando a lo largo de dos horas eso hunde el
+        # promedio y contradice la curva, que nunca bajó de 230 sobre un pico de 276.
+        "concurrenciaPromedio": round(sum(p["conectados"] for p in _curva(tramos, arranque, fin))
+                                      / max(1, len(_curva(tramos, arranque, fin)))),
         "minutosPromedio": round(sum(f["minutos"] for f in gente) / len(gente), 1) if gente else 0.0,
         "duracionMin": max(1, int((fin - arranque).total_seconds() // 60)),
         "serie": _curva(tramos, arranque, fin),

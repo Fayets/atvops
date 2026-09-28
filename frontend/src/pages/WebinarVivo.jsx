@@ -270,13 +270,14 @@ export default function WebinarVivo() {
                 ? `${d.sinEscuchar} cargados a mano · ${d.medidosDentro ?? 0} medidos por Zoom`
                 : 'adentro en este momento'} />
           ) : (
-            <Kpi grande label="Retención promedio"
-              valor={d.duracionMin ? `${Math.round((d.minutosPromedio / d.duracionMin) * 100)}%` : '—'}
-              tono={d.duracionMin
-                ? ((d.minutosPromedio / d.duracionMin) >= 0.5 ? 'ok'
-                  : (d.minutosPromedio / d.duracionMin) >= 0.3 ? 'warn' : 'alert')
+            <Kpi grande label="Retención de sala"
+              valor={d.picoConcurrentes && d.concurrenciaPromedio
+                ? `${Math.round((d.concurrenciaPromedio / d.picoConcurrentes) * 100)}%` : '—'}
+              tono={d.picoConcurrentes && d.concurrenciaPromedio
+                ? ((d.concurrenciaPromedio / d.picoConcurrentes) >= 0.75 ? 'ok'
+                  : (d.concurrenciaPromedio / d.picoConcurrentes) >= 0.55 ? 'warn' : 'alert')
                 : null}
-              nota={`${d.minutosPromedio ?? 0} min de ${d.duracionMin ?? 0} en promedio`} />
+              nota={`${d.concurrenciaPromedio ?? 0} en la sala en promedio · ${d.minutosPromedio ?? 0} min por persona`} />
           )}
           <Kpi label="Pico" valor={d.picoConcurrentes}
             editable={{ webinarId: id, clave: 'picoConcurrentes', onGuardado: () => setRefresco((n) => n + 1) }}
