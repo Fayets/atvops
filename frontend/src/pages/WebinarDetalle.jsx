@@ -301,22 +301,15 @@ export default function WebinarDetalle({ modo } = {}) {
                   <span className="dim">{zoomError}</span>
                 </>
               ) : (
-                <>
-                  <select value={form.zoomWebinarId}
-                    onChange={(e) => set({ zoomWebinarId: e.target.value })}>
-                    <option value="">— sin vincular —</option>
-                    {zoomWebinars.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.cuando === 'proximo' ? '▸ ' : ''}{fechaCorta(w.inicioAt)} · {w.tema}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="dim">
-                    {zoomWebinars.length
-                      ? 'De acá sale la asistencia real y el vivo.'
-                      : 'Cargando los webinars de tu cuenta de Zoom…'}
-                  </span>
-                </>
+                <select value={form.zoomWebinarId}
+                  onChange={(e) => set({ zoomWebinarId: e.target.value })}>
+                  <option value="">— sin vincular —</option>
+                  {zoomWebinars.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.cuando === 'proximo' ? '▸ ' : ''}{fechaCorta(w.inicioAt)} · {w.tema}
+                    </option>
+                  ))}
+                </select>
               )}
             </label>
             <label className="ancho">Landing URL
