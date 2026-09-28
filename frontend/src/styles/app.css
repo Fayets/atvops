@@ -5426,6 +5426,31 @@ button.lista-item:hover { background: var(--surface-2); }
 .vivo-page.esta-en-vivo .vivo-kpi.es-grande .vivo-kpi-valor { animation: vivo-latido 2.4s ease-in-out infinite; }
 @keyframes vivo-latido { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
+.vivo-maqueta { padding: 9px var(--space-4); margin-bottom: var(--space-4);
+  background: var(--warn-dim); border: 1px solid var(--warn); border-radius: var(--radius-sm);
+  font-size: 12.5px; color: var(--text); }
+
+.vivo-embudo { display: flex; flex-direction: column; gap: 10px; }
+.vivo-embudo-fila { display: grid; grid-template-columns: 82px minmax(0, 1fr) 46px 42px;
+  gap: var(--space-3); align-items: center; font-size: 12.5px; }
+.vivo-embudo-label { color: var(--text-2); }
+.vivo-embudo-barra { height: 16px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.vivo-embudo-barra > span { display: block; height: 100%; background: var(--s3); border-radius: 4px;
+  transition: width 0.6s ease; }
+.vivo-embudo-fila .num { text-align: right; font-variant-numeric: tabular-nums; }
+.vivo-embudo-fila .dim { text-align: right; font-variant-numeric: tabular-nums; }
+
+.vivo-listas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4); }
+.vivo-lista { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4);
+  background: var(--surface-2); border-radius: var(--radius); }
+.vivo-lista > header { display: flex; align-items: flex-start; gap: var(--space-3); }
+.vivo-lista h4 { margin: 0 0 2px; font-size: 13.5px; }
+.vivo-lista header .dim { font-size: 11.5px; line-height: 1.4; display: block; }
+.vivo-lista-n { font-size: 26px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.vivo-lista-gente { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--text-2); }
+.vivo-lista .btn { align-self: flex-start; margin-top: auto; }
+
 .sala-leyenda { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: 12px;
   color: var(--text-2); margin-bottom: var(--space-3); justify-content: center; }
 .sala-leyenda span { display: inline-flex; align-items: center; gap: 6px; }

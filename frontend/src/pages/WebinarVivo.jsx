@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
+import Bars from '../components/charts/Bars.jsx';
 import LineArea from '../components/charts/LineArea.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { getWebinar, getWebinarVivo } from '../data/api.js';
+import { vivoDemo } from '../lib/vivoDemo.js';
 
 /**
  * El webinar mientras pasa, como una sala.
@@ -118,14 +120,19 @@ function Sala({ butacas }) {
 
 export default function WebinarVivo() {
   const { id } = useParams();
+  const [params] = useSearchParams();
+  // `?demo=1` dibuja la pantalla con datos inventados. Está para poder decidir el
+  // diseño antes de que exista un webinar de verdad: con todo en cero no se ve nada.
+  const esDemo = params.get('demo') === '1';
   const [webinar, setWebinar] = useState(null);
-  const [d, setD] = useState(null);
+  const [d, setD] = useState(esDemo ? vivoDemo() : null);
   const [error, setError] = useState('');
   const timer = useRef(null);
 
   useEffect(() => { getWebinar(id).then(setWebinar).catch(() => {}); }, [id]);
 
   useEffect(() => {
+    if (esDemo) return undefined;
     let vivo = true;
     const leer = () => {
       getWebinarVivo(id)
@@ -146,11 +153,11 @@ export default function WebinarVivo() {
       clearInterval(timer.current);
       document.removeEventListener('visibilitychange', alVolver);
     };
-  }, [id]);
+  }, [id, esDemo]);
 
   if (error && !d) return <div className="page"><ErrorState error={{ message: error }} /></div>;
 
-  const showRate = d?.registros ? Math.round((d.distintos / d.registros) * 100) : null;
+  const showRate = d?.inscriptos ? Math.round((d.distintos / d.inscriptos) * 100) : null;
   const retencion = d?.picoConcurrentes ? Math.round((d.conectados / d.picoConcurrentes) * 100) : null;
   const serie = d?.serie ?? [];
   const butacas = d?.butacas ?? [];
@@ -174,6 +181,12 @@ export default function WebinarVivo() {
         }
       />
 
+      {esDemo ? (
+        <div className="vivo-maqueta">
+          Maqueta · los números son inventados para ver cómo queda la pantalla
+        </div>
+      ) : null}
+
       {!d ? <SkeletonBlock height={260} /> : null}
 
       {d ? (
@@ -188,19 +201,97 @@ export default function WebinarVivo() {
           <Kpi label="Entraron en total" valor={d.distintos} nota="personas distintas" />
           <Kpi label="Show rate" valor={showRate == null ? '—' : `${showRate}%`}
             tono={showRate == null ? null : showRate >= 35 ? 'ok' : showRate >= 20 ? 'warn' : 'alert'}
-            nota={d.registros
-              ? `${d.distintos} de ${d.registros} registrados`
-              : 'falta cargar los registrados en la Fase 2'} />
+            nota={d.inscriptos
+              ? `${d.distintos} de ${d.inscriptos} que confirmaron lugar`
+              : 'sobre los inscriptos en Zoom'} />
+          {/* Los opt-ins no son butacas: dejaron el mail, no confirmaron el lugar. Van
+              aparte, como contraste del embudo entero. */}
+          <Kpi label="De los opt-ins" valor={d.registros ? `${Math.round((d.distintos / d.registros) * 100)}%` : '—'}
+            nota={`${d.distintos} de ${d.registros || 0} que dejaron el mail`} />
         </div>
       ) : null}
 
       {butacas.length ? (
         <Card
           title="La sala"
-          sub={`${butacas.length} butacas · una por inscripto`}
+          sub={`${butacas.length} butacas · una por inscripto en Zoom`}
           foot="Cada butaca es una persona. Las que se apagan durante el contenido son las que no van a estar cuando llegue el pitch."
         >
           <Sala butacas={butacas} />
+        </Card>
+      ) : null}
+
+      {d?.tramos?.length ? (
+        <div className="vivo-dos">
+          <Card
+            title="Retención por tramo"
+            sub="Cuánta gente quedaba en cada momento del guion"
+            foot="Contra el pico. Los tramos anteriores al pico van en gris: ahí todavía está entrando gente y un número bajo no es una fuga. El tramo donde cae después es el que hay que reescribir."
+          >
+            <Bars
+              data={d.tramos} x={(p) => p.label} y={(p) => p.pct} format="pct" label="Del pico"
+              height={230}
+              color={(p) => (p.antesDelPico ? 'var(--s3)'
+                : p.pct >= 80 ? 'var(--ok)' : p.pct >= 60 ? 'var(--warn)' : 'var(--alert)')}
+              linea={{ key: (p) => p.conectados, label: 'Personas', format: 'count', escala: 'propia' }}
+            />
+          </Card>
+
+          <Card
+            title="El embudo del vivo"
+            sub="De dónde salió cada número"
+            foot="Los opt-ins no son asistentes: dejaron el mail. El salto que más duele suele ser el de inscripto a entró."
+          >
+            <div className="vivo-embudo">
+              {d.embudo.map((e, i) => {
+                const tope = d.embudo[0].n || 1;
+                const previo = i ? d.embudo[i - 1].n : null;
+                return (
+                  <div key={e.label} className="vivo-embudo-fila">
+                    <span className="vivo-embudo-label">{e.label}</span>
+                    <span className="vivo-embudo-barra">
+                      <span style={{ width: `${Math.max(2, (e.n / tope) * 100)}%` }} />
+                    </span>
+                    <span className="num strong">{e.n}</span>
+                    <span className="dim">
+                      {previo ? `${Math.round((e.n / previo) * 100)}%` : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {d?.listas?.length ? (
+        <Card
+          title="Las listas del post"
+          sub="Quedan armadas cuando termina el webinar"
+          foot="Cada una se descarga y se trabaja distinto. La de arriba va al grupo; la segunda es la que hay que llamar hoy."
+        >
+          <div className="vivo-listas">
+            {d.listas.map((l) => (
+              <article key={l.clave} className="vivo-lista">
+                <header>
+                  <span className="vivo-lista-n num">{l.n}</span>
+                  <div>
+                    <h4>{l.titulo}</h4>
+                    <span className="dim">{l.nota}</span>
+                  </div>
+                </header>
+                <div className="vivo-lista-gente">
+                  {l.personas.map((n) => <span key={n}>{n}</span>)}
+                  {l.n > l.personas.length ? (
+                    <span className="dim">y {l.n - l.personas.length} más</span>
+                  ) : null}
+                </div>
+                <button type="button" className="btn sm ghost" disabled={esDemo}>
+                  Descargar CSV
+                </button>
+              </article>
+            ))}
+          </div>
         </Card>
       ) : null}
 
