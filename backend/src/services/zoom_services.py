@@ -377,6 +377,57 @@ def listar_webinars(tipo: str = "past") -> list[dict]:
     ]
 
 
+def reporte_completo(webinar_id: str, minuto_pitch: int | None = None) -> dict:
+    """La misma pantalla del vivo, pero armada con el reporte en vez de los webhooks.
+
+    Los webhooks solo cuentan desde que se prendieron. Cuando el webinar terminó, el
+    reporte es la lista completa: la curva, la retención y la gente tienen que salir de
+    ahí o quedan dos verdades distintas del mismo webinar en la misma pantalla.
+    """
+    gente = asistentes(webinar_id)
+    tramos = [t for f in gente for t in f["tramos"]]
+    if not tramos:
+        return {}
+
+    pico, pico_at = pico_concurrentes(tramos)
+    arranque = arranque_real(webinar_id) or min(e for e, _ in tramos)
+    fin = max(s for _, s in tramos)
+
+    butacas = [
+        {"nombre": f["nombre"] or f["email"] or "Sin nombre", "email": f["email"],
+         "estado": "estuvo", "inscripto": bool(f["email"])}
+        for f in gente
+    ]
+    se_fueron = sorted(
+        ({"nombre": f["nombre"] or f["email"] or "Sin nombre", "email": f["email"],
+          "entroAt": f["entraAt"].isoformat() if f["entraAt"] else None,
+          "salioAt": f["saleAt"].isoformat() if f["saleAt"] else None,
+          "minutos": round(f["minutos"])}
+         for f in gente),
+        key=lambda x: x["salioAt"] or "", reverse=True,
+    )
+
+    return {
+        "webinarId": str(webinar_id),
+        "enVivo": False,
+        "conectados": 0,
+        "distintos": personas_distintas(gente),
+        "inscriptos": sum(1 for f in gente if f["email"]),
+        "picoConcurrentes": pico,
+        "picoAt": pico_at.isoformat() if pico_at else None,
+        "arranqueAt": arranque.isoformat(),
+        "finAt": fin.isoformat(),
+        "serie": _curva(tramos, arranque, fin),
+        "tramos": _tramos(tramos, arranque, fin, pico, minuto_pitch),
+        "butacas": butacas,
+        "seFueron": se_fueron,
+        "gente": [],
+        "ultimos": [],
+        "eventos": len(tramos),
+        "delReporte": True,
+    }
+
+
 def probar() -> dict:
     """Para el botón Probar de Claves API.
 

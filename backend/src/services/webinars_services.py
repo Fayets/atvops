@@ -465,17 +465,20 @@ class WebinarsServices:
         sin_escuchar = (max(offset, vivos_a_mano - medidos_distintos, 0)
                         if r.get("enVivo") else 0)
 
-        # Terminado el webinar, mandan los números del reporte. Los webhooks solo
-        # cuentan desde que se prendieron y pueden haber empezado tarde; el reporte es
-        # la lista completa. Dejar el del webhook al lado del de la Fase 2 sería mostrar
-        # dos verdades distintas del mismo webinar en pantallas contiguas.
-        if not r.get("enVivo") and (vivos_a_mano or pico_a_mano):
-            r = {
-                **r,
-                "distintos": vivos_a_mano or medidos_distintos,
-                "picoConcurrentes": pico_a_mano or medido_pico,
-                "delReporte": True,
-            }
+        # Terminado el webinar, toda la pantalla sale del reporte: los contadores, la
+        # curva, la retención y la gente. Los webhooks solo cuentan desde que se
+        # prendieron —el 28-09 se prendieron con el webinar empezado— así que dejarlos
+        # sería mostrar dos verdades distintas del mismo webinar en la misma pantalla.
+        #
+        # Si el reporte todavía no está —Zoom tarda unos minutos— se queda lo medido,
+        # que es incompleto pero real.
+        if not r.get("enVivo"):
+            try:
+                del_reporte = zoom_services.reporte_completo(zoom_id, minuto_pitch)
+                if del_reporte:
+                    r = del_reporte
+            except Exception as e:  # noqa: BLE001
+                logger.info("Reporte del webinar: %s", str(e)[:200])
         if sin_escuchar or pico_a_mano:
             r = {
                 **r,
