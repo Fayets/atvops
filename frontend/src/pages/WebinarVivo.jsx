@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import Bars from '../components/charts/Bars.jsx';
 import LineArea from '../components/charts/LineArea.jsx';
+import MarcarPitch from '../components/webinars/MarcarPitch.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
@@ -126,6 +127,10 @@ export default function WebinarVivo() {
 
   useEffect(() => { getWebinar(id).then(setWebinar).catch(() => {}); }, [id]);
 
+  // Se incrementa cuando se guarda el minuto del pitch: fuerza una lectura nueva en
+  // vez de esperar hasta diez segundos para ver el número recalculado.
+  const [refresco, setRefresco] = useState(0);
+
   useEffect(() => {
     let vivo = true;
     const leer = () => {
@@ -147,7 +152,7 @@ export default function WebinarVivo() {
       clearInterval(timer.current);
       document.removeEventListener('visibilitychange', alVolver);
     };
-  }, [id]);
+  }, [id, refresco]);
 
   if (error && !d) return <div className="page"><ErrorState error={{ message: error }} /></div>;
 
@@ -207,6 +212,18 @@ export default function WebinarVivo() {
         >
           <Sala butacas={butacas} />
         </Card>
+      ) : null}
+
+      {d ? (
+        <MarcarPitch
+          webinarId={id}
+          minutoPitch={d.minutoPitch}
+          arranqueAt={d.arranqueAt}
+          enVivo={d.enVivo}
+          enElPitch={d.enElPitch}
+          pico={d.picoConcurrentes}
+          onGuardado={() => setRefresco((n) => n + 1)}
+        />
       ) : null}
 
       {d?.tramos?.length ? (

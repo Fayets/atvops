@@ -456,7 +456,8 @@ class WebinarsServices:
                 "nota": f"seguían al minuto {minuto_pitch}"}] if en_pitch is not None else []),
             {"label": "Agendaron", "n": booked, "nota": "tomaron el CTA"},
         ]
-        return {**r, "butacas": butacas, "registros": registros, "embudo": embudo}
+        return {**r, "butacas": butacas, "registros": registros, "embudo": embudo,
+                "minutoPitch": minuto_pitch, "enElPitch": en_pitch, "booked": booked}
 
     def sincronizar_zoom(self, webinar_id: int, usuario: dict) -> dict:
         """Trae la asistencia real de Zoom y llena los números de la Fase 2.
