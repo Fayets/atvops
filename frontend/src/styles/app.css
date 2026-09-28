@@ -5422,6 +5422,11 @@ button.lista-item:hover { background: var(--surface-2); }
 .vivo-kpi-valor { font-size: 32px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .vivo-kpi.es-grande .vivo-kpi-valor { font-size: 46px; }
 .vivo-kpi-nota { font-size: 12px; color: var(--text-2); }
+.vivo-kpi .wb-lapiz { font-size: 14px; vertical-align: middle; margin-left: 6px; }
+.vivo-kpi:hover .wb-lapiz { opacity: 1; }
+.vivo-kpi-input { width: 100%; padding: 0 4px; font: inherit; font-size: 32px; font-weight: 700;
+  line-height: 1.05; font-variant-numeric: tabular-nums; }
+.vivo-kpi.es-grande .vivo-kpi-input { font-size: 46px; }
 /* Mientras hay gente, el número late: el movimiento es el dato. */
 .vivo-page.esta-en-vivo .vivo-kpi.es-grande .vivo-kpi-valor { animation: vivo-latido 2.4s ease-in-out infinite; }
 @keyframes vivo-latido { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }

@@ -450,13 +450,15 @@ class WebinarsServices:
         # llena. El número que se carga a mano en "Vivos (show)" tapa ese agujero: los
         # que no escuchamos se cuentan como presentes, porque lo están.
         vivos_a_mano = int(crudas.get("vivos") or 0)
+        pico_a_mano = int(crudas.get("picoConcurrentes") or 0)
         sin_escuchar = max(0, vivos_a_mano - int(r.get("distintos") or 0))
-        if sin_escuchar:
+        pico = max(int(r.get("picoConcurrentes") or 0) + sin_escuchar, pico_a_mano)
+        if sin_escuchar or pico_a_mano:
             r = {
                 **r,
-                "distintos": vivos_a_mano,
+                "distintos": max(vivos_a_mano, int(r.get("distintos") or 0)),
                 "conectados": int(r.get("conectados") or 0) + sin_escuchar,
-                "picoConcurrentes": int(r.get("picoConcurrentes") or 0) + sin_escuchar,
+                "picoConcurrentes": pico,
                 "sinEscuchar": sin_escuchar,
             }
             butacas.extend(

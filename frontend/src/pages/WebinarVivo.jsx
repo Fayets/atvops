@@ -7,7 +7,7 @@ import MarcarPitch from '../components/webinars/MarcarPitch.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import { getWebinar, getWebinarVivo } from '../data/api.js';
+import { actualizarWebinar, getWebinar, getWebinarVivo } from '../data/api.js';
 
 /**
  * El webinar mientras pasa, como una sala.
@@ -45,13 +45,77 @@ const ESTADO_BUTACA = {
   vacia: 'no vino',
 };
 
-function Kpi({ label, valor, nota, tono, grande }) {
+function Kpi({ label, valor, nota, tono, grande, editable }) {
   return (
     <article className={`vivo-kpi${grande ? ' es-grande' : ''}`}>
       <span className="vivo-kpi-label">{label}</span>
-      <span className={`vivo-kpi-valor num${tono ? ` zona-${tono}` : ''}`}>{valor}</span>
+      {editable
+        ? <PisoEditable {...editable} valor={valor} tono={tono} />
+        : <span className={`vivo-kpi-valor num${tono ? ` zona-${tono}` : ''}`}>{valor}</span>}
       <span className="vivo-kpi-nota">{nota}</span>
     </article>
+  );
+}
+
+/**
+ * Un número del vivo que se puede corregir a mano.
+ *
+ * Los webhooks solo cuentan desde que existen. Cuando se prenden a mitad del webinar
+ * —o cuando Zoom se come un evento— el contador arranca por debajo de la sala real, y
+ * el que está conduciendo es el único que sabe el número de verdad: lo tiene en
+ * pantalla. Escribirlo acá lo deja como piso y la medición sigue desde ahí.
+ */
+function PisoEditable({ webinarId, clave, valor, tono, onGuardado }) {
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState('');
+  const [optimista, setOptimista] = useState(null);
+  const enVuelo = useRef(false);
+
+  useEffect(() => { setOptimista(null); }, [valor]);
+
+  const guardar = async () => {
+    if (enVuelo.current) return;
+    const n = Number(borrador);
+    setEditando(false);
+    if (!Number.isFinite(n) || n < 0) return;
+    enVuelo.current = true;
+    setOptimista(Math.round(n));
+    try {
+      await actualizarWebinar(webinarId, { metricas: { [clave]: Math.round(n) } });
+      onGuardado?.();
+    } catch {
+      setOptimista(null);
+    } finally {
+      enVuelo.current = false;
+    }
+  };
+
+  if (editando) {
+    return (
+      <input
+        className="vivo-kpi-input num" type="number" min="0" inputMode="numeric" autoFocus
+        value={borrador}
+        onChange={(e) => setBorrador(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') guardar();
+          if (e.key === 'Escape') setEditando(false);
+        }}
+        onBlur={guardar}
+      />
+    );
+  }
+
+  return (
+    <span className={`vivo-kpi-valor num${tono ? ` zona-${tono}` : ''}`}>
+      {optimista ?? valor}
+      <button
+        type="button" className="wb-lapiz"
+        onClick={() => { setBorrador(String(optimista ?? valor ?? 0)); setEditando(true); }}
+        title="Corregir: queda como piso y la medición sigue desde ahí"
+      >
+        ✎
+      </button>
+    </span>
   );
 }
 
@@ -190,11 +254,14 @@ export default function WebinarVivo() {
               ? `${d.sinEscuchar} ya estaban cuando empezamos a escuchar`
               : d.enVivo ? 'adentro en este momento' : 'no hay nadie conectado'} />
           <Kpi label="Pico" valor={d.picoConcurrentes}
+            editable={{ webinarId: id, clave: 'picoConcurrentes', onGuardado: () => setRefresco((n) => n + 1) }}
             nota={d.picoAt ? `el máximo fue ${hora(d.picoAt)}` : 'todavía sin pico'} />
           <Kpi label="Queda del pico" valor={retencion == null ? '—' : `${retencion}%`}
             tono={retencion == null ? null : retencion >= 70 ? 'ok' : retencion >= 50 ? 'warn' : 'alert'}
             nota="de los que llegaron a estar juntos" />
-          <Kpi label="Entraron en total" valor={d.distintos} nota="personas distintas" />
+          <Kpi label="Entraron en total" valor={d.distintos}
+            editable={{ webinarId: id, clave: 'vivos', onGuardado: () => setRefresco((n) => n + 1) }}
+            nota={d.sinEscuchar ? `${d.sinEscuchar} cargados a mano` : 'personas distintas'} />
           <Kpi label="Show rate" valor={showRate == null ? '—' : `${showRate}%`}
             tono={showRate == null ? null : showRate >= 35 ? 'ok' : showRate >= 20 ? 'warn' : 'alert'}
             nota={base ? `${d.distintos} de ${base} que confirmaron lugar` : 'sin confirmados cargados'} />
