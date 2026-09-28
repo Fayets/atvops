@@ -50,6 +50,14 @@ CAMPOS = {
         {"clave": "service_account_json", "label": "Service account (JSON)", "secreto": True,
          "largo": True},
     ],
+    # App "Server-to-Server OAuth" de Zoom. No vence: el token se pide en cada llamada
+    # con estas tres claves, así que no hay que renovarlo a mano como el de Meta.
+    "zoom": [
+        {"clave": "account_id", "label": "Account ID", "secreto": False,
+         "ayuda": "De la app Server-to-Server OAuth, no el número de cuenta de la factura."},
+        {"clave": "client_id", "label": "Client ID", "secreto": False},
+        {"clave": "client_secret", "label": "Client secret", "secreto": True},
+    ],
 }
 
 ETIQUETAS = {
@@ -58,6 +66,7 @@ ETIQUETAS = {
     "manychat": "ManyChat",
     "youtube": "YouTube",
     "google_calendar": "Google Calendar",
+    "zoom": "Zoom Webinars",
 }
 
 _cache: dict = {}

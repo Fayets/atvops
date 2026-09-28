@@ -57,6 +57,11 @@ def probar(plataforma: str, user: dict = Depends(_puede)):
             n = len(r.get("campanias") or [])
             return {"ok": True, "detalle": f"{n} campaña(s) leídas del Ads Manager."}
 
+        if plataforma == "zoom":
+            from src.services import zoom_services
+
+            return zoom_services.probar()
+
         if plataforma == "youtube":
             from src.services import youtube_services
 
