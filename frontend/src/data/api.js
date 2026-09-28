@@ -2510,6 +2510,10 @@ export async function reiniciarTrackingWebinar(webinarId) {
   return pedir(`/api/integraciones/webinar/${webinarId}/reiniciar`, { method: 'POST' });
 }
 
+export async function getZoomDisponibles() {
+  return pedir('/api/webinars/zoom/disponibles');
+}
+
 export async function getWebinarVivo(webinarId) {
   return pedir(`/api/webinars/${webinarId}/vivo`);
 }

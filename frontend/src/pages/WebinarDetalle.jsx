@@ -5,8 +5,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import {
-  actualizarWebinar, crearWebinar, getCampaniasMeta, getWebinar,
-} from '../data/api.js';
+  actualizarWebinar, crearWebinar, getCampaniasMeta, getWebinar, getZoomDisponibles } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { formatValue } from '../lib/format.js';
 import { BENCHMARKS_COLD, BENCHMARKS_META, CAMPOS_RAW, umbralesDe } from '../lib/webinarFases.js';
@@ -66,6 +65,14 @@ function rawDesdeWebinar(w) {
  * Config de un webinar: datos, ads y carga de números.
  * El embudo vive en el home `/webinars`.
  */
+const fechaCorta = (iso) => {
+  if (!iso) return 'sin fecha';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? 'sin fecha'
+    : d.toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
 export default function WebinarDetalle({ modo } = {}) {
   const { id } = useParams();
   const esNuevo = modo === 'nuevo' || id === 'nuevo';
@@ -82,6 +89,16 @@ export default function WebinarDetalle({ modo } = {}) {
   const [aviso, setAviso] = useState('');
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  // Los webinars de la cuenta de Zoom, para elegir en vez de pegar el id.
+  const [zoomWebinars, setZoomWebinars] = useState([]);
+  const [zoomError, setZoomError] = useState('');
+
+  useEffect(() => {
+    getZoomDisponibles()
+      .then((r) => { setZoomWebinars(r.webinars || []); setZoomError(''); })
+      .catch((e) => setZoomError(`No se pudo leer Zoom (${e.message}). Pegá el ID a mano.`));
+  }, []);
 
   useEffect(() => {
     getCampaniasMeta(mes).then(setCampanias).catch(() => setCampanias([]));
@@ -272,10 +289,35 @@ export default function WebinarDetalle({ modo } = {}) {
                 {CTA_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
-            <label>ID del webinar en Zoom
-              <input value={form.zoomWebinarId} onChange={(e) => set({ zoomWebinarId: e.target.value })}
-                placeholder="123 4567 8901" inputMode="numeric" />
-              <span className="dim">Con o sin espacios. Es lo que trae la asistencia real.</span>
+            <label>Webinar de Zoom
+              {/* Se elige de la lista de la cuenta. Si Zoom no contesta —claves sin
+                  cargar, sin conexión— queda el campo a mano: es preferible poder pegar
+                  el id que quedarse sin poder configurar el webinar. */}
+              {zoomError ? (
+                <>
+                  <input value={form.zoomWebinarId}
+                    onChange={(e) => set({ zoomWebinarId: e.target.value })}
+                    placeholder="123 4567 8901" inputMode="numeric" />
+                  <span className="dim">{zoomError}</span>
+                </>
+              ) : (
+                <>
+                  <select value={form.zoomWebinarId}
+                    onChange={(e) => set({ zoomWebinarId: e.target.value })}>
+                    <option value="">— sin vincular —</option>
+                    {zoomWebinars.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.cuando === 'proximo' ? '▸ ' : ''}{fechaCorta(w.inicioAt)} · {w.tema}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="dim">
+                    {zoomWebinars.length
+                      ? 'De acá sale la asistencia real y el vivo.'
+                      : 'Cargando los webinars de tu cuenta de Zoom…'}
+                  </span>
+                </>
+              )}
             </label>
             <label className="ancho">Landing URL
               <input type="url" value={form.landingUrl} onChange={(e) => set({ landingUrl: e.target.value })}

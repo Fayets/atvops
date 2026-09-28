@@ -434,6 +434,29 @@ def registrar_evento(payload: dict) -> dict:
     return {"ok": True, "tipo": tipo}
 
 
+def _curva(tramos: list[tuple[datetime, datetime]], desde: datetime | None,
+           hasta: datetime | None, puntos: int = 120) -> list[dict]:
+    """Cuántos había conectados a lo largo del webinar, para dibujar la curva.
+
+    El paso se estira para que un webinar de tres horas no mande ciento ochenta puntos a
+    una pantalla que dibuja ciento veinte. La forma es la misma y el JSON pesa lo mismo
+    para un vivo de veinte minutos que para uno de tres horas.
+    """
+    if not (tramos and desde and hasta and hasta > desde):
+        return []
+    total_min = max(1, int((hasta - desde).total_seconds() // 60))
+    paso = max(1, -(-total_min // puntos))  # división hacia arriba
+    salida = []
+    for i in range(0, total_min + 1, paso):
+        momento = desde + timedelta(minutes=i)
+        salida.append({
+            "at": momento.isoformat(),
+            "minuto": i,
+            "conectados": conectados_en(tramos, momento),
+        })
+    return salida
+
+
 def vivo(webinar_zoom_id: str) -> dict:
     """Cómo viene el webinar ahora mismo, según los avisos que fue mandando Zoom.
 
@@ -477,6 +500,7 @@ def vivo(webinar_zoom_id: str) -> dict:
     # se fue —que es todo el mundo mientras el webinar está pasando—.
     tramos.extend((desde, ahora) for desde in entradas.values())
     pico, pico_at = pico_concurrentes(tramos)
+    serie = _curva(tramos, arranque or (filas[0][4] if filas else None), fin or ahora)
 
     return {
         "webinarId": str(webinar_zoom_id),
@@ -487,6 +511,7 @@ def vivo(webinar_zoom_id: str) -> dict:
         "distintos": len(personas),
         "arranqueAt": arranque.isoformat() if arranque else None,
         "finAt": fin.isoformat() if fin else None,
+        "serie": serie,
         "gente": sorted(adentro.values(), key=lambda p: p["desdeAt"]),
         "eventos": len(filas),
     }

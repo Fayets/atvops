@@ -28,6 +28,36 @@ def listar(user: dict = Depends(_puede_webinars)):
         raise HTTPException(status_code=500, detail=f"No se pudieron listar los webinars: {e}") from e
 
 
+@router.get("/zoom/disponibles")
+def zoom_disponibles(user: dict = Depends(_puede_webinars)):
+    """Los webinars que hay en la cuenta de Zoom, para elegir de una lista.
+
+    Tiene que estar declarada antes que /{webinar_id}: si no, FastAPI lee "zoom" como
+    un id de webinar y contesta 422.
+    """
+    from src.services import zoom_services
+
+    try:
+        pasados = zoom_services.listar_webinars("past")
+        proximos = zoom_services.listar_webinars("upcoming")
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo leer Zoom: {e}") from e
+
+    # Un mismo webinar puede figurar en las dos listas el día que se da. Se muestra una
+    # sola vez, y como próximo, que es lo que importa para elegirlo.
+    vistos = set()
+    salida = []
+    for cual, filas in (("proximo", proximos), ("pasado", pasados)):
+        for w in filas:
+            if w["id"] in vistos:
+                continue
+            vistos.add(w["id"])
+            salida.append({**w, "cuando": cual})
+    return {"webinars": salida}
+
+
 @router.get("/{webinar_id}")
 def obtener(webinar_id: int, user: dict = Depends(_puede_webinars)):
     try:

@@ -83,8 +83,8 @@ export default function ClavesApi() {
     <div className="page">
       <PageHeader
         eyebrow="Sistema"
-        titulo="Claves API"
-        sub="Las credenciales de las plataformas que ATV Ops consulta. Un campo vacío no se toca."
+        title="Claves API"
+        desc="Las credenciales de las plataformas que ATV Ops consulta. Un campo vacío no se toca."
       />
 
       {error ? <ErrorState error={error} /> : null}

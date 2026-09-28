@@ -31,6 +31,7 @@ import Webinars from './pages/Webinars.jsx';
 import WebinarsListado from './pages/WebinarsListado.jsx';
 import WebinarDetalle from './pages/WebinarDetalle.jsx';
 import WebinarFaseDetalle from './pages/WebinarFaseDetalle.jsx';
+import WebinarVivo from './pages/WebinarVivo.jsx';
 import Integraciones from './pages/Integraciones.jsx';
 import ClavesApi from './pages/ClavesApi.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
@@ -173,6 +174,7 @@ export default function App() {
               <Route index element={<Webinars />} />
               <Route path="listado" element={<WebinarsListado />} />
               <Route path="nuevo" element={<WebinarDetalle modo="nuevo" />} />
+              <Route path=":id/vivo" element={<WebinarVivo />} />
               <Route path=":id/fase/:faseId" element={<WebinarFaseDetalle />} />
               <Route path=":id" element={<WebinarDetalle />} />
             </Route>
