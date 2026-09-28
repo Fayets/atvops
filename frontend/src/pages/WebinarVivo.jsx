@@ -294,6 +294,26 @@ export default function WebinarVivo() {
         </Card>
       ) : null}
 
+      {d?.seFueron?.length ? (
+        <Card
+          title="Se fueron"
+          sub={`${d.seFueron.length} personas · las butacas ámbar`}
+          foot="Los que se van durante el contenido son los que no van a estar en el pitch. Con nombre y con cuánto aguantaron: el que se fue al minuto 3 no es el mismo caso que el que aguantó cuarenta."
+          flush
+        >
+          <div className="vivo-gente">
+            {d.seFueron.map((p) => (
+              <div key={`${p.email || p.nombre}-${p.salioAt}`} className="vivo-persona">
+                <span className="strong">{p.nombre || p.email || 'Sin nombre'}</span>
+                <span className="dim">{p.email && p.nombre ? p.email : ''}</span>
+                <span className="dim">se fue {hora(p.salioAt)}</span>
+                <span className="num">{p.minutos != null ? `${p.minutos} min` : '—'}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       {d ? (
         <MarcarPitch
           webinarId={id}

@@ -574,9 +574,11 @@ def vivo(webinar_zoom_id: str, minuto_pitch: int | None = None) -> dict:
     # además se fue —ese no está adentro ni en la lista de Zoom, y sin esto se
     # evaporaba de la sala aunque hubiera estado—.
     estuvieron: dict[str, str] = {}
-    for tipo, pid, email, nombre, _at in filas:
+    primeras_entradas: dict[str, datetime] = {}
+    for tipo, pid, email, nombre, at in filas:
         if tipo == "entra":
             estuvieron.setdefault(email or pid, nombre or email or "Sin nombre")
+            primeras_entradas.setdefault(email or pid, at)
 
     butacas = []
     sentados = set()
@@ -601,6 +603,29 @@ def vivo(webinar_zoom_id: str, minuto_pitch: int | None = None) -> dict:
             "inscripto": False,
         })
 
+    # Quiénes se fueron, con cuánto aguantaron. Las butacas ámbar se pueden mirar de a
+    # una pasando el mouse, pero cuando son treinta eso no es mirar: es buscar. Y es la
+    # lista que sirve mientras el webinar pasa —a esos hay que ir a buscarlos— así que
+    # va en pantalla y no escondida en un tooltip.
+    ultima_salida: dict[str, datetime] = {}
+    for tipo, pid, email, _n, at in filas:
+        if tipo == "sale":
+            ultima_salida[email or pid] = at
+    se_fueron = []
+    for llave, nombre in estuvieron.items():
+        if llave in adentro_por_llave:
+            continue
+        salio = ultima_salida.get(llave)
+        entro = primeras_entradas.get(llave)
+        se_fueron.append({
+            "nombre": nombre,
+            "email": llave if "@" in llave else None,
+            "entroAt": entro.isoformat() if entro else None,
+            "salioAt": salio.isoformat() if salio else None,
+            "minutos": round((salio - entro).total_seconds() / 60) if (salio and entro) else None,
+        })
+    se_fueron.sort(key=lambda x: x["salioAt"] or "", reverse=True)
+
     # Los últimos movimientos, para ver el goteo de gente entrando.
     ultimos = [
         {"tipo": tipo, "quien": nombre or email or "Alguien", "at": at.isoformat()}
@@ -613,6 +638,7 @@ def vivo(webinar_zoom_id: str, minuto_pitch: int | None = None) -> dict:
         "enVivo": en_vivo,
         "inscriptos": sum(1 for b in butacas if b["inscripto"]),
         "butacas": butacas,
+        "seFueron": se_fueron,
         "tramos": _tramos(tramos, arranque, fin or ahora, pico, minuto_pitch),
         "ultimos": ultimos,
         "conectados": len(adentro),
