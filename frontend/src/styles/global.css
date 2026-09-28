@@ -45,6 +45,53 @@ button {
   cursor: pointer;
 }
 
+/* Los controles de formulario, por defecto.
+ *
+ * Sin esto un input sin clase propia lo pinta el navegador, y el navegador pinta según
+ * el color-scheme: en una Mac en modo oscuro salían campos negros con texto blanco en
+ * medio del hueso. Cada pantalla que quiera algo distinto lo pisa con su clase; lo que
+ * no puede pasar es que un campo nuevo dependa de cómo tenga configurada la Mac el que
+ * lo mira. */
+input,
+select,
+textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: 13px var(--font);
+  padding: 8px 10px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-3);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+/* Las casillas y los radios no son cajas de texto: se quedan con su dibujo nativo y
+   solo se les corrige el tinte, que también lo decidía el color-scheme. */
+input[type='checkbox'],
+input[type='radio'] {
+  padding: 0;
+  border: none;
+  background: none;
+  accent-color: var(--brand);
+}
+
 ::selection {
   background: var(--brand);
   color: #fff;

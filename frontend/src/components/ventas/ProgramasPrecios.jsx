@@ -68,7 +68,7 @@ export default function ProgramasPrecios() {
                 onBlur={(e) => Number(e.target.value) !== p.precioUsd && aplicar({ ...p, precioUsd: e.target.value }, p.id)}
                 aria-label={`Precio de ${p.nombre}`}
               />
-              <button className="btn sm" onClick={() => eliminar(p)} disabled={guardando === p.id}>Borrar</button>
+              <button className="btn sm ghost borrar" onClick={() => eliminar(p)} disabled={guardando === p.id}>Borrar</button>
             </div>
           ))}
 

@@ -5410,6 +5410,13 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }
 .programas-tabla { display: grid; gap: 8px; }
 .programa-fila { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: var(--space-3); align-items: center; }
+/* El precio es plata: alineado a la derecha y con cifras de ancho fijo, así la columna
+   se lee de un vistazo en vez de obligar a comparar números que bailan. */
+.programa-fila input[type='number'] { text-align: right; font-variant-numeric: tabular-nums; }
+/* Borrar es destructivo pero cotidiano: se ve al pasar por la fila, no todo el tiempo. */
+.programa-fila .btn { white-space: nowrap; }
+.programa-fila .btn.borrar { color: var(--text-3); }
+.programa-fila:hover .btn.borrar, .programa-fila .btn.borrar:focus-visible { color: var(--alert); border-color: var(--alert); }
 .pendientes-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-4); }
 .pendiente-card { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--border-soft); border-radius: var(--radius-md, 10px); background: var(--surface-2); }
 .pendiente-card.guardando { opacity: 0.5; }
