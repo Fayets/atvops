@@ -253,7 +253,11 @@ export default function WebinarVivo() {
 
       {d ? (
         <div className="vivo-kpis">
-          <Kpi grande label="Conectados ahora" valor={d.conectados} tono={d.enVivo ? 'ok' : null}
+          {/* Terminado el webinar, "conectados ahora" y "queda del pico" son cero y no
+              dicen nada. Ocupan el lugar de la retención promedio, que es la lectura
+              que importa después: cuánto se quedó la gente. */}
+          {d.enVivo ? (
+            <Kpi grande label="Conectados ahora" valor={d.conectados} tono="ok"
             editable={{
               webinarId: id,
               clave: 'conectadosOffset',
@@ -262,15 +266,35 @@ export default function WebinarVivo() {
               transformar: (n) => Math.max(0, n - (d.medidosDentro ?? 0)),
               onGuardado: () => setRefresco((x) => x + 1),
             }}
-            nota={d.sinEscuchar
-              ? `${d.sinEscuchar} cargados a mano · ${d.medidosDentro ?? 0} medidos por Zoom`
-              : d.enVivo ? 'adentro en este momento' : 'no hay nadie conectado'} />
+              nota={d.sinEscuchar
+                ? `${d.sinEscuchar} cargados a mano · ${d.medidosDentro ?? 0} medidos por Zoom`
+                : 'adentro en este momento'} />
+          ) : (
+            <Kpi grande label="Retención promedio"
+              valor={d.duracionMin ? `${Math.round((d.minutosPromedio / d.duracionMin) * 100)}%` : '—'}
+              tono={d.duracionMin
+                ? ((d.minutosPromedio / d.duracionMin) >= 0.5 ? 'ok'
+                  : (d.minutosPromedio / d.duracionMin) >= 0.3 ? 'warn' : 'alert')
+                : null}
+              nota={`${d.minutosPromedio ?? 0} min de ${d.duracionMin ?? 0} en promedio`} />
+          )}
           <Kpi label="Pico" valor={d.picoConcurrentes}
             editable={{ webinarId: id, clave: 'picoConcurrentes', onGuardado: () => setRefresco((n) => n + 1) }}
             nota={d.picoAt ? `el máximo fue ${hora(d.picoAt)}` : 'todavía sin pico'} />
-          <Kpi label="Queda del pico" valor={retencion == null ? '—' : `${retencion}%`}
-            tono={retencion == null ? null : retencion >= 70 ? 'ok' : retencion >= 50 ? 'warn' : 'alert'}
-            nota="de los que llegaron a estar juntos" />
+          {d.enVivo ? (
+            <Kpi label="Queda del pico" valor={retencion == null ? '—' : `${retencion}%`}
+              tono={retencion == null ? null : retencion >= 70 ? 'ok' : retencion >= 50 ? 'warn' : 'alert'}
+              nota="de los que llegaron a estar juntos" />
+          ) : (
+            <Kpi label="Al pitch" valor={d.enElPitch ?? '—'}
+              tono={d.enElPitch && d.picoConcurrentes
+                ? ((d.enElPitch / d.picoConcurrentes) >= 0.7 ? 'ok'
+                  : (d.enElPitch / d.picoConcurrentes) >= 0.5 ? 'warn' : 'alert')
+                : null}
+              nota={d.minutoPitch
+                ? `${Math.round((d.enElPitch / d.picoConcurrentes) * 100)}% del pico · minuto ${d.minutoPitch}`
+                : 'marcá el minuto del pitch'} />
+          )}
           <Kpi label="Entraron en total" valor={d.distintos}
             editable={{ webinarId: id, clave: 'vivos', onGuardado: () => setRefresco((n) => n + 1) }}
             nota={d.sinEscuchar ? `${d.sinEscuchar} cargados a mano` : 'personas distintas'} />

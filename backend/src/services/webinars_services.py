@@ -506,7 +506,11 @@ class WebinarsServices:
             *([{"label": "Confirmados", "n": registros,
                 "nota": "reservaron lugar en el evento"}]
               if registros and registros != optins else []),
-            {"label": "Inscriptos", "n": r.get("inscriptos") or 0, "nota": "confirmaron lugar en Zoom"},
+            # Solo si hubo lista de inscriptos. En una reunión no existe, y un escalón
+            # en cero no dice "nadie se inscribió": dice "acá no se mide nada", y de
+            # paso rompe el porcentaje del escalón siguiente.
+            *([{"label": "Inscriptos", "n": r["inscriptos"], "nota": "confirmaron lugar en Zoom"}]
+              if r.get("inscriptos") else []),
             {"label": "Entraron", "n": r.get("distintos") or 0, "nota": "pisaron el vivo"},
             *([{"label": "Al pitch", "n": en_pitch,
                 "nota": f"seguían al minuto {minuto_pitch}"}] if en_pitch is not None else []),

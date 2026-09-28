@@ -412,11 +412,19 @@ def reporte_completo(webinar_id: str, minuto_pitch: int | None = None) -> dict:
         "enVivo": False,
         "conectados": 0,
         "distintos": personas_distintas(gente),
-        "inscriptos": sum(1 for f in gente if f["email"]),
+        # Los inscriptos salen de la lista de registrados, no de tener email: un
+        # asistente logueado en Zoom trae mail y no se inscribió en nada. Una reunión
+        # no tiene lista, así que da cero y el escalón desaparece del embudo.
+        "inscriptos": len(_inscriptos_cacheados(webinar_id)),
         "picoConcurrentes": pico,
         "picoAt": pico_at.isoformat() if pico_at else None,
         "arranqueAt": arranque.isoformat(),
         "finAt": fin.isoformat(),
+        # Cuánto se quedó la gente, en minutos y contra lo que duró el webinar. Es la
+        # retención que importa cuando ya terminó: el pico dice cuánta gente llegó a
+        # entrar, esto dice cuánto se quedaron.
+        "minutosPromedio": round(sum(f["minutos"] for f in gente) / len(gente), 1) if gente else 0.0,
+        "duracionMin": max(1, int((fin - arranque).total_seconds() // 60)),
         "serie": _curva(tramos, arranque, fin),
         "tramos": _tramos(tramos, arranque, fin, pico, minuto_pitch),
         "butacas": butacas,
