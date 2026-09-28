@@ -1987,12 +1987,17 @@ export async function getCobranza(mes) {
         .reduce((s, c) => s + c.montoUsd, 0),
     },
     cobrado: m.cobradoUsd,
+    // La caja es la plata que entró en el mes, por fecha de pago: es el número que
+    // tiene que coincidir con "Plata del mes" de ATV Clients. `cobrado` contesta otra
+    // cosa —de lo que vencía este mes, cuánto está pagado— y por eso no dan igual.
+    caja: raw.caja ?? { usd: 0, pagos: 0 },
     esperadoHoy: Math.round((m.totalUsd * ctx.diaHoy) / ctx.diasMes),
     totalMes: m.totalUsd,
     ritmoCobro: ritmo({ meta: m.totalUsd, actual: m.cobradoUsd, diasMes: ctx.diasMes, diaHoy: ctx.diaHoy }),
     pctSobreVencido: m.pctCobrado,
     kpis: [
-      kpi('cobrado_mes', 'Cobrado del mes', m.cobradoUsd, 'usd', `${m.pctCobrado}% de ${formatValue(m.totalUsd, 'usd')} a cobrar`, m.totalUsd),
+      kpi('caja_mes', 'Entró en el mes', raw.caja?.usd ?? 0, 'usd', `${raw.caja?.pagos ?? 0} pagos con fecha en el mes · igual que ATV Clients`),
+      kpi('cobrado_mes', 'De lo que vencía, entró', m.cobradoUsd, 'usd', `${m.pctCobrado}% de ${formatValue(m.totalUsd, 'usd')} que vencían`, m.totalUsd),
       kpi('pendiente_mes', 'Pendiente del mes', m.pendienteUsd, 'usd', `${m.cuotas} cuotas con vencimiento este mes`),
       kpi('vencido', 'Vencido sin cobrar', m.vencidoUsd, 'usd', `${raw.vencidas.length} cuotas pasadas de fecha`),
       kpi('deuda_cartera', 'Deuda de la cartera', raw.cartera.deudaUsd, 'usd', `${raw.cartera.vigentes} clientes vigentes de ${raw.cartera.clientes}`),

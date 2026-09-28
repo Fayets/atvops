@@ -5408,6 +5408,10 @@ button.lista-item:hover { background: var(--surface-2); }
 .llamada-venta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); align-items: end; }
 .llamada-precio { grid-column: 1 / -1; font-size: 12px; }
 .llamada-acciones { display: flex; justify-content: flex-end; gap: 8px; }
+.tabla-paginas { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: 10px var(--space-4); border-top: 1px solid var(--border-soft); font-size: 12.5px; }
+.tabla-paginas-botones { display: flex; align-items: center; gap: 10px; }
+
 .programas-tabla { display: grid; gap: 8px; }
 .programa-fila { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: var(--space-3); align-items: center; }
 /* El precio es plata: alineado a la derecha y con cifras de ancho fijo, así la columna

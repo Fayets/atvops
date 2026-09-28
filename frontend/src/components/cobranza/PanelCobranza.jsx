@@ -10,6 +10,12 @@ import PanelArea, { n, pct } from '../ui/PanelArea.jsx';
  * La pregunta de acá no es cuántas cuotas hay, es cuánto falta y hace cuánto. Una cuota
  * de hace tres meses y una de ayer se cobran distinto, y por eso lo vencido se abre por
  * antigüedad en vez de mostrarse como un número solo.
+ *
+ * Los dos primeros números parecen el mismo y no lo son. "Entró en el mes" es la caja:
+ * la plata con fecha de pago en el mes, venza la cuota cuando venza, y es la que tiene
+ * que coincidir con ATV Clients. "De lo que vencía, entró" mide la cobranza: de las
+ * cuotas con vencimiento este mes, cuántas están pagadas. Se llamaban las dos "cobrado
+ * del mes" y por eso los tableros parecían pelearse.
  */
 
 const TRAMOS = [
@@ -27,6 +33,7 @@ export default function PanelCobranza({ data }) {
   const cuotas = data?.cuotas ?? [];
   const vencidas = data?.listaVencidas ?? [];
   const cobrado = data?.cobrado ?? 0;
+  const caja = data?.caja ?? { usd: 0, pagos: 0 };
   const totalMes = data?.totalMes ?? 0;
   const pendiente = Math.max(totalMes - cobrado, 0);
   const vencidoUsd = data?.vencidas?.usd ?? 0;
@@ -68,8 +75,10 @@ export default function PanelCobranza({ data }) {
   return (
     <PanelArea
       kpis={[
-        { label: 'Cobrado del mes', valor: n(cobrado, 'usd'), tono: cobrado > 0 ? 'ok' : null,
-          nota: `${pct(data?.pctSobreVencido)} de las ${n(cuotas.length)} cuotas que vencían este mes` },
+        { label: 'Entró en el mes', valor: n(caja.usd, 'usd'), tono: caja.usd > 0 ? 'ok' : null,
+          nota: `${n(caja.pagos)} pagos con fecha en el mes · es la caja, igual que ATV Clients` },
+        { label: 'De lo que vencía, entró', valor: n(cobrado, 'usd'),
+          nota: `${pct(data?.pctSobreVencido)} de las ${n(cuotas.length)} cuotas que vencen este mes` },
         { label: 'Falta cobrar', valor: n(pendiente, 'usd'), tono: pendiente > 0 ? 'warn' : null,
           nota: 'de lo que vencía este mes y todavía no entró' },
         { label: 'Vencido', valor: n(vencidoUsd, 'usd'), tono: vencidoUsd > 0 ? 'alert' : null,

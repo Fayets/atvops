@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * Tabla genérica. Las columnas describen cómo se ve cada campo; los datos ya
@@ -7,9 +7,13 @@ import { useMemo, useState } from 'react';
  * @typedef {{ key: string, label: string, align?: 'left' | 'right',
  *             render?: (row: any) => React.ReactNode, value?: (row: any) => any,
  *             sortable?: boolean }} Columna
+ * `porPagina` la parte en páginas. Es opcional a propósito: una tabla de diez filas no
+ * necesita controles, y ponerlos donde no hacen falta agrega ruido. Cuando está, el pie
+ * dice qué tramo se está viendo, porque "página 2 de 6" no contesta cuántas filas hay.
+ *
  * @param {{ columns: Columna[], rows: any[], rowKey?: (row: any) => string,
  *           initialSort?: { key: string, dir: 'asc' | 'desc' }, empty?: string,
- *           onRowClick?: (row: any) => void }} props
+ *           porPagina?: number, onRowClick?: (row: any) => void }} props
  */
 export default function DataTable({
   columns,
@@ -17,9 +21,11 @@ export default function DataTable({
   rowKey = (r) => r.id,
   initialSort,
   empty = 'Sin datos.',
+  porPagina,
   onRowClick,
 }) {
   const [sort, setSort] = useState(initialSort ?? null);
+  const [pagina, setPagina] = useState(0);
 
   const ordenadas = useMemo(() => {
     if (!sort) return rows;
@@ -34,6 +40,14 @@ export default function DataTable({
       return sort.dir === 'asc' ? cmp : -cmp;
     });
   }, [rows, sort, columns]);
+
+  const paginado = porPagina > 0 && ordenadas.length > porPagina;
+  const paginas = paginado ? Math.ceil(ordenadas.length / porPagina) : 1;
+  // Reordenar o filtrar puede dejar la página actual fuera de rango; volver a la
+  // primera es mejor que mostrar una tabla vacía sin explicación.
+  useEffect(() => { setPagina((p) => (p < paginas ? p : 0)); }, [paginas]);
+  const desde = paginado ? pagina * porPagina : 0;
+  const visibles = paginado ? ordenadas.slice(desde, desde + porPagina) : ordenadas;
 
   if (!rows.length) return <div className="empty">{empty}</div>;
 
@@ -60,7 +74,7 @@ export default function DataTable({
           </tr>
         </thead>
         <tbody>
-          {ordenadas.map((row) => (
+          {visibles.map((row) => (
             <tr
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -75,6 +89,29 @@ export default function DataTable({
           ))}
         </tbody>
       </table>
+
+      {paginado ? (
+        <div className="tabla-paginas">
+          <span className="dim">
+            {desde + 1}–{Math.min(desde + porPagina, ordenadas.length)} de {ordenadas.length}
+          </span>
+          <div className="tabla-paginas-botones">
+            <button
+              type="button" className="btn sm ghost" disabled={pagina === 0}
+              onClick={() => setPagina((p) => Math.max(0, p - 1))}
+            >
+              Anterior
+            </button>
+            <span className="dim">{pagina + 1} / {paginas}</span>
+            <button
+              type="button" className="btn sm ghost" disabled={pagina >= paginas - 1}
+              onClick={() => setPagina((p) => Math.min(paginas - 1, p + 1))}
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

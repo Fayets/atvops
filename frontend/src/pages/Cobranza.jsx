@@ -111,7 +111,12 @@ export default function Cobranza() {
             flush
             foot="Lectura directa de clients.cuotas vía ATV Clients."
           >
-            <DataTable columns={COLUMNAS} rows={data.cuotas} initialSort={{ key: 'diasAtraso', dir: 'desc' }} />
+            <DataTable
+              columns={COLUMNAS}
+              rows={data.cuotas}
+              initialSort={{ key: 'diasAtraso', dir: 'desc' }}
+              porPagina={15}
+            />
           </Card>
         </>
       )}

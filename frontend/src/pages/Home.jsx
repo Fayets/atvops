@@ -119,9 +119,9 @@ export default function Home() {
           estado={cobranza.unavailable ? { tone: 'off', label: 'sin datos' }
             : cobranza.vencidas.n ? { tone: 'alert', label: 'con vencidas' } : { tone: 'ok', label: 'al día' }}
           metricas={cobranza.unavailable ? [] : [
-            { label: 'Cobrado del mes', valor: cobranza.cobrado, format: 'usd', meta: cobranza.totalMes,
+            { label: 'De lo que vencía', valor: cobranza.cobrado, format: 'usd', meta: cobranza.totalMes,
               tono: cobranza.ritmoCobro?.estado === 'critico' ? 'alert' : 'ok',
-              nota: `${Math.round(cobranza.pctSobreVencido)} % de lo que vencía` },
+              nota: `${Math.round(cobranza.pctSobreVencido)} % · entraron ${formatCompact(cobranza.caja?.usd ?? 0, 'usd')} en el mes` },
             { label: 'Vencido', valor: cobranza.vencidas.usd, format: 'usd', tono: 'alert',
               nota: `${cobranza.vencidas.n} cuotas pasadas de fecha` },
             { label: 'Vence en 7 días', valor: cobranza.porVencerSemana.usd, format: 'usd', tono: 'warn',

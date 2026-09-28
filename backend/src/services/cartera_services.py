@@ -2,6 +2,26 @@
 Cobranza real: cuotas y deuda de la cartera, del esquema `clients` (ATV Clients).
 
 Si la fuente no está disponible, todo va en cero: la vista lo dice y no inventa números.
+
+**Dos preguntas distintas que se llamaban igual.** "Cobrado del mes" acá quería decir
+"de las cuotas que vencían este mes, cuánto está marcado pagado" —una medida de
+cobranza, por fecha de vencimiento—. En el tablero de ATV Clients quiere decir "cuánta
+plata entró este mes" —caja, por fecha de pago—. Con el mismo nombre en las dos
+pantallas, los números no cerraban y parecía que una de las dos mentía.
+
+En septiembre 2026 la diferencia eran US$ 4.200, y se abre así:
+
+    ATV Ops, cuotas que vencen en el mes y están pagadas   US$ 54.666
+      − dos de ellas se cobraron en agosto                  −  6.800
+      + cuotas cobradas en septiembre que vencían antes     +  9.000
+      + pagos parciales, que no cierran la cuota            +  2.000
+    ATV Clients, pagos con fecha en el mes                 US$ 58.866
+
+Los pagos parciales son el caso que no se ve desde `cuotas`: una cuota vencida que
+recibe dos pagos de 500 sigue diciendo "vencida", pero esos 1.000 entraron.
+
+Por eso ahora se devuelven las dos: `caja` (la plata, de `pagos`) y `delMes` (la
+cobranza, de `cuotas`). La primera es la que tiene que coincidir con ATV Clients.
 """
 
 from __future__ import annotations
@@ -49,6 +69,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "detalle": "No hay conexión con la base de ATV Clients.",
         "delMes": {"cuotas": 0, "totalUsd": 0, "cobradoUsd": 0, "pendienteUsd": 0, "vencidoUsd": 0, "pctCobrado": 0},
         "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0, "cobradoHistoricoUsd": 0},
+        "caja": {"usd": 0, "pagos": 0},
         "cuotas": [], "vencidas": [], "proximas": [],
     }
     if not clients_db.disponible():
@@ -64,6 +85,13 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     clientes = clients_db.consultar(
         "SELECT estado_cliente, count(*) AS n, coalesce(sum(total_adeudado_usd), 0) AS deuda, "
         "coalesce(sum(total_pagado_usd), 0) AS pagado FROM {esquema}.clientes GROUP BY estado_cliente"
+    )
+    # La caja: la plata que entró en el mes, con fecha de pago, venza la cuota cuando
+    # venza. Es otra pregunta que la de abajo y por eso se lee de otra tabla.
+    caja = clients_db.consultar(
+        "SELECT count(*) AS n, coalesce(sum(monto_usd), 0) AS usd FROM {esquema}.pagos "
+        "WHERE fecha >= %s AND fecha < %s",
+        (inicio, fin),
     )
     if not cuotas and not clientes:
         return base
@@ -100,6 +128,10 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "pendienteUsd": round(total - cobrado, 2),
             "vencidoUsd": round(vencido, 2),
             "pctCobrado": round(cobrado / total * 100, 1) if total else 0,
+        },
+        "caja": {
+            "usd": round(_num((caja[0] if caja else {}).get("usd")), 2),
+            "pagos": int(_num((caja[0] if caja else {}).get("n"))),
         },
         "cartera": {
             "clientes": sum(int(_num(c["n"])) for c in clientes),
