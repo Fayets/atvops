@@ -268,7 +268,7 @@ export default function WebinarVivo() {
         <Card
           title="Las listas del post"
           sub="Quedan armadas cuando termina el webinar"
-          foot="Cada una se descarga y se trabaja distinto. La de arriba va al grupo; la segunda es la que hay que llamar hoy."
+          foot="Van en orden de qué hacer primero. Las dos de la izquierda se llaman hoy; la tercera va al grupo con la grabación; la última no entra a llamada."
         >
           <div className="vivo-listas">
             {d.listas.map((l) => (

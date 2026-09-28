@@ -41,13 +41,18 @@ export function vivoDemo() {
   for (let i = 0; i < inscriptos; i += 1) {
     const nombre = `${NOMBRES[i % NOMBRES.length]}${i >= NOMBRES.length ? ` ${Math.floor(i / NOMBRES.length) + 1}` : ''}`;
     if (r() >= 0.69) { gente.push({ nombre, entra: null, sale: null }); continue; }
-    const entra = Math.floor(r() * 14);
+    // Un goteo entra tarde, como pasa siempre. Sin esto, todos los movimientos
+    // recientes son salidas y el feed cuenta una historia peor que la real.
+    const tarde = r() < 0.12;
+    const entra = tarde
+      ? 22 + Math.floor(r() * (duracion - 26))
+      : Math.floor(r() * 14);
     const suerte = r();
     // La mayoría se queda hasta el final; los que se van, se van casi todos después
     // del pitch. Es un webinar que salió bien, que es lo que la maqueta tiene que mostrar.
     let sale = null;
     if (suerte < 0.1) sale = entra + 12 + Math.floor(r() * (minutoPitch - entra - 14));
-    else if (suerte < 0.22) sale = minutoPitch + 4 + Math.floor(r() * 20);
+    else if (suerte < 0.32) sale = minutoPitch + 4 + Math.floor(r() * 20);
     gente.push({ nombre, entra, sale });
   }
 
@@ -110,9 +115,10 @@ export function vivoDemo() {
 
   const listas = [
     {
-      clave: 'no_vinieron', titulo: 'No se presentaron',
-      nota: 'Confirmaron lugar y no entraron. Van al grupo de WhatsApp con la grabación.',
-      n: inscriptos - distintos, personas: noVinieron.slice(0, 8).map((g) => g.nombre),
+      clave: 'calificados', titulo: 'Calificados',
+      nota: 'Facturación y respuestas que califican. Prioridad de contacto.',
+      n: 212, personas: ['Marcos Ferrero', 'Jeferson Canate', 'Fer Canovas', 'Ayrton Alemán',
+        'Lucía Prado', 'Tomás Rey', 'Nadia Coria', 'Iván Sosa'],
     },
     {
       clave: 'sin_cta', titulo: 'Vinieron y no siguieron el CTA',
@@ -120,16 +126,17 @@ export function vivoDemo() {
       n: Math.max(0, sinCta.length - booked), personas: sinCta.slice(0, 8).map((g) => g.nombre),
     },
     {
-      clave: 'descalificados', titulo: 'Descalificados y semi',
-      nota: 'Del formulario de la landing. No entran a llamada.',
-      n: 251, personas: ['Lucía Prado', 'Tomás Rey', 'Nadia Coria', 'Iván Sosa'],
+      clave: 'no_vinieron', titulo: 'No se presentaron',
+      nota: 'Confirmaron lugar y no entraron. Van al grupo de WhatsApp con la grabación.',
+      n: inscriptos - distintos, personas: noVinieron.slice(0, 8).map((g) => g.nombre),
     },
     {
-      clave: 'calificados', titulo: 'Calificados',
-      nota: 'Facturación y respuestas que califican. Prioridad de contacto.',
-      n: 97, personas: ['Marcos Ferrero', 'Jeferson Canate', 'Fer Canovas', 'Ayrton Alemán'],
+      clave: 'descalificados', titulo: 'Descalificados y semi',
+      nota: 'Del formulario de la landing. No entran a llamada.',
+      n: 136, personas: ['Ariel Gómez', 'Sol Ferrari', 'Nico Ledesma', 'Rita Molina'],
     },
   ];
+
 
   return {
     demo: true,
