@@ -464,6 +464,18 @@ class WebinarsServices:
         # definitivos —salen del reporte— y sumarles lo medido los contaría dos veces.
         sin_escuchar = (max(offset, vivos_a_mano - medidos_distintos, 0)
                         if r.get("enVivo") else 0)
+
+        # Terminado el webinar, mandan los números del reporte. Los webhooks solo
+        # cuentan desde que se prendieron y pueden haber empezado tarde; el reporte es
+        # la lista completa. Dejar el del webhook al lado del de la Fase 2 sería mostrar
+        # dos verdades distintas del mismo webinar en pantallas contiguas.
+        if not r.get("enVivo") and (vivos_a_mano or pico_a_mano):
+            r = {
+                **r,
+                "distintos": vivos_a_mano or medidos_distintos,
+                "picoConcurrentes": pico_a_mano or medido_pico,
+                "delReporte": True,
+            }
         if sin_escuchar or pico_a_mano:
             r = {
                 **r,

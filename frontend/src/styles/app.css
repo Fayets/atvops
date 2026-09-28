@@ -5483,6 +5483,20 @@ button.lista-item:hover { background: var(--surface-2); }
   50% { transform: scale(1.5); box-shadow: 0 0 0 3px var(--ok-dim); }
 }
 
+/* Listas de personas del webinar: los que se fueron, los que agendaron. */
+.vivo-gente { display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+.vivo-persona { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) 118px 78px;
+  gap: var(--space-4); align-items: center; padding: 9px var(--space-4); font-size: 12.5px;
+  border-bottom: 1px solid var(--border-soft); }
+.vivo-persona:last-child { border-bottom: none; }
+.vivo-persona > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vivo-persona .num { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 680px) {
+  /* Primero se va el mail: el nombre y el tiempo son los que se leen. */
+  .vivo-persona { grid-template-columns: minmax(0, 1fr) 96px 70px; gap: var(--space-3); }
+  .vivo-persona > span:nth-child(2) { display: none; }
+}
+
 .vivo-dos { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--space-4); }
 .vivo-feed { display: flex; flex-direction: column; max-height: 280px; overflow-y: auto; }
 .vivo-mov { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: var(--space-3);
