@@ -457,6 +457,27 @@ def _curva(tramos: list[tuple[datetime, datetime]], desde: datetime | None,
     return salida
 
 
+_inscriptos: dict = {}
+
+
+def _inscriptos_cacheados(webinar_zoom_id: str) -> list[dict]:
+    """Los inscriptos, releídos como mucho cada cinco minutos.
+
+    El panel del vivo pregunta cada diez segundos y esta lista no se mueve durante el
+    webinar: pedirla cada vez sería gastar la cuota de la API de Zoom para recibir lo
+    mismo treinta veces por minuto.
+    """
+    guardado = _inscriptos.get(webinar_zoom_id)
+    if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < 300:
+        return guardado["filas"]
+    try:
+        filas = registrados(webinar_zoom_id)
+    except HTTPException:
+        return guardado["filas"] if guardado else []
+    _inscriptos[webinar_zoom_id] = {"at": datetime.utcnow(), "filas": filas}
+    return filas
+
+
 def vivo(webinar_zoom_id: str) -> dict:
     """Cómo viene el webinar ahora mismo, según los avisos que fue mandando Zoom.
 
@@ -511,9 +532,55 @@ def vivo(webinar_zoom_id: str) -> dict:
     en_vivo = fin is None and bool(adentro)
     serie = _curva(tramos, arranque, fin or ahora)
 
+    # La sala: una butaca por inscripto. Quien entró sin inscribirse aparece igual, al
+    # final, porque está adentro y no verlo sería mentir sobre cuánta gente hay.
+    # La llave es el email cuando lo hay: quien se cae y vuelve entra con otro id de
+    # participante, y sin esto ocuparía dos butacas.
+    adentro_por_llave = {(p["email"] or pid): p for pid, p in adentro.items()}
+    # Todos los que entraron alguna vez, con su nombre. Sirve para dos cosas: marcar la
+    # butaca del inscripto que ya se fue, y no perder al que entró sin inscribirse y
+    # además se fue —ese no está adentro ni en la lista de Zoom, y sin esto se
+    # evaporaba de la sala aunque hubiera estado—.
+    estuvieron: dict[str, str] = {}
+    for tipo, pid, email, nombre, _at in filas:
+        if tipo == "entra":
+            estuvieron.setdefault(email or pid, nombre or email or "Sin nombre")
+
+    butacas = []
+    sentados = set()
+    for r in _inscriptos_cacheados(webinar_zoom_id):
+        llave = r["email"] or r["nombre"]
+        sentados.add(llave)
+        butacas.append({
+            "nombre": r["nombre"] or r["email"],
+            "email": r["email"],
+            "estado": ("adentro" if llave in adentro_por_llave
+                       else "estuvo" if llave in estuvieron else "vacia"),
+            "inscripto": True,
+        })
+    for llave, nombre in estuvieron.items():
+        if llave in sentados:
+            continue
+        adentro_ahora = llave in adentro_por_llave
+        butacas.append({
+            "nombre": nombre,
+            "email": llave if "@" in llave else None,
+            "estado": "adentro" if adentro_ahora else "estuvo",
+            "inscripto": False,
+        })
+
+    # Los últimos movimientos, para ver el goteo de gente entrando.
+    ultimos = [
+        {"tipo": tipo, "quien": nombre or email or "Alguien", "at": at.isoformat()}
+        for tipo, _pid, email, nombre, at in filas[-25:][::-1]
+        if tipo in ("entra", "sale")
+    ]
+
     return {
         "webinarId": str(webinar_zoom_id),
         "enVivo": en_vivo,
+        "butacas": butacas,
+        "ultimos": ultimos,
         "conectados": len(adentro),
         "picoConcurrentes": pico,
         "picoAt": pico_at.isoformat() if pico_at else None,

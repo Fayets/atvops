@@ -108,3 +108,45 @@ def test_sin_evento_de_inicio_y_sin_nadie_adentro_no_esta_en_vivo():
 
 def test_un_evento_que_no_conocemos_no_rompe_nada():
     assert z.registrar_evento({"event": "recording.completed"})["ok"] is True
+
+
+def test_las_butacas_marcan_quien_entro_y_quien_no(monkeypatch):
+    """Una butaca por inscripto: ocupada, usada y vacía.
+
+    Es la lectura que importa mientras el webinar pasa —cuántos de los que dijeron que
+    venían están de verdad— y no se puede sacar de los contadores solos.
+    """
+    monkeypatch.setattr(z, "_inscriptos_cacheados", lambda w: [
+        {"email": "a@x.com", "nombre": "Ana", "estado": "approved", "registradoAt": None},
+        {"email": "b@x.com", "nombre": "Beto", "estado": "approved", "registradoAt": None},
+        {"email": "c@x.com", "nombre": "Cami", "estado": "approved", "registradoAt": None},
+    ])
+    evento("entra", "a1", "a@x.com", 1)
+    evento("entra", "b1", "b@x.com", 2)
+    evento("sale", "b1", "b@x.com", 10)
+
+    por_nombre = {b["nombre"]: b for b in z.vivo(W)["butacas"]}
+    assert por_nombre["Ana"]["estado"] == "adentro"
+    assert por_nombre["Beto"]["estado"] == "estuvo"
+    assert por_nombre["Cami"]["estado"] == "vacia"
+
+
+def test_el_que_entra_sin_inscribirse_igual_aparece(monkeypatch):
+    """Está adentro: no mostrarlo sería mentir sobre cuánta gente hay en la sala."""
+    monkeypatch.setattr(z, "_inscriptos_cacheados", lambda w: [])
+    evento("entra", "x1", "colado@x.com", 1)
+    butacas = z.vivo(W)["butacas"]
+    assert len(butacas) == 1
+    assert butacas[0]["inscripto"] is False
+    assert butacas[0]["estado"] == "adentro"
+
+
+def test_el_que_entra_sin_inscribirse_y_se_va_no_desaparece(monkeypatch):
+    """Sin butaca propia no estaría en ningún lado: no figura entre los inscriptos ni
+    entre los que quedaron adentro. Estuvo en la sala y tiene que verse."""
+    monkeypatch.setattr(z, "_inscriptos_cacheados", lambda w: [])
+    evento("entra", "x1", "colado@x.com", 1)
+    evento("sale", "x1", "colado@x.com", 9)
+    butacas = z.vivo(W)["butacas"]
+    assert len(butacas) == 1
+    assert butacas[0]["estado"] == "estuvo"

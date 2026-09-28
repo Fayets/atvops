@@ -413,7 +413,18 @@ class WebinarsServices:
             raise HTTPException(status_code=400,
                                 detail="Falta el ID del webinar en Zoom. Se carga en Configurar.")
         r = zoom_services.vivo(zoom_id)
-        return {**r, "registros": registros}
+
+        # La sala se completa hasta la cantidad de registrados. Zoom solo conoce a los
+        # que se inscribieron por Zoom; los que se anotaron en la landing no tienen
+        # butaca con nombre, pero existen y son justamente los que hay que ver: una
+        # sala con la mitad de las butacas apagadas dice algo que "48%" no dice.
+        butacas = list(r.get("butacas") or [])
+        faltan = max(0, registros - len(butacas))
+        butacas.extend(
+            {"nombre": None, "email": None, "estado": "vacia", "inscripto": True}
+            for _ in range(faltan)
+        )
+        return {**r, "butacas": butacas, "registros": registros}
 
     def sincronizar_zoom(self, webinar_id: int, usuario: dict) -> dict:
         """Trae la asistencia real de Zoom y llena los números de la Fase 2.
