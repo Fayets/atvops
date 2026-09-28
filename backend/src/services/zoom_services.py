@@ -181,6 +181,21 @@ def conectados_en(tramos: list[tuple[datetime, datetime]], momento: datetime) ->
     return sum(1 for entra, sale in tramos if entra <= momento <= sale)
 
 
+def _reporte_participantes(webinar_id: str) -> list[dict]:
+    """El reporte de asistencia, sea un webinar o una reunión.
+
+    Son dos endpoints distintos y desde afuera no se sabe cuál es: el id se ve igual.
+    Se prueba webinar y, si Zoom dice que no existe, reunión. Preguntar primero costaría
+    una llamada más para contestar lo mismo.
+    """
+    try:
+        return _paginado(f"/report/webinars/{webinar_id}/participants", "participants")
+    except HTTPException as e:
+        if e.status_code != 404:
+            raise
+    return _paginado(f"/report/meetings/{webinar_id}/participants", "participants")
+
+
 def asistentes(webinar_id: str) -> list[dict]:
     """Quién entró, con su email, cuándo entró, cuándo salió y cuántos minutos estuvo.
 
@@ -188,7 +203,7 @@ def asistentes(webinar_id: str) -> list[dict]:
     Se junta por email: una fila por persona, con la primera entrada, la última salida y
     los minutos sumados. Sin esto, 40 asistentes con mala conexión parecen 60.
     """
-    crudo = _paginado(f"/report/webinars/{webinar_id}/participants", "participants")
+    crudo = _reporte_participantes(webinar_id)
 
     por_persona: dict[str, dict] = {}
     for p in crudo:
@@ -274,10 +289,34 @@ def arranque_real(webinar_id: str) -> datetime | None:
 
     Si el scope de este reporte no está, devuelve None y el que llama decide.
     """
-    try:
-        return _momento(_get(f"/report/webinars/{webinar_id}").get("start_time"))
-    except HTTPException:
-        return None
+    for path in (f"/report/webinars/{webinar_id}", f"/report/meetings/{webinar_id}"):
+        try:
+            return _momento(_get(path).get("start_time"))
+        except HTTPException:
+            continue
+    return None
+
+
+def personas_distintas(gente: list[dict]) -> int:
+    """Cuánta gente distinta entró, cuando Zoom no da con qué identificarla.
+
+    En una reunión el reporte viene sin email y con el id vacío —817 de 818 filas en la
+    del 28-09-2026—, así que lo único que queda es el nombre. Pero once personas se
+    llaman "iphone" y once "usuario de zoom": agrupar por nombre las cuenta como dos.
+
+    Se resuelve con el reloj. Dos conexiones con el mismo nombre que se pisan en el
+    tiempo son dos personas distintas, porque nadie está en la sala dos veces a la vez.
+    El máximo de simultáneas de un nombre es el mínimo de personas que lo usan, y ese
+    mínimo es una cota honesta: puede quedarse corto si no se solaparon, nunca de más.
+    """
+    total = 0
+    for f in gente:
+        if f["email"]:
+            total += 1
+            continue
+        pico, _ = pico_concurrentes(f["tramos"])
+        total += max(1, pico)
+    return total
 
 
 def resumen_del_dia(webinar_id: str, minuto_pitch: int | None = None) -> dict:
@@ -308,7 +347,7 @@ def resumen_del_dia(webinar_id: str, minuto_pitch: int | None = None) -> dict:
 
     return {
         "webinarId": str(webinar_id),
-        "vivos": len(gente),
+        "vivos": personas_distintas(gente),
         "picoConcurrentes": pico,
         "picoAt": pico_at.isoformat() if pico_at else None,
         "retenidosPitch": retenidos,

@@ -460,7 +460,10 @@ class WebinarsServices:
         medidos_distintos = int(r.get("distintos") or 0)
         medido_pico = int(r.get("picoConcurrentes") or 0)
 
-        sin_escuchar = max(offset, vivos_a_mano - medidos_distintos, 0)
+        # Solo mientras pasa: una vez terminado, los números cargados son los
+        # definitivos —salen del reporte— y sumarles lo medido los contaría dos veces.
+        sin_escuchar = (max(offset, vivos_a_mano - medidos_distintos, 0)
+                        if r.get("enVivo") else 0)
         if sin_escuchar or pico_a_mano:
             r = {
                 **r,
