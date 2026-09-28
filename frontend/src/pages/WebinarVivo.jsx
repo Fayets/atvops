@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import Bars from '../components/charts/Bars.jsx';
 import LineArea from '../components/charts/LineArea.jsx';
@@ -7,7 +7,6 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { getWebinar, getWebinarVivo } from '../data/api.js';
-import { vivoDemo } from '../lib/vivoDemo.js';
 
 /**
  * El webinar mientras pasa, como una sala.
@@ -120,19 +119,14 @@ function Sala({ butacas }) {
 
 export default function WebinarVivo() {
   const { id } = useParams();
-  const [params] = useSearchParams();
-  // `?demo=1` dibuja la pantalla con datos inventados. Está para poder decidir el
-  // diseño antes de que exista un webinar de verdad: con todo en cero no se ve nada.
-  const esDemo = params.get('demo') === '1';
   const [webinar, setWebinar] = useState(null);
-  const [d, setD] = useState(esDemo ? vivoDemo() : null);
+  const [d, setD] = useState(null);
   const [error, setError] = useState('');
   const timer = useRef(null);
 
   useEffect(() => { getWebinar(id).then(setWebinar).catch(() => {}); }, [id]);
 
   useEffect(() => {
-    if (esDemo) return undefined;
     let vivo = true;
     const leer = () => {
       getWebinarVivo(id)
@@ -153,7 +147,7 @@ export default function WebinarVivo() {
       clearInterval(timer.current);
       document.removeEventListener('visibilitychange', alVolver);
     };
-  }, [id, esDemo]);
+  }, [id]);
 
   if (error && !d) return <div className="page"><ErrorState error={{ message: error }} /></div>;
 
@@ -180,12 +174,6 @@ export default function WebinarVivo() {
           </Pill>
         }
       />
-
-      {esDemo ? (
-        <div className="vivo-maqueta">
-          Maqueta · los números son inventados para ver cómo queda la pantalla
-        </div>
-      ) : null}
 
       {!d ? <SkeletonBlock height={260} /> : null}
 
@@ -262,37 +250,6 @@ export default function WebinarVivo() {
             </div>
           </Card>
         </div>
-      ) : null}
-
-      {d?.listas?.length ? (
-        <Card
-          title="Las listas del post"
-          sub="Quedan armadas cuando termina el webinar"
-          foot="Van en orden de qué hacer primero. Las dos de la izquierda se llaman hoy; la tercera va al grupo con la grabación; la última no entra a llamada."
-        >
-          <div className="vivo-listas">
-            {d.listas.map((l) => (
-              <article key={l.clave} className="vivo-lista">
-                <header>
-                  <span className="vivo-lista-n num">{l.n}</span>
-                  <div>
-                    <h4>{l.titulo}</h4>
-                    <span className="dim">{l.nota}</span>
-                  </div>
-                </header>
-                <div className="vivo-lista-gente">
-                  {l.personas.map((n) => <span key={n}>{n}</span>)}
-                  {l.n > l.personas.length ? (
-                    <span className="dim">y {l.n - l.personas.length} más</span>
-                  ) : null}
-                </div>
-                <button type="button" className="btn sm ghost" disabled={esDemo}>
-                  Descargar CSV
-                </button>
-              </article>
-            ))}
-          </div>
-        </Card>
       ) : null}
 
       <div className="vivo-dos">
