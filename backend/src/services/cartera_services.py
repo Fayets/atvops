@@ -107,7 +107,9 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     base = {
         "mes": mes, "generadoAt": datetime.now(AR_TZ).isoformat(), "conectado": False,
         "detalle": "No hay conexión con la base de ATV Clients.",
-        "delMes": {"cuotas": 0, "totalUsd": 0, "cobradoUsd": 0, "pendienteUsd": 0, "vencidoUsd": 0, "pctCobrado": 0},
+        "delMes": {"cuotas": 0, "totalUsd": 0, "cobradoUsd": 0, "pendienteUsd": 0,
+                   "pendienteVencidoUsd": 0, "pendientePorVencerUsd": 0,
+                   "vencidoUsd": 0, "pctCobrado": 0},
         "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0, "cobradoHistoricoUsd": 0},
         "caja": {"usd": 0, "pagos": 0, "caja1": None, "caja2": None, "otros": 0},
         "cuotas": [], "vencidas": [], "proximas": [],
@@ -155,6 +157,11 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     total = sum(q["montoUsd"] for q in del_mes)
     cobrado = sum(q["montoUsd"] for q in del_mes if q["estado"] == "pagada")
     vencido = sum(q["montoUsd"] for q in todas if q["estado"] == "vencida")
+    # Lo que falta cobrar del mes son dos cosas distintas: plata que ya se pasó de fecha
+    # —que hay que ir a buscar hoy— y plata que todavía no venció. Sumarlas en un número
+    # solo hace que "falta cobrar" parezca todo deuda cuando buena parte todavía no lo es.
+    falta_vencido = sum(q["montoUsd"] for q in del_mes if q["estado"] == "vencida")
+    falta_por_vencer = sum(q["montoUsd"] for q in del_mes if q["estado"] == "pendiente")
 
     por_estado = {str(c["estado_cliente"] or "").lower(): c for c in clientes}
     data = {
@@ -166,6 +173,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "totalUsd": round(total, 2),
             "cobradoUsd": round(cobrado, 2),
             "pendienteUsd": round(total - cobrado, 2),
+            "pendienteVencidoUsd": round(falta_vencido, 2),
+            "pendientePorVencerUsd": round(falta_por_vencer, 2),
             "vencidoUsd": round(vencido, 2),
             "pctCobrado": round(cobrado / total * 100, 1) if total else 0,
         },

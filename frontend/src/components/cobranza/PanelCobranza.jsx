@@ -85,7 +85,7 @@ export default function PanelCobranza({ data }) {
         { label: 'De lo que vencía, entró', valor: n(cobrado, 'usd'),
           nota: `${pct(data?.pctSobreVencido)} de las ${n(cuotas.length)} cuotas que vencen este mes` },
         { label: 'Falta cobrar', valor: n(pendiente, 'usd'), tono: pendiente > 0 ? 'warn' : null,
-          nota: 'de lo que vencía este mes y todavía no entró' },
+          nota: `${n(data?.faltaVencido, 'usd')} ya vencido · ${n(data?.faltaPorVencer, 'usd')} todavía por vencer` },
         { label: 'Vencido', valor: n(vencidoUsd, 'usd'), tono: vencidoUsd > 0 ? 'alert' : null,
           nota: `${n(vencidas.length)} cuotas pasadas de fecha, de todos los meses` },
         { label: 'Total del mes', valor: n(totalMes, 'usd'),

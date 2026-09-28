@@ -1987,6 +1987,11 @@ export async function getCobranza(mes) {
         .reduce((s, c) => s + c.montoUsd, 0),
     },
     cobrado: m.cobradoUsd,
+    // "Falta cobrar" son dos cosas: lo que ya se pasó de fecha y lo que todavía no
+    // venció. Van separadas porque se accionan distinto y porque el número junto se
+    // lee como si todo fuera deuda.
+    faltaVencido: m.pendienteVencidoUsd ?? 0,
+    faltaPorVencer: m.pendientePorVencerUsd ?? 0,
     // La caja es la plata que entró en el mes, por fecha de pago: es el número que
     // tiene que coincidir con "Plata del mes" de ATV Clients. `cobrado` contesta otra
     // cosa —de lo que vencía este mes, cuánto está pagado— y por eso no dan igual.
