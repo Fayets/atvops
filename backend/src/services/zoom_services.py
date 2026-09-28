@@ -292,11 +292,13 @@ def resumen_del_dia(webinar_id: str, minuto_pitch: int | None = None) -> dict:
     tramos = [t for f in gente for t in f["tramos"]]
     pico, pico_at = pico_concurrentes(tramos)
 
+    medido = arranque_real(webinar_id)
     primer_ingreso = min((f["entraAt"] for f in gente if f["entraAt"]), default=None)
-    arranque = arranque_real(webinar_id) or primer_ingreso
-    # Cuando hay que caer al primer ingreso, se dice: el número sigue siendo útil pero
-    # la retención puede estar corrida por lo que el anfitrión entró antes.
-    arranque_estimado = arranque is not None and arranque == primer_ingreso
+    arranque = medido or primer_ingreso
+    # Estimado quiere decir "no lo dio Zoom", no "coincide con el primer ingreso". Los
+    # dos casi siempre coinciden —la sesión arranca cuando el anfitrión entra— y
+    # compararlos avisaba de un problema inexistente en todos los webinars.
+    arranque_estimado = medido is None and primer_ingreso is not None
 
     retenidos = None
     pitch_at = None
