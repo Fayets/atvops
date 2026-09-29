@@ -253,9 +253,6 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     // divisor hace parecer roto un botón que nadie tuvo enfrente.
     tasaWhatsapp: tasa(whatsapp, thankYou || registros),
     tasaAgendaTy: tasa(agendas, thankYou || registros),
-    // Del opt-in a la thank you no debería caerse nadie: el formulario redirige solo.
-    // Si se cae, no es el embudo, es el tracking de la TY que no está disparando.
-    dropoffOptinTy: optins ? tasa(Math.max(0, optins - thankYou), optins) : null,
     // Quien entró al grupo sin pasar por la landing. Es la única forma de ver el
     // orgánico directo: la resta entre el grupo entero y los que vinieron del funnel.
     whatsappOrganico: miembrosGrupo ? Math.max(0, miembrosGrupo - whatsapp) : null,
@@ -320,9 +317,6 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
         detalle: de(m.optins || m.registros, m.visitasLanding), ayuda: 'optins / visitas' },
       { key: 'optins', grupo: 'ads', label: 'Optins completados', valor: m.optins, formato: 'count' },
       { key: 'thankYou', grupo: 'ads', label: 'Llegaron a TY page', valor: m.thankYou, formato: 'count' },
-      { key: 'dropoffOptinTy', grupo: 'ads', label: 'Drop-off optin → TY', valor: m.dropoffOptinTy, formato: 'pct',
-        detalle: de(Math.max(0, n(m.optins) - n(m.thankYou)), m.optins),
-        ayuda: 'si se cae, suele ser el tracking de la TY, no el embudo' },
       { key: 'tasaAgendaTy', grupo: 'ads', label: 'Agendó', valor: m.tasaAgendaTy, formato: 'pct',
         detalle: de(m.agendasWebinar, m.thankYou || m.registros), ayuda: 'tocó el botón de agendar en la TY' },
       { key: 'tasaWhatsapp', grupo: 'ads', label: 'Fueron al grupo', valor: m.tasaWhatsapp, formato: 'pct',
