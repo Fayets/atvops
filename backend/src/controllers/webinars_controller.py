@@ -43,7 +43,19 @@ def agendas(user: dict = Depends(_puede_webinars)):
         raise
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"No se pudo leer Typeform: {e}") from e
-    return {"agendas": filas, "conEmail": sum(1 for a in filas if a["conEmail"])}
+    # Las preguntas en el orden del formulario: la pantalla arma una columna por cada
+    # una. Se sacan de las respuestas y no del formulario para no pedir dos veces lo
+    # mismo, y porque lo que importa es lo que la gente efectivamente contestó.
+    preguntas: list[str] = []
+    for a in filas:
+        for r in a["respuestas"]:
+            if r["pregunta"] and r["pregunta"] not in preguntas:
+                preguntas.append(r["pregunta"])
+    return {
+        "agendas": filas,
+        "preguntas": preguntas,
+        "conEmail": sum(1 for a in filas if a["conEmail"]),
+    }
 
 
 @router.get("/zoom/disponibles")

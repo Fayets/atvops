@@ -5413,6 +5413,12 @@ button.lista-item:hover { background: var(--surface-2); }
    suyo. Ojo con `width`: .modal-card trae min(420px, 100%), así que un `max-width` solo
    no ensancha nada y las columnas de plata se cortan. */
 /* El vivo. La sala manda: los contadores acompañan. */
+/* Una pantalla que es básicamente una tabla ancha no tiene por qué respetar el ancho
+   de lectura: ahí el límite deja media pantalla vacía y corta columnas. */
+.page-ancha { max-width: none; }
+.page-ancha .data td, .page-ancha .data th { white-space: nowrap; }
+.page-ancha .data td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+
 .vivo-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-3); margin-bottom: var(--space-4); }
 .vivo-kpi { display: flex; flex-direction: column; gap: 3px; padding: var(--space-4);

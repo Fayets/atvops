@@ -43,9 +43,12 @@ function tituloDe(pathname) {
   if (pathname.startsWith('/fulfillment/clientes')) return 'Fulfillment · Ficha de cliente';
   if (pathname.startsWith('/fulfillment/chats')) return 'Fulfillment · Chats en vivo';
   if (pathname.match(/^\/webinars\/\d+\/fase\//)) return 'Webinars · Fase';
-  if (pathname.startsWith('/webinars/') && pathname !== '/webinars/listado' && pathname !== '/webinars/nuevo') {
-    return 'Webinars · Config';
-  }
+  if (pathname.match(/^\/webinars\/\d+\/vivo$/)) return 'Webinars · En vivo';
+  if (pathname === '/webinars/agendas') return 'Webinars · Agendas';
+  // Solo /webinars/<id> es la config. Las otras subpantallas tienen su nombre arriba,
+  // que es por donde uno se ubica cuando entra desde un link.
+  if (pathname.match(/^\/webinars\/\d+$/)) return 'Webinars · Config';
+  if (pathname.startsWith('/webinars/')) return 'Webinars';
   return 'ATV Ops';
 }
 
