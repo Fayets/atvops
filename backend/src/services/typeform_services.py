@@ -119,6 +119,32 @@ def _email_de(fila: dict, respuestas: list[dict]) -> str | None:
     return None
 
 
+_preguntas: dict = {}
+
+
+def _titulos() -> dict[str, str]:
+    """El texto de cada pregunta, por id.
+
+    Las respuestas vienen con el id del campo —`f8b44053-af16-…`— y no con la pregunta.
+    Sin esto la pantalla muestra códigos, que es lo mismo que no mostrar nada. Se pide
+    la definición del formulario una vez cada diez minutos: no cambia durante un evento.
+    """
+    guardado = _preguntas.get(_form_id())
+    if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < 600:
+        return guardado["titulos"]
+    try:
+        d = _get(f"/forms/{_form_id()}")
+    except HTTPException:
+        return guardado["titulos"] if guardado else {}
+    titulos = {}
+    for campo in d.get("fields") or []:
+        titulos[str(campo.get("id"))] = (campo.get("title") or "").strip()
+        if campo.get("ref"):
+            titulos[str(campo["ref"])] = (campo.get("title") or "").strip()
+    _preguntas[_form_id()] = {"at": datetime.utcnow(), "titulos": titulos}
+    return titulos
+
+
 def agendas(desde: datetime | None = None) -> list[dict]:
     """Quién agendó, cuándo y qué contestó.
 
@@ -131,12 +157,18 @@ def agendas(desde: datetime | None = None) -> list[dict]:
         params["since"] = desde.strftime("%Y-%m-%dT%H:%M:%SZ")
     d = _get(f"/forms/{_form_id()}/responses", params)
 
+    titulos = _titulos()
     por_persona: dict[str, dict] = {}
     for fila in d.get("items") or []:
         respuestas = fila.get("answers") or []
         email = _email_de(fila, respuestas)
-        nombre = next((_texto(r) for r in respuestas
-                       if (r.get("field") or {}).get("type") in ("short_text",) and _texto(r)), "")
+        nombre = next(
+            (_texto(r) for r in respuestas
+             if (r.get("field") or {}).get("type") == "short_text"
+             and "mail" not in titulos.get(str((r.get("field") or {}).get("id")), "").lower()
+             and _texto(r)),
+            "",
+        )
         agenda = {
             "id": fila.get("response_id") or fila.get("token"),
             "email": email,
@@ -144,7 +176,9 @@ def agendas(desde: datetime | None = None) -> list[dict]:
             "agendoAt": fila.get("submitted_at"),
             "conEmail": email is not None,
             "respuestas": [
-                {"pregunta": (r.get("field") or {}).get("ref") or (r.get("field") or {}).get("id"),
+                {"pregunta": (titulos.get(str((r.get("field") or {}).get("id")))
+                              or titulos.get(str((r.get("field") or {}).get("ref")))
+                              or "—"),
                  "valor": _texto(r)}
                 for r in respuestas
             ],
