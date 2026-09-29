@@ -331,8 +331,6 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'registros', grupo: 'confirmaciones', label: 'Confirmó en Calendar', valor: m.registros, formato: 'count',
         detalle: de(m.registros, m.agendasWebinar),
         ayuda: 'tiene el evento cargado, no solo tocó el botón' },
-      { key: 'tasaRegistro', grupo: 'confirmaciones', label: 'Confirmó / optin', valor: m.tasaRegistro, formato: 'pct',
-        detalle: de(m.registros, m.optins), oculto: !!raw.registrosDerivados },
     ],
     dia: [
       { key: 'registros', label: 'Confirmados', valor: m.registros, formato: 'count' },
