@@ -5,10 +5,11 @@ Parte 1 — Las llamadas de Nick de hoy.
     python3 scripts/1_agenda.py
 
 Pide a ATV Ops las llamadas de venta del día (hora de Argentina, la calcula el server) y
-se queda con las de Nick. Deja el resultado en salida/agenda.json y lo imprime.
+se queda con las que en Google se llaman "ATV CONSULTS" (el campo "titulo" de
+config.json). Deja el resultado en salida/agenda.json y lo imprime.
 
-Una llamada sin closer cargado también entra: las que vienen solo del calendario todavía
-no tienen closer, y son de Nick igual. Con "closer": "" en config.json entran todas.
+No se filtra por closer: la mitad de las llamadas llega sin closer cargado y otras lo
+tienen puesto aunque no sean consultas (29-09-2026: 8 llamadas, 6 eran ATV CONSULTS).
 """
 
 import json
@@ -40,11 +41,12 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001
         salir(f"No se pudo hablar con ATV Ops: {str(e)[:160]}")
 
-    closer = (config().get("closer") or "").strip().lower()
+    titulo = (config().get("titulo") or "").strip().lower()
     llamadas = [
-        {"hora": x.get("hora") or "", "nombre": (x.get("prospecto") or "").strip()}
+        {"hora": x.get("hora") or "", "nombre": (x.get("prospecto") or "").strip(),
+         "titulo": x.get("titulo") or ""}
         for x in dia.get("llamadas") or []
-        if not closer or not (x.get("closer") or "").strip() or closer in x["closer"].lower()
+        if not titulo or titulo in (x.get("titulo") or "").lower()
     ]
     llamadas.sort(key=lambda x: x["hora"])
 
