@@ -321,3 +321,47 @@ def marcar_llamada_de(agendas: list[dict]) -> None:
         desde = str(a.get("agendoAt") or "")[:10]
         posteriores = sorted(c for c in candidatas if not desde or c[:10] >= desde)
         a["llamadaAt"] = posteriores[0] if posteriores else None
+
+
+def llamadas_sin_formulario(agendas: list[dict], desde: str) -> list[dict]:
+    """Llamadas reservadas desde el webinar que no salieron del formulario del CTA.
+
+    Del 28-09-2026: ocho llamadas y solo cinco venían del Typeform. Las otras tres
+    entraron al Calendly por otro lado o reservaron con un mail distinto al que
+    pusieron en el formulario.
+
+    No se suman a "agendaron" porque no se puede afirmar que las trajo el webinar
+    —también pueden venir de un DM o del orgánico de esa semana— pero esconderlas haría
+    parecer que el CTA es el único camino, y no lo es. Van aparte para que alguien mire
+    y decida.
+    """
+    from pony.orm import db_session
+
+    from src.db import DB_SCHEMA, ES_POSTGRES, db
+
+    conocidos_mail = {(a.get("email") or "").strip().lower() for a in agendas if a.get("email")}
+    conocidos_nombre = {(a.get("nombre") or "").strip().lower() for a in agendas if a.get("nombre")}
+
+    tabla = f'"{DB_SCHEMA}"."reuniones_crm"' if ES_POSTGRES else '"ReunionCrm"'
+    with db_session:
+        filas = db.select(
+            'SELECT "prospecto", "email", "inicio_at" '
+            f'FROM {tabla} WHERE "descartada" IS NOT TRUE AND "inicio_at" IS NOT NULL'
+        )
+
+    sueltas: dict[str, dict] = {}
+    for prospecto, email, inicio in filas:
+        cuando = inicio.isoformat() if hasattr(inicio, "isoformat") else str(inicio)
+        if cuando[:10] < desde[:10]:
+            continue
+        mail = (email or "").strip().lower()
+        nombre = (prospecto or "").strip().lower()
+        if mail in conocidos_mail or nombre in conocidos_nombre:
+            continue
+        # Reuniones internas del equipo: no son llamadas de venta.
+        if not mail:
+            continue
+        llave = mail
+        if llave not in sueltas or cuando < sueltas[llave]["llamadaAt"]:
+            sueltas[llave] = {"nombre": prospecto, "email": email, "llamadaAt": cuando}
+    return sorted(sueltas.values(), key=lambda x: x["llamadaAt"])

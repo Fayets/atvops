@@ -101,6 +101,25 @@ export default function WebinarAgendas() {
         </Card>
       ) : null}
 
+      {datos?.sinFormulario?.length ? (
+        <Card
+          title={`${datos.sinFormulario.length} reservaron llamada sin pasar por el formulario`}
+          sub="No se suman a las agendas del CTA"
+          foot="No se cuentan como agendas del webinar porque no se puede afirmar que las trajo: también pueden venir de un DM o del orgánico de esa semana. Si reconocés a alguien del vivo, reservó con otro mail."
+        >
+          <div className="vivo-gente">
+            {datos.sinFormulario.map((x) => (
+              <div key={x.email} className="vivo-persona">
+                <span className="strong">{x.nombre}</span>
+                <span className="dim">{x.email}</span>
+                <span className="dim">{fechaYhora(x.llamadaAt)}</span>
+                <span className="num" />
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       {datos && sinEmail ? (
         <Card title="Faltan emails">
           <p className="dim">
