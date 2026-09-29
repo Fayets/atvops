@@ -16,9 +16,8 @@ const FASE_IDS = new Set(['registro', 'dia', 'post']);
  * cuánta de esa gente aparece el día del webinar. Mezclados, ninguna tasa se entiende:
  * el costo por registrante es de ads y el grupo de WhatsApp es de los dos. */
 const GRUPOS = {
-  confirmaciones: { titulo: 'Confirmaciones', sub: 'Los que van a estar el día del webinar' },
+  organico: { titulo: 'Captación por orgánico', sub: 'Los que van a estar el día del webinar' },
   ads: { titulo: 'Captación por ads', sub: 'Lo que se paga y termina en la landing' },
-  organico: { titulo: 'Captación por orgánico' },
 };
 
 /* Las métricas que son un número cargado a mano y no una cuenta.

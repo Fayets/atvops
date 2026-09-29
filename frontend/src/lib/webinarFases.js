@@ -324,13 +324,12 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'costoPorRegistrante', grupo: 'ads', label: 'Costo / registrante', valor: m.costoPorRegistrante,
         formato: 'usd', detalle: sobre(m.optins || m.registros, 'optins'), portada: true },
 
+      { key: 'registros', grupo: 'organico', label: 'Confirmó en Calendar', valor: m.registros, formato: 'count',
+        ayuda: 'tiene el evento cargado en su calendario' },
       { key: 'chatsOrganicos', grupo: 'organico', label: 'Chats abiertos', valor: m.chatsOrganicos, formato: 'count',
         ayuda: 'DMs que llegaron por historias y reels con CTA' },
       { key: 'miembrosGrupo', grupo: 'organico', label: 'Miembros del grupo', valor: m.miembrosGrupo, formato: 'count' },
 
-      { key: 'registros', grupo: 'confirmaciones', label: 'Confirmó en Calendar', valor: m.registros, formato: 'count',
-        detalle: de(m.registros, m.agendasWebinar),
-        ayuda: 'tiene el evento cargado, no solo tocó el botón' },
     ],
     dia: [
       { key: 'registros', label: 'Confirmados', valor: m.registros, formato: 'count' },
