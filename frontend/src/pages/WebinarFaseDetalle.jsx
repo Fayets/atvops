@@ -10,6 +10,17 @@ import { CAMPOS_RAW, fasesDeWebinar } from '../lib/webinarFases.js';
 
 const FASE_IDS = new Set(['registro', 'dia', 'post']);
 
+/* Los bloques de la Fase 1. Son tres embudos distintos que terminan en el mismo lugar:
+ * ads paga por tráfico y lo lleva a la landing, el orgánico entra por DM y va derecho
+ * al grupo sin pasar por ninguna página, y las confirmaciones son el paso que decide
+ * cuánta de esa gente aparece el día del webinar. Mezclados, ninguna tasa se entiende:
+ * el costo por registrante es de ads y el grupo de WhatsApp es de los dos. */
+const GRUPOS = {
+  ads: { titulo: 'Captación por ads', sub: 'Lo que se paga y termina en la landing' },
+  organico: { titulo: 'Captación por orgánico', sub: 'No pasa por la landing: entra por DM y por el grupo' },
+  confirmaciones: { titulo: 'Confirmaciones', sub: 'Del botón de agendar al evento cargado en el calendario' },
+};
+
 /* Las métricas que son un número cargado a mano y no una cuenta.
  *
  * Solo estas llevan lápiz. Editar una tasa no tendría sentido —sale de dividir otras
@@ -171,9 +182,25 @@ export default function WebinarFaseDetalle() {
         </div>
       </div>
 
-      <Card title="Métricas de la fase">
-        <ul className="wb-fase-detalle-grid">
-          {(fase.todas || [portada, ...fase.metricas].filter(Boolean)).map((m) => (
+      {(() => {
+        const todas = (fase.todas || [portada, ...fase.metricas].filter(Boolean)).filter((m) => !m.oculto);
+        const conGrupo = todas.filter((m) => m.grupo);
+        // Solo la Fase 1 viene agrupada. Las otras siguen en una grilla sola: partir en
+        // bloques dos métricas no ordena nada, agrega marcos.
+        const bloques = conGrupo.length
+          ? Object.keys(GRUPOS)
+            .map((g) => ({ g, items: todas.filter((m) => m.grupo === g) }))
+            .filter((b) => b.items.length)
+          : [{ g: null, items: todas }];
+
+        return bloques.map(({ g, items }) => (
+          <Card
+            key={g || 'todas'}
+            title={g ? GRUPOS[g].titulo : 'Métricas de la fase'}
+            sub={g ? GRUPOS[g].sub : undefined}
+          >
+            <ul className="wb-fase-detalle-grid">
+              {items.map((m) => (
             <li
               key={m.key}
               className={`${m.portada ? 'es-portada' : ''}${
@@ -202,9 +229,11 @@ export default function WebinarFaseDetalle() {
               {m.detalle ? <span className="wb-cuenta">{m.detalle}</span> : null}
               {m.ayuda ? <span className="wb-ayuda">{m.ayuda}</span> : null}
             </li>
-          ))}
-        </ul>
-      </Card>
+              ))}
+            </ul>
+          </Card>
+        ));
+      })()}
 
       <Card
         title="Números cargados"

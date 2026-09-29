@@ -100,6 +100,10 @@ export const CAMPOS_RAW = [
   { key: 'registros', label: 'Confirmados al webinar', fase: 'registro', tipo: 'count' },
   { key: 'entradasWhatsapp', label: 'Entradas WhatsApp', fase: 'registro', tipo: 'count', origen: 'script' },
   { key: 'agendasWebinar', label: 'Agendó el webinar', fase: 'registro', tipo: 'count', origen: 'script' },
+  // Orgánico: no pasa por la landing, así que no hay script que lo cuente. Lo carga
+  // quien lo ve —el setter los chats, el grupo su propio contador— y por eso van a mano.
+  { key: 'chatsOrganicos', label: 'Chats abiertos (orgánico)', fase: 'registro', tipo: 'count' },
+  { key: 'miembrosGrupo', label: 'Miembros del grupo de WhatsApp', fase: 'registro', tipo: 'count' },
   // Fase 2
   { key: 'vivos', label: 'Vivos (show)', fase: 'dia', tipo: 'count' },
   { key: 'picoConcurrentes', label: 'Pico concurrentes', fase: 'dia', tipo: 'count' },
@@ -197,6 +201,8 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
   const registros = n(m.registros);
   const whatsapp = n(m.entradasWhatsapp);
   const agendas = n(m.agendasWebinar);
+  const chatsOrganicos = n(m.chatsOrganicos);
+  const miembrosGrupo = n(m.miembrosGrupo);
   const vivos = n(m.vivos || m.shows);
   const pico = n(m.picoConcurrentes);
   const retenidos = n(m.retenidosPitch);
@@ -219,6 +225,8 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     thankYou,
     registros,
     entradasWhatsapp: whatsapp,
+    chatsOrganicos,
+    miembrosGrupo,
     agendasWebinar: agendas,
     vivos,
     picoConcurrentes: pico,
@@ -240,7 +248,17 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     // solo paso. Ahí no se midió ningún segundo momento: el 100% que da dividir un
     // número por sí mismo sería inventado. La cantidad igual se ve abajo del cartel.
     tasaRegistro: raw.registrosDerivados ? null : tasa(registros, optins),
-    tasaWhatsapp: tasa(whatsapp, registros),
+    // Los dos botones de la thank you page se miden contra quien LLEGÓ a esa página,
+    // no contra los registros: quien nunca la vio no pudo tocarlos, y meterlo en el
+    // divisor hace parecer roto un botón que nadie tuvo enfrente.
+    tasaWhatsapp: tasa(whatsapp, thankYou || registros),
+    tasaAgendaTy: tasa(agendas, thankYou || registros),
+    // Del opt-in a la thank you no debería caerse nadie: el formulario redirige solo.
+    // Si se cae, no es el embudo, es el tracking de la TY que no está disparando.
+    dropoffOptinTy: optins ? tasa(Math.max(0, optins - thankYou), optins) : null,
+    // Quien entró al grupo sin pasar por la landing. Es la única forma de ver el
+    // orgánico directo: la resta entre el grupo entero y los que vinieron del funnel.
+    whatsappOrganico: miembrosGrupo ? Math.max(0, miembrosGrupo - whatsapp) : null,
     tasaAgendaWebinar: tasa(agendas, registros),
     costoPorRegistrante: money(gasto, registros),
     showRate: tasa(vivos, registros),
@@ -287,29 +305,43 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
   // distingue 0 de 3 —ruido— de 0 de 300, que es un problema.
   const items = {
     registro: [
-      { key: 'impresiones', label: 'Impresiones', valor: m.impresiones, formato: 'count' },
-      { key: 'ctr', label: 'CTR', valor: m.ctr, formato: 'pct', detalle: de(m.clicks, m.impresiones) },
-      { key: 'cpc', label: 'CPC', valor: m.cpc, formato: 'usd', detalle: sobre(m.clicks, 'clicks') },
-      { key: 'frecuencia', label: 'Frecuencia', valor: m.frecuencia, formato: 'num',
-        detalle: de(m.impresiones, m.alcance),
-        ayuda: 'veces que vio el anuncio la misma persona' },
-      { key: 'visitasLanding', label: 'Tráfico landing', valor: m.visitasLanding, formato: 'count' },
-      { key: 'conversionLanding', label: 'Conv. landing', valor: m.conversionLanding, formato: 'pct', detalle: de(m.optins || m.registros, m.visitasLanding), ayuda: 'optins (registros) / visitas' },
-      {
-        key: 'tasaRegistro',
-        label: 'Confirmó el webinar',
-        valor: m.tasaRegistro,
-        formato: 'pct',
-        detalle: de(m.registros, m.optins),
-        // Solo existe cuando hay un segundo paso que medir. En una landing donde el
-        // formulario te deja registrado, registro y opt-in son el mismo momento: el
-        // cuadro quedaba vacío ocupando lugar, o peor, marcando 100% eterno. Vuelve
-        // solo el día que alguien cargue los registros por su cuenta.
-        oculto: !!raw.registrosDerivados,
-      },
-      { key: 'tasaWhatsapp', label: 'Entrada WhatsApp', valor: m.tasaWhatsapp, formato: 'pct', detalle: de(m.entradasWhatsapp, m.registros) },
-      { key: 'tasaAgendaWebinar', label: 'Agendó el webinar', valor: m.tasaAgendaWebinar, formato: 'pct', detalle: de(m.agendasWebinar, m.registros), ayuda: 'clicks en agendar / confirmados' },
-      { key: 'costoPorRegistrante', label: 'Costo / registrante', valor: m.costoPorRegistrante, formato: 'usd', detalle: sobre(m.registros, 'confirmados'), portada: true },
+      // Tres bloques, porque son tres embudos distintos que terminan en el mismo lugar.
+      // Ads paga por tráfico y lo lleva a la landing; el orgánico entra por DM y va
+      // derecho al grupo sin pasar por ninguna página; y las confirmaciones son el paso
+      // que decide cuánta de esa gente aparece el día del webinar.
+      { key: 'impresiones', grupo: 'ads', label: 'Impresiones', valor: m.impresiones, formato: 'count' },
+      { key: 'ctr', grupo: 'ads', label: 'CTR', valor: m.ctr, formato: 'pct', detalle: de(m.clicks, m.impresiones) },
+      { key: 'cpc', grupo: 'ads', label: 'CPC', valor: m.cpc, formato: 'usd', detalle: sobre(m.clicks, 'clicks') },
+      { key: 'frecuencia', grupo: 'ads', label: 'Frecuencia', valor: m.frecuencia, formato: 'num',
+        detalle: de(m.impresiones, m.alcance), ayuda: 'veces que vio el anuncio la misma persona' },
+      { key: 'visitasLanding', grupo: 'ads', label: 'Tráfico landing', valor: m.visitasLanding, formato: 'count',
+        ayuda: 'el orgánico no pasa por la landing' },
+      { key: 'conversionLanding', grupo: 'ads', label: 'Conv. landing', valor: m.conversionLanding, formato: 'pct',
+        detalle: de(m.optins || m.registros, m.visitasLanding), ayuda: 'optins / visitas' },
+      { key: 'optins', grupo: 'ads', label: 'Optins completados', valor: m.optins, formato: 'count' },
+      { key: 'thankYou', grupo: 'ads', label: 'Llegaron a TY page', valor: m.thankYou, formato: 'count' },
+      { key: 'dropoffOptinTy', grupo: 'ads', label: 'Drop-off optin → TY', valor: m.dropoffOptinTy, formato: 'pct',
+        detalle: de(Math.max(0, n(m.optins) - n(m.thankYou)), m.optins),
+        ayuda: 'si se cae, suele ser el tracking de la TY, no el embudo' },
+      { key: 'tasaAgendaTy', grupo: 'ads', label: 'Agendó', valor: m.tasaAgendaTy, formato: 'pct',
+        detalle: de(m.agendasWebinar, m.thankYou || m.registros), ayuda: 'tocó el botón de agendar en la TY' },
+      { key: 'tasaWhatsapp', grupo: 'ads', label: 'Fueron al grupo', valor: m.tasaWhatsapp, formato: 'pct',
+        detalle: de(m.entradasWhatsapp, m.thankYou || m.registros), ayuda: 'tocó el botón de WhatsApp en la TY' },
+      { key: 'costoPorRegistrante', grupo: 'ads', label: 'Costo / registrante', valor: m.costoPorRegistrante,
+        formato: 'usd', detalle: sobre(m.optins || m.registros, 'optins'), portada: true },
+
+      { key: 'chatsOrganicos', grupo: 'organico', label: 'Chats abiertos', valor: m.chatsOrganicos, formato: 'count',
+        ayuda: 'DMs que llegaron por historias y reels con CTA' },
+      { key: 'whatsappOrganico', grupo: 'organico', label: 'Entrada WhatsApp directa', valor: m.whatsappOrganico,
+        formato: 'count', detalle: de(m.whatsappOrganico, m.miembrosGrupo),
+        ayuda: 'entraron al grupo sin pasar por la landing' },
+      { key: 'miembrosGrupo', grupo: 'organico', label: 'Miembros del grupo', valor: m.miembrosGrupo, formato: 'count' },
+
+      { key: 'registros', grupo: 'confirmaciones', label: 'Confirmó en Calendar', valor: m.registros, formato: 'count',
+        detalle: de(m.registros, m.agendasWebinar),
+        ayuda: 'tiene el evento cargado, no solo tocó el botón' },
+      { key: 'tasaRegistro', grupo: 'confirmaciones', label: 'Confirmó / optin', valor: m.tasaRegistro, formato: 'pct',
+        detalle: de(m.registros, m.optins), oculto: !!raw.registrosDerivados },
     ],
     dia: [
       { key: 'registros', label: 'Confirmados', valor: m.registros, formato: 'count' },
