@@ -825,9 +825,10 @@ def del_dia(fecha: date | None = None) -> dict:
             "eventoId": r.evento_id,
             "prospecto": campos["lead"] if campos and campos.get("lead") else (r.prospecto or ""),
             "hora": r.inicio_at.strftime("%H:%M"),
-            # El título del evento en Google ("ATV CONSULTS"): el closer no alcanza para
-            # saber de quién es una llamada, porque muchas llegan sin closer cargado.
             "titulo": r.titulo or "",
+            # Tiene lead: alguien la agendó (Calendly/formulario). Sin lead es un evento
+            # suelto del calendario que el sistema tomó como reunión de venta.
+            "conLead": bool(r.lead_id),
             "closer": r.closer or "",
             # Lo cargado manda sobre lo que leyó la IA: es lo que el equipo decidió.
             "estado": (r.resultado or "").strip() or (campos or {}).get("estado"),

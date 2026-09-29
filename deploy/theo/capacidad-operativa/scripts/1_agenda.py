@@ -5,25 +5,23 @@ Parte 1 — Las llamadas de Nick de hoy.
     python3 scripts/1_agenda.py
 
 Pide a ATV Ops las llamadas de venta del día (hora de Argentina, la calcula el server) y
-se queda con las consultas ("ATV CONSULTS"). Deja el resultado en salida/agenda.json y lo
+se queda con las agendadas por Calendly. Deja el resultado en salida/agenda.json y lo
 imprime.
 
-El título de Google no alcanza solo: ATV Ops guarda el título del evento únicamente en las
-llamadas que vienen solo del calendario; en las que tienen lead del CRM ese campo trae las
-notas del lead y casi siempre está vacío. Y el closer tampoco: la mitad llega sin cargar.
-Así que una llamada entra si:
-  - tiene evento en Google (un eventoId "lead:…" es un lead del CRM sin reunión en el
-    calendario: se canceló o se movió), y
-  - su título está vacío (es de un lead agendado) o contiene "titulo" de config.json.
-Caso real del 29-09-2026: "Aumenta Tu Valor & Michael" (evento suelto, otro título)
-quedaba adentro con el filtro por closer.
+Una llamada entra si:
+  - tiene lead (`conLead`): alguien la agendó. Sin lead es un evento suelto del
+    calendario, como "Aumenta Tu Valor & Michael" el 29-09-2026, y
+  - tiene evento en Google: un eventoId "lead:…" es un lead sin reunión en el
+    calendario (se canceló o se movió).
+No se filtra por closer (la mitad llega sin cargar) ni por título (ATV Ops solo guarda el
+título de Google en los eventos sueltos).
 """
 
 import json
 import urllib.error
 import urllib.request
 
-from comun import AGENDA, ENV_OPS, OPS, SALIDA, config, salir
+from comun import AGENDA, ENV_OPS, OPS, SALIDA, salir
 
 
 def agent_key() -> str:
@@ -48,19 +46,13 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001
         salir(f"No se pudo hablar con ATV Ops: {str(e)[:160]}")
 
-    titulo = (config().get("titulo") or "").strip().lower()
-
-    def es_consulta(x: dict) -> bool:
+    def es_calendly(x: dict) -> bool:
         evento = x.get("eventoId") or ""
-        if not evento or evento.startswith(("lead:", "ops:")):
-            return False
-        t = (x.get("titulo") or "").strip().lower()
-        return not t or not titulo or titulo in t
+        return bool(x.get("conLead")) and bool(evento) and not evento.startswith(("lead:", "ops:"))
 
     llamadas = [
-        {"hora": x.get("hora") or "", "nombre": (x.get("prospecto") or "").strip(),
-         "titulo": x.get("titulo") or "", "eventoId": x.get("eventoId") or ""}
-        for x in dia.get("llamadas") or [] if es_consulta(x)
+        {"hora": x.get("hora") or "", "nombre": (x.get("prospecto") or "").strip()}
+        for x in dia.get("llamadas") or [] if es_calendly(x)
     ]
     llamadas.sort(key=lambda x: x["hora"])
 

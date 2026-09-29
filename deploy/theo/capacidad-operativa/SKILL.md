@@ -26,8 +26,8 @@ cd /root/.openclaw/workspace/skills/capacidad-operativa && python3 scripts/1_age
 ```
 
 Le pide a ATV Ops las llamadas de venta de hoy (la fecha la pone el server, en hora de
-Argentina: **no la calcules vos**) y se queda con las que en el calendario se llaman
-"ATV CONSULTS", que son las consultas de Nick. Imprime la lista y la
+Argentina: **no la calcules vos**) y se queda con las que se agendaron por Calendly
+(las que tienen lead), no con los eventos sueltos del calendario. Imprime la lista y la
 guarda en `salida/agenda.json`. Si no hay llamadas, la lista viene vacía y la foto dice
 "Sin llamadas agendadas": se manda igual.
 
@@ -52,13 +52,12 @@ dice qué mandaría sin mandar.
 ## Los números: config.json
 
 ```json
-{ "grupo": "…@g.us", "titulo": "ATV CONSULTS", "ocupacion": 70, "cierres": 4 }
+{ "grupo": "…@g.us", "ocupacion": 70, "cierres": 4 }
 ```
 
 | campo | qué es |
 |---|---|
 | `grupo` | ID del grupo Capacidad Operativa ATV |
-| `titulo` | entran las llamadas cuyo título en Google contiene este texto. Vacío = todas |
 | `ocupacion` | el porcentaje grande. Acepta un decimal: `71.3` sale "71.3%" |
 | `cierres` | el número del recuadro |
 
