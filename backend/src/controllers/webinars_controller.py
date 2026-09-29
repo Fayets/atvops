@@ -71,6 +71,24 @@ def agendas(user: dict = Depends(_puede_webinars)):
     }
 
 
+@router.post("/{webinar_id}/traer-agendas")
+def traer_agendas(webinar_id: int, user: dict = Depends(_puede_webinars)):
+    """Lleva a la Fase 2 los dos números del CTA: cuántos completaron y cuántos reservaron."""
+    from src.services import llamadas_services, typeform_services
+
+    try:
+        filas = typeform_services.agendas()
+        llamadas_services.marcar_llamada_de(filas)
+        return service.actualizar(webinar_id, {"metricas": {
+            "ctaCompletado": len(filas),
+            "booked": sum(1 for a in filas if a.get("llamadaAt")),
+        }}, user)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudieron traer las agendas: {e}") from e
+
+
 @router.get("/zoom/disponibles")
 def zoom_disponibles(user: dict = Depends(_puede_webinars)):
     """Los webinars que hay en la cuenta de Zoom, para elegir de una lista.

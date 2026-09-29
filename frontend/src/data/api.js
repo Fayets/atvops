@@ -2522,6 +2522,10 @@ export async function getWebinarVivo(webinarId) {
   return pedir(`/api/webinars/${webinarId}/vivo`);
 }
 
+export async function traerAgendas(webinarId) {
+  return pedir(`/api/webinars/${webinarId}/traer-agendas`, { method: 'POST' });
+}
+
 export async function sincronizarZoom(webinarId) {
   return pedir(`/api/webinars/${webinarId}/sincronizar-zoom`, { method: 'POST' });
 }

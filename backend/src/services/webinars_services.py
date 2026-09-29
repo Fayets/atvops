@@ -547,7 +547,14 @@ class WebinarsServices:
         minuto = int(minuto) if str(minuto or "").strip().isdigit() and int(minuto) > 0 else None
         r = zoom_services.resumen_del_dia(zoom_id, minuto)
 
-        nuevos = {"vivos": r["vivos"], "picoConcurrentes": r["picoConcurrentes"]}
+        # "Vivos" es el pico, no la cuenta de personas distintas.
+        #
+        # Personas distintas sale de deducir cuánta gente hay detrás de nombres
+        # repetidos cuando Zoom no da email ni id: da 436 contra un pico de 276, y
+        # dividido por los confirmados tira un show rate de 217% que no significa nada.
+        # El pico está medido exacto y es lo que uno quiere decir con "cuántos vinieron
+        # al vivo".
+        nuevos = {"vivos": r["picoConcurrentes"], "picoConcurrentes": r["picoConcurrentes"]}
         if r["retenidosPitch"] is not None:
             nuevos["retenidosPitch"] = r["retenidosPitch"]
 

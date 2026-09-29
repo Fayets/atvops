@@ -5,7 +5,7 @@ import Modal from '../components/ui/Modal.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { fmtMetrica, SEMAFORO_LABEL } from '../components/webinars/WebinarEmbudo.jsx';
-import { actualizarWebinar, getWebinar, reiniciarTrackingWebinar, sincronizarZoom } from '../data/api.js';
+import { actualizarWebinar, getWebinar, reiniciarTrackingWebinar, sincronizarZoom, traerAgendas } from '../data/api.js';
 import { CAMPOS_RAW, fasesDeWebinar } from '../lib/webinarFases.js';
 
 const FASE_IDS = new Set(['registro', 'dia', 'post']);
@@ -86,6 +86,22 @@ export default function WebinarFaseDetalle() {
         r.aviso
           || `Listo: ${r.zoom.vivos} entraron, pico de ${r.zoom.picoConcurrentes}.`,
       );
+      setTick((n) => n + 1);
+    } catch (e) {
+      setErrorAccion(e.message);
+    } finally {
+      setTrayendo(false);
+    }
+  }
+
+  async function traerLasAgendas() {
+    setTrayendo(true);
+    setErrorAccion('');
+    setAvisoZoom('');
+    try {
+      const r = await traerAgendas(id);
+      const m = r?.metricas || {};
+      setAvisoZoom(`Listo: ${m.ctaCompletado ?? 0} completaron el CTA, ${m.booked ?? 0} reservaron llamada.`);
       setTick((n) => n + 1);
     } catch (e) {
       setErrorAccion(e.message);
@@ -212,6 +228,17 @@ export default function WebinarFaseDetalle() {
                 Webinar en vivo
               </button>
             )
+          ) : null}
+          {faseId === 'dia' ? (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={traerLasAgendas}
+              disabled={trayendo}
+              title="Lee el Typeform del CTA y lo cruza contra el calendario."
+            >
+              Traer agendas
+            </button>
           ) : null}
           {faseId === 'dia' ? (
             <button

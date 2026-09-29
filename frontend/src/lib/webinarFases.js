@@ -104,7 +104,10 @@ export const CAMPOS_RAW = [
   { key: 'vivos', label: 'Vivos (show)', fase: 'dia', tipo: 'count' },
   { key: 'picoConcurrentes', label: 'Pico concurrentes', fase: 'dia', tipo: 'count' },
   { key: 'retenidosPitch', label: 'Retenidos al pitch', fase: 'dia', tipo: 'count' },
-  { key: 'booked', label: 'Booked / compraron', fase: 'dia', tipo: 'count' },
+  // Dos pasos distintos y entre medio se cae gente: del webinar del 28-09, 36
+  // completaron el formulario y 7 reservaron la llamada. Un solo número los tapa.
+  { key: 'ctaCompletado', label: 'Completaron el CTA', fase: 'dia', tipo: 'count' },
+  { key: 'booked', label: 'Agendaron la llamada', fase: 'dia', tipo: 'count' },
   // A los cuántos minutos del arranque empieza el pitch. Es un dato del guion, no de
   // Zoom: lo marca quien condujo, después del vivo. Con esto, "retenidos al pitch" se
   // cuenta solo contra el reporte de asistencia.
@@ -195,6 +198,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
   const pico = n(m.picoConcurrentes);
   const retenidos = n(m.retenidosPitch);
   const booked = n(m.booked);
+  const ctaCompletado = n(m.ctaCompletado);
   const llamadas = n(m.llamadasAgendadas) || booked;
   const showsCall = n(m.showsLlamadas);
   const cierres = n(m.cierres);
@@ -217,6 +221,7 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     picoConcurrentes: pico,
     retenidosPitch: retenidos,
     booked,
+    ctaCompletado,
     llamadasAgendadas: llamadas,
     showsLlamadas: showsCall,
     cierres,
@@ -237,7 +242,10 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     costoPorRegistrante: money(gasto, registros),
     showRate: tasa(vivos, registros),
     retencionPitch: tasa(retenidos, pico || vivos),
-    bookingRate: tasa(booked, retenidos || vivos),
+    // Del pitch al formulario, y del formulario a la llamada. Juntas dicen dónde se
+    // cae la gente: si levantan la mano y no reservan, el problema no es el pitch.
+    tasaCta: tasa(ctaCompletado, retenidos || vivos),
+    bookingRate: tasa(booked, ctaCompletado || retenidos || vivos),
     showRateCalls: tasa(showsCall, llamadas),
     closeRate: tasa(cierres, showsCall || llamadas),
     aov: money(cash, cierres),
@@ -305,8 +313,10 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'vivos', label: 'Vivos', valor: m.vivos, formato: 'count' },
       { key: 'picoConcurrentes', label: 'Pico concurrentes', valor: m.picoConcurrentes, formato: 'count' },
       { key: 'retencionPitch', label: 'Retención al pitch', valor: m.retencionPitch, formato: 'pct', detalle: de(m.retenidosPitch, m.picoConcurrentes || m.vivos), ayuda: '% del pico' },
-      { key: 'bookingRate', label: 'Booking rate', valor: m.bookingRate, formato: 'pct', detalle: de(m.booked, m.retenidosPitch || m.vivos), ayuda: 'de los que llegaron al pitch' },
-      { key: 'booked', label: 'Booked', valor: m.booked, formato: 'count' },
+      { key: 'tasaCta', label: 'Completaron el CTA', valor: m.tasaCta, formato: 'pct', detalle: de(m.ctaCompletado, m.retenidosPitch || m.vivos), ayuda: 'de los que llegaron al pitch' },
+      { key: 'bookingRate', label: 'Agendaron', valor: m.bookingRate, formato: 'pct', detalle: de(m.booked, m.ctaCompletado || m.retenidosPitch), ayuda: 'de los que completaron el CTA' },
+      { key: 'ctaCompletado', label: 'Completaron el CTA', valor: m.ctaCompletado, formato: 'count' },
+      { key: 'booked', label: 'Agendaron', valor: m.booked, formato: 'count' },
       { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct', detalle: de(m.vivos, m.registros), portada: true, ayuda: 'vivos / confirmados' },
     ],
     post: [
