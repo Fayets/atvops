@@ -57,8 +57,16 @@ export default function WebinarAgendas() {
       })),
       {
         key: 'agendoAt',
-        label: 'Agendó',
+        label: 'Completó',
         render: (a) => <span className="dim">{fechaYhora(a.agendoAt)}</span>,
+      },
+      {
+        key: 'llamadaAt',
+        label: 'Llamada',
+        value: (a) => a.llamadaAt || '',
+        render: (a) => (a.llamadaAt
+          ? <span className="strong">{fechaYhora(a.llamadaAt)}</span>
+          : <span className="zona-warn">sin reservar</span>),
       },
     ];
   }, [extras]);
@@ -73,10 +81,25 @@ export default function WebinarAgendas() {
         eyebrow="Webinars"
         title="Agendas"
         desc="Quién completó el formulario del CTA y qué contestó"
-        actions={filas.length ? <Pill tone="ok" dot>{filas.length} agendas</Pill> : null}
+        actions={filas.length ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Pill tone="ok" dot>{datos?.conLlamada ?? 0} reservaron</Pill>
+            <Pill tone="plain">{filas.length} completaron</Pill>
+          </div>
+        ) : null}
       />
 
       {!datos ? <SkeletonBlock height={320} /> : null}
+
+      {datos && filas.length && (datos.conLlamada ?? 0) < filas.length ? (
+        <Card title={`${filas.length - (datos.conLlamada ?? 0)} completaron el formulario y no reservaron llamada`}>
+          <p className="dim">
+            Completar el formulario del CTA y reservar la llamada son dos pasos. Los que
+            quedaron en el medio están en la tabla con <strong>“sin reservar”</strong>:
+            son los que hay que empujar hoy, porque ya levantaron la mano.
+          </p>
+        </Card>
+      ) : null}
 
       {datos && sinEmail ? (
         <Card title="Faltan emails">

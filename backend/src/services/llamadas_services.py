@@ -270,3 +270,54 @@ def iniciar_scheduler(stop: threading.Event) -> None:
         except Exception as e:  # noqa: BLE001
             logger.warning("No se pudieron sincronizar las llamadas: %s", str(e)[:200])
         stop.wait(CADA_SEGUNDOS)
+
+
+def marcar_llamada_de(agendas: list[dict]) -> None:
+    """Le pone a cada agenda del Typeform la llamada que reservó, si la reservó.
+
+    Completar el formulario del CTA y reservar la llamada son dos pasos distintos, y
+    entre medio se cae gente: del webinar del 28-09-2026, 36 completaron y 7 reservaron.
+    Sin este cruce el tablero diría "36 agendas" y nadie iría a buscar a los otros 29.
+
+    **Solo cuentan las llamadas posteriores al formulario.** Cruzando por nombre a secas
+    aparecían dos reuniones de junio y agosto: gente que ya había hablado con el equipo
+    antes y volvió al webinar. Una llamada de hace tres meses no la agendó este CTA.
+
+    Cruza por email, que es la llave confiable, y cae al nombre cuando la reunión se
+    cargó sin mail. Modifica la lista en el lugar: es una anotación sobre lo que ya se
+    leyó, no otra consulta.
+    """
+    if not agendas:
+        return
+    from pony.orm import db_session
+
+    from src.db import DB_SCHEMA, ES_POSTGRES, db
+
+    tabla = f'"{DB_SCHEMA}"."reuniones_crm"' if ES_POSTGRES else '"ReunionCrm"'
+    with db_session:
+        filas = db.select(
+            "SELECT lower(coalesce(\"email\", '')), lower(coalesce(\"prospecto\", '')), "
+            f'"inicio_at" FROM {tabla} WHERE "descartada" IS NOT TRUE AND "inicio_at" IS NOT NULL'
+        )
+
+    # Todas las llamadas de cada persona, no solo la primera: hay que quedarse con la
+    # primera POSTERIOR al formulario, y cuál es eso depende de cada agenda.
+    por_email: dict[str, list] = {}
+    por_nombre: dict[str, list] = {}
+    for email, nombre, inicio in filas:
+        cuando = inicio.isoformat() if hasattr(inicio, "isoformat") else str(inicio)
+        if email:
+            por_email.setdefault(email, []).append(cuando)
+        if nombre:
+            por_nombre.setdefault(nombre, []).append(cuando)
+
+    for a in agendas:
+        email = (a.get("email") or "").strip().lower()
+        nombre = (a.get("nombre") or "").strip().lower()
+        candidatas = por_email.get(email) or (por_nombre.get(nombre) if nombre else None) or []
+        # El formulario viene en ISO con Z; las reuniones en hora local sin zona. Se
+        # comparan los primeros diez caracteres —la fecha— que es lo único que hace
+        # falta para descartar una llamada de hace tres meses.
+        desde = str(a.get("agendoAt") or "")[:10]
+        posteriores = sorted(c for c in candidatas if not desde or c[:10] >= desde)
+        a["llamadaAt"] = posteriores[0] if posteriores else None

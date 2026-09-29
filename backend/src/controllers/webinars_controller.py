@@ -43,6 +43,18 @@ def agendas(user: dict = Depends(_puede_webinars)):
         raise
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"No se pudo leer Typeform: {e}") from e
+    # Cruce contra el calendario: completar el formulario no es reservar la llamada.
+    # Son dos pasos y entre medio se cae gente —del webinar del 28-09, 36 completaron y
+    # 5 reservaron—. Sin esta columna el tablero diría "36 agendas" y nadie iría a
+    # buscar a los 31 que quedaron colgados entre un paso y el otro.
+    try:
+        from src.services import llamadas_services
+
+        llamadas_services.marcar_llamada_de(filas)
+    except Exception as e:  # noqa: BLE001 — la lista sirve igual sin el cruce
+        import logging
+        logging.getLogger("atv_ops.webinars").info("Cruce de agendas: %s", str(e)[:200])
+
     # Las preguntas en el orden del formulario: la pantalla arma una columna por cada
     # una. Se sacan de las respuestas y no del formulario para no pedir dos veces lo
     # mismo, y porque lo que importa es lo que la gente efectivamente contestó.
@@ -55,6 +67,7 @@ def agendas(user: dict = Depends(_puede_webinars)):
         "agendas": filas,
         "preguntas": preguntas,
         "conEmail": sum(1 for a in filas if a["conEmail"]),
+        "conLlamada": sum(1 for a in filas if a.get("llamadaAt")),
     }
 
 
