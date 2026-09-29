@@ -17,7 +17,7 @@ const FASE_IDS = new Set(['registro', 'dia', 'post']);
  * el costo por registrante es de ads y el grupo de WhatsApp es de los dos. */
 const GRUPOS = {
   ads: { titulo: 'Captación por ads', sub: 'Lo que se paga y termina en la landing' },
-  organico: { titulo: 'Captación por orgánico', sub: 'No pasa por la landing: entra por DM y por el grupo' },
+  organico: { titulo: 'Captación por orgánico' },
   confirmaciones: { titulo: 'Confirmaciones', sub: 'Del botón de agendar al evento cargado en el calendario' },
 };
 

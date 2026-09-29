@@ -258,9 +258,6 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     // la TY: es el mismo universo y se puede contar.
     tasaWhatsapp: tasa(whatsapp, optins || registros),
     tasaAgendaTy: tasa(agendas, optins || registros),
-    // Quien entró al grupo sin pasar por la landing. Es la única forma de ver el
-    // orgánico directo: la resta entre el grupo entero y los que vinieron del funnel.
-    whatsappOrganico: miembrosGrupo ? Math.max(0, miembrosGrupo - whatsapp) : null,
     tasaAgendaWebinar: tasa(agendas, registros),
     costoPorRegistrante: money(gasto, registros),
     showRate: tasa(vivos, registros),
@@ -330,9 +327,6 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
 
       { key: 'chatsOrganicos', grupo: 'organico', label: 'Chats abiertos', valor: m.chatsOrganicos, formato: 'count',
         ayuda: 'DMs que llegaron por historias y reels con CTA' },
-      { key: 'whatsappOrganico', grupo: 'organico', label: 'Entrada WhatsApp directa', valor: m.whatsappOrganico,
-        formato: 'count', detalle: de(m.whatsappOrganico, m.miembrosGrupo),
-        ayuda: 'entraron al grupo sin pasar por la landing' },
       { key: 'miembrosGrupo', grupo: 'organico', label: 'Miembros del grupo', valor: m.miembrosGrupo, formato: 'count' },
 
       { key: 'registros', grupo: 'confirmaciones', label: 'Confirmó en Calendar', valor: m.registros, formato: 'count',
