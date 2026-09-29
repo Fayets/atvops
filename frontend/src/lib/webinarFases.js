@@ -248,11 +248,16 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     // solo paso. Ahí no se midió ningún segundo momento: el 100% que da dividir un
     // número por sí mismo sería inventado. La cantidad igual se ve abajo del cartel.
     tasaRegistro: raw.registrosDerivados ? null : tasa(registros, optins),
-    // Los dos botones de la thank you page se miden contra quien LLEGÓ a esa página,
-    // no contra los registros: quien nunca la vio no pudo tocarlos, y meterlo en el
-    // divisor hace parecer roto un botón que nadie tuvo enfrente.
-    tasaWhatsapp: tasa(whatsapp, thankYou || registros),
-    tasaAgendaTy: tasa(agendas, thankYou || registros),
+    // Los dos botones de la thank you page se miden contra los opt-ins.
+    //
+    // Lo natural sería dividir por quien llegó a la TY, pero ese contador cuenta un
+    // pageview por carga: el que recarga o vuelve suma de nuevo, y en el webinar del
+    // 28-09 dio 378 contra 349 opt-ins, más gente en la TY que gente que completó el
+    // formulario. Los eventos no traen identidad, así que no se puede deduplicar. El
+    // opt-in sí es una persona, y todos los que completan el formulario son mandados a
+    // la TY: es el mismo universo y se puede contar.
+    tasaWhatsapp: tasa(whatsapp, optins || registros),
+    tasaAgendaTy: tasa(agendas, optins || registros),
     // Quien entró al grupo sin pasar por la landing. Es la única forma de ver el
     // orgánico directo: la resta entre el grupo entero y los que vinieron del funnel.
     whatsappOrganico: miembrosGrupo ? Math.max(0, miembrosGrupo - whatsapp) : null,
@@ -316,11 +321,10 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'conversionLanding', grupo: 'ads', label: 'Conv. landing', valor: m.conversionLanding, formato: 'pct',
         detalle: de(m.optins || m.registros, m.visitasLanding), ayuda: 'optins / visitas' },
       { key: 'optins', grupo: 'ads', label: 'Optins completados', valor: m.optins, formato: 'count' },
-      { key: 'thankYou', grupo: 'ads', label: 'Llegaron a TY page', valor: m.thankYou, formato: 'count' },
       { key: 'tasaAgendaTy', grupo: 'ads', label: 'Agendó', valor: m.tasaAgendaTy, formato: 'pct',
-        detalle: de(m.agendasWebinar, m.thankYou || m.registros), ayuda: 'tocó el botón de agendar en la TY' },
+        detalle: de(m.agendasWebinar, m.optins || m.registros), ayuda: 'tocó el botón de agendar en la TY' },
       { key: 'tasaWhatsapp', grupo: 'ads', label: 'Fueron al grupo', valor: m.tasaWhatsapp, formato: 'pct',
-        detalle: de(m.entradasWhatsapp, m.thankYou || m.registros), ayuda: 'tocó el botón de WhatsApp en la TY' },
+        detalle: de(m.entradasWhatsapp, m.optins || m.registros), ayuda: 'tocó el botón de WhatsApp en la TY' },
       { key: 'costoPorRegistrante', grupo: 'ads', label: 'Costo / registrante', valor: m.costoPorRegistrante,
         formato: 'usd', detalle: sobre(m.optins || m.registros, 'optins'), portada: true },
 
