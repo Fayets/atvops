@@ -5473,16 +5473,6 @@ button.lista-item:hover { background: var(--surface-2); }
 .pitch-marcar input { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
 .pitch-resultado { margin: var(--space-3) 0 0; font-size: 13px; }
 
-.vivo-embudo { display: flex; flex-direction: column; gap: 10px; }
-.vivo-embudo-fila { display: grid; grid-template-columns: 82px minmax(0, 1fr) 46px 42px;
-  gap: var(--space-3); align-items: center; font-size: 12.5px; }
-.vivo-embudo-label { color: var(--text-2); }
-.vivo-embudo-barra { height: 16px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
-.vivo-embudo-barra > span { display: block; height: 100%; background: var(--s3); border-radius: 4px;
-  transition: width 0.6s ease; }
-.vivo-embudo-fila .num { text-align: right; font-variant-numeric: tabular-nums; }
-.vivo-embudo-fila .dim { text-align: right; font-variant-numeric: tabular-nums; }
-
 .sala-leyenda { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: 12px;
   color: var(--text-2); margin-bottom: var(--space-3); justify-content: center; }
 .sala-leyenda span { display: inline-flex; align-items: center; gap: 6px; }

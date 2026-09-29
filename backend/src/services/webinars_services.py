@@ -410,7 +410,7 @@ class WebinarsServices:
             crudas = _json(w.metricas, {})
 
         # Cuántos registrados tiene este webinar, con la misma cuenta que muestra la
-        # Los dos números de arriba del embudo, que no son el mismo.
+        # Los dos números de la cabecera del vivo, que no son el mismo.
         #
         # Opt-ins: dejaron el mail en la landing. Los cuenta el script de tracking, no
         # están guardados en el webinar, así que hay que pedírselos.
@@ -441,7 +441,7 @@ class WebinarsServices:
         # La sala es la gente de Zoom: los inscriptos ahí más los que entraron. No se
         # completa hasta los confirmados —eran ciento ochenta y siete butacas grises sin
         # nombre, que ocupan toda la pantalla y no se pueden mirar—. Los confirmados
-        # siguen estando, en el show rate y en el embudo, que es donde ese número dice algo.
+        # siguen estando, en el show rate, que es donde ese número dice algo.
         butacas = list(r.get("butacas") or [])
 
         # Los webhooks solo avisan de quien entra DESPUÉS de que la suscripción existe:
@@ -495,28 +495,13 @@ class WebinarsServices:
         # ajuste cuando alguien corrija el número.
         r = {**r, "medidosDentro": medidos_dentro}
 
-        # El embudo del vivo: los cinco saltos, con lo que hay. `booked` es manual y
-        # puede estar en cero durante el vivo; se muestra igual para que el último
-        # escalón no aparezca recién cuando alguien lo carga.
+        # Cuánta gente quedaba cuando arrancó el pitch: lo mira el KPI de arriba y el
+        # cartel de "marcar el pitch". `booked` es manual y puede estar en cero durante
+        # el vivo.
         en_pitch = next((x["conectados"] for x in (r.get("tramos") or [])
                          if minuto_pitch and x["minuto"] == minuto_pitch), None)
         booked = int(crudas.get("booked") or 0)
-        embudo = [
-            {"label": "Opt-ins", "n": optins, "nota": "dejaron el mail en la landing"},
-            *([{"label": "Confirmados", "n": registros,
-                "nota": "reservaron lugar en el evento"}]
-              if registros and registros != optins else []),
-            # Solo si hubo lista de inscriptos. En una reunión no existe, y un escalón
-            # en cero no dice "nadie se inscribió": dice "acá no se mide nada", y de
-            # paso rompe el porcentaje del escalón siguiente.
-            *([{"label": "Inscriptos", "n": r["inscriptos"], "nota": "confirmaron lugar en Zoom"}]
-              if r.get("inscriptos") else []),
-            {"label": "Entraron", "n": r.get("distintos") or 0, "nota": "pisaron el vivo"},
-            *([{"label": "Al pitch", "n": en_pitch,
-                "nota": f"seguían al minuto {minuto_pitch}"}] if en_pitch is not None else []),
-            {"label": "Agendaron", "n": booked, "nota": "tomaron el CTA"},
-        ]
-        return {**r, "butacas": butacas, "registros": registros, "embudo": embudo,
+        return {**r, "butacas": butacas, "registros": registros,
                 "minutoPitch": minuto_pitch, "enElPitch": en_pitch, "booked": booked,
                 "optins": optins}
 
@@ -781,7 +766,7 @@ class WebinarsServices:
                 # se toma ese: si no, todo lo que divide por registros (costo por
                 # registrante, show rate, entrada a WhatsApp) queda mudo para siempre
                 # esperando un dato que nadie va a escribir. Un número cargado a mano
-                # siempre gana, que es el caso del embudo con confirmación aparte.
+                # siempre gana, que es el caso de un webinar con confirmación aparte.
                 if not int(crudas.get("registros") or 0) and int(crudas.get("optins") or 0):
                     crudas["registros"] = int(crudas["optins"])
                     crudas["registrosDerivados"] = True

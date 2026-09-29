@@ -359,46 +359,19 @@ export default function WebinarVivo() {
       ) : null}
 
       {d?.tramos?.length ? (
-        <div className="vivo-dos">
-          <Card
-            title="Retención por tramo"
-            sub="Cuánta gente quedaba en cada momento del guion"
-            foot="Contra el pico. Los tramos anteriores al pico van en gris: ahí todavía está entrando gente y un número bajo no es una fuga. El tramo donde cae después es el que hay que reescribir."
-          >
-            <Bars
-              data={d.tramos} x={(p) => p.label} y={(p) => p.pct} format="pct" label="Del pico"
-              height={230}
-              color={(p) => (p.antesDelPico ? 'var(--s3)'
-                : p.pct >= 80 ? 'var(--ok)' : p.pct >= 60 ? 'var(--warn)' : 'var(--alert)')}
-              linea={{ key: (p) => p.conectados, label: 'Personas', format: 'count', escala: 'propia' }}
-            />
-          </Card>
-
-          <Card
-            title="El embudo del vivo"
-            sub="De dónde salió cada número"
-            foot="Los opt-ins no son asistentes: dejaron el mail. El salto que más duele suele ser el de inscripto a entró."
-          >
-            <div className="vivo-embudo">
-              {d.embudo.map((e, i) => {
-                const tope = d.embudo[0].n || 1;
-                const previo = i ? d.embudo[i - 1].n : null;
-                return (
-                  <div key={e.label} className="vivo-embudo-fila">
-                    <span className="vivo-embudo-label">{e.label}</span>
-                    <span className="vivo-embudo-barra">
-                      <span style={{ width: `${Math.max(2, (e.n / tope) * 100)}%` }} />
-                    </span>
-                    <span className="num strong">{e.n}</span>
-                    <span className="dim">
-                      {previo ? `${Math.round((e.n / previo) * 100)}%` : '—'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        </div>
+        <Card
+          title="Retención por tramo"
+          sub="Cuánta gente quedaba en cada momento del guion"
+          foot="Contra el pico. Los tramos anteriores al pico van en gris: ahí todavía está entrando gente y un número bajo no es una fuga. El tramo donde cae después es el que hay que reescribir."
+        >
+          <Bars
+            data={d.tramos} x={(p) => p.label} y={(p) => p.pct} format="pct" label="Del pico"
+            height={230}
+            color={(p) => (p.antesDelPico ? 'var(--s3)'
+              : p.pct >= 80 ? 'var(--ok)' : p.pct >= 60 ? 'var(--warn)' : 'var(--alert)')}
+            linea={{ key: (p) => p.conectados, label: 'Personas', format: 'count', escala: 'propia' }}
+          />
+        </Card>
       ) : null}
 
       <div className="vivo-dos">
