@@ -5,11 +5,18 @@ Parte 1 — Las llamadas de Nick de hoy.
     python3 scripts/1_agenda.py
 
 Pide a ATV Ops las llamadas de venta del día (hora de Argentina, la calcula el server) y
-se queda con las que en Google se llaman "ATV CONSULTS" (el campo "titulo" de
-config.json). Deja el resultado en salida/agenda.json y lo imprime.
+se queda con las consultas ("ATV CONSULTS"). Deja el resultado en salida/agenda.json y lo
+imprime.
 
-No se filtra por closer: la mitad de las llamadas llega sin closer cargado y otras lo
-tienen puesto aunque no sean consultas (29-09-2026: 8 llamadas, 6 eran ATV CONSULTS).
+El título de Google no alcanza solo: ATV Ops guarda el título del evento únicamente en las
+llamadas que vienen solo del calendario; en las que tienen lead del CRM ese campo trae las
+notas del lead y casi siempre está vacío. Y el closer tampoco: la mitad llega sin cargar.
+Así que una llamada entra si:
+  - tiene evento en Google (un eventoId "lead:…" es un lead del CRM sin reunión en el
+    calendario: se canceló o se movió), y
+  - su título está vacío (es de un lead agendado) o contiene "titulo" de config.json.
+Caso real del 29-09-2026: "Aumenta Tu Valor & Michael" (evento suelto, otro título)
+quedaba adentro con el filtro por closer.
 """
 
 import json
@@ -42,11 +49,18 @@ def main() -> None:
         salir(f"No se pudo hablar con ATV Ops: {str(e)[:160]}")
 
     titulo = (config().get("titulo") or "").strip().lower()
+
+    def es_consulta(x: dict) -> bool:
+        evento = x.get("eventoId") or ""
+        if not evento or evento.startswith(("lead:", "ops:")):
+            return False
+        t = (x.get("titulo") or "").strip().lower()
+        return not t or not titulo or titulo in t
+
     llamadas = [
         {"hora": x.get("hora") or "", "nombre": (x.get("prospecto") or "").strip(),
-         "titulo": x.get("titulo") or ""}
-        for x in dia.get("llamadas") or []
-        if not titulo or titulo in (x.get("titulo") or "").lower()
+         "titulo": x.get("titulo") or "", "eventoId": x.get("eventoId") or ""}
+        for x in dia.get("llamadas") or [] if es_consulta(x)
     ]
     llamadas.sort(key=lambda x: x["hora"])
 
