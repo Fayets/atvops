@@ -487,11 +487,15 @@ def _sumar_reuniones_del_calendario(desde: date, hasta: date) -> list[dict]:
         key=lambda f: f["call"])
 
 
-def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
+def estado_de_las_reuniones(desde: date, hasta: date, usuario: dict | None = None) -> dict:
     """Para cada reunión del calendario, si ya tiene el resultado cargado y con qué id.
 
     Lo usa el calendario del equipo para pintar lo que ya está cargado y para poder
     actualizarlo ahí mismo, sin pasar por la lista de un closer en particular.
+
+    `ocultos` sale solo para los roles que pueden ocultar y devolver reuniones: son
+    reuniones del calendario de ventas y no tienen nada que hacer en la pantalla de
+    alguien de otra área.
     """
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
@@ -557,7 +561,8 @@ def estado_de_las_reuniones(desde: date, hasta: date) -> dict:
         "programas": programas(), "estados": list(ESTADOS_LLAMADA),
         "porEvento": _numerar_agendas(por_evento, manuales),
         "manuales": manuales,
-        "ocultos": eventos_ocultos(),
+        "ocultos": (eventos_ocultos()
+                    if (usuario or {}).get("rol") in ROLES_CARGAN_LLAMADAS else {}),
     }
 
 

@@ -179,6 +179,18 @@ export function rolEfectivo(user) {
 }
 
 /**
+ * Quién puede sacar una reunión del calendario y volver a ponerla.
+ *
+ * Espejo de `ROLES_CARGAN_LLAMADAS` del backend: las reuniones ocultas son del
+ * calendario de ventas. Un CSM veía el panel lleno de reuniones de Nick y al tocar
+ * "Devolver" se comía un 403.
+ * @param {Rol} rol
+ */
+export function puedeOcultarReuniones(rol) {
+  return ['admin', 'founder', 'ventas', 'closer', 'setter'].includes(rolDeVista(rol));
+}
+
+/**
  * @param {string} pathname
  * @param {Rol} rol
  */

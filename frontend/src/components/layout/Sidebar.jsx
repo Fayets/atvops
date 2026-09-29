@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession } from '../../lib/auth.js';
 import { useRol } from '../../lib/RolContext.jsx';
-import { filtrarNav, homeParaRol, ROL_LIST, ROLES } from '../../lib/roles.js';
+import { filtrarNav, homeParaRol, puedeOcultarReuniones, ROL_LIST, ROLES } from '../../lib/roles.js';
 import Icon from '../ui/Icon.jsx';
 import ReunionesOcultas from './ReunionesOcultas.jsx';
 
@@ -193,21 +193,23 @@ export default function Sidebar() {
         )}
 
         <div className="sidebar-acciones">
-          <button
-            type="button"
-            className="sidebar-icono"
-            onClick={() => setVerOcultas(true)}
-            title="Reuniones ocultas"
-            aria-label="Reuniones ocultas"
-          >
-            <Icon name="config" />
-          </button>
+          {puedeOcultarReuniones(rol) && (
+            <button
+              type="button"
+              className="sidebar-icono"
+              onClick={() => setVerOcultas(true)}
+              title="Reuniones ocultas"
+              aria-label="Reuniones ocultas"
+            >
+              <Icon name="config" />
+            </button>
+          )}
           <button type="button" className="sidebar-salir" onClick={salir}>
             Salir
           </button>
         </div>
       </div>
-      {verOcultas && <ReunionesOcultas onCerrar={() => setVerOcultas(false)} />}
+      {verOcultas && puedeOcultarReuniones(rol) && <ReunionesOcultas onCerrar={() => setVerOcultas(false)} />}
     </aside>
   );
 }

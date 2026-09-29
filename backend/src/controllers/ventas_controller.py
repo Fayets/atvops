@@ -377,7 +377,7 @@ def ocultar_reunion(evento_id: str, user: dict = Depends(solo_interno),
 
 
 @router.get("/reuniones")
-def reuniones(_user: dict = Depends(solo_interno), desde: str | None = None, hasta: str | None = None):
+def reuniones(user: dict = Depends(solo_interno), desde: str | None = None, hasta: str | None = None):
     """Estado de cada reunión del calendario, para pintarlo y editarlo desde el calendario."""
     from datetime import date as _date, timedelta as _td
 
@@ -387,7 +387,7 @@ def reuniones(_user: dict = Depends(solo_interno), desde: str | None = None, has
         d1 = _date.fromisoformat(hasta) if hasta else hoy + _td(days=21)
         if d1 < d0:
             d0, d1 = d1, d0
-        return ventas.estado_de_las_reuniones(d0, min(d1 + _td(days=1), d0 + _td(days=120)))
+        return ventas.estado_de_las_reuniones(d0, min(d1 + _td(days=1), d0 + _td(days=120)), user)
     except HTTPException as e:
         raise e
     except Exception:
