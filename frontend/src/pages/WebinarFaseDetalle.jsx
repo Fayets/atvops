@@ -12,13 +12,22 @@ const FASE_IDS = new Set(['registro', 'dia', 'post']);
 
 /* Las métricas que son un número cargado a mano y no una cuenta.
  *
- * Solo estas llevan lápiz: editar una tasa no tendría sentido —sale de dividir otras
- * dos— y editar lo que trae Zoom lo pisaría el próximo sync. Estos cambian seguido
- * porque pasan fuera del sistema, y hacer tres clics para corregir un número que se
- * mueve todos los días termina en que nadie lo corrige. */
+ * Solo estas llevan lápiz. Editar una tasa no tendría sentido —sale de dividir otras
+ * dos—, lo que trae Zoom lo pisaría el próximo sync, y las agendas se releen de
+ * Typeform en cada carga: un lápiz ahí sería una trampa. Quedan las que de verdad
+ * pasan fuera del sistema y nadie mide por vos. */
+/* Las métricas que se pueden abrir para ver quiénes son.
+ *
+ * Un número de personas sin los nombres detrás no se puede trabajar: "8 agendaron" no
+ * dice a quién llamar. La lista ya existe en Webinars → Agendas; lo que faltaba era el
+ * camino desde el número. */
+const SE_ABREN = {
+  ctaCompletado: '/webinars/agendas',
+  booked: '/webinars/agendas',
+};
+
 const A_MANO = {
   registros: 'Confirmados al webinar',
-  booked: 'Booked / compraron',
 };
 
 /**
@@ -86,22 +95,6 @@ export default function WebinarFaseDetalle() {
         r.aviso
           || `Listo: ${r.zoom.vivos} entraron, pico de ${r.zoom.picoConcurrentes}.`,
       );
-      setTick((n) => n + 1);
-    } catch (e) {
-      setErrorAccion(e.message);
-    } finally {
-      setTrayendo(false);
-    }
-  }
-
-  async function traerLasAgendas() {
-    setTrayendo(true);
-    setErrorAccion('');
-    setAvisoZoom('');
-    try {
-      const r = await traerAgendas(id);
-      const m = r?.metricas || {};
-      setAvisoZoom(`Listo: ${m.ctaCompletado ?? 0} completaron el CTA, ${m.booked ?? 0} reservaron llamada.`);
       setTick((n) => n + 1);
     } catch (e) {
       setErrorAccion(e.message);
@@ -190,7 +183,12 @@ export default function WebinarFaseDetalle() {
               title={m.key === 'frecuencia' && campanias.length
                 ? 'Ver la frecuencia de cada campaña' : undefined}
             >
-              {A_MANO[m.key] ? (
+              {SE_ABREN[m.key] ? (
+                <Link to={SE_ABREN[m.key]} className="wb-abre" title="Ver quiénes son">
+                  <span className="num">{fmtMetrica(m.valor, m.formato)}</span>
+                  <span className="wb-abre-flecha">→</span>
+                </Link>
+              ) : A_MANO[m.key] ? (
                 <MetricaEditable
                   webinarId={id}
                   clave={m.key}
@@ -230,17 +228,7 @@ export default function WebinarFaseDetalle() {
             )
           ) : null}
           {faseId === 'dia' ? (
-            <button
-              type="button"
-              className="btn sm"
-              onClick={traerLasAgendas}
-              disabled={trayendo}
-              title="Lee el Typeform del CTA y lo cruza contra el calendario."
-            >
-              Traer agendas
-            </button>
-          ) : null}
-          {faseId === 'dia' ? (
+
             <button
               type="button"
               className="btn sm"

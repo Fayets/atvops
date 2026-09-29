@@ -106,6 +106,9 @@ export const CAMPOS_RAW = [
   { key: 'retenidosPitch', label: 'Retenidos al pitch', fase: 'dia', tipo: 'count' },
   // Dos pasos distintos y entre medio se cae gente: del webinar del 28-09, 36
   // completaron el formulario y 7 reservaron la llamada. Un solo número los tapa.
+  // Los dos salen solos de Typeform y del calendario en cada carga. Siguen acá para
+  // que se vean entre los números de la fase, pero editarlos a mano no sirve: se
+  // releen. Quedan en la lista y no en el lápiz por eso mismo.
   { key: 'ctaCompletado', label: 'Completaron el CTA', fase: 'dia', tipo: 'count' },
   { key: 'booked', label: 'Agendaron la llamada', fase: 'dia', tipo: 'count' },
   // A los cuántos minutos del arranque empieza el pitch. Es un dato del guion, no de

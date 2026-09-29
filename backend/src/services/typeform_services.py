@@ -145,6 +145,9 @@ def _titulos() -> dict[str, str]:
     return titulos
 
 
+_cache_agendas: dict = {}
+
+
 def agendas(desde: datetime | None = None) -> list[dict]:
     """Quién agendó, cuándo y qué contestó.
 
@@ -152,6 +155,13 @@ def agendas(desde: datetime | None = None) -> list[dict]:
     Se junta por email quedándose con la última: contar dos veces a la misma persona
     infla el escalón del embudo justo donde se mide si el pitch funcionó.
     """
+    # Tres minutos. La pantalla del webinar lo pide en cada carga y las respuestas no
+    # entran de a una por segundo; sin esto, abrir la Fase 2 sale una llamada a Typeform.
+    llave = f"{_form_id()}|{desde.isoformat() if desde else ''}"
+    guardado = _cache_agendas.get(llave)
+    if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < 180:
+        return guardado["filas"]
+
     params: dict = {"page_size": 1000}
     if desde:
         params["since"] = desde.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -188,7 +198,9 @@ def agendas(desde: datetime | None = None) -> list[dict]:
         if anterior is None or str(agenda["agendoAt"] or "") >= str(anterior["agendoAt"] or ""):
             por_persona[llave] = agenda
 
-    return sorted(por_persona.values(), key=lambda a: a["agendoAt"] or "", reverse=True)
+    filas = sorted(por_persona.values(), key=lambda a: a["agendoAt"] or "", reverse=True)
+    _cache_agendas[llave] = {"at": datetime.utcnow(), "filas": filas}
+    return filas
 
 
 def probar() -> dict:

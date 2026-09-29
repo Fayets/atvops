@@ -751,6 +751,21 @@ class WebinarsServices:
         if leads_ads:
             crudas["leadsAds"] = leads_ads
 
+        # El CTA: cuántos completaron el formulario y cuántos agendaron. Se leen en
+        # vivo, como las visitas del script, para que el tablero no quede congelado en
+        # el número del día del webinar: las agendas siguen cayendo dos y tres días
+        # después. Si Typeform no contesta, queda lo último que se guardó.
+        try:
+            from src.services import llamadas_services, typeform_services
+
+            respuestas = typeform_services.agendas()
+            if respuestas:
+                crudas["ctaCompletado"] = len(respuestas)
+                desde = min((r["agendoAt"] or "9999") for r in respuestas)
+                crudas["booked"] = len(llamadas_services.agendas_desde(desde))
+        except Exception as e:  # noqa: BLE001
+            logger.info("CTA del webinar: %s", str(e)[:160])
+
         # Visitas / optins / TY / WhatsApp desde el script de tracking.
         try:
             from src.services.integraciones_services import IntegracionesServices

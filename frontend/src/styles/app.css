@@ -5437,6 +5437,11 @@ button.lista-item:hover { background: var(--surface-2); }
 .vivo-page.esta-en-vivo .vivo-kpi.es-grande .vivo-kpi-valor { animation: vivo-latido 2.4s ease-in-out infinite; }
 @keyframes vivo-latido { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
+.wb-abre { display: inline-flex; align-items: baseline; gap: 6px; color: inherit; }
+.wb-abre-flecha { font-size: 13px; color: var(--text-3); opacity: 0; transition: opacity 0.15s ease; }
+.wb-fase-detalle-grid li:hover .wb-abre-flecha, .wb-abre:focus-visible .wb-abre-flecha { opacity: 1; }
+.wb-abre:hover .num { color: var(--brand); }
+
 .wb-editable { display: inline-flex; align-items: baseline; gap: 6px; }
 .wb-editable.guardando .num { opacity: 0.55; }
 .wb-lapiz { font-size: 13px; line-height: 1; color: var(--text-3); padding: 2px 4px;
