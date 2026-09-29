@@ -365,3 +365,42 @@ def llamadas_sin_formulario(agendas: list[dict], desde: str) -> list[dict]:
         if llave not in sueltas or cuando < sueltas[llave]["llamadaAt"]:
             sueltas[llave] = {"nombre": prospecto, "email": email, "llamadaAt": cuando}
     return sorted(sueltas.values(), key=lambda x: x["llamadaAt"])
+
+
+def agendas_desde(desde: str) -> list[dict]:
+    """Todas las llamadas reservadas desde una fecha, una por persona.
+
+    Es lo que hay que contar como "agendaron" del webinar: el equipo saca agenda por
+    varios lados —el Typeform del CTA, un DM, el link suelto— y todas terminan en el
+    mismo calendario. Contar solo las que vienen del formulario dejaba afuera tres de
+    ocho el 28-09-2026.
+
+    Se pide email para separar una llamada de venta de una reunión interna del equipo,
+    que en el calendario se ven igual. Y se agrupa por persona: quien reprograma tres
+    veces sigue siendo una agenda, no tres.
+    """
+    from pony.orm import db_session
+
+    from src.db import DB_SCHEMA, ES_POSTGRES, db
+
+    tabla = f'"{DB_SCHEMA}"."reuniones_crm"' if ES_POSTGRES else '"ReunionCrm"'
+    with db_session:
+        filas = db.select(
+            'SELECT "prospecto", "email", "inicio_at" '
+            f'FROM {tabla} WHERE "descartada" IS NOT TRUE AND "inicio_at" IS NOT NULL '
+            # El calendario de consults: las reuniones que se agendan desde ATV Ops.
+            # Sin este filtro entraban las del Google Calendar de cada uno —una llamada
+            # de Nick con un cliente se ve igual que una agenda de venta— y la cuenta
+            # daba de más.
+            "AND coalesce(\"email\", '') <> '' AND \"agendo_en\" = 'ATV Ops'"
+        )
+
+    por_persona: dict[str, dict] = {}
+    for prospecto, email, inicio in filas:
+        cuando = inicio.isoformat() if hasattr(inicio, "isoformat") else str(inicio)
+        if cuando[:10] < desde[:10]:
+            continue
+        llave = (email or "").strip().lower()
+        if llave not in por_persona or cuando < por_persona[llave]["llamadaAt"]:
+            por_persona[llave] = {"nombre": prospecto, "email": email, "llamadaAt": cuando}
+    return sorted(por_persona.values(), key=lambda x: x["llamadaAt"])

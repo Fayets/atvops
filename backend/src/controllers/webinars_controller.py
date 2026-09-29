@@ -82,10 +82,14 @@ def traer_agendas(webinar_id: int, user: dict = Depends(_puede_webinars)):
 
     try:
         filas = typeform_services.agendas()
-        llamadas_services.marcar_llamada_de(filas)
+        desde = min((a["agendoAt"] or "9999") for a in filas) if filas else ""
+        # Las agendas son todas las del calendario, no solo las que salieron del
+        # formulario: el equipo saca agenda también por DM y por el link suelto, y todas
+        # terminan en el mismo lado. El 28-09 eran ocho, y solo cinco venían del CTA.
+        agendadas = llamadas_services.agendas_desde(desde) if desde else []
         return service.actualizar(webinar_id, {"metricas": {
             "ctaCompletado": len(filas),
-            "booked": sum(1 for a in filas if a.get("llamadaAt")),
+            "booked": len(agendadas),
         }}, user)
     except HTTPException:
         raise
