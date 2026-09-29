@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getEstadoReuniones, ocultarReunion } from '../../data/api.js';
 import { formatFecha } from '../../lib/format.js';
 
@@ -9,6 +10,10 @@ import { formatFecha } from '../../lib/format.js';
  * cada tanto: ahí abajo no molesta y se encuentra igual. Trae TODAS, no solo las del
  * rango que esté cargado en pantalla — una ocultada por error hace tres meses era
  * imposible de encontrar si había que adivinar en qué semana estaba.
+ *
+ * Va por portal al body: el sidebar es `position: sticky` y eso arma un contexto de
+ * apilado propio, así que un `position: fixed` de acá adentro queda encerrado ahí y
+ * cualquier tarjeta `position: relative` del contenido se le dibuja encima.
  */
 export default function ReunionesOcultas({ onCerrar }) {
   const [filas, setFilas] = useState(null);
@@ -47,7 +52,7 @@ export default function ReunionesOcultas({ onCerrar }) {
     }
   }
 
-  return (
+  return createPortal(
     <div className="ocultas-modal" role="dialog" aria-label="Reuniones ocultas">
       <div className="ocultas-caja">
         <header>
@@ -83,6 +88,7 @@ export default function ReunionesOcultas({ onCerrar }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
