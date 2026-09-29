@@ -7,12 +7,15 @@ import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { getAgendasWebinar } from '../data/api.js';
 
 /**
- * Quién completó el formulario del CTA y qué contestó.
+ * Los dos números del CTA del webinar, cada uno con su lista.
  *
- * Es el último escalón del embudo del webinar. Las respuestas son la mitad del valor:
- * "cuánto estás dispuesto a invertir" y "qué tan pronto lo querés resolver" deciden a
- * quién llama primero el closer. Por eso van como columnas y no escondidas detrás de
- * un clic: la pantalla existe para ordenar una cola de llamadas, no para listar mails.
+ * Son dos cosas distintas y entre medio se cae gente: completar el formulario es
+ * levantar la mano, reservar la llamada es el paso que factura. Del 28-09-2026, 36
+ * completaron y 8 reservaron.
+ *
+ * Se eligen de a uno en vez de mostrarse los dos juntos: son dos preguntas distintas
+ * —"a quién llamo hoy" y "quién levantó la mano y no reservó"— y apiladas una arriba de
+ * la otra no se lee ninguna.
  */
 
 const fechaYhora = (iso) => {
@@ -25,25 +28,34 @@ const fechaYhora = (iso) => {
 /** El encabezado corto. La pregunta entera queda en el title, al pasar el mouse. */
 const corto = (p) => {
   const limpio = p.replace(/[¿?]/g, '').trim();
-  return limpio.length > 26 ? `${limpio.slice(0, 26)}…` : limpio;
+  return limpio.length > 24 ? `${limpio.slice(0, 24)}…` : limpio;
 };
+
+function Numero({ label, valor, nota, elegido, onElegir }) {
+  return (
+    <button type="button" className={`agenda-numero${elegido ? ' elegido' : ''}`} onClick={onElegir}>
+      <span className="agenda-numero-valor num">{valor}</span>
+      <span className="agenda-numero-label">{label}</span>
+      <span className="agenda-numero-nota">{nota}</span>
+    </button>
+  );
+}
 
 export default function WebinarAgendas() {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState(null);
+  const [ver, setVer] = useState('agendas');
 
   useEffect(() => { getAgendasWebinar().then(setDatos).catch(setError); }, []);
 
   const filas = datos?.agendas ?? [];
+  const agendadas = datos?.agendadas ?? [];
   const preguntas = datos?.preguntas ?? [];
 
   // Nombre y mail ya tienen su columna: repetirlos como respuesta es ruido.
-  const extras = useMemo(
-    () => preguntas.filter((p) => !/nombre|mail|email/i.test(p)),
-    [preguntas],
-  );
+  const extras = useMemo(() => preguntas.filter((p) => !/nombre|mail|email/i.test(p)), [preguntas]);
 
-  const columnas = useMemo(() => {
+  const columnasCta = useMemo(() => {
     const valor = (a, pregunta) =>
       (a.respuestas.find((r) => r.pregunta === pregunta)?.valor || '').trim();
     return [
@@ -56,11 +68,6 @@ export default function WebinarAgendas() {
         render: (a) => <span className="dim" title={`${p}: ${valor(a, p)}`}>{valor(a, p) || '—'}</span>,
       })),
       {
-        key: 'agendoAt',
-        label: 'Completó',
-        render: (a) => <span className="dim">{fechaYhora(a.agendoAt)}</span>,
-      },
-      {
         key: 'llamadaAt',
         label: 'Llamada',
         value: (a) => a.llamadaAt || '',
@@ -71,83 +78,68 @@ export default function WebinarAgendas() {
     ];
   }, [extras]);
 
+  const columnasAgendas = useMemo(() => [
+    { key: 'nombre', label: 'Quién', render: (a) => <span className="strong">{a.nombre}</span> },
+    { key: 'email', label: 'Email', render: (a) => <span className="dim">{a.email}</span> },
+    {
+      key: 'delFormulario',
+      label: 'De dónde salió',
+      value: (a) => (a.delFormulario ? 1 : 0),
+      render: (a) => (a.delFormulario
+        ? <span className="dim">completó el CTA</span>
+        : <span className="zona-warn">no pasó por el formulario</span>),
+    },
+    { key: 'llamadaAt', label: 'Llamada', render: (a) => <span>{fechaYhora(a.llamadaAt)}</span> },
+  ], []);
+
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
-  const sinEmail = filas.length - (datos?.conEmail ?? 0);
+  const sinReservar = filas.length - (datos?.conLlamada ?? 0);
 
   return (
     <div className="page page-ancha">
       <PageHeader
-        eyebrow="Webinars"
         title="Agendas"
-        desc="Quién completó el formulario del CTA y qué contestó"
-        actions={filas.length ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Pill tone="ok" dot>{datos?.conLlamada ?? 0} reservaron</Pill>
-            <Pill tone="plain">{filas.length} completaron</Pill>
-          </div>
-        ) : null}
+        desc="El CTA del webinar: quién levantó la mano y quién reservó"
+        actions={datos ? <Pill tone="plain">se actualiza solo</Pill> : null}
       />
 
       {!datos ? <SkeletonBlock height={320} /> : null}
 
-      {datos && filas.length && (datos.conLlamada ?? 0) < filas.length ? (
-        <Card title={`${filas.length - (datos.conLlamada ?? 0)} completaron el formulario y no reservaron llamada`}>
-          <p className="dim">
-            Completar el formulario del CTA y reservar la llamada son dos pasos. Los que
-            quedaron en el medio están en la tabla con <strong>“sin reservar”</strong>:
-            son los que hay que empujar hoy, porque ya levantaron la mano.
-          </p>
-        </Card>
-      ) : null}
-
-      {datos?.sinFormulario?.length ? (
-        <Card
-          title={`${datos.sinFormulario.length} reservaron sin pasar por el formulario`}
-          sub="Cuentan como agenda igual"
-          foot="El equipo saca agenda también por DM y por el link suelto. Todas terminan en el mismo calendario y todas cuentan: lo que esta tarjeta dice es que a estas el formulario del CTA no las trajo."
-        >
-          <div className="vivo-gente">
-            {datos.sinFormulario.map((x) => (
-              <div key={x.email} className="vivo-persona">
-                <span className="strong">{x.nombre}</span>
-                <span className="dim">{x.email}</span>
-                <span className="dim">{fechaYhora(x.llamadaAt)}</span>
-                <span className="num" />
-              </div>
-            ))}
-          </div>
-        </Card>
-      ) : null}
-
-      {datos && sinEmail ? (
-        <Card title="Faltan emails">
-          <p className="dim">
-            {sinEmail} de {filas.length} respuestas llegaron sin email, así que a esas no
-            se las puede cruzar contra el asistente ni contra el lead.
-          </p>
-        </Card>
-      ) : null}
-
-      {datos && !filas.length ? (
-        <Card title="Todavía nadie agendó">
-          <p className="dim">Cuando alguien complete el formulario aparece acá, con sus respuestas.</p>
-        </Card>
-      ) : null}
-
-      {filas.length ? (
-        <Card
-          title="Agendaron"
-          sub={`${filas.length} personas · la última primero`}
-          flush
-          foot="Se puede ordenar por cualquier columna. Lo que dijeron sobre presupuesto y urgencia es lo que decide a quién llamar primero."
-        >
-          <DataTable
-            columns={columnas}
-            rows={filas}
-            rowKey={(a) => a.id}
-            porPagina={20}
+      {datos ? (
+        <div className="agenda-numeros">
+          <Numero
+            label="Agendas" valor={agendadas.length}
+            nota="reservaron llamada · tocá para ver quiénes"
+            elegido={ver === 'agendas'} onElegir={() => setVer('agendas')}
           />
+          <Numero
+            label="Completaron el CTA" valor={filas.length}
+            nota={`${sinReservar} todavía sin reservar · tocá para ver qué contestaron`}
+            elegido={ver === 'cta'} onElegir={() => setVer('cta')}
+          />
+        </div>
+      ) : null}
+
+      {datos && ver === 'agendas' ? (
+        <Card
+          title="Quiénes agendaron"
+          sub={`${agendadas.length} personas · quien reprogramó cuenta una vez`}
+          flush
+          foot="Todas las del calendario de consults. Las que dicen “no pasó por el formulario” llegaron por DM o por el link suelto: cuentan igual."
+        >
+          <DataTable columns={columnasAgendas} rows={agendadas} rowKey={(a) => a.email} porPagina={20} />
+        </Card>
+      ) : null}
+
+      {datos && ver === 'cta' ? (
+        <Card
+          title="Qué contestó cada uno"
+          sub={`${filas.length} completaron el formulario · ${sinReservar} todavía no reservaron`}
+          flush
+          foot="Ordenable por cualquier columna. Lo que dijeron sobre presupuesto y urgencia es lo que decide a quién llamar primero."
+        >
+          <DataTable columns={columnasCta} rows={filas} rowKey={(a) => a.id} porPagina={20} />
         </Card>
       ) : null}
     </div>

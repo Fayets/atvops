@@ -53,10 +53,16 @@ def agendas(user: dict = Depends(_puede_webinars)):
         llamadas_services.marcar_llamada_de(filas)
         desde = min((a["agendoAt"] or "9999") for a in filas) if filas else ""
         sueltas = llamadas_services.llamadas_sin_formulario(filas, desde) if desde else []
+        agendadas = llamadas_services.agendas_desde(desde) if desde else []
+        # Quién de las agendas venía del formulario: la lista de agendas se mira para
+        # llamar, y saber si esa persona contestó el CTA cambia cómo se abre la llamada.
+        del_form = {(a.get("email") or "").strip().lower() for a in filas if a.get("llamadaAt")}
+        for x in agendadas:
+            x["delFormulario"] = (x.get("email") or "").strip().lower() in del_form
     except Exception as e:  # noqa: BLE001 — la lista sirve igual sin el cruce
         import logging
         logging.getLogger("atv_ops.webinars").info("Cruce de agendas: %s", str(e)[:200])
-        sueltas = []
+        sueltas, agendadas = [], []
 
     # Las preguntas en el orden del formulario: la pantalla arma una columna por cada
     # una. Se sacan de las respuestas y no del formulario para no pedir dos veces lo
@@ -72,6 +78,7 @@ def agendas(user: dict = Depends(_puede_webinars)):
         "conEmail": sum(1 for a in filas if a["conEmail"]),
         "conLlamada": sum(1 for a in filas if a.get("llamadaAt")),
         "sinFormulario": sueltas,
+        "agendadas": agendadas,
     }
 
 

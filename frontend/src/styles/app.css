@@ -5415,6 +5415,19 @@ button.lista-item:hover { background: var(--surface-2); }
 /* El vivo. La sala manda: los contadores acompañan. */
 /* Una pantalla que es básicamente una tabla ancha no tiene por qué respetar el ancho
    de lectura: ahí el límite deja media pantalla vacía y corta columnas. */
+.agenda-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4); }
+.agenda-numero { display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: var(--space-4) var(--space-5); text-align: left; background: var(--surface);
+  border: 1px solid var(--border-soft); border-radius: var(--radius); cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease; }
+.agenda-numero:hover { border-color: var(--border); }
+/* El elegido se marca con el borde de marca: es navegación, no un juicio sobre el dato. */
+.agenda-numero.elegido { border-color: var(--brand); background: var(--brand-dim); }
+.agenda-numero-valor { font-size: 40px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.agenda-numero-label { font-size: 13.5px; font-weight: 600; }
+.agenda-numero-nota { font-size: 12px; color: var(--text-2); }
+
 .page-ancha { max-width: none; }
 .page-ancha .data td, .page-ancha .data th { white-space: nowrap; }
 .page-ancha .data td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
