@@ -26,8 +26,8 @@ cd /root/.openclaw/workspace/skills/capacidad-operativa && python3 scripts/1_age
 ```
 
 Le pide a ATV Ops las llamadas de venta de hoy (la fecha la pone el server, en hora de
-Argentina: **no la calcules vos**) y se queda con las que se agendaron por Calendly
-(las que tienen lead), no con los eventos sueltos del calendario. Imprime la lista y la
+Argentina: **no la calcules vos**) y se queda con las que se agendaron por Calendly,
+no con los eventos creados a mano en el calendario. Imprime la lista y la
 guarda en `salida/agenda.json`. Si no hay llamadas, la lista viene vacía y la foto dice
 "Sin llamadas agendadas": se manda igual.
 

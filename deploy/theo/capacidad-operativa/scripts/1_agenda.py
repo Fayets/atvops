@@ -8,13 +8,11 @@ Pide a ATV Ops las llamadas de venta del día (hora de Argentina, la calcula el 
 se queda con las agendadas por Calendly. Deja el resultado en salida/agenda.json y lo
 imprime.
 
-Una llamada entra si:
-  - tiene lead (`conLead`): alguien la agendó. Sin lead es un evento suelto del
-    calendario, como "Aumenta Tu Valor & Michael" el 29-09-2026, y
-  - tiene evento en Google: un eventoId "lead:…" es un lead sin reunión en el
-    calendario (se canceló o se movió).
-No se filtra por closer (la mitad llega sin cargar) ni por título (ATV Ops solo guarda el
-título de Google en los eventos sueltos).
+Una llamada entra si se agendó por el sistema (`agendoEn` distinto de "Google
+Calendar"). Los eventos creados a mano en el calendario quedan afuera: el 29-09-2026
+"Aumenta Tu Valor & Michael" venía de ahí, y las 7 agendas de Calendly decían "ATV Ops".
+No se filtra por closer (la mitad llega sin cargar), ni por título, ni por lead: las
+agendas de Calendly no tienen lead en ATV Ops.
 """
 
 import json
@@ -47,8 +45,7 @@ def main() -> None:
         salir(f"No se pudo hablar con ATV Ops: {str(e)[:160]}")
 
     def es_calendly(x: dict) -> bool:
-        evento = x.get("eventoId") or ""
-        return bool(x.get("conLead")) and bool(evento) and not evento.startswith(("lead:", "ops:"))
+        return (x.get("agendoEn") or "").strip().lower() not in ("", "google calendar")
 
     llamadas = [
         {"hora": x.get("hora") or "", "nombre": (x.get("prospecto") or "").strip()}
