@@ -260,7 +260,13 @@ export function derivarMetricas(raw = {}, gastoAdsOverride) {
     tasaAgendaTy: tasa(agendas, optins || registros),
     tasaAgendaWebinar: tasa(agendas, registros),
     costoPorRegistrante: money(gasto, registros),
-    showRate: tasa(vivos, registros),
+    // Show rate contra el grupo de WhatsApp, no contra los confirmados del calendario.
+    // El grupo es el registro real de este webinar: es donde cae todo el que mostró
+    // interés, venga de la landing o de una historia. Los confirmados del calendario
+    // son un subconjunto —solo los que además aceptaron la invitación— y medir contra
+    // ellos daba más de 100%, que no es un show rate sino una señal de que el
+    // denominador era chico.
+    showRate: tasa(vivos, miembrosGrupo || registros),
     retencionPitch: tasa(retenidos, pico || vivos),
     // Del pitch al formulario, y del formulario a la llamada. Juntas dicen dónde se
     // cae la gente: si levantan la mano y no reservan, el problema no es el pitch.
@@ -340,7 +346,9 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'bookingRate', label: 'Agendaron', valor: m.bookingRate, formato: 'pct', detalle: de(m.booked, m.ctaCompletado || m.retenidosPitch), ayuda: 'de los que completaron el CTA' },
       { key: 'ctaCompletado', label: 'Completaron el CTA', valor: m.ctaCompletado, formato: 'count' },
       { key: 'booked', label: 'Agendaron', valor: m.booked, formato: 'count' },
-      { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct', detalle: de(m.vivos, m.registros), portada: true, ayuda: 'vivos / confirmados' },
+      { key: 'showRate', label: 'Show rate', valor: m.showRate, formato: 'pct',
+        detalle: de(m.vivos, m.miembrosGrupo || m.registros), portada: true,
+        ayuda: 'del grupo de WhatsApp' },
     ],
     post: [
       { key: 'llamadasAgendadas', label: 'Llamadas agendadas', valor: m.llamadasAgendadas, formato: 'count' },
