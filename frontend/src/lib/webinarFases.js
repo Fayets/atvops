@@ -327,8 +327,11 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
         detalle: de(m.agendasWebinar, m.optins || m.registros) },
       { key: 'tasaWhatsapp', grupo: 'ads', label: 'Fueron al grupo', valor: m.tasaWhatsapp, formato: 'pct',
         detalle: de(m.entradasWhatsapp, m.optins || m.registros) },
+      // El detalle decía "sobre N optins" mientras el número dividía por registros:
+      // 1.681 / 196 = 8,58, no 1.681 / 349 = 4,82. El nombre de la métrica manda, así
+      // que se corrige la etiqueta.
       { key: 'costoPorRegistrante', grupo: 'ads', label: 'Costo / registrante', valor: m.costoPorRegistrante,
-        formato: 'usd', detalle: sobre(m.optins || m.registros, 'optins'), portada: true },
+        formato: 'usd', detalle: sobre(m.registros, 'registros'), portada: true },
 
       { key: 'registros', grupo: 'organico', label: 'Confirmó en Calendar', valor: m.registros, formato: 'count',
         ayuda: 'tiene el evento cargado en su calendario' },
