@@ -225,7 +225,10 @@ export default function WebinarVivo() {
   if (error && !d) return <div className="page"><ErrorState error={{ message: error }} /></div>;
 
   const base = d?.registros || d?.inscriptos || 0;
-  const showRate = base ? Math.round((d.distintos / base) * 100) : null;
+  // En vivo, cuántos entraron. Terminado, el pico: es medido exacto, mientras que
+  // "personas distintas" es una inferencia sobre nombres repetidos.
+  const llegaron = d?.enVivo ? d?.distintos : d?.picoConcurrentes;
+  const showRate = base ? Math.round((llegaron / base) * 100) : null;
   const retencion = d?.picoConcurrentes ? Math.round((d.conectados / d.picoConcurrentes) * 100) : null;
   const serie = d?.serie ?? [];
   const butacas = d?.butacas ?? [];
@@ -296,16 +299,20 @@ export default function WebinarVivo() {
                 ? `${Math.round((d.enElPitch / d.picoConcurrentes) * 100)}% del pico · minuto ${d.minutoPitch}`
                 : 'marcá el minuto del pitch'} />
           )}
-          <Kpi label="Entraron en total" valor={d.distintos}
-            editable={{ webinarId: id, clave: 'vivos', onGuardado: () => setRefresco((n) => n + 1) }}
-            nota={d.sinEscuchar ? `${d.sinEscuchar} cargados a mano` : 'personas distintas'} />
+          {d.enVivo ? (
+            <Kpi label="Entraron en total" valor={d.distintos}
+              editable={{ webinarId: id, clave: 'vivos', onGuardado: () => setRefresco((n) => n + 1) }}
+              nota={d.sinEscuchar ? `${d.sinEscuchar} cargados a mano` : 'personas distintas'} />
+          ) : null}
           <Kpi label="Show rate" valor={showRate == null ? '—' : `${showRate}%`}
             tono={showRate == null ? null : showRate >= 35 ? 'ok' : showRate >= 20 ? 'warn' : 'alert'}
-            nota={base ? `${d.distintos} de ${base} que confirmaron lugar` : 'sin confirmados cargados'} />
+            nota={base
+              ? `${llegaron} ${d.enVivo ? 'de' : 'en simultáneo, de'} ${base} que confirmaron lugar`
+              : 'sin confirmados cargados'} />
           {/* Los opt-ins no son butacas: dejaron el mail, no confirmaron el lugar. Van
               aparte, como contraste del embudo entero. */}
-          <Kpi label="De los opt-ins" valor={d.optins ? `${Math.round((d.distintos / d.optins) * 100)}%` : '—'}
-            nota={`${d.distintos} de ${d.optins || 0} que dejaron el mail`} />
+          <Kpi label="De los opt-ins" valor={d.optins ? `${Math.round((llegaron / d.optins) * 100)}%` : '—'}
+            nota={`${llegaron} de ${d.optins || 0} que dejaron el mail`} />
         </div>
       ) : null}
 
