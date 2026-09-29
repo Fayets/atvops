@@ -224,7 +224,11 @@ export default function WebinarVivo() {
 
   if (error && !d) return <div className="page"><ErrorState error={{ message: error }} /></div>;
 
-  const base = d?.registros || d?.inscriptos || 0;
+  // El show rate se mide contra el grupo de WhatsApp: es el padrón de gente que se
+  // enteró del vivo. Los confirmados son un subconjunto, y dividir por ellos daba
+  // 141% —más gente adentro que confirmados—, que no es un show rate.
+  const base = d?.miembrosGrupo || d?.registros || d?.inscriptos || 0;
+  const baseEs = d?.miembrosGrupo ? 'del grupo de WhatsApp' : 'que confirmaron lugar';
   // En vivo, cuántos entraron. Terminado, el pico: es medido exacto, mientras que
   // "personas distintas" es una inferencia sobre nombres repetidos.
   const llegaron = d?.enVivo ? d?.distintos : d?.picoConcurrentes;
@@ -307,8 +311,8 @@ export default function WebinarVivo() {
           <Kpi label="Show rate" valor={showRate == null ? '—' : `${showRate}%`}
             tono={showRate == null ? null : showRate >= 35 ? 'ok' : showRate >= 20 ? 'warn' : 'alert'}
             nota={base
-              ? `${llegaron} ${d.enVivo ? 'de' : 'en simultáneo, de'} ${base} que confirmaron lugar`
-              : 'sin confirmados cargados'} />
+              ? `${llegaron} ${d.enVivo ? 'de' : 'en simultáneo, de'} ${base} ${baseEs}`
+              : 'sin grupo ni confirmados cargados'} />
           {/* Los opt-ins no son butacas: dejaron el mail, no confirmaron el lugar. Van
               aparte, como contraste del embudo entero. */}
           <Kpi label="De los opt-ins" valor={d.optins ? `${Math.round((llegaron / d.optins) * 100)}%` : '—'}
@@ -358,23 +362,25 @@ export default function WebinarVivo() {
         />
       ) : null}
 
-      {d?.tramos?.length ? (
-        <Card
-          title="Retención por tramo"
-          sub="Cuánta gente quedaba en cada momento del guion"
-          foot="Contra el pico. Los tramos anteriores al pico van en gris: ahí todavía está entrando gente y un número bajo no es una fuga. El tramo donde cae después es el que hay que reescribir."
-        >
-          <Bars
-            data={d.tramos} x={(p) => p.label} y={(p) => p.pct} format="pct" label="Del pico"
-            height={230}
-            color={(p) => (p.antesDelPico ? 'var(--s3)'
-              : p.pct >= 80 ? 'var(--ok)' : p.pct >= 60 ? 'var(--warn)' : 'var(--alert)')}
-            linea={{ key: (p) => p.conectados, label: 'Personas', format: 'count', escala: 'propia' }}
-          />
-        </Card>
-      ) : null}
+      {/* Las dos lecturas de la curva, una al lado de la otra: por tramo del guion y
+          minuto a minuto. Mitades iguales porque ninguna manda sobre la otra. */}
+      <div className="vivo-mitades">
+        {d?.tramos?.length ? (
+          <Card
+            title="Retención por tramo"
+            sub="Cuánta gente quedaba en cada momento del guion"
+            foot="Contra el pico. Los tramos anteriores al pico van en gris: ahí todavía está entrando gente y un número bajo no es una fuga. El tramo donde cae después es el que hay que reescribir."
+          >
+            <Bars
+              data={d.tramos} x={(p) => p.label} y={(p) => p.pct} format="pct" label="Del pico"
+              height={230}
+              color={(p) => (p.antesDelPico ? 'var(--s3)'
+                : p.pct >= 80 ? 'var(--ok)' : p.pct >= 60 ? 'var(--warn)' : 'var(--alert)')}
+              linea={{ key: (p) => p.conectados, label: 'Personas', format: 'count', escala: 'propia' }}
+            />
+          </Card>
+        ) : null}
 
-      <div className="vivo-dos">
         {serie.length > 1 ? (
           <Card title="Minuto a minuto" sub="Cuánta gente hubo desde que arrancó"
             foot="Lo que importa no es la altura: es la pendiente.">
@@ -384,22 +390,22 @@ export default function WebinarVivo() {
             />
           </Card>
         ) : null}
-
-        {d?.ultimos?.length ? (
-          <Card title="Movimiento" sub="Lo último que pasó" flush>
-            <div className="vivo-feed">
-              {d.ultimos.map((m, i) => (
-                <div key={`${m.quien}-${m.at}-${i}`} className={`vivo-mov ${m.tipo}`}>
-                  <span className="vivo-mov-icono">{m.tipo === 'entra' ? '↓' : '↑'}</span>
-                  <span className="strong">{m.quien}</span>
-                  <span className="dim">{m.tipo === 'entra' ? 'entró' : 'se fue'}</span>
-                  <span className="dim num">{hora(m.at)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ) : null}
       </div>
+
+      {d?.ultimos?.length ? (
+        <Card title="Movimiento" sub="Lo último que pasó" flush>
+          <div className="vivo-feed">
+            {d.ultimos.map((m, i) => (
+              <div key={`${m.quien}-${m.at}-${i}`} className={`vivo-mov ${m.tipo}`}>
+                <span className="vivo-mov-icono">{m.tipo === 'entra' ? '↓' : '↑'}</span>
+                <span className="strong">{m.quien}</span>
+                <span className="dim">{m.tipo === 'entra' ? 'entró' : 'se fue'}</span>
+                <span className="dim num">{hora(m.at)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {d && d.eventos === 0 ? (
         <Card title="Zoom todavía no mandó nada">

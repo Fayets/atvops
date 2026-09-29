@@ -430,6 +430,10 @@ class WebinarsServices:
             logger.info("Opt-ins del vivo: %s", str(e)[:160])
         optins = optins or int(crudas.get("optins") or 0)
         registros = int(crudas.get("registros") or 0) or optins
+        # El show rate se mide contra el grupo de WhatsApp, que es el padrón real de
+        # gente avisada; los confirmados son solo los que además reservaron lugar.
+        # Misma regla que la ficha de la fase, en `webinarFases.js`.
+        miembros_grupo = int(crudas.get("miembrosGrupo") or 0)
 
         if not zoom_id:
             raise HTTPException(status_code=400,
@@ -502,6 +506,7 @@ class WebinarsServices:
                          if minuto_pitch and x["minuto"] == minuto_pitch), None)
         booked = int(crudas.get("booked") or 0)
         return {**r, "butacas": butacas, "registros": registros,
+                "miembrosGrupo": miembros_grupo,
                 "minutoPitch": minuto_pitch, "enElPitch": en_pitch, "booked": booked,
                 "optins": optins}
 
