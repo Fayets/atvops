@@ -2828,3 +2828,8 @@ export async function anotarClienteReporte(clienteId, texto) {
     body: JSON.stringify({ texto }),
   });
 }
+
+/** Busca clientes en ATV Clients, para sumar al reporte lo que el CRM no marcó. */
+export async function buscarClientesReporte(q) {
+  return pedir(`/api/reportes-producto/clientes?q=${encodeURIComponent(q)}`);
+}

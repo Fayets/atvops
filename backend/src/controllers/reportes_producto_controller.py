@@ -26,6 +26,17 @@ def listar(_user: dict = Depends(_puede)):
         raise HTTPException(status_code=500, detail=f"No se pudieron listar los reportes: {e}") from e
 
 
+@router.get("/clientes")
+def clientes(q: str = "", _user: dict = Depends(_puede)):
+    """Busca en la cartera de ATV Clients, para sumar al reporte lo que el CRM no marcó."""
+    try:
+        return {"clientes": reportes.buscar_clientes(q)}
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"No se pudo buscar: {e}") from e
+
+
 @router.get("/{periodo}")
 def candidatos(periodo: str, _user: dict = Depends(_puede)):
     """Lo que hace falta para armar el mes: clientes con upsell, con recompra y vencidos."""

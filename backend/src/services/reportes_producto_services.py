@@ -187,6 +187,46 @@ def candidatos(periodo: str) -> dict:
     }
 
 
+def buscar_clientes(q: str, limite: int = 20) -> list[dict]:
+    """Busca en la cartera de ATV Clients por nombre o mail.
+
+    El sistema propone los que tienen cuota marcada, pero esa marca no siempre está:
+    Kilian recompró y su cuota nunca se cargó. Sin poder buscar, el reporte solo puede
+    decir lo que el CRM ya sabe, y el punto es justamente cargar lo que falta.
+    """
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    if not clients_db.disponible():
+        raise HTTPException(status_code=503, detail="No hay conexión con ATV Clients.")
+
+    patron = f"%{q}%"
+    filas = clients_db.consultar(
+        """
+        SELECT c.id AS cliente_id, c.nombre AS nombre, c.plan_actual AS plan,
+               c.duracion_dias AS duracion_dias, c.responsable AS responsable,
+               c.estado_cliente AS estado, c.fecha_vencimiento AS vence,
+               c.total_adeudado_usd AS debe_usd, c.total_pagado_usd AS pagado_usd
+          FROM {esquema}.clientes c
+         WHERE c.nombre ILIKE %s OR coalesce(c.email, '') ILIKE %s
+         ORDER BY c.nombre
+         LIMIT %s
+        """,
+        (patron, patron, int(limite)),
+    )
+    return [{
+        "clienteId": f["cliente_id"],
+        "nombre": f["nombre"],
+        "oferta": (f["plan"] or "").capitalize(),
+        "meses": meses_de(f["duracion_dias"]),
+        "responsable": f["responsable"] or "",
+        "estado": f["estado"] or "",
+        "vence": str(f["vence"]) if f["vence"] else None,
+        "debeUsd": float(f["debe_usd"] or 0),
+        "pagadoUsd": float(f["pagado_usd"] or 0),
+    } for f in filas]
+
+
 # ------------------------------------------------------------------ lo que se guarda
 
 def _fila(periodo: str):

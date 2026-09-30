@@ -3,7 +3,7 @@ import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import {
-  anotarClienteReporte, getReporteProducto, guardarReporteProducto,
+  anotarClienteReporte, buscarClientesReporte, getReporteProducto, guardarReporteProducto,
 } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
 import { useMes } from '../lib/MesContext.jsx';
@@ -38,6 +38,80 @@ function etiquetaMes(p) {
   return `${NOMBRE_MES[Number(m) - 1] ?? p} ${y}`;
 }
 
+/**
+ * Buscar un cliente en ATV Clients y sumarlo al bloque.
+ *
+ * El sistema propone los que tienen cuota marcada, pero esa marca falta seguido: Kilian
+ * recompró y nunca se le cargó la cuota. Sin esto el reporte solo podría decir lo que el
+ * CRM ya sabe, y de lo que se trata es de cargar lo que falta.
+ */
+function BuscarCliente({ yaEstan, onAgregar }) {
+  const [q, setQ] = useState('');
+  const [resultados, setResultados] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+  const [abierto, setAbierto] = useState(false);
+  const pedido = useRef(0);
+
+  useEffect(() => {
+    const texto = q.trim();
+    if (texto.length < 2) { setResultados([]); return undefined; }
+    // Se espera a que deje de tipear: una consulta por tecla contra la cartera entera
+    // es una consulta de más por cada letra.
+    const t = setTimeout(async () => {
+      const mio = ++pedido.current;
+      setBuscando(true);
+      try {
+        const r = await buscarClientesReporte(texto);
+        if (mio === pedido.current) setResultados(r?.clientes ?? []);
+      } catch {
+        if (mio === pedido.current) setResultados([]);
+      } finally {
+        if (mio === pedido.current) setBuscando(false);
+      }
+    }, 280);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  function agregar(c) {
+    onAgregar(c);
+    setQ(''); setResultados([]); setAbierto(false);
+  }
+
+  return (
+    <div className="rp-buscar">
+      <input
+        value={q} onChange={(e) => { setQ(e.target.value); setAbierto(true); }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 160)}
+        placeholder="Buscar un cliente en ATV Clients y agregarlo…"
+        aria-label="Buscar cliente" />
+      {abierto && q.trim().length >= 2 ? (
+        <div className="rp-buscar-caja">
+          {buscando ? <div className="rp-buscar-vacio">Buscando…</div> : null}
+          {!buscando && !resultados.length ? (
+            <div className="rp-buscar-vacio">Ningún cliente con ese nombre.</div>
+          ) : null}
+          {resultados.map((c) => {
+            const puesto = yaEstan.includes(c.clienteId);
+            return (
+              <button key={c.clienteId} type="button" className="rp-buscar-fila"
+                disabled={puesto} onMouseDown={(e) => e.preventDefault()}
+                onClick={() => !puesto && agregar(c)}>
+                <span className="rp-buscar-nom">{c.nombre}</span>
+                <span className="dim">
+                  {c.oferta || 'sin plan'}{c.meses ? ` · ${c.meses} meses` : ''}
+                  {c.estado ? ` · ${c.estado}` : ''}
+                </span>
+                {puesto ? <span className="rp-buscar-ya">ya está</span> : <span className="rp-buscar-mas">+</span>}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Una fila de upsell o recompra: se confirma, se elige oferta y meses. */
 function FilaOperacion({ f, ofertas, onCambio }) {
   return (
@@ -47,6 +121,7 @@ function FilaOperacion({ f, ofertas, onCambio }) {
           <input type="checkbox" checked={f.elegido}
             onChange={(e) => onCambio({ ...f, elegido: e.target.checked })} />
           <span>{f.nombre}</span>
+          {f.aMano ? <em className="rp-amano" title="Agregado a mano: no tiene cuota cargada">a mano</em> : null}
         </label>
       </td>
       <td>
@@ -68,8 +143,16 @@ function FilaOperacion({ f, ofertas, onCambio }) {
           onChange={(e) => onCambio({ ...f, responsable: e.target.value })}
           aria-label={`Responsable de ${f.nombre}`} />
       </td>
-      <td className="num">{usd(f.totalUsd)}</td>
-      <td className="num">{f.cobradoUsd ? usd(f.cobradoUsd) : <span className="dim">—</span>}</td>
+      <td className="num">{f.aMano ? (
+        <input type="number" min="0" step="500" className="rp-monto" value={f.totalUsd || ''}
+          onChange={(e) => onCambio({ ...f, totalUsd: Number(e.target.value) || 0 })}
+          aria-label={`Total de ${f.nombre}`} />
+      ) : usd(f.totalUsd)}</td>
+      <td className="num">{f.aMano ? (
+        <input type="number" min="0" step="500" className="rp-monto" value={f.cobradoUsd || ''}
+          onChange={(e) => onCambio({ ...f, cobradoUsd: Number(e.target.value) || 0 })}
+          aria-label={`Cobrado de ${f.nombre}`} />
+      ) : f.cobradoUsd ? usd(f.cobradoUsd) : <span className="dim">—</span>}</td>
       <td className="num">{f.pendienteUsd ? usd(f.pendienteUsd) : <span className="dim">—</span>}</td>
       <td className="num">{f.vencidoUsd
         ? <b style={{ color: 'var(--alert)' }}>{usd(f.vencidoUsd)}</b>
@@ -180,6 +263,14 @@ export default function ReporteProducto() {
     };
   }, [elegidos]);
 
+  /** Suma un cliente buscado en ATV Clients al bloque, con los montos en cero. */
+  function agregarA(lista, setLista) {
+    return (c) => setLista([...lista, {
+      ...c, totalUsd: 0, cobradoUsd: 0, pendienteUsd: 0, vencidoUsd: 0,
+      cuotas: 0, ultimoPago: null, elegido: true, aMano: true,
+    }]);
+  }
+
   const datos = () => ({
     upsells: elegidos.upsells, recompras: elegidos.recompras,
     vencidos, totales, generadoAt: new Date().toISOString(),
@@ -273,6 +364,8 @@ export default function ReporteProducto() {
                 </tbody>
               </table>
             </div>
+            <BuscarCliente yaEstan={upsells.map((u) => u.clienteId)}
+              onAgregar={agregarA(upsells, setUpsells)} />
           </Card>
 
           <Card title="Hicieron recompra" sub="Mismo criterio: las cuotas marcadas como recompra.">
@@ -290,6 +383,8 @@ export default function ReporteProducto() {
                 </tbody>
               </table>
             </div>
+            <BuscarCliente yaEstan={recompras.map((r) => r.clienteId)}
+              onAgregar={agregarA(recompras, setRecompras)} />
           </Card>
 
           <div className="rp-pie">
