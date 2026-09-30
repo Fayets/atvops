@@ -7741,19 +7741,6 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-bloque tfoot td { font-weight: 600; border-top: 1px solid var(--text); }
 
 /* El PDF: solo el documento, sin la app alrededor. */
-@media print {
-  @page { size: A4; margin: 14mm 13mm; }
-  body { background: #fff; }
-  /* Fuera todo lo que es la app: en la hoja va el documento y nada más. El encabezado
-     de la pantalla sobra porque el documento trae el suyo, con el logo. */
-  .sidebar, .topbar, .rp-pasos, .no-print, .ronda-evento,
-  .page-head, .atv-ai-fab { display: none !important; }
-  .shell { display: block; }
-  .page { padding: 0; gap: 0; }
-  .rp-doc { border: none; border-radius: 0; padding: 0; }
-  .doc-bloque, .doc-resumen, .doc-head { break-inside: avoid; }
-  .doc-bloque tr { break-inside: avoid; }
-}
 
 .rp-buscar { position: relative; margin-top: var(--space-3); }
 .rp-buscar > input { width: 100%; }
@@ -7844,3 +7831,57 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
    sombreada le ganaba a los números, que son lo que hay que leer. */
 .doc-bloque td.cc { color: var(--ok); font-weight: 600; }
 .doc-bloque td.cc .c { color: var(--text-3); font-weight: 400; }
+
+/* El PDF que se le manda a Juan. Objetivo: una sola hoja. Todo lo de acá es para
+   ganar alto sin que deje de leerse. */
+@media print {
+  @page { size: A4; margin: 8mm 9mm; }
+  body { background: #fff; font-size: 10px; }
+  /* Fuera todo lo que es la app: en la hoja va el documento y nada más. El encabezado
+     de la pantalla sobra porque el documento trae el suyo, con el logo. */
+  .sidebar, .topbar, .rp-pasos, .no-print, .ronda-evento, .rp-estado-doc,
+  .page-head, .atv-ai-fab { display: none !important; }
+  .shell { display: block; }
+  .page { padding: 0; gap: 0; }
+  .rp-doc { border: none; border-radius: 0; padding: 0; }
+
+  /* Solo lo chico se mantiene entero. Con el bloque completo marcado `avoid`, los
+     vencidos no entraban en lo que quedaba de la primera hoja y se iban enteros a la
+     segunda, dejando media página en blanco. */
+  .doc-head, .doc-resumen, .doc-bloque tr, .doc-cliente { break-inside: avoid; }
+  .doc-bloque h2, .doc-columna h3 { break-after: avoid; }
+
+  .doc-head { padding-bottom: 5px; margin-bottom: 8px; }
+  .doc-head img { width: 30px; height: 30px; }
+  .doc-head h1 { font-size: 17px; }
+  .doc-resumen { margin-bottom: 10px; }
+  .doc-resumen > div { padding: 5px 10px; }
+  .doc-resumen .v { font-size: 14px; }
+  .doc-bloque { margin-bottom: 10px; }
+  .doc-bloque h2 { font-size: 12px; margin-bottom: 4px; padding-bottom: 4px; }
+  .doc-bloque table { font-size: 9.5px; }
+  .doc-bloque th { font-size: 8px; padding: 4px 0 3px 9px; }
+  .doc-bloque td { padding: 4px 0 4px 9px; }
+  .doc-columnas { gap: 0 14px; }
+  .doc-columna h3 { font-size: 9px; margin: 2px 0 4px; padding-bottom: 3px; }
+  /* En la hoja, el cliente entero va en un párrafo: nombre, fecha, estado y nota
+     corridos. Cada ficha en dos líneas costaba una línea de más por cliente, y con
+     veintiuno eso es media página. */
+  .doc-cliente { padding: 3px 6px 3px 7px; margin-bottom: 1px; border-left-width: 3px;
+    font-size: 9px; line-height: 1.35; }
+  .doc-cliente-top { display: inline; font-size: 9px; }
+  .doc-cliente-top .c { font-size: 8px; margin-left: 4px; }
+  .doc-cliente-est { display: inline; font-size: 9px; margin: 0; }
+  .doc-chip { font-size: 7px; padding: 0 4px; margin: 0 4px; vertical-align: 1px; }
+
+  /* Upsell y recompra, una al lado de la otra: son dos tablas angostas y apiladas
+     desperdiciaban media hoja a la derecha. */
+  .doc-operaciones { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px;
+    align-items: start; }
+  .doc-operaciones .doc-bloque { margin-bottom: 8px; }
+  .doc-operaciones .doc-bloque h2 { font-size: 11px; }
+  .doc-operaciones .doc-bloque h2 span { font-size: 9px; }
+  .doc-operaciones table { font-size: 8.5px; }
+  .doc-operaciones th { font-size: 7.5px; padding: 3px 0 2px 6px; }
+  .doc-operaciones td { padding: 2.5px 0 2.5px 6px; }
+}

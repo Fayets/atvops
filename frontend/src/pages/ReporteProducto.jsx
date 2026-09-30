@@ -614,8 +614,12 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
           <div><div className="l">Recompras</div><div className="v">{recompras.length}</div></div>
         </div>
 
-        {bloque('Hicieron upsell', upsells, 'upsells')}
-        {bloque('Hicieron recompra', recompras, 'recompras')}
+        {/* Las dos operaciones van juntas: en pantalla una debajo de la otra, y en la
+            hoja lado a lado, que es lo que hace que el reporte entre en una página. */}
+        <div className="doc-operaciones">
+          {bloque('Hicieron upsell', upsells, 'upsells')}
+          {bloque('Hicieron recompra', recompras, 'recompras')}
+        </div>
 
         <section className="doc-bloque doc-vencidos">
           <h2>El resto de los vencidos<span>{vencidos.length} clientes</span></h2>
