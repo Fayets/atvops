@@ -607,12 +607,6 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
             </tbody>
           </table>
         </section>
-
-        <footer className="doc-pie">
-          Todo lo de plata sale de ATV Clients: el tipo de cada cuota es la primera línea de sus notas
-          (<code>cuota_upsell</code>, <code>cuota_recompra</code>). El estado del último bloque se carga a mano
-          y queda también en la ficha de cada cliente.
-        </footer>
       </div>
 
       <div className="rp-pie no-print">

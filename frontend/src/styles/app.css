@@ -7739,9 +7739,6 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-bloque td.c { color: var(--text-3); } .doc-bloque td.mal { color: var(--alert); font-weight: 600; }
 .doc-bloque td.t { color: var(--text-2); } .doc-bloque td.t b { color: var(--text); }
 .doc-bloque tfoot td { font-weight: 600; border-top: 1px solid var(--text); }
-.doc-pie { margin-top: 24px; padding-top: 11px; border-top: 1px solid var(--border);
-  font-size: 11px; color: var(--text-3); line-height: 1.6; }
-.doc-pie code { font-size: 10.5px; background: var(--surface-3); padding: 1px 4px; border-radius: 3px; }
 
 /* El PDF: solo el documento, sin la app alrededor. */
 @media print {
