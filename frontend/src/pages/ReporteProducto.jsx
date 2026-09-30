@@ -534,6 +534,16 @@ function porResponsable(lista) {
     if (!grupos.has(quien)) grupos.set(quien, []);
     grupos.get(quien).push(v);
   }
+  // Dentro de cada columna: primero los que siguen, después los que se están
+  // definiendo, y al final los que se van. Se lee de la buena noticia a la mala, y los
+  // que todavía no tienen estado quedan últimos, que es donde se notan.
+  const orden = (v) => {
+    const i = ESTADOS.findIndex((e) => e.id === v.estado);
+    return i === -1 ? ESTADOS.length : i;
+  };
+  for (const suyos of grupos.values()) {
+    suyos.sort((a, b) => orden(a) - orden(b) || a.nombre.localeCompare(b.nombre, 'es'));
+  }
   return [...grupos.entries()].sort(([a], [b]) => {
     if (a === 'Sin dueño') return 1;
     if (b === 'Sin dueño') return -1;
@@ -618,16 +628,14 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
                 {suyos.map((v) => {
                   const e = ESTADOS.find((x) => x.id === v.estado);
                   return (
-                    <article key={v.clienteId} className="doc-cliente">
+                    <article key={v.clienteId} className={`doc-cliente ${v.estado || 'sin'}`}>
                       <div className="doc-cliente-top">
                         {editando ? (
                           <button type="button" className="rp-sacar" title={`Sacar a ${v.nombre}`}
                             onClick={() => onSacar(v.clienteId, 'vencidos')}>×</button>
                         ) : null}
                         <b>{v.nombre}</b>
-                        <span className="c">
-                          {corta(v.vence)}{v.debeUsd ? ` · debe ${usd(v.debeUsd)}` : ''}
-                        </span>
+                        <span className="c">{corta(v.vence)}</span>
                       </div>
                       {editando ? (
                         <div className="rp-edit-fila">

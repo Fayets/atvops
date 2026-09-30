@@ -7794,8 +7794,15 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   letter-spacing: .07em; color: var(--text-3); padding-bottom: 5px;
   border-bottom: 1px solid var(--border-soft); }
 .doc-columna h3 span { font-size: 11px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
-.doc-cliente { padding: 7px 0; border-bottom: 1px solid var(--border-soft); break-inside: avoid; }
+/* El estado se lee antes que el nombre: una barra del color a la izquierda de cada
+   ficha. Verde sigue, ámbar se define, rojo se va. */
+.doc-cliente { padding: 7px 0 7px 11px; border-bottom: 1px solid var(--border-soft);
+  border-left: 3px solid var(--border); break-inside: avoid; }
 .doc-cliente:last-child { border-bottom: none; }
+.doc-cliente.recompro, .doc-cliente.va_cerrar { border-left-color: var(--ok); background: var(--ok-dim); }
+.doc-cliente.definiendo { border-left-color: var(--warn); background: var(--warn-dim); }
+.doc-cliente.se_va { border-left-color: var(--alert); background: var(--alert-dim); }
+.doc-cliente.sin { border-left-color: var(--border); }
 .doc-cliente-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
 .doc-cliente-top b { font-weight: 600; }
 .doc-cliente-top .c { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
