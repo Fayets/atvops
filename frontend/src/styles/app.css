@@ -7796,22 +7796,28 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-columna h3 span { font-size: 11px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 /* El estado se lee antes que el nombre: una barra del color a la izquierda de cada
    ficha. Verde sigue, ámbar se define, rojo se va. */
-.doc-cliente { padding: 7px 0 7px 11px; border-bottom: 1px solid var(--border-soft);
-  border-left: 3px solid var(--border); break-inside: avoid; }
+.doc-cliente { padding: 8px 0 8px 12px; border-bottom: 1px solid var(--border-soft);
+  border-left: 4px solid var(--border); break-inside: avoid; }
 .doc-cliente:last-child { border-bottom: none; }
-.doc-cliente.recompro, .doc-cliente.va_cerrar { border-left-color: var(--ok); background: var(--ok-dim); }
-.doc-cliente.definiendo { border-left-color: var(--warn); background: var(--warn-dim); }
-.doc-cliente.se_va { border-left-color: var(--alert); background: var(--alert-dim); }
+.doc-cliente.recompro, .doc-cliente.va_cerrar { border-left-color: var(--ok); }
+.doc-cliente.definiendo { border-left-color: var(--warn); }
+.doc-cliente.se_va { border-left-color: var(--alert); }
 .doc-cliente.sin { border-left-color: var(--border); }
 .doc-cliente-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
 .doc-cliente-top b { font-weight: 600; }
 .doc-cliente-top .c { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
-.doc-cliente-est { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-2); }
-.doc-cliente-est b { color: var(--text); }
-.doc-cliente-est.recompro b, .doc-cliente-est.va_cerrar b { color: var(--ok); }
-.doc-cliente-est.definiendo b { color: var(--warn); }
-.doc-cliente-est.se_va b { color: var(--alert); }
-.doc-cliente-est .c { color: var(--text-3); }
+.doc-cliente-est { margin: 3px 0 0; font-size: 12px; line-height: 1.55; color: var(--text-2); }
+/* El chip va con el color lleno y no con un fondo al 9%: a esa opacidad el ámbar y el
+   rojo se confunden, que es justo lo que hay que distinguir de un vistazo. */
+.doc-chip { display: inline-block; font-size: 10px; font-weight: 600; line-height: 1.5;
+  text-transform: uppercase; letter-spacing: .05em; color: #fff;
+  padding: 1px 8px; border-radius: 4px; margin-right: 7px; vertical-align: 1px;
+  background: var(--off); }
+.doc-chip.recompro, .doc-chip.va_cerrar { background: var(--ok); }
+.doc-chip.definiendo { background: var(--warn); }
+.doc-chip.se_va { background: var(--alert); }
+.doc-chip.sin { background: var(--surface-3); color: var(--text-3); }
+.doc-nota { color: var(--text-2); }
 @media print { .doc-columnas { grid-template-columns: 1fr 1fr; } }
 
 .rp-estado-doc { background: var(--surface-2); border: 1px solid var(--border-soft);
@@ -7826,3 +7832,7 @@ button.subnav-item { display: flex; align-items: baseline; gap: 7px; width: 100%
   font-weight: 400; cursor: pointer; }
 .subnav-borrador { font-size: 10px; font-style: normal; color: var(--warn);
   background: var(--warn-dim); padding: 0 6px; border-radius: 999px; margin-left: auto; }
+
+.subnav-titulo { font-size: 10px; font-weight: 600; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--text-3); padding: 4px 10px 2px; }
+.doc-bloque td.quien { text-align: left; font-weight: 400; color: var(--text-2); }

@@ -29,16 +29,25 @@ export default function HistorialReportes() {
 
   useEffect(() => {
     let vivo = true;
-    getReportesProducto()
+    // Al volver de un guardado hay que saltear el caché de `pedir`, o la lista vuelve
+    // igual que antes y el mes recién creado no aparece.
+    const cargar = (refrescar = false) => getReportesProducto({ refrescar })
       .then((d) => vivo && setReportes(d?.reportes ?? []))
       .catch(() => vivo && setReportes([]));
-    return () => { vivo = false; };
+    cargar();
+    // El primer guardado de un mes crea el reporte después de que este menú se montó, y
+    // sin esto el historial no lo mostraba hasta recargar la página. La pantalla avisa
+    // por un evento en vez de pasarse un callback por medio árbol de componentes.
+    const alGuardar = () => cargar(true);
+    window.addEventListener('atv-reporte-guardado', alGuardar);
+    return () => { vivo = false; window.removeEventListener('atv-reporte-guardado', alGuardar); };
   }, []);
 
   if (!reportes?.length) return null;
 
   return (
     <div className="subnav">
+      <div className="subnav-titulo">Historial</div>
       {reportes.slice(0, 12).map((r) => (
         <button
           key={r.periodo} type="button"

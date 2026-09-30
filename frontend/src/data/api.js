@@ -2807,8 +2807,8 @@ export async function getReporteProducto(periodo) {
 }
 
 /** Los reportes ya armados, del más nuevo al más viejo. */
-export async function getReportesProducto() {
-  return pedir('/api/reportes-producto');
+export async function getReportesProducto({ refrescar = false } = {}) {
+  return pedir(`/api/reportes-producto${refrescar ? '?refrescar=true' : ''}`);
 }
 
 /** Guarda el reporte del mes. `cerrar` lo marca como el que se entregó. */

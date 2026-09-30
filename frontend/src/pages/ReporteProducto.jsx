@@ -238,8 +238,11 @@ export default function ReporteProducto() {
   // El período lo manda el selector del topbar, que es el del sistema entero. Tener
   // otro acá dejaba dos meses distintos en la misma pantalla.
   const { mes: periodo } = useMes();
-  const { data, error, loading, refetch } = useResource(
-    () => getReporteProducto(periodo), [periodo]);
+  // `recarga` fuerza al efecto a volver a pedir: useResource no da un refetch, y
+  // después de guardar hace falta releer para que el cartel de estado diga la verdad.
+  const [recarga, setRecarga] = useState(0);
+  const { data, error, loading } = useResource(
+    () => getReporteProducto(`${periodo}${recarga ? '?refrescar=true' : ''}`), [periodo, recarga]);
 
   const [upsells, setUpsells] = useState([]);
   const [recompras, setRecompras] = useState([]);
@@ -312,7 +315,8 @@ export default function ReporteProducto() {
       // Se vuelve a pedir para que el cartel de arriba diga el estado y la hora reales,
       // sin que el remezclado del efecto pise lo que hay en pantalla.
       cargado.current = periodo;
-      refetch();
+      setRecarga((n) => n + 1);
+      window.dispatchEvent(new Event('atv-reporte-guardado'));
       setAviso(cerrar ? 'Reporte cerrado.' : 'Guardado.');
       setTimeout(() => setAviso(null), 2500);
     } catch (e) {
@@ -340,6 +344,7 @@ export default function ReporteProducto() {
         upsells: elegidos.upsells, recompras: elegidos.recompras,
         vencidos: lista, totales, generadoAt: new Date().toISOString(),
       });
+      window.dispatchEvent(new Event('atv-reporte-guardado'));
       if (cursor + 1 < vencidos.length) setCursor(cursor + 1);
       else setPaso(3);
     } catch (e) {
@@ -350,7 +355,7 @@ export default function ReporteProducto() {
   }
 
   if (loading && !data) return <div className="page"><SkeletonBlock /></div>;
-  if (error && !data) return <div className="page"><ErrorState error={error} onRetry={refetch} /></div>;
+  if (error && !data) return <div className="page"><ErrorState error={error} onRetry={() => setRecarga((n) => n + 1)} /></div>;
 
   const ofertas = data?.ofertas ?? [];
 
@@ -564,7 +569,7 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
       <h2>{titulo}<span>{filas.length} clientes · {usd(filas.reduce((a, f) => a + (f.totalUsd || 0), 0))}</span></h2>
       <table>
         <thead><tr>
-          <th>Cliente</th><th>Oferta</th><th>Meses</th><th>Total</th>
+          <th>Cliente</th><th>Lo hizo</th><th>Oferta</th><th>Meses</th><th>Total</th>
           <th>Cobrado</th><th>Por cobrar</th><th>Vencido</th>
         </tr></thead>
         <tbody>
@@ -574,6 +579,7 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
                 <button type="button" className="rp-sacar" title={`Sacar a ${f.nombre}`}
                   onClick={() => onSacar(f.clienteId, de)}>×</button>
               ) : null}{f.nombre}</td>
+              <td className="quien">{f.responsable || <span className="c">—</span>}</td>
               <td>{f.oferta || '—'}</td><td>{f.meses ?? '—'}</td>
               <td>{usd(f.totalUsd)}</td>
               <td>{f.cobradoUsd ? usd(f.cobradoUsd) : <span className="c">—</span>}</td>
@@ -581,11 +587,11 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
               <td className={f.vencidoUsd ? 'mal' : 'c'}>{f.vencidoUsd ? usd(f.vencidoUsd) : '—'}</td>
             </tr>
           ))}
-          {filas.length ? null : <tr><td colSpan={7} className="c">Ninguno este mes.</td></tr>}
+          {filas.length ? null : <tr><td colSpan={8} className="c">Ninguno este mes.</td></tr>}
         </tbody>
         {filas.length ? (
           <tfoot><tr>
-            <td>Total</td><td /><td />
+            <td>Total</td><td /><td /><td />
             <td>{usd(filas.reduce((a, f) => a + (f.totalUsd || 0), 0))}</td>
             <td>{usd(filas.reduce((a, f) => a + (f.cobradoUsd || 0), 0))}</td>
             <td>{usd(filas.reduce((a, f) => a + (f.pendienteUsd || 0), 0))}</td>
@@ -610,8 +616,6 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
 
         <div className="doc-resumen">
           <div><div className="l">Cobrado</div><div className="v ok">{usd(totales.cobrado)}</div></div>
-          <div><div className="l">Por cobrar</div><div className="v">{usd(totales.pendiente)}</div></div>
-          <div><div className="l">Vencido</div><div className="v mal">{usd(totales.vencido)}</div></div>
           <div><div className="l">Upsells</div><div className="v">{upsells.length}</div></div>
           <div><div className="l">Recompras</div><div className="v">{recompras.length}</div></div>
         </div>
@@ -649,9 +653,10 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
                             aria-label={`Nota de ${v.nombre}`} />
                         </div>
                       ) : (
-                        <p className={`doc-cliente-est ${v.estado || 'sin'}`}>
-                          {e ? <b>{e.label}</b> : <span className="c">sin definir</span>}
-                          {v.nota ? <> — {v.nota}</> : null}
+                        <p className="doc-cliente-est">
+                          {e ? <span className={`doc-chip ${v.estado}`}>{e.label}</span>
+                            : <span className="doc-chip sin">Sin definir</span>}
+                          {v.nota ? <span className="doc-nota">{v.nota}</span> : null}
                         </p>
                       )}
                     </article>
