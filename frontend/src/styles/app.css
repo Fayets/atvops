@@ -7873,15 +7873,4 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .doc-cliente-top .c { font-size: 8px; margin-left: 4px; }
   .doc-cliente-est { display: inline; font-size: 9px; margin: 0; }
   .doc-chip { font-size: 7px; padding: 0 4px; margin: 0 4px; vertical-align: 1px; }
-
-  /* Upsell y recompra, una al lado de la otra: son dos tablas angostas y apiladas
-     desperdiciaban media hoja a la derecha. */
-  .doc-operaciones { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px;
-    align-items: start; }
-  .doc-operaciones .doc-bloque { margin-bottom: 8px; }
-  .doc-operaciones .doc-bloque h2 { font-size: 11px; }
-  .doc-operaciones .doc-bloque h2 span { font-size: 9px; }
-  .doc-operaciones table { font-size: 8.5px; }
-  .doc-operaciones th { font-size: 7.5px; padding: 3px 0 2px 6px; }
-  .doc-operaciones td { padding: 2.5px 0 2.5px 6px; }
 }
