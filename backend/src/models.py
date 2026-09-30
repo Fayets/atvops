@@ -739,3 +739,25 @@ class TrackingEvento(db.Entity):
     referrer = Optional(str, nullable=True)
     session_id = Optional(str, nullable=True, index=True)
     creado_at = Required(datetime, default=datetime.utcnow, index=True)
+
+
+class ReporteProducto(db.Entity):
+    """El reporte mensual de upsell y recompras, tal como se cerró.
+
+    Se guarda entero —los clientes elegidos, su oferta, sus meses y el estado de cada
+    vencido— en vez de recalcularlo cada vez. El mes que viene las cuotas van a haber
+    cambiado de estado, y el reporte de septiembre tiene que seguir diciendo lo que
+    decía en septiembre: es un asiento, no una consulta.
+    """
+
+    _table_ = _tabla("reportes_producto", "ReporteProducto")
+
+    id = PrimaryKey(int, auto=True)
+    periodo = Required(str, unique=True, index=True)   # YYYY-MM
+    # borrador mientras se completa; cerrado cuando se generó el PDF.
+    estado = Required(str, default="borrador", index=True)
+    datos = Optional(str, nullable=True)               # JSON con los tres bloques
+    creado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=lambda: datetime.utcnow())
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Optional(datetime, nullable=True)

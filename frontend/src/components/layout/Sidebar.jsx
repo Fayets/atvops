@@ -76,6 +76,9 @@ const NAV = [
     ],
   },
   { to: '/reporte', icon: 'check', label: 'Reporte semanal', grupo: 'Dirección' },
+  // El reporte mensual de producto: lo arma dirección, no el área.
+  { to: '/reporte-producto', icon: 'check', label: 'Reporte de producto', grupo: 'Dirección',
+    roles: ['admin', 'founder', 'operaciones'] },
   { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
   {

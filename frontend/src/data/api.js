@@ -2798,3 +2798,33 @@ export async function getUpdateTexto() {
   if (!r.ok) throw new Error(`El backend respondió ${r.status}`);
   return r.text();
 }
+
+// ------------------------------------------------------------ reporte de producto
+
+/** Lo que hace falta para armar el reporte del mes: upsells, recompras y vencidos. */
+export async function getReporteProducto(periodo) {
+  return pedir(`/api/reportes-producto/${periodo}`);
+}
+
+/** Los reportes ya armados, del más nuevo al más viejo. */
+export async function getReportesProducto() {
+  return pedir('/api/reportes-producto');
+}
+
+/** Guarda el reporte del mes. `cerrar` lo marca como el que se entregó. */
+export async function guardarReporteProducto(periodo, datos, cerrar = false) {
+  return pedir(`/api/reportes-producto/${periodo}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ datos, cerrar }),
+  });
+}
+
+/** Deja la nota del paso 2 en la ficha del cliente, en ATV Clients. */
+export async function anotarClienteReporte(clienteId, texto) {
+  return pedir(`/api/reportes-producto/cliente/${clienteId}/nota`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ texto }),
+  });
+}

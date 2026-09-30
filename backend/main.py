@@ -22,6 +22,7 @@ from src.controllers.webhooks_controller import router as webhooks_router
 from src.controllers.cobranza_controller import router as cobranza_router
 from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.webinars_controller import router as webinars_router
+from src.controllers.reportes_producto_controller import router as reportes_producto_router
 from src.controllers.integraciones_controller import router as integraciones_router
 from src.controllers.track_controller import router as track_router
 from src.controllers.integrantes_controller import router as integrantes_router
@@ -145,6 +146,7 @@ app.include_router(mkt_router, prefix="/api/mkt", tags=["mkt"])
 app.include_router(meta_router, prefix="/api/meta", tags=["meta"])
 app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(webinars_router, prefix="/api/webinars", tags=["webinars"])
+app.include_router(reportes_producto_router, prefix="/api/reportes-producto", tags=["reportes"])
 app.include_router(integraciones_router, prefix="/api/integraciones", tags=["integraciones"])
 # Las credenciales de las plataformas. Solo dirección, y nunca devuelve un secreto entero.
 app.include_router(claves_router, prefix="/api/claves", tags=["claves"])

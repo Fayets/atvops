@@ -70,7 +70,7 @@ export const RUTAS_POR_ROL = {
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
-  operaciones: ['/', '/reporte', '/asistente', '/calendario', '/fulfillment', '/marketing',
+  operaciones: ['/', '/reporte', '/reporte-producto', '/asistente', '/calendario', '/fulfillment', '/marketing',
                 '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
                 '/integraciones', '/claves'],
   ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas', '/webinars'],
@@ -79,6 +79,7 @@ export const RUTAS_POR_ROL = {
   founder: [
     '/',
     '/reporte',
+    '/reporte-producto',
     '/asistente',
     '/calendario',
     '/fulfillment',
@@ -97,6 +98,7 @@ export const RUTAS_POR_ROL = {
   admin: [
     '/',
     '/reporte',
+    '/reporte-producto',
     '/asistente',
     '/calendario',
     '/fulfillment',
