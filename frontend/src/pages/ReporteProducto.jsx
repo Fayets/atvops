@@ -234,20 +234,24 @@ export default function ReporteProducto() {
 
   // Lo guardado le gana a lo que propone el sistema: si alguien ya cargó el mes, volver
   // a entrar tiene que mostrar lo que cargó y no pisárselo con los valores por defecto.
+  // Las tablas arrancan vacías. Lo que el sistema encuentra en ATV Clients queda
+  // disponible detrás de un botón, no puesto: el reporte lo arma la persona, y una
+  // lista que aparece sola se firma sin mirar.
   useEffect(() => {
     if (!data || cargado.current === periodo) return;
     const prev = data.guardado?.datos ?? {};
-    const mezclar = (base, guardadas) => {
-      if (!guardadas?.length) return base;
-      const porId = new Map(guardadas.map((g) => [g.clienteId, g]));
-      return base.map((b) => ({ ...b, ...(porId.get(b.clienteId) ?? {}) }));
-    };
-    setUpsells(mezclar(data.upsells ?? [], prev.upsells));
-    setRecompras(mezclar(data.recompras ?? [], prev.recompras));
-    setVencidos(mezclar(data.vencidos ?? [], prev.vencidos));
+    setUpsells(prev.upsells ?? []);
+    setRecompras(prev.recompras ?? []);
+    setVencidos(prev.vencidos ?? []);
     setPaso(1); setCursor(0);
     cargado.current = periodo;
   }, [data, periodo]);
+
+  /** Suma los que el sistema encontró, sin repetir los que ya están. */
+  function traer(lista, setLista, candidatos) {
+    const estan = new Set(lista.map((x) => x.clienteId));
+    setLista([...lista, ...(candidatos ?? []).filter((c) => !estan.has(c.clienteId))]);
+  }
 
   const elegidos = useMemo(() => ({
     upsells: upsells.filter((u) => u.elegido),
@@ -337,7 +341,7 @@ export default function ReporteProducto() {
       <div className="rp-pasos">
         {['Upsell y recompras', 'Los vencidos', 'El reporte'].map((t, i) => (
           <button key={t} type="button" className={`rp-paso${paso === i + 1 ? ' activo' : ''}`}
-            onClick={() => setPaso(i + 1)} disabled={i === 1 && !vencidos.length}>
+            onClick={() => setPaso(i + 1)}>
             <span className="rp-paso-n">{i + 1}</span>{t}
           </button>
         ))}
@@ -348,8 +352,16 @@ export default function ReporteProducto() {
 
       {paso === 1 ? (
         <>
-          <Card title="Hicieron upsell" sub="Los trae ATV Clients desde las cuotas. Destildá el que no va."
-            foot="La oferta y los meses salen del plan cargado en el CRM: confirmalos o corregilos.">
+          <Card title="Hicieron upsell"
+            sub="Buscá el cliente, o traé los que tienen una cuota de upsell cargada en ATV Clients."
+            foot="La oferta y los meses salen del plan cargado en el CRM: confirmalos o corregilos."
+            actions={(
+              <button type="button" className="btn sm ghost"
+                onClick={() => traer(upsells, setUpsells, data?.upsells)}
+                disabled={!(data?.upsells ?? []).length}>
+                Traer los {(data?.upsells ?? []).length} con cuota de upsell
+              </button>
+            )}>
             <div className="tabla-scroll">
               <table className="rp-tabla">
                 <thead><tr>
@@ -360,7 +372,9 @@ export default function ReporteProducto() {
                   {upsells.length ? upsells.map((f) => (
                     <FilaOperacion key={f.clienteId} f={f} ofertas={ofertas}
                       onCambio={(n) => setUpsells(upsells.map((x) => (x.clienteId === n.clienteId ? n : x)))} />
-                  )) : <tr><td colSpan={9} className="dim">Ningún cliente con cuota de upsell.</td></tr>}
+                  )) : <tr><td colSpan={9} className="dim">
+                    Todavía no hay ninguno. Traelos con el botón de arriba o buscalos acá abajo.
+                  </td></tr>}
                 </tbody>
               </table>
             </div>
@@ -368,7 +382,15 @@ export default function ReporteProducto() {
               onAgregar={agregarA(upsells, setUpsells)} />
           </Card>
 
-          <Card title="Hicieron recompra" sub="Mismo criterio: las cuotas marcadas como recompra.">
+          <Card title="Hicieron recompra"
+            sub="Buscá el cliente, o traé los que tienen una cuota de recompra cargada."
+            actions={(
+              <button type="button" className="btn sm ghost"
+                onClick={() => traer(recompras, setRecompras, data?.recompras)}
+                disabled={!(data?.recompras ?? []).length}>
+                Traer los {(data?.recompras ?? []).length} con cuota de recompra
+              </button>
+            )}>
             <div className="tabla-scroll">
               <table className="rp-tabla">
                 <thead><tr>
@@ -379,7 +401,9 @@ export default function ReporteProducto() {
                   {recompras.length ? recompras.map((f) => (
                     <FilaOperacion key={f.clienteId} f={f} ofertas={ofertas}
                       onCambio={(n) => setRecompras(recompras.map((x) => (x.clienteId === n.clienteId ? n : x)))} />
-                  )) : <tr><td colSpan={9} className="dim">Ningún cliente con cuota de recompra.</td></tr>}
+                  )) : <tr><td colSpan={9} className="dim">
+                    Todavía no hay ninguno. Traelos con el botón de arriba o buscalos acá abajo.
+                  </td></tr>}
                 </tbody>
               </table>
             </div>
@@ -392,24 +416,42 @@ export default function ReporteProducto() {
               {elegidos.upsells.length} upsells y {elegidos.recompras.length} recompras ·
               {' '}{usd(totales.cobrado)} cobrados
             </span>
-            <button type="button" className="btn" onClick={() => { guardar(); setPaso(2); }}
-              disabled={!vencidos.length}>
-              Seguir con los {vencidos.length} vencidos →
+            <button type="button" className="btn" onClick={() => { guardar(); setPaso(2); }}>
+              Seguir con los vencidos →
             </button>
           </div>
         </>
       ) : null}
 
-      {paso === 2 && vencidos.length ? (
+      {paso === 2 ? (
         <Card title="Los vencidos, uno por uno"
-          sub={`${vencidos.filter((v) => v.estado).length} de ${vencidos.length} definidos`}>
-          <Vencido
-            v={vencidos[cursor]} total={vencidos.length} indice={cursor}
-            guardando={guardando} error={errorPaso}
-            onCambio={(n) => setVencidos(vencidos.map((x, i) => (i === cursor ? n : x)))}
-            onAnterior={() => setCursor(Math.max(0, cursor - 1))}
-            onSiguiente={siguienteVencido}
-          />
+          sub={vencidos.length
+            ? `${vencidos.filter((v) => v.estado).length} de ${vencidos.length} definidos`
+            : 'Traelos de ATV Clients, o buscá uno en particular.'}
+          actions={(
+            <button type="button" className="btn sm ghost"
+              onClick={() => traer(vencidos, setVencidos, data?.vencidos)}
+              disabled={!(data?.vencidos ?? []).length}>
+              Traer los {(data?.vencidos ?? []).length} clientes vencidos
+            </button>
+          )}>
+          {vencidos.length ? (
+            <Vencido
+              v={vencidos[Math.min(cursor, vencidos.length - 1)]}
+              total={vencidos.length} indice={Math.min(cursor, vencidos.length - 1)}
+              guardando={guardando} error={errorPaso}
+              onCambio={(n) => setVencidos(vencidos.map((x, i) => (i === cursor ? n : x)))}
+              onAnterior={() => setCursor(Math.max(0, cursor - 1))}
+              onSiguiente={siguienteVencido}
+            />
+          ) : (
+            <p className="dim" style={{ margin: 0 }}>
+              Todavía no trajiste ninguno. El botón de arriba trae los que ya vencieron según
+              su fecha en el CRM; el buscador sirve para sumar uno que no esté en esa lista.
+            </p>
+          )}
+          <BuscarCliente yaEstan={vencidos.map((v) => v.clienteId)}
+            onAgregar={(c) => setVencidos([...vencidos, { ...c, estado: '', nota: '', dias: 0, enDiscord: false }])} />
         </Card>
       ) : null}
 
