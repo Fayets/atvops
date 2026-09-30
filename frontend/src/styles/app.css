@@ -7828,18 +7828,6 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   color: var(--text-2); margin-bottom: var(--space-4); }
 .rp-estado-doc span { color: var(--text-3); }
 
-/* El historial del reporte usa botones, no links: cambian el mes global en vez de
-   navegar. Se les saca lo que el navegador le pone a un <button>. */
-button.subnav-item { display: flex; align-items: baseline; gap: 7px; width: 100%;
-  border: 0; background: none; text-align: left; font-family: var(--font);
-  font-weight: 400; cursor: pointer; }
-.subnav-borrador { font-size: 10px; font-style: normal; color: var(--warn);
-  background: var(--warn-dim); padding: 0 6px; border-radius: 999px; margin-left: auto; }
-
-.subnav-titulo { display: block; font-size: 10px; font-weight: 600; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--text-3); padding: 5px 10px 3px; border-radius: 6px; }
-a.subnav-titulo:hover { color: var(--text-2); background: var(--surface-2); }
-a.subnav-titulo.active { color: var(--text); background: var(--surface-2); }
 
 .hp-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .hp-tabla th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;

@@ -316,7 +316,6 @@ export default function ReporteProducto() {
       // sin que el remezclado del efecto pise lo que hay en pantalla.
       cargado.current = periodo;
       setRecarga((n) => n + 1);
-      window.dispatchEvent(new Event('atv-reporte-guardado'));
       setAviso(cerrar ? 'Reporte cerrado.' : 'Guardado.');
       setTimeout(() => setAviso(null), 2500);
     } catch (e) {
@@ -344,7 +343,6 @@ export default function ReporteProducto() {
         upsells: elegidos.upsells, recompras: elegidos.recompras,
         vencidos: lista, totales, generadoAt: new Date().toISOString(),
       });
-      window.dispatchEvent(new Event('atv-reporte-guardado'));
       if (cursor + 1 < vencidos.length) setCursor(cursor + 1);
       else setPaso(3);
     } catch (e) {
