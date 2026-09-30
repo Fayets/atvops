@@ -257,7 +257,10 @@ export default function ReporteProducto() {
   // disponible detrás de un botón, no puesto: el reporte lo arma la persona, y una
   // lista que aparece sola se firma sin mirar.
   useEffect(() => {
-    if (!data || cargado.current === periodo) return;
+    // La llave es el período que trae la respuesta, no el del estado: al cambiar de mes
+    // `data` sigue siendo el del mes anterior hasta que llega el nuevo, y compararlo
+    // contra `periodo` hacía cargar el mes viejo y no volver a intentarlo.
+    if (!data || data.periodo !== periodo || cargado.current === data.periodo) return;
     const prev = data.guardado?.datos ?? {};
     setUpsells(prev.upsells ?? []);
     setRecompras(prev.recompras ?? []);
@@ -266,7 +269,7 @@ export default function ReporteProducto() {
     // vacío hacía pensar que se había perdido, cuando estaba guardado.
     setPaso(data.guardado ? 3 : 1);
     setCursor(0);
-    cargado.current = periodo;
+    cargado.current = data.periodo;
   }, [data, periodo]);
 
   /** Suma los que el sistema encontró, sin repetir los que ya están. */

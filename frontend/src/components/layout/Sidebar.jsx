@@ -4,6 +4,7 @@ import { clearSession } from '../../lib/auth.js';
 import { useRol } from '../../lib/RolContext.jsx';
 import { filtrarNav, homeParaRol, puedeOcultarReuniones, ROL_LIST, ROLES } from '../../lib/roles.js';
 import Icon from '../ui/Icon.jsx';
+import HistorialReportes from './HistorialReportes.jsx';
 import ReunionesOcultas from './ReunionesOcultas.jsx';
 
 const ORDEN_GRUPOS = ['Tablero', 'Áreas', 'Dirección', 'Sistema'];
@@ -148,6 +149,11 @@ export default function Sidebar() {
                   <Icon name={item.icon} />
                   {item.label}
                 </NavLink>
+
+                {/* Los meses ya reportados cuelgan del ítem, como el subnav de las otras
+                    áreas, pero salen de la base y no de la lista de arriba. */}
+                {item.to === '/reporte-producto' && pathname.startsWith(item.to)
+                  ? <HistorialReportes /> : null}
 
                 {item.sub && pathname.startsWith(item.to) && (
                   <div className="subnav">

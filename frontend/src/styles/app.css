@@ -7811,3 +7811,11 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   border-radius: var(--radius-sm); padding: 8px 13px; font-size: 12.5px;
   color: var(--text-2); margin-bottom: var(--space-4); }
 .rp-estado-doc span { color: var(--text-3); }
+
+/* El historial del reporte usa botones, no links: cambian el mes global en vez de
+   navegar. Se les saca lo que el navegador le pone a un <button>. */
+button.subnav-item { display: flex; align-items: baseline; gap: 7px; width: 100%;
+  border: 0; background: none; text-align: left; font-family: var(--font);
+  font-weight: 400; cursor: pointer; }
+.subnav-borrador { font-size: 10px; font-style: normal; color: var(--warn);
+  background: var(--warn-dim); padding: 0 6px; border-radius: 999px; margin-left: auto; }
