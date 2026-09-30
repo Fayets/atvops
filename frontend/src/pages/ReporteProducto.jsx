@@ -569,8 +569,8 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
       <h2>{titulo}<span>{filas.length} clientes · {usd(filas.reduce((a, f) => a + (f.totalUsd || 0), 0))}</span></h2>
       <table>
         <thead><tr>
-          <th>Cliente</th><th>Lo hizo</th><th>Oferta</th><th>Meses</th><th>Total</th>
-          <th>Cobrado</th><th>Por cobrar</th><th>Vencido</th>
+          <th>Cliente</th><th className="izq">Responsable</th><th>Oferta</th><th>Meses</th>
+          <th className="cc">Cobrado</th><th>Total</th>
         </tr></thead>
         <tbody>
           {filas.map((f) => (
@@ -581,21 +581,17 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
               ) : null}{f.nombre}</td>
               <td className="quien">{f.responsable || <span className="c">—</span>}</td>
               <td>{f.oferta || '—'}</td><td>{f.meses ?? '—'}</td>
+              <td className="cc">{f.cobradoUsd ? usd(f.cobradoUsd) : <span className="c">—</span>}</td>
               <td>{usd(f.totalUsd)}</td>
-              <td>{f.cobradoUsd ? usd(f.cobradoUsd) : <span className="c">—</span>}</td>
-              <td>{f.pendienteUsd ? usd(f.pendienteUsd) : <span className="c">—</span>}</td>
-              <td className={f.vencidoUsd ? 'mal' : 'c'}>{f.vencidoUsd ? usd(f.vencidoUsd) : '—'}</td>
             </tr>
           ))}
-          {filas.length ? null : <tr><td colSpan={8} className="c">Ninguno este mes.</td></tr>}
+          {filas.length ? null : <tr><td colSpan={6} className="c">Ninguno este mes.</td></tr>}
         </tbody>
         {filas.length ? (
           <tfoot><tr>
             <td>Total</td><td /><td /><td />
+            <td className="cc">{usd(filas.reduce((a, f) => a + (f.cobradoUsd || 0), 0))}</td>
             <td>{usd(filas.reduce((a, f) => a + (f.totalUsd || 0), 0))}</td>
-            <td>{usd(filas.reduce((a, f) => a + (f.cobradoUsd || 0), 0))}</td>
-            <td>{usd(filas.reduce((a, f) => a + (f.pendienteUsd || 0), 0))}</td>
-            <td className="mal">{usd(filas.reduce((a, f) => a + (f.vencidoUsd || 0), 0))}</td>
           </tr></tfoot>
         ) : null}
       </table>

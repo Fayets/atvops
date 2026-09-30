@@ -7796,12 +7796,15 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-columna h3 span { font-size: 11px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 /* El estado se lee antes que el nombre: una barra del color a la izquierda de cada
    ficha. Verde sigue, ámbar se define, rojo se va. */
-.doc-cliente { padding: 8px 0 8px 12px; border-bottom: 1px solid var(--border-soft);
-  border-left: 4px solid var(--border); break-inside: avoid; }
-.doc-cliente:last-child { border-bottom: none; }
-.doc-cliente.recompro, .doc-cliente.va_cerrar { border-left-color: var(--ok); }
-.doc-cliente.definiendo { border-left-color: var(--warn); }
-.doc-cliente.se_va { border-left-color: var(--alert); }
+/* La ficha va pintada entera: de lejos se ve cuánto verde y cuánto rojo tiene cada
+   columna. El fondo va más cargado que los tokens `-dim`, que al 9% dejan el ámbar y
+   el rojo indistinguibles, que es lo único que hay que separar acá. */
+.doc-cliente { padding: 8px 10px 8px 12px; margin-bottom: 3px; border-radius: 0 4px 4px 0;
+  border-left: 4px solid var(--border); background: var(--surface-2); break-inside: avoid; }
+.doc-cliente.recompro, .doc-cliente.va_cerrar {
+  border-left-color: var(--ok); background: rgba(21, 128, 61, .13); }
+.doc-cliente.definiendo { border-left-color: var(--warn); background: rgba(180, 83, 9, .14); }
+.doc-cliente.se_va { border-left-color: var(--alert); background: rgba(185, 28, 28, .11); }
 .doc-cliente.sin { border-left-color: var(--border); }
 .doc-cliente-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
 .doc-cliente-top b { font-weight: 600; }
@@ -7836,3 +7839,8 @@ button.subnav-item { display: flex; align-items: baseline; gap: 7px; width: 100%
 .subnav-titulo { font-size: 10px; font-weight: 600; letter-spacing: .09em;
   text-transform: uppercase; color: var(--text-3); padding: 4px 10px 2px; }
 .doc-bloque td.quien { text-align: left; font-weight: 400; color: var(--text-2); }
+/* El cobrado es el cash del mes: va primero y marcado, que es lo que se mira. */
+.doc-bloque th.cc, .doc-bloque td.cc { background: rgba(21, 128, 61, .07); }
+.doc-bloque td.cc { color: var(--ok); font-weight: 600; }
+.doc-bloque td.cc .c { color: var(--text-3); font-weight: 400; }
+.doc-bloque tfoot td.cc { background: rgba(21, 128, 61, .13); }
