@@ -7864,13 +7864,13 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .doc-bloque td { padding: 4px 0 4px 9px; }
   .doc-columnas { gap: 0 14px; }
   .doc-columna h3 { font-size: 9px; margin: 2px 0 4px; padding-bottom: 3px; }
-  /* En la hoja, el cliente entero va en un párrafo: nombre, fecha, estado y nota
-     corridos. Cada ficha en dos líneas costaba una línea de más por cliente, y con
-     veintiuno eso es media página. */
-  .doc-cliente { padding: 3px 6px 3px 7px; margin-bottom: 1px; border-left-width: 3px;
-    font-size: 9px; line-height: 1.35; }
-  .doc-cliente-top { display: inline; font-size: 9px; }
-  .doc-cliente-top .c { font-size: 8px; margin-left: 4px; }
-  .doc-cliente-est { display: inline; font-size: 9px; margin: 0; }
-  .doc-chip { font-size: 7px; padding: 0 4px; margin: 0 4px; vertical-align: 1px; }
+  /* La ficha se imprime como se ve en pantalla: el fondo del color, el nombre arriba
+     y el estado con la nota debajo. Solo se achica. */
+  .doc-cliente { padding: 4px 7px 5px 8px; margin-bottom: 2px; border-left-width: 3px;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .doc-cliente-top { font-size: 9.5px; gap: 5px; }
+  .doc-cliente-top .c { font-size: 8px; }
+  .doc-cliente-est { font-size: 9px; line-height: 1.35; margin-top: 1px; }
+  .doc-chip { font-size: 7px; padding: 0 5px; margin-right: 5px;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
