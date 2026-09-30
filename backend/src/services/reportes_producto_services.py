@@ -317,16 +317,37 @@ def obtener(periodo: str) -> dict | None:
 
 
 def listar() -> list[dict]:
-    """Los reportes cerrados, del más nuevo al más viejo."""
+    """Los reportes armados, del más nuevo al más viejo, con su resumen.
+
+    El resumen sale de lo guardado y no se recalcula: el reporte de septiembre tiene que
+    seguir diciendo lo que decía en septiembre, aunque las cuotas ya hayan cambiado de
+    estado.
+    """
     from pony.orm import db_session
 
     from src.models import ReporteProducto
+
+    def resumen(crudo: str | None) -> dict:
+        try:
+            d = json.loads(crudo or "{}")
+        except (TypeError, ValueError):
+            return {}
+        vencidos = d.get("vencidos") or []
+        return {
+            "upsells": len(d.get("upsells") or []),
+            "recompras": len(d.get("recompras") or []),
+            "vencidos": len(vencidos),
+            "seVan": sum(1 for v in vencidos if v.get("estado") == "se_va"),
+            "cobradoUsd": float((d.get("totales") or {}).get("cobrado") or 0),
+        }
 
     with db_session:
         return [{
             "periodo": r.periodo, "estado": r.estado,
             "creadoPor": r.creado_por,
             "creadoAt": r.creado_at.isoformat() if r.creado_at else None,
+            "actualizadoAt": r.actualizado_at.isoformat() if r.actualizado_at else None,
+            **resumen(r.datos),
         } for r in sorted(ReporteProducto.select(), key=lambda r: r.periodo, reverse=True)]
 
 

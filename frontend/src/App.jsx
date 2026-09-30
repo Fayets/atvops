@@ -17,6 +17,7 @@ import MarketingOpsPage from './pages/MarketingOpsPage.jsx';
 import Ads from './pages/Ads.jsx';
 import Sistemas from './pages/Sistemas.jsx';
 import Metas from './pages/Metas.jsx';
+import HistorialProducto from './pages/HistorialProducto.jsx';
 import ReporteProducto from './pages/ReporteProducto.jsx';
 import ReporteSemanal from './pages/ReporteSemanal.jsx';
 import VentasCloser from './pages/VentasCloser.jsx';
@@ -146,6 +147,7 @@ export default function App() {
             <Route path="calendario" element={<Calendario />} />
             <Route path="reporte" element={<ReporteSemanal />} />
             <Route path="reporte-producto" element={<ReporteProducto />} />
+            <Route path="reporte-producto/historial" element={<HistorialProducto />} />
 
             <Route path="fulfillment">
               <Route index element={<FulfillmentIndex />} />

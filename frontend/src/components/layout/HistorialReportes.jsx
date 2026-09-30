@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { getReportesProducto } from '../../data/api.js';
 import { useMes } from '../../lib/MesContext.jsx';
 
@@ -47,7 +48,10 @@ export default function HistorialReportes() {
 
   return (
     <div className="subnav">
-      <div className="subnav-titulo">Historial</div>
+      <NavLink to="/reporte-producto/historial"
+        className={({ isActive }) => `subnav-titulo${isActive ? ' active' : ''}`}>
+        Historial
+      </NavLink>
       {reportes.slice(0, 12).map((r) => (
         <button
           key={r.periodo} type="button"

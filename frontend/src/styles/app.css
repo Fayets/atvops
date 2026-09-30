@@ -7836,11 +7836,23 @@ button.subnav-item { display: flex; align-items: baseline; gap: 7px; width: 100%
 .subnav-borrador { font-size: 10px; font-style: normal; color: var(--warn);
   background: var(--warn-dim); padding: 0 6px; border-radius: 999px; margin-left: auto; }
 
-.subnav-titulo { font-size: 10px; font-weight: 600; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--text-3); padding: 4px 10px 2px; }
+.subnav-titulo { display: block; font-size: 10px; font-weight: 600; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--text-3); padding: 5px 10px 3px; border-radius: 6px; }
+a.subnav-titulo:hover { color: var(--text-2); background: var(--surface-2); }
+a.subnav-titulo.active { color: var(--text); background: var(--surface-2); }
+
+.hp-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.hp-tabla th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-3); text-align: left; padding: 10px var(--space-4); white-space: nowrap; }
+.hp-tabla th.num { text-align: right; }
+.hp-tabla td { padding: 11px var(--space-4); border-top: 1px solid var(--border-soft); white-space: nowrap; }
+.hp-tabla td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.hp-fila { cursor: pointer; }
+.hp-fila:hover td { background: var(--surface-2); }
+.hp-mes { font-weight: 600; }
+.hp-cc { color: var(--ok); font-weight: 600; }
 .doc-bloque td.quien { text-align: left; font-weight: 400; color: var(--text-2); }
-/* El cobrado es el cash del mes: va primero y marcado, que es lo que se mira. */
-.doc-bloque th.cc, .doc-bloque td.cc { background: rgba(21, 128, 61, .07); }
+/* El cobrado es el cash del mes: va primero y en verde. Sin fondo: la columna entera
+   sombreada le ganaba a los números, que son lo que hay que leer. */
 .doc-bloque td.cc { color: var(--ok); font-weight: 600; }
 .doc-bloque td.cc .c { color: var(--text-3); font-weight: 400; }
-.doc-bloque tfoot td.cc { background: rgba(21, 128, 61, .13); }
