@@ -262,7 +262,10 @@ export default function ReporteProducto() {
     setUpsells(prev.upsells ?? []);
     setRecompras(prev.recompras ?? []);
     setVencidos(prev.vencidos ?? []);
-    setPaso(1); setCursor(0);
+    // Un mes que ya tiene reporte se abre en el informe: entrar y encontrar el paso 1
+    // vacío hacía pensar que se había perdido, cuando estaba guardado.
+    setPaso(data.guardado ? 3 : 1);
+    setCursor(0);
     cargado.current = periodo;
   }, [data, periodo]);
 
@@ -303,6 +306,10 @@ export default function ReporteProducto() {
     setGuardando(true); setErrorPaso(null);
     try {
       await guardarReporteProducto(periodo, datos(), cerrar);
+      // Se vuelve a pedir para que el cartel de arriba diga el estado y la hora reales,
+      // sin que el remezclado del efecto pise lo que hay en pantalla.
+      cargado.current = periodo;
+      refetch();
       setAviso(cerrar ? 'Reporte cerrado.' : 'Guardado.');
       setTimeout(() => setAviso(null), 2500);
     } catch (e) {
@@ -366,6 +373,16 @@ export default function ReporteProducto() {
         ))}
       </div>
 
+      {data?.guardado ? (
+        <div className="rp-estado-doc">
+          {data.guardado.estado === 'cerrado' ? 'Reporte cerrado' : 'Borrador guardado'}
+          {data.guardado.actualizadoAt
+            ? ` · última edición ${new Date(data.guardado.actualizadoAt).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+            : ''}
+          {data.guardado.creadoPor ? ` · lo armó ${data.guardado.creadoPor}` : ''}
+          <span> — se puede seguir editando.</span>
+        </div>
+      ) : null}
       {aviso ? <div className="ronda-evento ok">{aviso}</div> : null}
       {errorPaso && paso !== 2 ? <div className="ronda-evento error">{errorPaso}</div> : null}
 
@@ -499,6 +516,28 @@ export default function ReporteProducto() {
   );
 }
 
+/**
+ * Los vencidos agrupados por quien los sigue.
+ *
+ * Es como se reparte el trabajo de verdad —una columna es lo de Ale y la otra lo de
+ * Juampi—, así cada uno lee la suya sin barrer una lista de veinte donde sus clientes
+ * están salteados. Los que no tienen dueño van últimos, juntos: son los que hay que
+ * asignar.
+ */
+function porResponsable(lista) {
+  const grupos = new Map();
+  for (const v of lista) {
+    const quien = (v.responsable || '').trim() || 'Sin dueño';
+    if (!grupos.has(quien)) grupos.set(quien, []);
+    grupos.get(quien).push(v);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => {
+    if (a === 'Sin dueño') return 1;
+    if (b === 'Sin dueño') return -1;
+    return a.localeCompare(b, 'es');
+  });
+}
+
 /** El reporte tal como sale impreso. Es lo mismo en pantalla y en el PDF. */
 function Documento({ periodo, upsells, recompras, vencidos, totales,
                     onCerrar, onGuardar, onSacar, onEstado, onNota, guardando }) {
@@ -567,23 +606,26 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
         {bloque('Hicieron upsell', upsells, 'upsells')}
         {bloque('Hicieron recompra', recompras, 'recompras')}
 
-        <section className="doc-bloque">
+        <section className="doc-bloque doc-vencidos">
           <h2>El resto de los vencidos<span>{vencidos.length} clientes</span></h2>
-          <table>
-            <thead><tr><th>Cliente</th><th>Resp.</th><th>Venció</th><th>Debe</th><th className="izq">En qué está</th></tr></thead>
-            <tbody>
-              {vencidos.map((v) => {
-                const e = ESTADOS.find((x) => x.id === v.estado);
-                return (
-                  <tr key={v.clienteId}>
-                    <td>{editando ? (
-                      <button type="button" className="rp-sacar" title={`Sacar a ${v.nombre}`}
-                        onClick={() => onSacar(v.clienteId, 'vencidos')}>×</button>
-                    ) : null}{v.nombre}</td>
-                    <td className="c">{v.responsable || '—'}</td>
-                    <td className="c">{corta(v.vence)}</td>
-                    <td>{v.debeUsd ? usd(v.debeUsd) : <span className="c">—</span>}</td>
-                    <td className="izq t">
+          <div className="doc-columnas">
+            {porResponsable(vencidos).map(([quien, suyos]) => (
+              <div key={quien} className="doc-columna">
+                <h3>{quien}<span>{suyos.length}</span></h3>
+                {suyos.map((v) => {
+                  const e = ESTADOS.find((x) => x.id === v.estado);
+                  return (
+                    <article key={v.clienteId} className="doc-cliente">
+                      <div className="doc-cliente-top">
+                        {editando ? (
+                          <button type="button" className="rp-sacar" title={`Sacar a ${v.nombre}`}
+                            onClick={() => onSacar(v.clienteId, 'vencidos')}>×</button>
+                        ) : null}
+                        <b>{v.nombre}</b>
+                        <span className="c">
+                          {corta(v.vence)}{v.debeUsd ? ` · debe ${usd(v.debeUsd)}` : ''}
+                        </span>
+                      </div>
                       {editando ? (
                         <div className="rp-edit-fila">
                           <select value={v.estado} onChange={(ev) => onEstado(v.clienteId, ev.target.value)}
@@ -596,17 +638,20 @@ function Documento({ periodo, upsells, recompras, vencidos, totales,
                             aria-label={`Nota de ${v.nombre}`} />
                         </div>
                       ) : (
-                        <>{e ? <b>{e.label}</b> : <span className="c">sin definir</span>}
-                          {v.nota ? <> — {v.nota}</> : null}</>
+                        <p className={`doc-cliente-est ${v.estado || 'sin'}`}>
+                          {e ? <b>{e.label}</b> : <span className="c">sin definir</span>}
+                          {v.nota ? <> — {v.nota}</> : null}
+                        </p>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {vencidos.length ? null : <tr><td colSpan={5} className="c">Ninguno.</td></tr>}
-            </tbody>
-          </table>
+                    </article>
+                  );
+                })}
+              </div>
+            ))}
+            {vencidos.length ? null : <p className="c">Ninguno.</p>}
+          </div>
         </section>
+
       </div>
 
       <div className="rp-pie no-print">

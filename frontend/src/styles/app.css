@@ -7784,3 +7784,30 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .rp-edit-fila { display: flex; gap: 6px; align-items: center; }
 .rp-edit-fila select { width: 118px; }
 .rp-edit-fila input { flex: 1; min-width: 120px; }
+
+/* Los vencidos, repartidos por quien los sigue. Dos columnas es como se lee el trabajo:
+   cada CSM mira la suya. */
+.doc-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0 26px; align-items: start; }
+.doc-columna h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin: 4px 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-3); padding-bottom: 5px;
+  border-bottom: 1px solid var(--border-soft); }
+.doc-columna h3 span { font-size: 11px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.doc-cliente { padding: 7px 0; border-bottom: 1px solid var(--border-soft); break-inside: avoid; }
+.doc-cliente:last-child { border-bottom: none; }
+.doc-cliente-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+.doc-cliente-top b { font-weight: 600; }
+.doc-cliente-top .c { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.doc-cliente-est { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-2); }
+.doc-cliente-est b { color: var(--text); }
+.doc-cliente-est.recompro b, .doc-cliente-est.va_cerrar b { color: var(--ok); }
+.doc-cliente-est.definiendo b { color: var(--warn); }
+.doc-cliente-est.se_va b { color: var(--alert); }
+.doc-cliente-est .c { color: var(--text-3); }
+@media print { .doc-columnas { grid-template-columns: 1fr 1fr; } }
+
+.rp-estado-doc { background: var(--surface-2); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 8px 13px; font-size: 12.5px;
+  color: var(--text-2); margin-bottom: var(--space-4); }
+.rp-estado-doc span { color: var(--text-3); }
