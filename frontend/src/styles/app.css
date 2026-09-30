@@ -7708,17 +7708,19 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-per { margin-left: auto; text-align: right; font-size: 12.5px; font-weight: 600; }
 .doc-per span { display: block; font-weight: 400; color: var(--text-3); font-size: 11px; }
 
-.doc-resumen { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+/* Flex y no grid: son cinco tarjetas, y cualquier grilla de 2, 3 o 4 columnas deja una
+   celda vacía a la vista al envolver. Con flex la última fila se reparte el ancho. */
+.doc-resumen { display: flex; flex-wrap: wrap; gap: 1px;
   background: var(--border-soft); border: 1px solid var(--border-soft); margin-bottom: 24px; }
-.doc-resumen > div { background: var(--surface); padding: 10px 13px; min-width: 0; }
+.doc-resumen > div { background: var(--surface); padding: 10px 13px; flex: 1 1 150px; min-width: 0; }
 .doc-resumen .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-3); font-weight: 500; }
 .doc-resumen .v { font-size: 17px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums;
   white-space: nowrap; }
 /* Cinco columnas solo cuando entran: partir "US$ 67.710" en dos renglones se lee peor
-   que apilar las tarjetas. */
-@media (max-width: 1150px) { .doc-resumen { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 620px) { .doc-resumen { grid-template-columns: repeat(2, 1fr); } }
+   que apilar las tarjetas. `auto-fit` en vez de un número fijo porque son cinco y
+   cualquier grilla de 2, 3 o 4 deja una celda vacía a la vista. */
+
 .doc-resumen .v.ok { color: var(--ok); } .doc-resumen .v.mal { color: var(--alert); }
 
 .doc-bloque { margin-bottom: 26px; }
@@ -7776,3 +7778,12 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .rp-monto { width: 88px; text-align: right; font-variant-numeric: tabular-nums; }
 .rp-amano { margin-left: 7px; font-size: 10px; font-style: normal; font-weight: 600;
   color: var(--warn); background: var(--warn-dim); padding: 1px 6px; border-radius: 999px; }
+
+.rp-chance { margin: 6px 0 0; font-size: 12.5px; color: var(--warn); }
+.rp-chance b { color: var(--warn); font-weight: 600; }
+.rp-chance span { color: var(--text-3); }
+.rp-sacar { border: 0; background: none; color: var(--alert); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 6px 0 0; }
+.rp-edit-fila { display: flex; gap: 6px; align-items: center; }
+.rp-edit-fila select { width: 118px; }
+.rp-edit-fila input { flex: 1; min-width: 120px; }

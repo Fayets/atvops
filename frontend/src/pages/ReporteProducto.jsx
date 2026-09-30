@@ -28,6 +28,14 @@ const ESTADOS = [
   { id: 'se_va', label: 'Se va', tono: 'alert' },
 ];
 
+/** Los valores que ATV Clients guarda en `oportunidad`, escritos para leer. */
+const OPORTUNIDAD = {
+  recompra: 'Oportunidad de recompra',
+  upsell_boost: 'Oportunidad de upsell a Boost',
+  upsell_high: 'Oportunidad de upsell a High Level',
+  consultar: 'Hay que consultarlo',
+};
+
 const usd = (n) => `US$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
 const corta = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '—');
 
@@ -174,10 +182,21 @@ function Vencido({ v, total, indice, onCambio, onSiguiente, onAnterior, guardand
           <div className="eyebrow">Vencido {indice + 1} de {total}</div>
           <h3>{v.nombre}</h3>
           <p className="dim">
-            {v.oferta || 'sin plan'} · venció el {corta(v.vence)} · hace {v.dias} días
+            {v.oferta || 'sin plan'}
+            {v.dias > 0 ? ` · venció el ${corta(v.vence)}, hace ${v.dias} días` : ` · vence el ${corta(v.vence)}`}
             {v.debeUsd ? ` · debe ${usd(v.debeUsd)}` : ''}
             {v.enDiscord ? ' · sigue en Discord' : ''}
           </p>
+          {v.oportunidad || v.posibilidadUsd ? (
+            <p className="rp-chance">
+              {v.oportunidad ? <b>{OPORTUNIDAD[v.oportunidad] ?? v.oportunidad}</b> : null}
+              {v.posibilidadUsd ? (
+                <>{v.oportunidad ? ' · ' : null}<b>Posibilidad de upsell por {usd(v.posibilidadUsd)}</b>
+                  {v.posibilidadDesde ? `, abierta desde el ${corta(v.posibilidadDesde)}` : null}</>
+              ) : null}
+              <span> — cargada en ATV Clients</span>
+            </p>
+          ) : null}
         </div>
         <input className="rp-resp grande" value={v.responsable ?? ''} placeholder="Responsable"
           onChange={(e) => onCambio({ ...v, responsable: e.target.value })}
@@ -429,11 +448,19 @@ export default function ReporteProducto() {
             ? `${vencidos.filter((v) => v.estado).length} de ${vencidos.length} definidos`
             : 'Traelos de ATV Clients, o buscá uno en particular.'}
           actions={(
-            <button type="button" className="btn sm ghost"
-              onClick={() => traer(vencidos, setVencidos, data?.vencidos)}
-              disabled={!(data?.vencidos ?? []).length}>
-              Traer los {(data?.vencidos ?? []).length} clientes vencidos
-            </button>
+            <div className="rp-acciones">
+              <button type="button" className="btn sm ghost"
+                onClick={() => traer(vencidos, setVencidos, data?.vencidos)}
+                disabled={!(data?.vencidos ?? []).length}>
+                Traer los {(data?.vencidos ?? []).length} vencidos
+              </button>
+              <button type="button" className="btn sm ghost"
+                onClick={() => traer(vencidos, setVencidos, data?.oportunidades)}
+                disabled={!(data?.oportunidades ?? []).length}
+                title="Clientes con una chance abierta en ATV Clients que todavía no vencieron">
+                + {(data?.oportunidades ?? []).length} oportunidades
+              </button>
+            </div>
           )}>
           {vencidos.length ? (
             <Vencido
@@ -458,15 +485,29 @@ export default function ReporteProducto() {
       {paso === 3 ? (
         <Documento periodo={periodo} upsells={elegidos.upsells} recompras={elegidos.recompras}
           vencidos={vencidos} totales={totales}
-          onCerrar={() => guardar(true)} guardando={guardando} />
+          onCerrar={() => guardar(true)} onGuardar={() => guardar()} guardando={guardando}
+          onSacar={(id, de) => {
+            if (de === 'vencidos') setVencidos(vencidos.filter((x) => x.clienteId !== id));
+            else if (de === 'upsells') setUpsells(upsells.filter((x) => x.clienteId !== id));
+            else setRecompras(recompras.filter((x) => x.clienteId !== id));
+          }}
+          onEstado={(id, estado) => setVencidos(vencidos.map((x) => (x.clienteId === id ? { ...x, estado } : x)))}
+          onNota={(id, nota) => setVencidos(vencidos.map((x) => (x.clienteId === id ? { ...x, nota } : x)))}
+        />
       ) : null}
     </div>
   );
 }
 
 /** El reporte tal como sale impreso. Es lo mismo en pantalla y en el PDF. */
-function Documento({ periodo, upsells, recompras, vencidos, totales, onCerrar, guardando }) {
-  const bloque = (titulo, filas) => (
+function Documento({ periodo, upsells, recompras, vencidos, totales,
+                    onCerrar, onGuardar, onSacar, onEstado, onNota, guardando }) {
+  // El documento se corrige acá mismo: llegar al final, ver que sobra un cliente y tener
+  // que volver dos pasos para sacarlo es la clase de fricción que hace que el reporte se
+  // entregue con el error adentro.
+  const [editando, setEditando] = useState(false);
+
+  const bloque = (titulo, filas, de) => (
     <section className="doc-bloque">
       <h2>{titulo}<span>{filas.length} clientes · {usd(filas.reduce((a, f) => a + (f.totalUsd || 0), 0))}</span></h2>
       <table>
@@ -477,7 +518,11 @@ function Documento({ periodo, upsells, recompras, vencidos, totales, onCerrar, g
         <tbody>
           {filas.map((f) => (
             <tr key={f.clienteId}>
-              <td>{f.nombre}</td><td>{f.oferta || '—'}</td><td>{f.meses ?? '—'}</td>
+              <td>{editando ? (
+                <button type="button" className="rp-sacar" title={`Sacar a ${f.nombre}`}
+                  onClick={() => onSacar(f.clienteId, de)}>×</button>
+              ) : null}{f.nombre}</td>
+              <td>{f.oferta || '—'}</td><td>{f.meses ?? '—'}</td>
               <td>{usd(f.totalUsd)}</td>
               <td>{f.cobradoUsd ? usd(f.cobradoUsd) : <span className="c">—</span>}</td>
               <td>{f.pendienteUsd ? usd(f.pendienteUsd) : <span className="c">—</span>}</td>
@@ -519,8 +564,8 @@ function Documento({ periodo, upsells, recompras, vencidos, totales, onCerrar, g
           <div><div className="l">Recompras</div><div className="v">{recompras.length}</div></div>
         </div>
 
-        {bloque('Hicieron upsell', upsells)}
-        {bloque('Hicieron recompra', recompras)}
+        {bloque('Hicieron upsell', upsells, 'upsells')}
+        {bloque('Hicieron recompra', recompras, 'recompras')}
 
         <section className="doc-bloque">
           <h2>El resto de los vencidos<span>{vencidos.length} clientes</span></h2>
@@ -531,12 +576,30 @@ function Documento({ periodo, upsells, recompras, vencidos, totales, onCerrar, g
                 const e = ESTADOS.find((x) => x.id === v.estado);
                 return (
                   <tr key={v.clienteId}>
-                    <td>{v.nombre}</td>
+                    <td>{editando ? (
+                      <button type="button" className="rp-sacar" title={`Sacar a ${v.nombre}`}
+                        onClick={() => onSacar(v.clienteId, 'vencidos')}>×</button>
+                    ) : null}{v.nombre}</td>
                     <td className="c">{v.responsable || '—'}</td>
                     <td className="c">{corta(v.vence)}</td>
                     <td>{v.debeUsd ? usd(v.debeUsd) : <span className="c">—</span>}</td>
-                    <td className="izq t">{e ? <b>{e.label}</b> : <span className="c">sin definir</span>}
-                      {v.nota ? <> — {v.nota}</> : null}</td>
+                    <td className="izq t">
+                      {editando ? (
+                        <div className="rp-edit-fila">
+                          <select value={v.estado} onChange={(ev) => onEstado(v.clienteId, ev.target.value)}
+                            aria-label={`Estado de ${v.nombre}`}>
+                            <option value="">sin definir</option>
+                            {ESTADOS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+                          </select>
+                          <input defaultValue={v.nota || ''} placeholder="nota"
+                            onBlur={(ev) => ev.target.value !== (v.nota || '') && onNota(v.clienteId, ev.target.value)}
+                            aria-label={`Nota de ${v.nombre}`} />
+                        </div>
+                      ) : (
+                        <>{e ? <b>{e.label}</b> : <span className="c">sin definir</span>}
+                          {v.nota ? <> — {v.nota}</> : null}</>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -553,10 +616,20 @@ function Documento({ periodo, upsells, recompras, vencidos, totales, onCerrar, g
       </div>
 
       <div className="rp-pie no-print">
-        <span className="dim">Descargá el PDF con el botón de arriba. Cerrar el reporte lo marca como el que se entregó.</span>
-        <button type="button" className="btn" onClick={onCerrar} disabled={guardando}>
-          {guardando ? 'Guardando…' : 'Cerrar el reporte'}
-        </button>
+        <span className="dim">
+          {editando
+            ? 'Sacá clientes con la ×, y corregí el estado y la nota de cada vencido. Los cambios en la nota no vuelven a ATV Clients desde acá.'
+            : 'Descargá el PDF con el botón de arriba. Cerrar el reporte lo marca como el que se entregó.'}
+        </span>
+        <div className="rp-acciones">
+          <button type="button" className="btn sm ghost"
+            onClick={() => { if (editando) onGuardar(); setEditando(!editando); }}>
+            {editando ? 'Listo' : 'Editar el informe'}
+          </button>
+          <button type="button" className="btn" onClick={onCerrar} disabled={guardando || editando}>
+            {guardando ? 'Guardando…' : 'Cerrar el reporte'}
+          </button>
+        </div>
       </div>
     </>
   );

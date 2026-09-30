@@ -117,6 +117,35 @@ def _vencidos() -> list[dict]:
     )
 
 
+def _oportunidades() -> dict[int, dict]:
+    """Qué chance abierta tiene cada cliente, mirada desde los dos lados.
+
+    ATV Clients la anota en dos lugares distintos y ninguno de los dos alcanza solo: el
+    campo `oportunidad` de la ficha (recompra, upsell_boost, upsell_high, consultar) y
+    una cuota de tipo `posibilidad_upsell`, que además le pone monto y fecha. Un cliente
+    puede tener una, la otra o las dos.
+    """
+    salida: dict[int, dict] = {}
+    for f in clients_db.consultar(
+        "SELECT id AS cliente_id, oportunidad FROM {esquema}.clientes "
+        "WHERE coalesce(oportunidad, '') <> ''"
+    ):
+        salida[f["cliente_id"]] = {"oportunidad": f["oportunidad"]}
+
+    for f in clients_db.consultar(
+        f"""SELECT q.cliente_id AS cliente_id, round(sum(q.monto_usd)) AS monto,
+                   min(q.fecha_vence) AS desde
+              FROM {{esquema}}.cuotas q
+             WHERE {_TIPO_SQL} = 'posibilidad_upsell'
+             GROUP BY q.cliente_id"""
+    ):
+        salida.setdefault(f["cliente_id"], {}).update({
+            "posibilidadUsd": float(f["monto"] or 0),
+            "posibilidadDesde": str(f["desde"]) if f["desde"] else None,
+        })
+    return salida
+
+
 def ofertas() -> list[dict]:
     """El catálogo de programas, para el desplegable de "qué oferta"."""
     from src.services import ventas_services
@@ -165,23 +194,53 @@ def candidatos(periodo: str) -> dict:
 
     upsells, recompras = bloque("upsell"), bloque("recompra")
 
+    chances = _oportunidades()
+
+    def ficha(v: dict) -> dict:
+        return {
+            "clienteId": v["cliente_id"],
+            "nombre": v["nombre"],
+            "oferta": (v["plan"] or "").capitalize(),
+            "responsable": v["responsable"] or "",
+            "vence": str(v["vence"]) if v["vence"] else None,
+            "dias": int(v["dias"] or 0),
+            "debeUsd": float(v["debe_usd"] or 0),
+            "enDiscord": bool(v["canal_discord"]),
+            "estado": "",
+            "nota": "",
+            **chances.get(v["cliente_id"], {}),
+        }
+
     # El tercer bloque es "el resto": quien ya aparece arriba no se repite abajo.
-    vencidos = [{
-        "clienteId": v["cliente_id"],
-        "nombre": v["nombre"],
-        "oferta": (v["plan"] or "").capitalize(),
-        "responsable": v["responsable"] or "",
-        "vence": str(v["vence"]) if v["vence"] else None,
-        "dias": int(v["dias"] or 0),
-        "debeUsd": float(v["debe_usd"] or 0),
-        "enDiscord": bool(v["canal_discord"]),
-        "estado": "",
-        "nota": "",
-    } for v in _vencidos() if v["cliente_id"] not in con_cuota]
+    crudos = _vencidos()
+    vencidos = [ficha(v) for v in crudos if v["cliente_id"] not in con_cuota]
+
+    # Las chances abiertas de gente que NO está vencida —Valentino, La Biblioteca,
+    # Nazareno— no salen por ningún otro lado y son justamente lo que hay que revisar
+    # este mes. Van aparte para poder traerlas sin arrastrar a los vencidos.
+    ya = con_cuota | {v["cliente_id"] for v in crudos}
+    oportunidades = [{
+        "clienteId": f["cliente_id"],
+        "nombre": f["nombre"],
+        "oferta": (f["plan"] or "").capitalize(),
+        "responsable": f["responsable"] or "",
+        "vence": str(f["vence"]) if f["vence"] else None,
+        "dias": 0, "debeUsd": float(f["debe_usd"] or 0),
+        "enDiscord": bool(f["canal_discord"]),
+        "estado": "", "nota": "",
+        **chances.get(f["cliente_id"], {}),
+    } for f in clients_db.consultar(
+        """SELECT c.id AS cliente_id, c.nombre AS nombre, c.plan_actual AS plan,
+                  c.responsable AS responsable, c.fecha_vencimiento AS vence,
+                  c.total_adeudado_usd AS debe_usd, c.canal_discord AS canal_discord
+             FROM {esquema}.clientes c WHERE c.id = ANY(%s) ORDER BY c.nombre""",
+        (sorted(set(chances) - ya),),
+    )] if set(chances) - ya else []
 
     return {
         "periodo": periodo, "desde": desde, "hasta": hasta,
         "upsells": upsells, "recompras": recompras, "vencidos": vencidos,
+        "oportunidades": oportunidades,
         "ofertas": ofertas(),
         "guardado": obtener(periodo),
     }
