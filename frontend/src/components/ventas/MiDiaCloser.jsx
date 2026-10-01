@@ -147,13 +147,16 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
 
   // Afuera solo las descartadas a mano. Las reprogramadas cuentan en el total
   // y se muestran como detalle debajo del KPI.
+  //
+  // No se filtra por fecha: lo que llega ya es el mes elegido. Antes se cortaba desde el
+  // día 1 del mes *corriente*, así que un 1° de octubre mirando septiembre las listas de
+  // los KPIs quedaban vacías —"no hay llamadas en este número"— aunque el número de
+  // arriba, que lo calcula el backend, mostrara sesenta y pico.
   const FUERA = ['descartada'];
-  const delMes = useMemo(() => {
-    const inicio = new Date();
-    inicio.setDate(1);
-    inicio.setHours(0, 0, 0, 0);
-    return llamadas.filter((l) => new Date(l.fechaAt) >= inicio && !FUERA.includes(l.estado));
-  }, [llamadas]);
+  const delMes = useMemo(
+    () => llamadas.filter((l) => !FUERA.includes(l.estado)),
+    [llamadas],
+  );
 
   const reprogramadasMes = useMemo(
     () => delMes.filter((l) => l.estado === 'reprogramada'),
