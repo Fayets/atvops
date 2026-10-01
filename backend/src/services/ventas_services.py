@@ -2060,8 +2060,12 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
 
     # Se guarda solo en la base de ATV Ops. Al CRM viejo no se le escribe nada: lo que se
     # corrige acá no tiene por qué cambiarle los números a atv-mkt.
+    # El flag sigue al resultado. Estaba fijo en False: elegir "Descartada" en el selector
+    # dejaba la reunión marcada por el texto pero no por el flag, y seguía apareciendo en
+    # todo lo que filtra por el flag. Diez reuniones quedaron así.
     propio = {"resultado": resultado, "programa": programa, "cash_usd": cash,
-              "nota": nota, "descartada": False, "closer": closer_nuevo}
+              "nota": nota, "descartada": _norm(resultado) in _DESCARTE_N,
+              "closer": closer_nuevo}
     if toca_saldo:
         propio["saldo_usd"] = saldo
     _guardar_propio(int(lead_id), evento, str(datos.get("prospecto") or ""),
