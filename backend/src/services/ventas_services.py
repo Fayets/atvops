@@ -1672,20 +1672,20 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     aparte y no sube el close rate. Lo único que queda afuera de la agenda es lo que se
     descarta a mano: el resto de las reuniones cuentan, sean primera o quinta.
     """
-    # Show / no-show no miran las reprogramadas —esa caída se recuperó el mismo día— ni
-    # las canceladas, que se avisaron antes y no llegaron a ser una llamada.
-    medibles = [x for x in del_mes if x["estado"] not in ("reprogramada", "cancelada")]
-    shows = sum(1 for x in medibles if x["estado"] in ("show", "cierre"))
+    # La reprogramada no se mide: esa caída se recuperó el mismo día.
+    medibles = [x for x in del_mes if x["estado"] != "reprogramada"]
     no_shows = sum(1 for x in medibles if x["estado"] == "no_show")
     seguimientos = sum(1 for x in del_mes if x.get("seguimiento"))
     reprogramadas = sum(1 for x in del_mes if x["estado"] == "reprogramada")
-    # Una cancelada no es una agenda: se avisó antes y la reunión no llegó a pasar. Se
-    # cuenta aparte para que se vea que existió, pero no suma al número del mes.
     canceladas = sum(1 for x in del_mes if x["estado"] == "cancelada")
-    # El show rate se mide contra todo lo que el setter trajo, no solo contra lo que llegó
-    # a ser llamada: la pregunta es qué pasó con las agendas del mes. Por eso show rate y
-    # no show rate no suman 100 —lo que falta son las canceladas— y la cuenta de arriba
-    # cierra: agendas = shows + no shows + canceladas.
+    # Dos cajones y nada más: el que se presentó y el que no. Lo que no es no show es
+    # show, y la cancelada cae de este lado. Así 63 agendas con 12 no show dan 51 shows y
+    # los dos porcentajes suman 100, que es como se lee el mes.
+    #
+    # Es una definición, no un cálculo: una cancelada no es alguien que vino. Queda igual
+    # nombrada aparte en la nota del KPI, y entra al divisor del close rate como cualquier
+    # otro show.
+    shows = sum(1 for x in medibles if x["estado"] in ("show", "cierre")) + canceladas
     evaluables = len(del_mes)
     cerradas = [x for x in ventas if _norm(x["resultado"]) == _norm("Cerrado")]
     senas = [x for x in ventas if x not in cerradas]
