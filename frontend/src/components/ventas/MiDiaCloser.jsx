@@ -6,7 +6,7 @@ import DetalleLlamada from './DetalleLlamada.jsx';
 import DetalleMetrica from './DetalleMetrica.jsx';
 import Card from '../ui/Card.jsx';
 import { formatValue } from '../../lib/format.js';
-import { getEstadoReuniones, getLlamadosAgenda, ocultarReunion, sincronizarLlamadas } from '../../data/api.js';
+import { getEstadoReuniones, getLlamadosAgenda, moverReunion, ocultarReunion, sincronizarLlamadas } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 import { alActualizarLlamadas } from '../../lib/llamadasSync.js';
 
@@ -105,6 +105,13 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
         }}
         onMostrar={async (l) => {
           await ocultarReunion(l.id, { mostrar: true });
+          setTick((t) => t + 1);
+          onCambio?.();
+        }}
+        // Arrastrar una llamada al día en que pasó de verdad. Lo mueve dentro de ATV Ops:
+        // en Google sigue siendo cierto que se había agendado el otro día.
+        onMover={async (l, fecha) => {
+          await moverReunion(l.id, fecha);
           setTick((t) => t + 1);
           onCambio?.();
         }}
