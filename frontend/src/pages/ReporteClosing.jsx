@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
+import DetalleMetrica from '../components/ventas/DetalleMetrica.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import {
@@ -113,6 +114,7 @@ export default function ReporteClosing() {
     () => getReporteClosing(`${periodo}${recarga ? '?refrescar=true' : ''}`), [periodo, recarga]);
 
   const [paso, setPaso] = useState(1);
+  const [detalle, setDetalle] = useState(null);
   const [conclusiones, setConclusiones] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState(null);
@@ -131,6 +133,22 @@ export default function ReporteClosing() {
   const llamadas = data?.llamadas ?? [];
   const sinAnalizar = useMemo(
     () => llamadas.filter((l) => !l.analisis && l.eventoId), [llamadas]);
+
+  // Cada número se puede abrir y ver de qué llamadas sale. Los conjuntos son los mismos
+  // que usa el cálculo: si una llamada no está acá, tampoco contó.
+  // El resultado se compara normalizado: en la base conviven 'Cerrado' y 'cerrado',
+  // y comparar la forma exacta dejaba los cuatro números de plata en cero.
+  const res = (l) => (l.resultado || '').trim().toLowerCase();
+  const esCierre = (l) => res(l) === 'cerrado';
+  const esSena = (l) => ['seña', 'sena'].includes(res(l));
+  const esVenta = (l) => esCierre(l) || esSena(l);
+  const shows = llamadas.filter((l) => l.estado === 'show' || l.estado === 'cierre');
+  const caidas = llamadas.filter((l) => l.estado === 'no_show');
+  const ventas = llamadas.filter(esVenta);
+  const cierres = llamadas.filter(esCierre);
+  const dinero = (l) => usd(l.cashUsd);
+  const ver = (titulo, explicacion, lista, columna, encabezado) => () =>
+    setDetalle({ titulo, explicacion, llamadas: lista, columna, encabezado });
 
   async function guardar(cerrar = false) {
     setGuardando(true);
@@ -186,14 +204,22 @@ export default function ReporteClosing() {
             sub={`${m.llamadas ?? 0} llamadas · las descartadas no entran en ningún número`}
             foot="Son los mismos números que muestra la pantalla del closer: el reporte no los recalcula.">
             <div className="rc-kpis">
-              <Kpi l="Llamadas" v={m.llamadas} n={`${m.sinReportar ?? 0} sin resultado cargado`} />
-              <Kpi l="Show rate" v={pct(m.showRate)} n={`${m.shows ?? 0} shows`} tono="ok" />
-              <Kpi l="No show" v={pct(m.noShowRate)} n={`${m.noShows ?? 0} caídas`} tono="mal" />
-              <Kpi l="Close rate" v={pct(m.closeRate)} n={`${m.cierres ?? 0} sobre ${m.shows ?? 0} shows`} />
-              <Kpi l="Con las señas" v={pct(m.closeRateConSenas)} n={`si entran las ${m.senas ?? 0} señas`} />
-              <Kpi l="Cash collected" v={usd(m.cashUsd)} n={`${usd(m.senasCashUsd)} son de señas`} tono="ok" />
-              <Kpi l="AOV" v={usd(m.aovUsd)} n={`${usd(m.facturacionUsd)} facturados`} />
-              <Kpi l="PIF" v={`${m.pif ?? 0} de ${m.cierres ?? 0}`} n={`${pct(m.pifRate)} de los cierres sin saldo`} />
+              <Kpi l="Llamadas" v={m.llamadas} n={`${m.sinReportar ?? 0} sin resultado cargado`}
+                onVer={ver('Llamadas del mes', 'Todas las del mes menos las descartadas, que no entran en ningún número.', llamadas, (l) => l.resultado || 'sin cargar', 'Resultado')} />
+              <Kpi l="Show rate" v={pct(m.showRate)} n={`${m.shows ?? 0} shows`} tono="ok"
+                onVer={ver('Show rate', 'Las que se presentaron. El denominador son estas más las que no vinieron.', shows, (l) => l.resultado || '', 'Resultado')} />
+              <Kpi l="No show" v={pct(m.noShowRate)} n={`${m.noShows ?? 0} caídas`} tono="mal"
+                onVer={ver('No show', 'Las que no se presentaron, no contestaron o se cancelaron.', caidas, (l) => l.resultado || '', 'Resultado')} />
+              <Kpi l="Close rate" v={pct(m.closeRate)} n={`${m.cierres ?? 0} sobre ${m.shows ?? 0} shows`}
+                onVer={ver('Close rate', 'Los cierres sobre las que se presentaron. Las señas no cuentan acá: la venta todavía no está hecha.', shows, (l) => (esCierre(l) ? dinero(l) : '—'), 'Cash')} />
+              <Kpi l="Con las señas" v={pct(m.closeRateConSenas)} n={`si entran las ${m.senas ?? 0} señas`}
+                onVer={ver('Close rate con las señas', 'A cuánto llegaría el close rate si las señas pendientes terminan de cerrar.', ventas, (l) => (esSena(l) ? `seña · ${dinero(l)}` : `cerrado · ${dinero(l)}`), 'Estado')} />
+              <Kpi l="Cash collected" v={usd(m.cashUsd)} n={`${usd(m.senasCashUsd)} son de señas`} tono="ok"
+                onVer={ver('Cash collected', 'Lo que efectivamente pagó cada uno, cierres y señas.', ventas, dinero, 'Cash')} />
+              <Kpi l="AOV" v={usd(m.aovUsd)} n={`${usd(m.facturacionUsd)} facturados`}
+                onVer={ver('AOV', 'La facturación dividida por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', cierres, (l) => `${l.programa || 'sin programa'} · ${usd(l.facturacionUsd)}`, 'Programa')} />
+              <Kpi l="PIF" v={`${m.pif ?? 0} de ${m.cierres ?? 0}`} n={`${pct(m.pifRate)} de los cierres sin saldo`}
+                onVer={ver('PIF', 'Los cierres que quedaron sin saldo. Las señas no entran: por definición deben plata.', cierres, (l) => (Number(l.saldoUsd) ? `debe ${usd(l.saldoUsd)}` : 'pagado'), 'Saldo')} />
             </div>
           </Card>
 
@@ -240,6 +266,8 @@ export default function ReporteClosing() {
         </Card>
       ) : null}
 
+      {detalle ? <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} /> : null}
+
       {paso === 3 ? (
         <Documento periodo={periodo} closer={data?.closer} m={m} lab={lab}
           conclusiones={conclusiones} setConclusiones={setConclusiones}
@@ -249,12 +277,15 @@ export default function ReporteClosing() {
   );
 }
 
-function Kpi({ l, v, n, tono }) {
+function Kpi({ l, v, n, tono, onVer }) {
   return (
-    <div className="rc-kpi">
+    <div className={`rc-kpi${onVer ? ' clickable' : ''}`} onClick={onVer}
+      role={onVer ? 'button' : undefined} tabIndex={onVer ? 0 : undefined}
+      onKeyDown={onVer ? (e) => (e.key === 'Enter' || e.key === ' ') && onVer() : undefined}>
       <div className="l">{l}</div>
       <div className={`v${tono ? ` ${tono}` : ''}`}>{v ?? '—'}</div>
       <div className="n">{n}</div>
+      {onVer ? <div className="rc-ver">ver llamadas</div> : null}
     </div>
   );
 }

@@ -7935,3 +7935,7 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .doc-chip { font-size: 7px; padding: 0 5px; margin-right: 5px;
     print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+.rc-kpi.clickable { cursor: pointer; transition: background .12s ease; }
+.rc-kpi.clickable:hover { background: var(--surface-2); }
+.rc-ver { font-size: 10px; color: var(--brand); margin-top: 5px; opacity: 0; transition: opacity .12s ease; }
+.rc-kpi.clickable:hover .rc-ver, .rc-kpi.clickable:focus-visible .rc-ver { opacity: 1; }
