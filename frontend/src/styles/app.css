@@ -67,6 +67,14 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* El menú scrollea solo; la marca y el pie quedan fijos. Sin esto, un rol que ve
+     todas las áreas desborda los 100vh del sidebar y "Salir" queda abajo del borde de
+     la pantalla, sin forma de llegar. `min-height: 0` es lo que deja encogerse a un
+     hijo de flex. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .nav-group {
   padding: var(--space-4) 8px 6px;

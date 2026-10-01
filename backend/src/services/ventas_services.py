@@ -1446,9 +1446,13 @@ def borrar_programa(pid: int, usuario: dict) -> list[dict]:
     return programas()
 
 
-def _nombres_crm(usuario: dict) -> list[str]:
-    """Cómo figura este usuario en el CRM: 'Nick' encuentra 'Nick Xanderz' y su variante mal escrita."""
-    base = _norm(usuario.get("nombre") or usuario.get("username") or "")
+def _grafias_de(nombre: str) -> list[str]:
+    """Todas las formas en que un nombre aparece como closer en el CRM.
+
+    'Nick' encuentra 'Nick Xanderz' y su variante mal escrita. Se agrupa por el primer
+    nombre, que es lo único estable: el apellido se escribe de tres maneras distintas.
+    """
+    base = _norm(nombre or "")
     if not base:
         return []
     primero = base.split()[0]
@@ -1461,7 +1465,33 @@ def _nombres_crm(usuario: dict) -> list[str]:
     nombres = [c for c in todos if _norm(c).split()[:1] == [primero]]
     nombres += [n for n in equipo_services.todas_las_grafias()
                 if _norm(n).split()[:1] == [primero]]
-    return sorted(set(nombres)) or [usuario.get("nombre") or usuario.get("username") or ""]
+    return sorted(set(nombres))
+
+
+def _nombres_crm(usuario: dict) -> list[str]:
+    """Cómo figura este usuario en el CRM."""
+    propio = usuario.get("nombre") or usuario.get("username") or ""
+    return _grafias_de(propio) or ([propio] if propio else [])
+
+
+def _closers_del_periodo(desde: date, hasta: date) -> list[dict]:
+    """Quiénes tomaron llamadas en el período, del que más tuvo al que menos.
+
+    Las grafías se agrupan por el primer nombre —"Nick" y "Nick Xanderz" son el mismo— y
+    se devuelve la que más aparece, que es la que después matchea `_nombres_crm`.
+    """
+    por_primero: dict[str, dict] = {}
+    for f in _sumar_reuniones_del_calendario(desde, hasta):
+        nombre = (f.get("closer") or "").strip()
+        if not nombre:
+            continue
+        clave = _norm(nombre).split()[0]
+        g = por_primero.setdefault(clave, {"grafias": {}, "n": 0})
+        g["grafias"][nombre] = g["grafias"].get(nombre, 0) + 1
+        g["n"] += 1
+    salida = [{"closer": max(g["grafias"], key=g["grafias"].get), "llamadas": g["n"]}
+              for g in por_primero.values()]
+    return sorted(salida, key=lambda c: -c["llamadas"])
 
 
 def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, closer: str | None = None,
@@ -1473,10 +1503,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     """
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     hoy = ahora.date()
-    nombres = [closer] if (closer and usuario.get("rol") in ROLES_PRECIOS | {"ventas"}) else _nombres_crm(usuario)
-    if not nombres or not nombres[0]:
-        return {"generadoAt": datetime.now(AR_TZ).isoformat(), "closer": None, "llamadas": [],
-                "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA)}
+    puede_mirar_otros = usuario.get("rol") in ROLES_PRECIOS | {"ventas"}
 
     # Se lee todo el período y recién después se filtra por closer: el cruce con el
     # calendario tiene que ver todas las llamadas para no duplicar las de otro.
@@ -1487,6 +1514,25 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     else:
         desde = hoy - timedelta(days=dias_atras)
         hasta = hoy + timedelta(days=dias_adelante + 1)
+
+    disponibles = _closers_del_periodo(desde, hasta)
+    if closer and puede_mirar_otros:
+        nombres = _grafias_de(closer) or [closer]
+    else:
+        # Quien no toma llamadas —ops, dirección, el dueño del área— no figura como
+        # closer en ninguna reunión, y la pantalla le quedaba entera en cero. A ese se
+        # le muestra el que más llamadas tuvo en el período, que es lo que vino a mirar.
+        propias = _grafias_de(usuario.get("nombre") or usuario.get("username") or "")
+        if propias:
+            nombres = propias
+        elif puede_mirar_otros and disponibles:
+            nombres = _grafias_de(disponibles[0]["closer"])
+        else:
+            nombres = _nombres_crm(usuario)
+    if not nombres or not nombres[0]:
+        return {"generadoAt": datetime.now(AR_TZ).isoformat(), "closer": None, "llamadas": [],
+                "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA),
+                "closersDisponibles": disponibles if puede_mirar_otros else []}
     mios = [_norm(n) for n in nombres]
     todas = _sumar_reuniones_del_calendario(desde, hasta)
     # Las del closer + las del calendario que todavía no tienen closer en el CRM
@@ -1550,21 +1596,30 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
 
     # Las duplicadas del CRM no se muestran: sería pedirle al closer que cargue dos veces.
     llamadas = [f for f in (_fila(l) for l in filas) if f["estado"] != "duplicada"]
-    inicio_mes = hoy.replace(day=1)
+    # El mes de las métricas es el que se pidió, no el corriente: con `hoy.replace(day=1)`
+    # mirar septiembre un 1° de octubre daba todo en cero, porque filtraba las llamadas
+    # de septiembre por ser anteriores al 1° de octubre.
+    inicio_mes = desde if mes else hoy.replace(day=1)
+    fin_mes = hasta if mes else None
     # Cuentan todas menos las descartadas a mano. Las reprogramadas (caída + rehecha el
     # mismo día) entran al total y se muestran aparte en el detalle del KPI.
-    del_mes = [x for x in llamadas
-               if datetime.fromisoformat(x["fechaAt"]).date() >= inicio_mes
-               and x["estado"] != "descartada"]
+    def _del_mes(x: dict) -> bool:
+        f = datetime.fromisoformat(x["fechaAt"]).date()
+        return f >= inicio_mes and (fin_mes is None or f < fin_mes) and x["estado"] != "descartada"
+
+    del_mes = [x for x in llamadas if _del_mes(x)]
     ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
-        "closer": closer or (usuario.get("nombre") or nombres[0]),
+        # El nombre que se informa es el del closer que se está mirando, que no siempre
+        # es el de quien mira.
+        "closer": closer or nombres[0],
         "nombresCrm": nombres,
         "programas": programas(),
         "estados": list(ESTADOS_LLAMADA),
         "llamadas": llamadas,
         "mes": _metricas_closer(del_mes, ventas),
+        "closersDisponibles": disponibles if puede_mirar_otros else [],
     }
 
 
