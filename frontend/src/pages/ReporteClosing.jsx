@@ -150,6 +150,18 @@ export default function ReporteClosing() {
   const ver = (titulo, explicacion, lista, columna, encabezado) => () =>
     setDetalle({ titulo, explicacion, llamadas: lista, columna, encabezado });
 
+  /** Las llamadas que cayeron en un estado. Mismo criterio que el conteo de la barra. */
+  const deEstado = (estado) => llamadas.filter((l) => {
+    const r = (l.resultado || '').trim();
+    return estado === 'Sin cargar' ? !r : r.toLowerCase() === estado.toLowerCase();
+  });
+  const verEstado = (estado) => ver(
+    estado,
+    `Las llamadas del mes que terminaron en ${estado.toLowerCase()}.`,
+    deEstado(estado),
+    (l) => (esVenta(l) ? dinero(l) : (l.setter ? `setteó ${l.setter}` : (l.origen || '—'))),
+    'Detalle');
+
   async function guardar(cerrar = false) {
     setGuardando(true);
     try {
@@ -226,16 +238,17 @@ export default function ReporteClosing() {
           <Card title="Cómo salieron" sub="Los estados que carga el equipo. Descartada y Agendado no cuentan.">
             <div className="rc-barra">
               {(m.porEstado ?? []).filter((e) => e.estado !== 'Agendado').map((e) => (
-                <span key={e.estado} style={{ width: `${e.pct}%`, background: color(e.estado) }}
-                  title={`${e.estado}: ${e.n}`} />
+                <button key={e.estado} type="button" style={{ width: `${e.pct}%`, background: color(e.estado) }}
+                  title={`${e.estado}: ${e.n} · tocá para ver cuáles`}
+                  aria-label={`${e.estado}: ${e.n}`} onClick={verEstado(e.estado)} />
               ))}
             </div>
             <div className="rc-leyenda">
               {(m.porEstado ?? []).filter((e) => e.estado !== 'Agendado').map((e) => (
-                <div key={e.estado}>
+                <button key={e.estado} type="button" onClick={verEstado(e.estado)}>
                   <i style={{ background: color(e.estado) }} />{e.estado}
                   <b>{e.n}</b><span className="dim">{e.pct}%</span>
-                </div>
+                </button>
               ))}
             </div>
           </Card>

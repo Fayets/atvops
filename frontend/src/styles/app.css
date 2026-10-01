@@ -7854,9 +7854,14 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 
 /* Una barra por mes, con un color fijo por estado: así dos meses se comparan de un vistazo. */
 .rc-barra { display: flex; height: 26px; border-radius: 4px; overflow: hidden; margin: 2px 0 10px; }
-.rc-barra > span { display: block; min-width: 2px; }
+.rc-barra > span, .rc-barra > button { display: block; min-width: 2px; border: 0; padding: 0; }
+.rc-barra > button { cursor: pointer; transition: filter .12s ease; }
+.rc-barra > button:hover, .rc-barra > button:focus-visible { filter: brightness(1.12); }
 .rc-leyenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 4px 18px; }
-.rc-leyenda div { display: flex; align-items: baseline; gap: 7px; font-size: 12px; }
+.rc-leyenda div, .rc-leyenda button { display: flex; align-items: baseline; gap: 7px; font-size: 12px; }
+.rc-leyenda button { border: 0; background: none; font-family: var(--font); color: var(--text);
+  padding: 2px 4px; margin: -2px -4px; border-radius: 5px; cursor: pointer; text-align: left; }
+.rc-leyenda button:hover { background: var(--surface-2); }
 .rc-leyenda i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
 .rc-leyenda b { margin-left: auto; font-variant-numeric: tabular-nums; }
 .rc-leyenda .dim { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -7912,6 +7917,7 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .doc-head, .doc-resumen, .doc-bloque tr, .doc-cliente { break-inside: avoid; }
   .doc-bloque h2, .doc-columna h3 { break-after: avoid; }
 
+  .rc-barra > button, .rc-leyenda button { cursor: default; }
   .doc-head { padding-bottom: 5px; margin-bottom: 8px; }
   .doc-head img { width: 30px; height: 30px; }
   .doc-head h1 { font-size: 17px; }
