@@ -1682,7 +1682,11 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     # Una cancelada no es una agenda: se avisó antes y la reunión no llegó a pasar. Se
     # cuenta aparte para que se vea que existió, pero no suma al número del mes.
     canceladas = sum(1 for x in del_mes if x["estado"] == "cancelada")
-    evaluables = shows + no_shows
+    # El show rate se mide contra todo lo que el setter trajo, no solo contra lo que llegó
+    # a ser llamada: la pregunta es qué pasó con las agendas del mes. Por eso show rate y
+    # no show rate no suman 100 —lo que falta son las canceladas— y la cuenta de arriba
+    # cierra: agendas = shows + no shows + canceladas.
+    evaluables = len(del_mes)
     cerradas = [x for x in ventas if _norm(x["resultado"]) == _norm("Cerrado")]
     senas = [x for x in ventas if x not in cerradas]
     cash = round(sum(x["cashUsd"] for x in ventas), 2)

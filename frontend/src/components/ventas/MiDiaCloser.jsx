@@ -203,11 +203,14 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
       </div>
 
       <div className="kpi-grid">
-        <Kpi label="Show rate" valor={pct(mes.showRate)} nota={`${mes.shows ?? 0} shows`}
-          onVer={ver('Show rate', 'Las que se presentaron, sobre las que se presentaron más las que no.', shows, (l) => l.resultado || '', 'Resultado')} />
+        <Kpi label="Show rate" valor={pct(mes.showRate)}
+          /* La cuenta tiene que cerrar a la vista: agendas = shows + no shows + las que
+             no llegaron a ser llamada. Sin nombrarlas, el número parece que pierde dos. */
+          nota={`${mes.shows ?? 0} shows${mes.noShows ? ` · ${mes.noShows} no show` : ''}${mes.canceladas ? ` · ${mes.canceladas} canceladas` : ''}${mes.reprogramadas ? ` · ${mes.reprogramadas} reprogramadas` : ''}`}
+          onVer={ver('Show rate', 'Las que se presentaron, sobre las agendas del mes. Con el no show no suma 100: lo que falta son las canceladas, que no llegaron a ser llamada.', shows, (l) => l.resultado || '', 'Resultado')} />
         <Kpi label="No show" valor={pct(mes.noShowRate)} tono={mes.noShows ? 'var(--warn)' : undefined}
           nota={`${mes.noShows ?? 0} llamadas caídas`}
-          onVer={ver('No show', 'Las que no se presentaron o no contestaron. Las canceladas no entran: se avisaron antes.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '', 'Resultado')} />
+          onVer={ver('No show', 'Las que no se presentaron o no contestaron, sobre las agendas del mes. La cancelada no es un no show: se avisó antes de la hora.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '', 'Resultado')} />
         <Kpi
           label="Close rate"
           valor={pct(mes.closeRate)}
