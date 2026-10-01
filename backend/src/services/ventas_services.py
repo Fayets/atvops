@@ -715,6 +715,11 @@ def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
     Hace falta para no contar dos veces la misma agenda: si DANILO tuvo su llamada en
     agosto, las de septiembre son seguimiento, no agendas nuevas. La agenda la trae el
     setter una sola vez.
+
+    Las canceladas no entran: esa reunión nunca pasó. Pablo Ingratta canceló la de agosto
+    y la de septiembre quedaba marcada como seguimiento de una llamada que no existió, así
+    que desaparecía del conteo de agendas. Si el prospecto volvió a agendar, el setter lo
+    trajo de nuevo.
     """
     with _lock:
         guardado = _cache.get("primeras")
@@ -728,8 +733,11 @@ def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
 
         with db_session:
             # El registro propio ya guarda la hora de Argentina: no hay que convertir.
-            crudas = [(r.prospecto, r.email, r.inicio_at) for r in list(ReunionCrm.select()) if r.inicio_at]
-        for nombre, email, cuando in crudas:
+            crudas = [(r.prospecto, r.email, r.inicio_at, r.resultado)
+                      for r in list(ReunionCrm.select()) if r.inicio_at]
+        for nombre, email, cuando, resultado in crudas:
+            if _norm(resultado) in _CANCELADA_N:
+                continue
             clave = _clave_lead(nombre, email)
             if clave and (clave not in primeras or cuando < primeras[clave]):
                 primeras[clave] = cuando
@@ -1701,6 +1709,11 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         "noShowRate": round(no_shows / evaluables * 100, 1) if evaluables else None,
         "closeRate": round(len(cerradas) / shows * 100, 1) if shows else None,
+        # Si las señas del mes terminan de cerrar: (cierres + señas) / shows. Es el techo
+        # del mes, no un resultado: sirve para ver cuánto hay todavía sobre la mesa.
+        "closeRateProyectado": (
+            round((len(cerradas) + len(senas)) / shows * 100, 1) if shows else None
+        ),
         # AOV: el cash cobrado dividido por la cantidad de cierres. La seña no es un
         # cierre, así que no entra al divisor: si entrara, dos señas chicas bajarían el
         # promedio de una venta que todavía no está hecha.

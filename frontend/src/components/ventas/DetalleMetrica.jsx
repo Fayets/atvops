@@ -4,6 +4,12 @@
  * Lo usan la pantalla del closer y el reporte mensual. Vive aparte porque un número que
  * no se puede abrir obliga a creerle al sistema, y acá se trata justamente de poder
  * discutirlo con el que lo mira.
+ *
+ * Dos formas de usarlo:
+ * - `llamadas`: una sola lista, que es el caso de casi todos los KPIs.
+ * - `grupos`: varias listas en columnas, para cuando el número se entiende comparando.
+ *   El close rate es el ejemplo: lo que importa no son las cincuenta llamadas que se
+ *   presentaron sino las que cerró al lado de las que quedaron en seña.
  */
 
 const fecha = (iso) => (iso
@@ -17,12 +23,37 @@ export const ESTADO_TEXTO = {
   sin_crm: 'solo calendario', duplicada: 'duplicada',
 };
 
+function Lista({ llamadas, columna, encabezado, vacio }) {
+  if (llamadas.length === 0) return <div className="empty">{vacio ?? 'No hay llamadas en este número.'}</div>;
+  return (
+    <div className="detalle-lista">
+      <div className={`detalle-fila cabecera${columna ? '' : ' sin-valor'}`}>
+        <span>Fecha</span>
+        <span>Prospecto</span>
+        <span>Estado</span>
+        {columna && <span>{encabezado ?? 'Detalle'}</span>}
+      </div>
+      {llamadas.map((l) => (
+        <div key={l.eventoId || l.id} className={`detalle-fila${columna ? '' : ' sin-valor'}`}>
+          <span className="num dim">{fecha(l.fechaAt)}</span>
+          <span className="strong">{l.prospecto}</span>
+          <span className="dim">{ESTADO_TEXTO[l.estado] ?? l.estado}</span>
+          {columna && <span className="valor">{columna(l)}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DetalleMetrica({ titulo, explicacion, llamadas = [], columna,
-                                         encabezado, onCerrar }) {
+                                         encabezado, grupos, resumen, onCerrar }) {
+  const total = grupos
+    ? grupos.reduce((n, g) => n + g.llamadas.length, 0)
+    : llamadas.length;
   return (
     <div className="modal-backdrop" onClick={onCerrar} role="presentation">
-      <div className="modal-card detalle-metrica" onClick={(e) => e.stopPropagation()}
-        role="dialog" aria-label={titulo}>
+      <div className={`modal-card detalle-metrica${grupos ? ' ancho' : ''}`}
+        onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
         <header>
           <div>
             <h3>{titulo}</h3>
@@ -30,28 +61,35 @@ export default function DetalleMetrica({ titulo, explicacion, llamadas = [], col
           </div>
           <button type="button" className="btn ghost" onClick={onCerrar}>Cerrar</button>
         </header>
-        {llamadas.length === 0 ? (
-          <div className="empty">No hay llamadas en este número.</div>
-        ) : (
-          <div className="detalle-lista">
-            <div className={`detalle-fila cabecera${columna ? '' : ' sin-valor'}`}>
-              <span>Fecha</span>
-              <span>Prospecto</span>
-              <span>Estado</span>
-              {columna && <span>{encabezado ?? 'Detalle'}</span>}
-            </div>
-            {llamadas.map((l) => (
-              <div key={l.eventoId || l.id} className={`detalle-fila${columna ? '' : ' sin-valor'}`}>
-                <span className="num dim">{fecha(l.fechaAt)}</span>
-                <span className="strong">{l.prospecto}</span>
-                <span className="dim">{ESTADO_TEXTO[l.estado] ?? l.estado}</span>
-                {columna && <span className="valor">{columna(l)}</span>}
+        {resumen && (
+          <div className="detalle-resumen">
+            {resumen.map((r) => (
+              <div key={r.label} className={r.tenue ? 'tenue' : undefined}>
+                <span className="dim">{r.label}</span>
+                <strong style={r.tono ? { color: r.tono } : undefined}>{r.valor}</strong>
+                {r.nota && <span className="dim nota">{r.nota}</span>}
               </div>
             ))}
           </div>
         )}
+        {grupos ? (
+          <div className="detalle-grupos">
+            {grupos.map((g) => (
+              <section key={g.titulo}>
+                <h4>
+                  {g.titulo} <span className="dim">{g.llamadas.length}</span>
+                </h4>
+                {g.nota && <p className="dim">{g.nota}</p>}
+                <Lista llamadas={g.llamadas} columna={g.columna}
+                  encabezado={g.encabezado} vacio={g.vacio} />
+              </section>
+            ))}
+          </div>
+        ) : (
+          <Lista llamadas={llamadas} columna={columna} encabezado={encabezado} />
+        )}
         <footer className="dim">
-          {llamadas.length} {llamadas.length === 1 ? 'llamada' : 'llamadas'} · base de ATV Ops
+          {total} {total === 1 ? 'llamada' : 'llamadas'} · base de ATV Ops
         </footer>
       </div>
     </div>

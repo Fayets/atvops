@@ -166,6 +166,10 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
 
   const ventas = delMes.filter((l) => l.estado === 'cierre');
   const shows = delMes.filter((l) => l.estado === 'show' || l.estado === 'cierre');
+  // "cierre" tapa a las dos: cerrada y seña. Lo que las separa es el resultado cargado.
+  const esSena = (l) => (l.resultado || '').toLowerCase().trim().startsWith('se');
+  const cerradas = ventas.filter((l) => !esSena(l));
+  const senas = ventas.filter(esSena);
   const dinero = (l) => formatValue(l.cashUsd ?? 0, 'usd');
   const ver = (titulo, explicacion, lista, columna, encabezado) => () =>
     setDetalle({ titulo, explicacion, llamadas: lista, columna, encabezado });
@@ -208,7 +212,25 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           label="Close rate"
           valor={pct(mes.closeRate)}
           nota={`${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cerrada' : 'cerradas'} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
-          onVer={ver('Close rate', 'Las ventas cerradas sobre las llamadas que sí se presentaron. Las señas no cuentan: la venta todavía no está hecha.', shows, (l) => (l.estado === 'cierre' ? dinero(l) : '—'), 'Cash')} />
+          onVer={() => setDetalle({
+            titulo: 'Close rate',
+            explicacion: 'Las ventas cerradas sobre las llamadas que sí se presentaron. La seña no cuenta como cierre: la venta todavía no está hecha, pero si cierra sube el rate.',
+            resumen: [
+              { label: 'Close rate', valor: pct(mes.closeRate),
+                nota: `${cerradas.length} sobre ${mes.shows ?? shows.length} shows` },
+              { label: 'Proyectado', tenue: true, tono: 'var(--brand-hi)',
+                valor: pct(mes.closeRateProyectado
+                  ?? (shows.length ? Math.round(((cerradas.length + senas.length) / shows.length) * 1000) / 10 : null)),
+                nota: senas.length ? `si cierran las ${senas.length} ${senas.length === 1 ? 'seña' : 'señas'}` : 'sin señas abiertas' },
+            ],
+            grupos: [
+              { titulo: 'Cerradas', llamadas: cerradas, columna: dinero, encabezado: 'Cash',
+                vacio: 'Todavía no cerró ninguna.' },
+              { titulo: 'Señas', llamadas: senas, columna: dinero, encabezado: 'Cash',
+                nota: 'Plata que entró con la venta a medio hacer.',
+                vacio: 'Sin señas abiertas.' },
+            ],
+          })} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
           nota={`${formatValue(mes.cashUsd ?? 0, 'usd')} de cash sobre ${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cierre' : 'cierres'}`}
           onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', ventas.filter((l) => l.estado === 'cierre'), dinero, 'Cash')} />
