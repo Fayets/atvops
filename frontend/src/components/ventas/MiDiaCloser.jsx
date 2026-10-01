@@ -178,9 +178,9 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
   const notaAgendas = [
     nReprog > 0 ? `${nReprog} reprogramadas` : null,
     mes.porVenir ? `${mes.porVenir} por venir` : null,
-    // Las segundas reuniones ya no están en el número: se dicen aparte para que se vea
-    // que existen y por qué no suman.
-    mes.seguimientos ? `${mes.seguimientos} segundas reuniones aparte` : null,
+    // Las segundas reuniones sí cuentan: se dicen igual, porque saber cuántas del mes
+    // fueron reuniones repetidas cambia cómo se lee el número.
+    mes.seguimientos ? `${mes.seguimientos} son segundas reuniones` : null,
     mes.canceladas ? `${mes.canceladas} canceladas` : null,
   ].filter(Boolean).join(' · ');
 
@@ -189,7 +189,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? delMes.length}
           nota={notaAgendas || 'la primera de cada prospecto'}
-          onVer={ver('Agendas del mes', 'La primera reunión de cada prospecto. No entran las segundas ni las canceladas: la segunda la trajo la misma agenda, y la cancelada no llegó a pasar.', delMes.filter((l) => !l.seguimiento && l.estado !== 'cancelada'), (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.origen || l.setter || '')), 'Detalle')} />
+          onVer={ver('Agendas del mes', 'Todas las reuniones del mes. Las canceladas no entran: no llegaron a pasar.', delMes.filter((l) => l.estado !== 'cancelada'), (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.seguimiento ? 'segunda reunión' : (l.origen || l.setter || ''))), 'Detalle')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"
