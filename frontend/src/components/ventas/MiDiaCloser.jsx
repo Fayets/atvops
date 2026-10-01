@@ -202,7 +202,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           onVer={ver('Show rate', 'Las que se presentaron, sobre las que se presentaron más las que no.', shows, (l) => l.resultado || '', 'Resultado')} />
         <Kpi label="No show" valor={pct(mes.noShowRate)} tono={mes.noShows ? 'var(--warn)' : undefined}
           nota={`${mes.noShows ?? 0} llamadas caídas`}
-          onVer={ver('No show', 'Las que no se presentaron o se cancelaron.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '', 'Resultado')} />
+          onVer={ver('No show', 'Las que no se presentaron o no contestaron. Las canceladas no entran: se avisaron antes.', delMes.filter((l) => l.estado === 'no_show'), (l) => l.resultado || '', 'Resultado')} />
         <Kpi
           label="Close rate"
           valor={pct(mes.closeRate)}

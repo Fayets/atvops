@@ -39,7 +39,11 @@ CIERRE = ("cerrado", "seña", "sena")
 # "No contesta" es un no show con otro nombre: si el prospecto no se conectó, la llamada
 # no pasó y el closer no pudo hacer nada. Contarlo como show infla el show rate con
 # llamadas que nunca existieron.
-NO_SHOW = ("no show", "cancelada", "cancelado", "no contesta")
+NO_SHOW = ("no show", "no contesta")
+# Cancelada no es un no show: el prospecto avisó antes y la llamada no llegó a existir.
+# Sigue siendo una agenda —el setter la trajo— pero no se puede medir como presentada ni
+# como caída, así que queda fuera del show rate en vez de ensuciarlo.
+CANCELADA = ("cancelada", "cancelado")
 # Llamadas que no son de ventas (internas, duplicadas, cargadas por error): no cuentan para nada.
 DESCARTE = ("descartada", "no corresponde")
 CON_RESULTADO = CIERRE + ("seguimiento", "descalificado", "re-agenda", "reagenda",
@@ -54,6 +58,7 @@ def _norm(t: str | None) -> str:
 # Normalizados una sola vez: _clasificar corre para cada fila de cada vista.
 _DESCARTE_N = frozenset(_norm(x) for x in DESCARTE)
 _NO_SHOW_N = frozenset(_norm(x) for x in NO_SHOW)
+_CANCELADA_N = frozenset(_norm(x) for x in CANCELADA)
 _CIERRE_N = frozenset(_norm(x) for x in CIERRE)
 _CON_RESULTADO_N = frozenset(_norm(x) for x in CON_RESULTADO)
 
@@ -85,6 +90,8 @@ def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora:
         return "agendado"
     if r in [_norm(x) for x in DESCARTE]:
         return "descartada"
+    if r in _CANCELADA_N:
+        return "cancelada"
     if r in _NO_SHOW_N:
         return "no_show"
     if r in _CIERRE_N:
@@ -1657,8 +1664,9 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     aparte y no sube el close rate. Lo único que queda afuera de la agenda es lo que se
     descarta a mano: el resto de las reuniones cuentan, sean primera o quinta.
     """
-    # Show / no-show no miran las reprogramadas: esa caída se recuperó el mismo día.
-    medibles = [x for x in del_mes if x["estado"] != "reprogramada"]
+    # Show / no-show no miran las reprogramadas —esa caída se recuperó el mismo día— ni
+    # las canceladas, que se avisaron antes y no llegaron a ser una llamada.
+    medibles = [x for x in del_mes if x["estado"] not in ("reprogramada", "cancelada")]
     shows = sum(1 for x in medibles if x["estado"] in ("show", "cierre"))
     no_shows = sum(1 for x in medibles if x["estado"] == "no_show")
     seguimientos = sum(1 for x in del_mes if x.get("seguimiento"))
@@ -1674,6 +1682,7 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
         # agenda nueva: el setter la trajo una sola vez.
         "agendadas": len(del_mes) - seguimientos,
         "reprogramadas": reprogramadas,
+        "canceladas": sum(1 for x in del_mes if x["estado"] == "cancelada"),
         "seguimientos": seguimientos,
         "reuniones": len(del_mes),
         "porVenir": sum(1 for x in medibles if x["estado"] == "agendado" and not x["pasada"]),

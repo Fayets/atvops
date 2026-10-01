@@ -32,9 +32,10 @@ logger = logging.getLogger("atv_ops.reportes_closing")
 ESTADOS_OPERATIVOS = ("Agendado", "Descartada")
 ESTADOS_VENTA = ("Cerrado", "Seña")
 
-# Cómo se agrupan para las tasas. Una cancelada es alguien que no vino; una re-agenda
-# llegó a tener resultado.
-NO_VINO = ("No show", "No contesta", "Cancelada")
+# Cómo se agrupan para las tasas. Una cancelada no es un no show: se avisó antes y la
+# llamada no llegó a existir, así que no entra en el show rate. Una re-agenda llegó a
+# tener resultado.
+NO_VINO = ("No show", "No contesta")
 
 
 def _periodo_valido(periodo: str) -> str:

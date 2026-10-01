@@ -13,6 +13,7 @@ const fecha = (iso) => (iso
 export const ESTADO_TEXTO = {
   cierre: 'venta', show: 'con show', no_show: 'no show', sin_reportar: 'sin cargar',
   agendado: 'por venir', descartada: 'descartada', reprogramada: 'se movió',
+  cancelada: 'cancelada',
   sin_crm: 'solo calendario', duplicada: 'duplicada',
 };
 
