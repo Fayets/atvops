@@ -1671,6 +1671,9 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     no_shows = sum(1 for x in medibles if x["estado"] == "no_show")
     seguimientos = sum(1 for x in del_mes if x.get("seguimiento"))
     reprogramadas = sum(1 for x in del_mes if x["estado"] == "reprogramada")
+    # Una cancelada no es una agenda: se avisó antes y la reunión no llegó a pasar. Se
+    # cuenta aparte para que se vea que existió, pero no suma al número del mes.
+    canceladas = sum(1 for x in del_mes if x["estado"] == "cancelada")
     evaluables = shows + no_shows
     cerradas = [x for x in ventas if _norm(x["resultado"]) == _norm("Cerrado")]
     senas = [x for x in ventas if x not in cerradas]
@@ -1680,9 +1683,9 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
         # La agenda es la primera reunión de cada prospecto. La segunda y la tercera se
         # siguen viendo en el calendario y suman show, cierre y cash, pero no son una
         # agenda nueva: el setter la trajo una sola vez.
-        "agendadas": len(del_mes) - seguimientos,
+        "agendadas": len(del_mes) - seguimientos - canceladas,
         "reprogramadas": reprogramadas,
-        "canceladas": sum(1 for x in del_mes if x["estado"] == "cancelada"),
+        "canceladas": canceladas,
         "seguimientos": seguimientos,
         "reuniones": len(del_mes),
         "porVenir": sum(1 for x in medibles if x["estado"] == "agendado" and not x["pasada"]),

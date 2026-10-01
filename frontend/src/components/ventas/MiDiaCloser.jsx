@@ -177,6 +177,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
     // Las segundas reuniones ya no están en el número: se dicen aparte para que se vea
     // que existen y por qué no suman.
     mes.seguimientos ? `${mes.seguimientos} segundas reuniones aparte` : null,
+    mes.canceladas ? `${mes.canceladas} canceladas` : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -184,7 +185,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? delMes.length}
           nota={notaAgendas || 'la primera de cada prospecto'}
-          onVer={ver('Agendas del mes', 'La primera reunión de cada prospecto. Las segundas se siguen viendo en el calendario, pero no son una agenda nueva.', delMes.filter((l) => !l.seguimiento), (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.origen || l.setter || '')), 'Detalle')} />
+          onVer={ver('Agendas del mes', 'La primera reunión de cada prospecto. No entran las segundas ni las canceladas: la segunda la trajo la misma agenda, y la cancelada no llegó a pasar.', delMes.filter((l) => !l.seguimiento && l.estado !== 'cancelada'), (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.origen || l.setter || '')), 'Detalle')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"
