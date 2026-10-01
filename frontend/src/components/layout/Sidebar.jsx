@@ -74,7 +74,7 @@ const NAV = [
       // El closer no entra acá: el laboratorio de setting es de Cris y del área. Tenerlo
       // en su menú era un copiar y pegar de la línea de abajo.
       { to: '/ventas/lab-setting', label: 'Laboratorio Setting', roles: ['setter', 'ventas', 'admin', 'operaciones', 'founder'] },
-      { to: '/ventas/lab-closing', label: 'Laboratorio Closing', roles: ['ventas', 'admin', 'operaciones', 'founder'] },
+      { to: '/ventas/lab-closing', label: 'Laboratorio Closing', roles: ['closer', 'ventas', 'admin', 'operaciones', 'founder'] },
     ],
   },
   { to: '/reporte', icon: 'check', label: 'Reporte semanal', grupo: 'Dirección' },

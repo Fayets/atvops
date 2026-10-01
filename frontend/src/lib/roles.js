@@ -67,7 +67,7 @@ export const ROL_LIST = Object.keys(ROLES);
 export const RUTAS_POR_ROL = {
   // Las dos pantallas suyas, no el área entera: con '/ventas' a secas podía abrir por
   // URL los laboratorios y el dashboard del área, que no están en su menú.
-  closer: ['/ventas/mi-dia', '/ventas/llamadas', '/metas'],
+  closer: ['/ventas/mi-dia', '/ventas/llamadas', '/ventas/lab-closing', '/metas'],
   setter: ['/calendario', '/ventas', '/metas'],
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
