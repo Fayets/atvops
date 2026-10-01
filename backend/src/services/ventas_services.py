@@ -1688,11 +1688,12 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     cash = round(sum(x["cashUsd"] for x in ventas), 2)
     facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
     return {
-        # Cada reunión del mes es una agenda, sea la primera del prospecto o la tercera:
-        # si se agendó dos veces, hubo dos llamadas y dos huecos en la semana del closer.
-        # Lo único que no cuenta es la cancelada, que no llegó a pasar. Las segundas se
-        # siguen informando aparte, pero ya no se restan.
-        "agendadas": len(del_mes) - canceladas,
+        # Cada reunión del mes es una agenda, sea la primera del prospecto o la tercera, y
+        # se haya caído o no: si se agendó dos veces hubo dos llamadas y dos huecos en la
+        # semana del closer, y la que se canceló el setter igual la trajo. Nada se resta.
+        # Las segundas y las canceladas se informan aparte porque cambian cómo se lee el
+        # número, no porque no cuenten. Afuera queda solo lo que se descarta a mano.
+        "agendadas": len(del_mes),
         "reprogramadas": reprogramadas,
         "canceladas": canceladas,
         "seguimientos": seguimientos,

@@ -189,7 +189,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
       <div className="kpi-grid">
         <Kpi label="Agendas del mes" valor={mes.agendadas ?? delMes.length}
           nota={notaAgendas || 'la primera de cada prospecto'}
-          onVer={ver('Agendas del mes', 'Todas las reuniones del mes. Las canceladas no entran: no llegaron a pasar.', delMes.filter((l) => l.estado !== 'cancelada'), (l) => (l.estado === 'reprogramada' ? 'reprogramada' : (l.seguimiento ? 'segunda reunión' : (l.origen || l.setter || ''))), 'Detalle')} />
+          onVer={ver('Agendas del mes', 'Todas las reuniones del mes, incluidas las segundas y las que se cancelaron: el setter las trajo igual. Afuera queda solo lo descartado a mano.', delMes, (l) => (l.estado === 'reprogramada' ? 'reprogramada' : l.estado === 'cancelada' ? 'cancelada' : (l.seguimiento ? 'segunda reunión' : (l.origen || l.setter || ''))), 'Detalle')} />
         <Kpi label="Sin cargar" valor={mes.sinReportar ?? 0}
           tono={mes.sinReportar ? 'var(--brand-hi)' : 'var(--ok)'}
           nota="llamadas que ya pasaron sin resultado"
