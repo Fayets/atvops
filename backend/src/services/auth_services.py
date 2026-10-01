@@ -198,6 +198,9 @@ def ensure_reunion_crm_columns() -> None:
         # el equipo: la IA propone y no pisa, así que conviven.
         ("fathom_url", "TEXT"), ("reporte_ia", "TEXT"), ("reporte_mensaje", "TEXT"),
         ("reporte_at", "TIMESTAMP"), ("reporte_enviado_at", "TIMESTAMP"),
+        # El avatar y la objeción que la IA saca de la transcripción, para el reporte
+        # mensual de closing.
+        ("avatar", "TEXT"), ("objecion", "TEXT"), ("analisis_closing", "TEXT"),
     ]
     if ES_POSTGRES:
         import psycopg2

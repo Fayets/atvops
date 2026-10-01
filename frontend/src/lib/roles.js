@@ -72,16 +72,17 @@ export const RUTAS_POR_ROL = {
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
-  operaciones: ['/', '/reporte', '/reporte-producto', '/asistente', '/calendario', '/fulfillment', '/marketing',
+  operaciones: ['/', '/reporte', '/reporte-producto', '/reporte-closing', '/asistente', '/calendario', '/fulfillment', '/marketing',
                 '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
                 '/integraciones', '/claves'],
-  ventas: ['/', '/calendario', '/ventas', '/metas', '/ideas', '/webinars'],
+  ventas: ['/', '/calendario', '/ventas', '/reporte-closing', '/metas', '/ideas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
   marketing: ['/', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
   founder: [
     '/',
     '/reporte',
     '/reporte-producto',
+    '/reporte-closing',
     '/asistente',
     '/calendario',
     '/fulfillment',
@@ -101,6 +102,7 @@ export const RUTAS_POR_ROL = {
     '/',
     '/reporte',
     '/reporte-producto',
+    '/reporte-closing',
     '/asistente',
     '/calendario',
     '/fulfillment',

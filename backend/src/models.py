@@ -322,6 +322,11 @@ class ReunionCrm(db.Entity):
     # Va aparte del resultado que carga el equipo: la IA propone, no pisa. Si el closer
     # ya cargó la llamada, acá queda el reporte al lado para poder compararlos.
     fathom_url = Optional(str, nullable=True)
+    # Lo que la IA saca de la transcripción para el reporte de closing. Va en la reunión
+    # y no en el reporte: son de la llamada, y sirven igual el mes que viene.
+    avatar = Optional(str, nullable=True)
+    objecion = Optional(str, nullable=True)
+    analisis_closing = Optional(LongStr, nullable=True)
     reporte_ia = Optional(LongStr, nullable=True)      # el JSON de campos extraídos
     reporte_mensaje = Optional(LongStr, nullable=True)  # el texto listo para el grupo
     reporte_at = Optional(datetime, nullable=True)
@@ -756,6 +761,26 @@ class ReporteProducto(db.Entity):
     periodo = Required(str, unique=True, index=True)   # YYYY-MM
     # borrador mientras se completa; cerrado cuando se generó el PDF.
     estado = Required(str, default="borrador", index=True)
+    datos = Optional(str, nullable=True)               # JSON con los tres bloques
+    creado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=lambda: datetime.utcnow())
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Optional(datetime, nullable=True)
+
+
+class ReporteClosing(db.Entity):
+    """El reporte mensual de closing, tal como se cerró.
+
+    Igual que el de producto: se guarda entero en vez de recalcularlo. Las conclusiones
+    las escribe una persona y son del mes en que se escribieron.
+    """
+
+    _table_ = _tabla("reportes_closing", "ReporteClosing")
+
+    id = PrimaryKey(int, auto=True)
+    periodo = Required(str, unique=True, index=True)   # YYYY-MM
+    estado = Required(str, default="borrador", index=True)
+    closer = Optional(str, nullable=True)
     datos = Optional(str, nullable=True)               # JSON con los tres bloques
     creado_por = Optional(str, nullable=True)
     creado_at = Required(datetime, default=lambda: datetime.utcnow())

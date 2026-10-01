@@ -7840,6 +7840,59 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-bloque td.cc { color: var(--ok); font-weight: 600; }
 .doc-bloque td.cc .c { color: var(--text-3); font-weight: 400; }
 
+/* ------------------------------------------------- reporte de closing */
+
+.rc-kpis { display: flex; flex-wrap: wrap; gap: 1px; background: var(--border-soft);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm); overflow: hidden; }
+.rc-kpi { background: var(--surface); padding: 11px 14px; flex: 1 1 140px; min-width: 0; }
+.rc-kpi .l { font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-3); font-weight: 500; }
+.rc-kpi .v { font-size: 20px; font-weight: 600; margin-top: 2px; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-kpi .v.ok { color: var(--ok); } .rc-kpi .v.mal { color: var(--alert); }
+.rc-kpi .n { font-size: 10.5px; color: var(--text-3); margin-top: 2px; }
+
+/* Una barra por mes, con un color fijo por estado: así dos meses se comparan de un vistazo. */
+.rc-barra { display: flex; height: 26px; border-radius: 4px; overflow: hidden; margin: 2px 0 10px; }
+.rc-barra > span { display: block; min-width: 2px; }
+.rc-leyenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 4px 18px; }
+.rc-leyenda div { display: flex; align-items: baseline; gap: 7px; font-size: 12px; }
+.rc-leyenda i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.rc-leyenda b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.rc-leyenda .dim { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.rc-lista { display: flex; flex-direction: column; gap: var(--space-3); }
+.rc-llamada { border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  padding: 11px 13px; background: var(--surface); }
+.rc-llamada.listo { background: var(--surface-2); }
+.rc-llamada-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 13px; margin-bottom: 7px; }
+.rc-llamada-top .dim { font-size: 11.5px; }
+.rc-ok { margin-left: auto; font-size: 10.5px; font-weight: 600; color: var(--ok);
+  background: var(--ok-dim); padding: 1px 8px; border-radius: 999px; }
+.rc-llamada textarea { width: 100%; resize: vertical; }
+.rc-llamada-pie { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); margin-top: 8px; font-size: 12px; }
+.rc-analisis p { margin: 0 0 4px; font-size: 12.5px; line-height: 1.5; }
+.rc-et { display: inline-block; min-width: 72px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-3); font-weight: 600; }
+
+.rc-doc h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-3); margin: 16px 0 6px; }
+.rc-aviso { background: var(--warn-dim); border-left: 3px solid var(--warn); border-radius: 0 6px 6px 0;
+  padding: 9px 13px; font-size: 12px; color: var(--text-2); margin: 0 0 10px; }
+.rc-citas { margin: 0; padding-left: 16px; font-size: 12px; color: var(--text-2); line-height: 1.6; }
+.rc-citas b { color: var(--text); }
+.rc-si { color: var(--ok); font-weight: 600; font-size: 10.5px; }
+.rc-no { color: var(--alert); font-weight: 600; font-size: 10.5px; }
+.rc-concl { position: relative; border-left: 3px solid var(--text); padding: 2px 0 2px 14px;
+  margin-bottom: 14px; }
+.rc-concl h4 { margin: 0 0 3px; font-size: 13px; font-weight: 600; }
+.rc-concl p { margin: 0 0 3px; font-size: 12.5px; line-height: 1.55; color: var(--text-2); }
+.rc-concl .fix b { color: var(--brand); }
+.rc-concl input, .rc-concl textarea { width: 100%; margin-bottom: 5px; }
+.rc-concl .rp-sacar { position: absolute; top: 0; right: 0; }
+
 /* El PDF que se le manda a Juan. Objetivo: una sola hoja. Todo lo de acá es para
    ganar alto sin que deje de leerse. */
 @media print {

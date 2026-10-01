@@ -2833,3 +2833,33 @@ export async function anotarClienteReporte(clienteId, texto) {
 export async function buscarClientesReporte(q) {
   return pedir(`/api/reportes-producto/clientes?q=${encodeURIComponent(q)}`);
 }
+
+// ------------------------------------------------------------- reporte de closing
+
+/** El mes entero: métricas, laboratorio y las llamadas con su análisis. */
+export async function getReporteClosing(periodo, closer) {
+  return pedir(`/api/reportes-closing/${periodo}${closer ? `?closer=${encodeURIComponent(closer)}` : ''}`);
+}
+
+/** Los reportes de closing ya armados. */
+export async function getReportesClosing({ refrescar = false } = {}) {
+  return pedir(`/api/reportes-closing${refrescar ? '?refrescar=true' : ''}`);
+}
+
+/** Le pasa una transcripción a la IA y guarda el avatar y la objeción en la llamada. */
+export async function analizarLlamada({ eventoId, prospecto, transcripcion, contexto }) {
+  return pedir('/api/reportes-closing/analizar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventoId, prospecto, transcripcion, contexto }),
+  });
+}
+
+/** Guarda el reporte de closing del mes. */
+export async function guardarReporteClosing(periodo, datos, { closer, cerrar = false } = {}) {
+  return pedir(`/api/reportes-closing/${periodo}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ datos, closer, cerrar }),
+  });
+}

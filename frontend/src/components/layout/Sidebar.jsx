@@ -84,6 +84,8 @@ const NAV = [
     // Los meses no van acá: se ven en el historial, que es donde además traen su cash,
     // sus upsells y quiénes se fueron.
     sub: [{ to: '/reporte-producto/historial', label: 'Historial' }] },
+  { to: '/reporte-closing', icon: 'check', label: 'Reporte de closing', grupo: 'Dirección',
+    roles: ['admin', 'founder', 'operaciones', 'ventas'] },
   { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
   {
