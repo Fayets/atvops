@@ -683,6 +683,25 @@ def _num(v) -> float:
         return 0.0
 
 
+def _clave_lead(nombre: str | None, email: str | None) -> str:
+    """Quién es esta persona, para decidir si una reunión es la primera o un seguimiento.
+
+    El email manda cuando está. En el histórico "Jose" fueron cuatro personas distintas
+    —cuatro mails— y todas sus llamadas quedaban contadas como seguimiento de la primera,
+    así que no sumaban agenda. Lo mismo con "Alejandro" y "Francisco".
+
+    Sin email se usa el nombre, y solo si trae apellido: un nombre de pila suelto no
+    alcanza para afirmar que dos reuniones son de la misma persona. Cuando no se puede
+    decidir se devuelve vacío, y entonces la reunión cuenta como agenda nueva: contar una
+    de más es menos grave que borrarle al setter una agenda que sí trajo.
+    """
+    mail = (email or "").strip().lower()
+    if mail:
+        return f"mail:{mail}"
+    clave = _clave_persona(nombre)
+    return f"nombre:{clave}" if len(clave.split()) >= 2 else ""
+
+
 def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
     """Cuándo fue la primera reunión de cada prospecto, mirando todo el histórico.
 
@@ -702,9 +721,9 @@ def _primera_reunion_de_cada_uno() -> dict[str, datetime]:
 
         with db_session:
             # El registro propio ya guarda la hora de Argentina: no hay que convertir.
-            crudas = [(r.prospecto, r.inicio_at) for r in list(ReunionCrm.select()) if r.inicio_at]
-        for nombre, cuando in crudas:
-            clave = _clave_persona(nombre)
+            crudas = [(r.prospecto, r.email, r.inicio_at) for r in list(ReunionCrm.select()) if r.inicio_at]
+        for nombre, email, cuando in crudas:
+            clave = _clave_lead(nombre, email)
             if clave and (clave not in primeras or cuando < primeras[clave]):
                 primeras[clave] = cuando
     except Exception as e:  # noqa: BLE001
@@ -749,8 +768,10 @@ def _marcar_seguimientos(filas: list[dict]) -> list[dict]:
     primeras = _primera_reunion_de_cada_uno()
     por_persona: dict[str, datetime] = dict(primeras)
     for f in sorted(filas, key=lambda x: x["call"]):
-        clave = _clave_persona(f.get("nombre"))
+        clave = _clave_lead(f.get("nombre"), f.get("email"))
         if not clave:
+            # Sin forma de saber de quién es, cuenta como agenda.
+            f["seguimiento"] = False
             continue
         if f.get("reprogramada"):
             f["seguimiento"] = False
