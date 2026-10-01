@@ -11,7 +11,7 @@ const fecha = (iso) =>
  * @param {{ reunion: object, estado: object, programas: object[], estados: string[],
  *           onGuardado: () => void, onCerrar: () => void, mes?: string }} props
  */
-export default function EditorReunion({ reunion, estado, programas, estados, onGuardado, onCerrar, mes }) {
+export default function EditorReunion({ reunion, estado, programas, estados, equipo, onGuardado, onCerrar, mes }) {
   const [borrando, setBorrando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [error, setError] = useState(null);
@@ -38,6 +38,7 @@ export default function EditorReunion({ reunion, estado, programas, estados, onG
     cashUsd: estado.cashUsd,
     saldoUsd: estado.saldoUsd,
     reporte: estado.reporte,
+    closer: estado.closer || reunion.closer || '',
     eventoId: estado.eventoId || reunion.id,
   };
 
@@ -79,6 +80,7 @@ export default function EditorReunion({ reunion, estado, programas, estados, onG
           llamada={llamada}
           programas={programas}
           estados={estados}
+          equipo={equipo}
           onGuardado={() => { onGuardado(); onCerrar(); }}
           onCerrar={onCerrar}
           mes={mes}

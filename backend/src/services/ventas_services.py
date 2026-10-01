@@ -559,6 +559,9 @@ def estado_de_las_reuniones(desde: date, hasta: date, usuario: dict | None = Non
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         "desde": desde.isoformat(), "hasta": hasta.isoformat(),
         "programas": programas(), "estados": list(ESTADOS_LLAMADA),
+        # Quién puede figurar como closer de una reunión: lo necesita el editor del
+        # calendario para poder decir que la tomó otro.
+        "equipo": equipo_services.nombres(),
         "porEvento": _numerar_agendas(por_evento, manuales),
         "manuales": manuales,
         "ocultos": (eventos_ocultos()
@@ -1620,6 +1623,9 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         "llamadas": llamadas,
         "mes": _metricas_closer(del_mes, ventas),
         "closersDisponibles": disponibles if puede_mirar_otros else [],
+        # Quién puede figurar como closer de una llamada. Va siempre: cuando Cris toma
+        # una call de Nick hay que poder decirlo, o le queda contada a Nick.
+        "equipo": equipo_services.nombres(),
     }
 
 

@@ -29,7 +29,7 @@ const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit
 const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
-export function FormResultado({ llamada, programas, estados, onGuardado, onCerrar, mes, sinLista }) {
+export function FormResultado({ llamada, programas, estados, equipo = [], onGuardado, onCerrar, mes, sinLista }) {
   // El nombre se puede corregir: muchas llamadas llegan con el título del evento de
   // Google ("Ingreso Kariana", "Canceled: Kevin Serna and Aumenta Tu Valor") y así
   // quedan en el registro y en los reportes para siempre.
@@ -38,6 +38,10 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
   const [nota, setNota] = useState(llamada.reporte || '');
+  // Quién la tomó de verdad. Viene con el que ya tenía la llamada, que casi siempre es
+  // el que la agendó; cuando otro la toma hay que poder decirlo, o le queda contada al
+  // primero y le ensucia las métricas a los dos.
+  const [closer, setCloser] = useState(llamada.closer || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
 
@@ -51,7 +55,7 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
       // El saldo no se pide: lo que quedó debiendo se ve en Cobranza, no acá.
       // El evento viaja para dejar atada la reunión a esta llamada del CRM.
       onGuardado(await guardarResultadoLlamada(llamada.id, {
-        resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), nota,
+        resultado, programa, cashUsd: cash === '' ? 0 : Number(cash), nota, closer,
         evento: llamada.eventoId || '', prospecto: prospecto.trim() || llamada.prospecto || '',
       }, mes, { lista: !sinLista }));
     } catch (e) {
@@ -71,6 +75,18 @@ export function FormResultado({ llamada, programas, estados, onGuardado, onCerra
           maxLength={200}
         />
       </label>
+      {equipo.length ? (
+        <label className="campo">
+          <span>Quién la tomó</span>
+          <select value={closer} onChange={(e) => setCloser(e.target.value)}>
+            {!closer || equipo.includes(closer) ? null : <option value={closer}>{closer}</option>}
+            {equipo.map((n2) => <option key={n2} value={n2}>{n2}</option>)}
+          </select>
+          <small className="dim">
+            Las métricas del mes son de quien figure acá. Si la tomó otro, cambialo.
+          </small>
+        </label>
+      ) : null}
       <div className="llamada-estados">
         {estados.map((e) => (
           <button

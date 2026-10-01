@@ -300,6 +300,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
           estado={editando.estado}
           programas={reuniones?.programas ?? []}
           estados={reuniones?.estados ?? []}
+          equipo={data?.equipo ?? reuniones?.equipo ?? []}
           onGuardado={onCargado}
           onCerrar={() => setEditando(null)}
         />

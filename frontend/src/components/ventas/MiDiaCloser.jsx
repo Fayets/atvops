@@ -131,6 +131,7 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
           estado={editando.estado}
           programas={reuniones?.programas ?? []}
           estados={reuniones?.estados ?? []}
+          equipo={data?.equipo ?? reuniones?.equipo ?? []}
           onGuardado={() => { setTick((t) => t + 1); onCambio?.(); }}
           onCerrar={() => setEditando(null)}
         />
