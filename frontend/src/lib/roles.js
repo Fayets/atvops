@@ -65,7 +65,9 @@ export const ROL_LIST = Object.keys(ROLES);
  * @type {Record<Rol, string[]>}
  */
 export const RUTAS_POR_ROL = {
-  closer: ['/ventas', '/metas'],
+  // Las dos pantallas suyas, no el área entera: con '/ventas' a secas podía abrir por
+  // URL los laboratorios y el dashboard del área, que no están en su menú.
+  closer: ['/ventas/mi-dia', '/ventas/llamadas', '/metas'],
   setter: ['/calendario', '/ventas', '/metas'],
   csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
@@ -213,7 +215,12 @@ export function filtrarNav(nav, rol) {
   rol = rolDeVista(rol);
   return nav
     .map((item) => {
-      if (!puedeVerRuta(item.to, rol) && item.to !== '/') return null;
+      // Un ítem con subnav se muestra si el rol puede ver alguno de sus hijos, aunque no
+      // tenga permiso sobre la ruta del padre: el closer entra a /ventas/mi-dia pero no
+      // a /ventas, y sin esto Ventas desaparecía del menú con sus dos pantallas adentro.
+      const porHijos = (item.sub ?? []).some(
+        (h) => (!h.roles || h.roles.includes(rol)) && puedeVerRuta(h.to, rol));
+      if (!puedeVerRuta(item.to, rol) && !porHijos && item.to !== '/') return null;
       if (item.to === '/' && !puedeVerRuta('/', rol)) return null;
       if (item.roles && !item.roles.includes(rol)) return null;
       if (!item.sub) return item;

@@ -71,7 +71,9 @@ const NAV = [
       // los dos laboratorios. Operativa, Performance, Setting y Salud vs meta salieron
       // del menú: sus rutas siguen vivas y su contenido se va a repartir entre los dos
       // laboratorios cuando se definan.
-      { to: '/ventas/lab-setting', label: 'Laboratorio Setting', roles: ['setter', 'closer', 'ventas', 'admin', 'operaciones', 'founder'] },
+      // El closer no entra acá: el laboratorio de setting es de Cris y del área. Tenerlo
+      // en su menú era un copiar y pegar de la línea de abajo.
+      { to: '/ventas/lab-setting', label: 'Laboratorio Setting', roles: ['setter', 'ventas', 'admin', 'operaciones', 'founder'] },
       { to: '/ventas/lab-closing', label: 'Laboratorio Closing', roles: ['ventas', 'admin', 'operaciones', 'founder'] },
     ],
   },
