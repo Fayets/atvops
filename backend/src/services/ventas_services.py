@@ -1059,6 +1059,18 @@ def _saldo(lead: dict) -> float:
     return max(precio - _num(lead.get("pago")), 0.0)
 
 
+def _saldo_finito(lead: dict) -> float:
+    """El saldo para mostrar: derivado del precio del programa, nunca infinito.
+
+    `saldo_usd` existe en la fila pero el formulario no lo escribe, así que leerlo crudo
+    deja en cero casi todas las ventas. En el reporte de closing eso daba 8 PIF de 9
+    cierres cuando el único que había pagado todo era uno: el resto debía la mitad o más
+    del programa. Con el precio a la vista la cuenta se hace sola.
+    """
+    s = _saldo(lead)
+    return 0.0 if s == float("inf") or s != s else round(s, 2)
+
+
 def _precio_programa(nombre) -> float | None:
     n = _norm(str(nombre or ""))
     if not n:
@@ -1626,7 +1638,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "eventoId": l.get("eventoId") or "",
             "programa": programa,
             "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
-            "cashUsd": _num(l["pago"]), "saldoUsd": _num(l["debe"]),
+            "cashUsd": _num(l["pago"]), "saldoUsd": _saldo_finito(l),
             "notas": (l["notas"] or "").strip(), "reporte": (l["closer_report"] or "").strip(),
             "grabacion": (l["link_llamada"] or "").strip(),
             "pasada": l["call"] <= ahora,

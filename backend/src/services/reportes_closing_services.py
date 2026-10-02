@@ -96,9 +96,12 @@ def metricas(datos: dict) -> dict:
 
     cierres = [l for l in llamadas if _estado_oficial(l.get("resultado")) == "Cerrado"]
     senas = [l for l in llamadas if _estado_oficial(l.get("resultado")) == "Seña"]
-    # PIF: un cierre sin saldo. Las señas quedan afuera porque por definición deben plata,
-    # y contarlas como PIF —hoy casi todas tienen el saldo en cero— infla la tasa.
-    pif = [l for l in cierres if not float(l.get("saldoUsd") or 0)]
+    # PIF: un cierre que pagó el programa entero. El saldo ya viene derivado del precio
+    # —el campo crudo lo llena casi nadie— y además se pide que haya programa cargado: sin
+    # precio no hay nada contra qué comparar y afirmar que pagó todo sería inventarlo.
+    # Las señas quedan afuera: por definición deben plata.
+    pif = [l for l in cierres
+           if (l.get("programa") or "").strip() and not float(l.get("saldoUsd") or 0)]
     total, shows = len(llamadas), int(base.get("shows") or 0)
 
     def tasa(parte: int, sobre: int) -> float | None:
