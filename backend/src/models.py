@@ -768,6 +768,26 @@ class ReporteProducto(db.Entity):
     actualizado_at = Optional(datetime, nullable=True)
 
 
+class ReporteSetting(db.Entity):
+    """El reporte mensual de setting, tal como se cerró.
+
+    Mismo molde que el de closing: se guarda entero en vez de recalcularlo, porque las
+    conclusiones las escribe una persona y son del mes en que se escribieron.
+    """
+
+    _table_ = _tabla("reportes_setting", "ReporteSetting")
+
+    id = PrimaryKey(int, auto=True)
+    periodo = Required(str, unique=True, index=True)   # YYYY-MM
+    estado = Required(str, default="borrador", index=True)
+    setter = Optional(str, nullable=True)
+    datos = Optional(str, nullable=True)               # JSON con los tres bloques
+    creado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=lambda: datetime.utcnow())
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Optional(datetime, nullable=True)
+
+
 class ReporteClosing(db.Entity):
     """El reporte mensual de closing, tal como se cerró.
 

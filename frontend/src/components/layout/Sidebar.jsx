@@ -86,6 +86,8 @@ const NAV = [
     sub: [{ to: '/reporte-producto/historial', label: 'Historial' }] },
   { to: '/reporte-closing', icon: 'check', label: 'Reporte de closing', grupo: 'Dirección',
     roles: ['admin', 'founder', 'operaciones', 'ventas'] },
+  { to: '/reporte-setting', icon: 'check', label: 'Reporte de setting', grupo: 'Dirección',
+    roles: ['admin', 'founder', 'operaciones', 'ventas'] },
   { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
   {

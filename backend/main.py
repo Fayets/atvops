@@ -24,6 +24,7 @@ from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.webinars_controller import router as webinars_router
 from src.controllers.reportes_producto_controller import router as reportes_producto_router
 from src.controllers.reportes_closing_controller import router as reportes_closing_router
+from src.controllers.reportes_setting_controller import router as reportes_setting_router
 from src.controllers.integraciones_controller import router as integraciones_router
 from src.controllers.track_controller import router as track_router
 from src.controllers.integrantes_controller import router as integrantes_router
@@ -149,6 +150,7 @@ app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(webinars_router, prefix="/api/webinars", tags=["webinars"])
 app.include_router(reportes_producto_router, prefix="/api/reportes-producto", tags=["reportes"])
 app.include_router(reportes_closing_router, prefix="/api/reportes-closing", tags=["reportes"])
+app.include_router(reportes_setting_router, prefix="/api/reportes-setting", tags=["reportes"])
 app.include_router(integraciones_router, prefix="/api/integraciones", tags=["integraciones"])
 # Las credenciales de las plataformas. Solo dirección, y nunca devuelve un secreto entero.
 app.include_router(claves_router, prefix="/api/claves", tags=["claves"])

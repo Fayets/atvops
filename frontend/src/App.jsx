@@ -19,6 +19,7 @@ import Sistemas from './pages/Sistemas.jsx';
 import Metas from './pages/Metas.jsx';
 import HistorialProducto from './pages/HistorialProducto.jsx';
 import ReporteClosing from './pages/ReporteClosing.jsx';
+import ReporteSetting from './pages/ReporteSetting.jsx';
 import ReporteProducto from './pages/ReporteProducto.jsx';
 import ReporteSemanal from './pages/ReporteSemanal.jsx';
 import VentasCloser from './pages/VentasCloser.jsx';
@@ -150,6 +151,7 @@ export default function App() {
             <Route path="reporte-producto" element={<ReporteProducto />} />
             <Route path="reporte-producto/historial" element={<HistorialProducto />} />
             <Route path="reporte-closing" element={<ReporteClosing />} />
+            <Route path="reporte-setting" element={<ReporteSetting />} />
 
             <Route path="fulfillment">
               <Route index element={<FulfillmentIndex />} />

@@ -23,6 +23,7 @@ const TITULOS = {
   '/ventas/lab-setting': 'Ventas · Laboratorio Setting',
   '/ventas/lab-closing': 'Ventas · Laboratorio Closing',
   '/reporte': 'Reporte semanal',
+  '/reporte-setting': 'Reporte de setting',
   '/ventas/llamadas': 'Ventas · Llamadas',
   '/ventas/mi-dia': 'Ventas · Mi día',
   '/ventas/mi-progreso': 'Ventas',

@@ -2863,3 +2863,24 @@ export async function guardarReporteClosing(periodo, datos, { closer, cerrar = f
     body: JSON.stringify({ datos, closer, cerrar }),
   });
 }
+
+// ---------------------------------------------------------------- reporte de setting
+
+/** El reporte de setting de un mes: métricas, laboratorio y los pitches que lo componen. */
+export async function getReporteSetting(periodo, setter) {
+  return pedir(`/api/reportes-setting/${periodo}${setter ? `?setter=${encodeURIComponent(setter)}` : ''}`);
+}
+
+/** Los reportes de setting ya armados. */
+export async function getReportesSetting({ refrescar = false } = {}) {
+  return pedir(`/api/reportes-setting${refrescar ? '?refrescar=true' : ''}`);
+}
+
+/** Guarda el reporte del mes. `cerrar` lo marca como el que se entregó. */
+export async function guardarReporteSetting(periodo, datos, { setter, cerrar = false } = {}) {
+  return pedir(`/api/reportes-setting/${periodo}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ datos, setter, cerrar }),
+  });
+}
