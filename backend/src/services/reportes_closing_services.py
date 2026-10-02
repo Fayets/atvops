@@ -67,6 +67,12 @@ def _estado_oficial(resultado: str | None) -> str | None:
     return resultado.strip()
 
 
+# Cómo se ordena la barra "Cómo salieron": del mejor desenlace al peor.
+_ORDEN_ESTADO = {e: i for i, e in enumerate(
+    ["Cerrado", "Seña", "Seguimiento", "Lo voy a pensar", "No tiene la plata",
+     "Descalificado", "No show", "No contesta", "Cancelada", "Re-agenda"])}
+
+
 def _del_mes(datos: dict) -> list[dict]:
     """Las llamadas que cuentan para el mes: las descartadas no existen acá.
 
@@ -96,11 +102,15 @@ def metricas(datos: dict) -> dict:
 
     cierres = [l for l in llamadas if _estado_oficial(l.get("resultado")) == "Cerrado"]
     senas = [l for l in llamadas if _estado_oficial(l.get("resultado")) == "Seña"]
-    # PIF: un cierre que pagó el programa entero. El saldo ya viene derivado del precio
+    # PIF: una venta que pagó el programa entero. El saldo ya viene derivado del precio
     # —el campo crudo lo llena casi nadie— y además se pide que haya programa cargado: sin
     # precio no hay nada contra qué comparar y afirmar que pagó todo sería inventarlo.
-    # Las señas quedan afuera: por definición deben plata.
-    pif = [l for l in cierres
+    #
+    # Se mide sobre TODAS las ventas del mes, cierres y señas: la pregunta es cuánta de la
+    # plata del mes entró completa, y una seña es plata que entró a medias. Dividir solo
+    # por los cierres dejaba la mitad de las ventas fuera de la cuenta.
+    ventas = cierres + senas
+    pif = [l for l in ventas
            if (l.get("programa") or "").strip() and not float(l.get("saldoUsd") or 0)]
     total, shows = len(llamadas), int(base.get("shows") or 0)
 
@@ -113,11 +123,16 @@ def metricas(datos: dict) -> dict:
         # Si entran las señas pendientes, a cuánto llegaría el close rate.
         "closeRateConSenas": tasa(len(cierres) + len(senas), shows),
         "pif": len(pif),
-        "pifRate": tasa(len(pif), len(cierres)),
+        "pifSobre": len(ventas),
+        "pifRate": tasa(len(pif), len(ventas)),
         "senasCashUsd": round(sum(float(l.get("cashUsd") or 0) for l in senas), 2),
         "senasSaldoUsd": round(sum(float(l.get("saldoUsd") or 0) for l in senas), 2),
+        # Orden fijo, del mejor desenlace al peor, no por tamaño: así la barra se lee
+        # siempre igual de un mes al otro y se ve de un vistazo dónde se cae la llamada.
         "porEstado": [{"estado": e, "n": n, "pct": round(n * 100 / total, 1) if total else 0}
-                      for e, n in sorted(por_estado.items(), key=lambda x: -x[1])],
+                      for e, n in sorted(por_estado.items(),
+                                         key=lambda x: (_ORDEN_ESTADO.get(x[0], len(_ORDEN_ESTADO)),
+                                                        -x[1]))],
     }
 
 

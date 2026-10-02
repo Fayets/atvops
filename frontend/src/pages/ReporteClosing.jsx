@@ -230,8 +230,8 @@ export default function ReporteClosing() {
                 onVer={ver('Cash collected', 'Lo que efectivamente pagó cada uno, cierres y señas.', ventas, dinero, 'Cash')} />
               <Kpi l="AOV" v={usd(m.aovUsd)} n={`${usd(m.facturacionUsd)} facturados`}
                 onVer={ver('AOV', 'La facturación dividida por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', cierres, (l) => `${l.programa || 'sin programa'} · ${usd(l.facturacionUsd)}`, 'Programa')} />
-              <Kpi l="PIF" v={`${m.pif ?? 0} de ${m.cierres ?? 0}`} n={`${pct(m.pifRate)} de los cierres sin saldo`}
-                onVer={ver('PIF', 'Los cierres que quedaron sin saldo. Las señas no entran: por definición deben plata.', cierres, (l) => (Number(l.saldoUsd) ? `debe ${usd(l.saldoUsd)}` : 'pagado'), 'Saldo')} />
+              <Kpi l="PIF" v={`${m.pif ?? 0} de ${m.pifSobre ?? ventas.length}`} n={`${pct(m.pifRate)} de las ventas sin saldo`}
+                onVer={ver('PIF', 'Las ventas del mes que pagaron el programa entero, cierres y señas: la pregunta es cuánta de la plata entró completa.', ventas, (l) => (Number(l.saldoUsd) ? `debe ${usd(l.saldoUsd)}` : 'pagado'), 'Saldo')} />
             </div>
           </Card>
 
