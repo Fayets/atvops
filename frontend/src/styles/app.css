@@ -5402,11 +5402,17 @@ button.lista-item:hover { background: var(--surface-2); }
 .cal-otro-mes-chip:hover { background: var(--surface-2); }
 .cal-otro-mes-chip .dim { font-size: 10.5px; }
 .cal-otro-mes-cash { color: var(--ok); font-variant-numeric: tabular-nums; font-weight: 600; }
-.ventas-cal-ev.de-otro-mes { border: 1px dashed var(--ok); background: var(--surface);
-  cursor: pointer; opacity: .92; }
+/* Con fondo blanco como las demás se leía como una reunión más y había que fijarse en
+   el punteado para notar la diferencia. El fondo tintado la saca del flujo de un vistazo:
+   lo que hay ahí no es una llamada, es plata que entró, y por eso el tinte es el verde
+   que en todo el tablero significa justamente eso. */
+.ventas-cal-ev.de-otro-mes { border: 1px dashed var(--ok); border-left: 1px dashed var(--ok);
+  background: var(--ok-dim); cursor: pointer; }
+.ventas-cal-ev.de-otro-mes:hover { background: rgba(21, 128, 61, 0.15); border-color: var(--ok); }
 .ventas-cal-ev.de-otro-mes .hora { color: var(--ok); text-transform: uppercase;
-  letter-spacing: .05em; font-size: 9.5px; }
-.ventas-cal-ev.de-otro-mes .meta { font-style: italic; }
+  letter-spacing: .06em; font-size: 9.5px; font-weight: 600; }
+.ventas-cal-ev.de-otro-mes .who { color: var(--text); }
+.ventas-cal-ev.de-otro-mes .meta { font-style: italic; color: var(--ok); }
 .ventas-cal-ev.de-otro-mes.chico .meta { display: none; }
 
 /* Cerrar una seña: un bloque propio arriba del formulario, porque no es corregir cómo
