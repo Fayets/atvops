@@ -7714,6 +7714,7 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .rp-resp { width: 92px; }
 .rp-resp.grande { width: 140px; }
 
+.rp-pie-botones { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .rp-pie { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
   flex-wrap: wrap; margin-top: var(--space-4); }
 

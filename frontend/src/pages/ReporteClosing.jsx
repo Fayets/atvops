@@ -255,9 +255,14 @@ export default function ReporteClosing() {
             <span className="dim">
               {lab.analizadas ?? 0} de {lab.total ?? 0} llamadas tienen transcripción analizada
             </span>
-            <button type="button" className="btn" onClick={() => { guardar(); setPaso(2); }}>
-              Seguir con las transcripciones →
-            </button>
+            <div className="rp-pie-botones">
+              <button type="button" className="btn ghost" onClick={() => { guardar(); setPaso(3); }}>
+                Ir directo al reporte
+              </button>
+              <button type="button" className="btn" onClick={() => { guardar(); setPaso(2); }}>
+                Seguir con las transcripciones →
+              </button>
+            </div>
           </div>
         </>
       ) : null}
@@ -275,6 +280,21 @@ export default function ReporteClosing() {
             ))}
           </div>
         </Card>
+      ) : null}
+
+      {paso === 2 ? (
+        /* El reporte sale igual sin transcripciones: las de Fathom se cargan a mano una
+           por una y pedirlas para avanzar dejaba el mes entero sin poder mandarse. */
+        <div className="rp-pie">
+          <span className="dim">
+            {(lab.analizadas ?? 0) === 0
+              ? 'Sin transcripciones cargadas, el reporte sale solo con los números.'
+              : `${lab.analizadas} de ${lab.total} llamadas analizadas`}
+          </span>
+          <button type="button" className="btn" onClick={() => { guardar(); setPaso(3); }}>
+            Armar el reporte →
+          </button>
+        </div>
       ) : null}
 
       {detalle ? <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} /> : null}
@@ -345,6 +365,9 @@ function Documento({ periodo, closer, m, lab, conclusiones, setConclusiones,
           </div>
         </section>
 
+        {/* Sin una sola transcripción analizada el bloque son dos tablas vacías diciendo
+            que no hay nada: el reporte sale mejor sin él, solo con los números. */}
+        {(lab.analizadas ?? 0) > 0 ? (
         <section className="doc-bloque">
           <h2>Laboratorio de closing
             <span>{lab.analizadas ?? 0} de {lab.total ?? 0} llamadas · {lab.cobertura ?? 0}%</span></h2>
@@ -415,6 +438,7 @@ function Documento({ periodo, closer, m, lab, conclusiones, setConclusiones,
             </>
           ) : null}
         </section>
+        ) : null}
 
         <section className="doc-bloque">
           <h2>Conclusiones<span>para ejecutar el mes que viene</span></h2>
