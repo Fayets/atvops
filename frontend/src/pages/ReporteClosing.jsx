@@ -24,6 +24,13 @@ const usd = (n) => `US$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
 const pct = (n) => (n == null ? '—' : `${n}%`);
 const corta = (iso) => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '—');
 
+// En la base conviven 'Cerrado' y 'cerrado': comparar la forma exacta dejaba los cuatro
+// números de plata en cero. Viven acá arriba porque el documento también los usa.
+const res = (l) => (l.resultado || '').trim().toLowerCase();
+const esCierre = (l) => res(l) === 'cerrado';
+const esSena = (l) => ['seña', 'sena'].includes(res(l));
+const esVenta = (l) => esCierre(l) || esSena(l);
+
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
   'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const etiquetaMes = (p) => {
@@ -136,12 +143,6 @@ export default function ReporteClosing() {
 
   // Cada número se puede abrir y ver de qué llamadas sale. Los conjuntos son los mismos
   // que usa el cálculo: si una llamada no está acá, tampoco contó.
-  // El resultado se compara normalizado: en la base conviven 'Cerrado' y 'cerrado',
-  // y comparar la forma exacta dejaba los cuatro números de plata en cero.
-  const res = (l) => (l.resultado || '').trim().toLowerCase();
-  const esCierre = (l) => res(l) === 'cerrado';
-  const esSena = (l) => ['seña', 'sena'].includes(res(l));
-  const esVenta = (l) => esCierre(l) || esSena(l);
   const shows = llamadas.filter((l) => l.estado === 'show' || l.estado === 'cierre');
   const caidas = llamadas.filter((l) => l.estado === 'no_show');
   const ventas = llamadas.filter(esVenta);
@@ -300,7 +301,7 @@ export default function ReporteClosing() {
       {detalle ? <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} /> : null}
 
       {paso === 3 ? (
-        <Documento periodo={periodo} closer={data?.closer} m={m} lab={lab}
+        <Documento periodo={periodo} closer={data?.closer} m={m} lab={lab} llamadas={llamadas}
           conclusiones={conclusiones} setConclusiones={setConclusiones}
           onGuardar={() => guardar()} onCerrar={() => guardar(true)} guardando={guardando} />
       ) : null}
@@ -322,12 +323,20 @@ function Kpi({ l, v, n, tono, onVer }) {
 }
 
 /** El reporte tal como sale impreso. Lo mismo en pantalla y en el PDF. */
-function Documento({ periodo, closer, m, lab, conclusiones, setConclusiones,
+function Documento({ periodo, closer, m, lab, llamadas = [], conclusiones, setConclusiones,
                      onGuardar, onCerrar, guardando }) {
   const [editando, setEditando] = useState(false);
 
   const cambiar = (i, campo, valor) =>
     setConclusiones(conclusiones.map((c, j) => (j === i ? { ...c, [campo]: valor } : c)));
+
+  // La hoja 1 lista las llamadas del mes en el mismo orden en que pasaron. La hoja 2 se
+  // queda con las que dejaron algo escrito —la nota del closer o lo que sacó la IA de la
+  // transcripción—, que es lo único que se puede leer llamada por llamada.
+  const delMes = [...llamadas]
+    .filter((l) => l.estado !== 'descartada' && l.estado !== 'duplicada')
+    .sort((a2, b2) => (a2.fechaAt || '').localeCompare(b2.fechaAt || ''));
+  const conLetra = delMes.filter((l) => (l.reporte || '').trim() || l.analisis);
 
   return (
     <>
@@ -363,6 +372,20 @@ function Documento({ periodo, closer, m, lab, conclusiones, setConclusiones,
               </div>
             ))}
           </div>
+
+          {/* Las llamadas del mes en la misma hoja que los números: quién fue, qué día y
+              cómo salió. En tres columnas entran las sesenta y pico sin pasar de hoja, y
+              con el mismo orden en que pasaron se lee el mes de corrido. */}
+          <h3>Las llamadas del mes</h3>
+          <ol className="doc-llamadas">
+            {delMes.map((l) => (
+              <li key={l.eventoId || l.id} className={esVenta(l) ? 'vendio' : ''}>
+                <span className="d">{corta(l.fechaAt)}</span>
+                <span className="q">{l.prospecto}</span>
+                <span className="e">{(l.resultado || 'sin cargar').toLowerCase()}</span>
+              </li>
+            ))}
+          </ol>
         </section>
 
         {/* Sin una sola transcripción analizada el bloque son dos tablas vacías diciendo
@@ -438,6 +461,36 @@ function Documento({ periodo, closer, m, lab, conclusiones, setConclusiones,
             </>
           ) : null}
         </section>
+        ) : null}
+
+        {/* Hoja 2. Arranca en hoja nueva y no al hilo de la primera: son los apuntes
+            llamada por llamada, y mezclarlos con los números los deja en el margen de
+            una hoja que ya está llena. */}
+        {conLetra.length ? (
+          <section className="doc-bloque doc-hoja">
+            <h2>Llamada por llamada
+              <span>{conLetra.length} de {delMes.length} dejaron algo escrito</span></h2>
+            {conLetra.map((l) => (
+              <article key={l.eventoId || l.id} className="doc-nota-llamada">
+                <div className="cab">
+                  <b>{l.prospecto}</b>
+                  <span className="dim">{corta(l.fechaAt)}</span>
+                  <span className={`est ${esVenta(l) ? 'ok' : ''}`}>
+                    {(l.resultado || 'sin cargar').toLowerCase()}
+                  </span>
+                  {esVenta(l) && l.cashUsd ? <span className="plata">{usd(l.cashUsd)}</span> : null}
+                </div>
+                {(l.reporte || '').trim() ? <p>{l.reporte}</p> : null}
+                {l.analisis?.objecion || l.analisis?.avatar ? (
+                  <p className="ia">
+                    {l.analisis.avatar ? <><span className="rc-et">Avatar</span> {l.analisis.avatar}{' '}</> : null}
+                    {l.analisis.objecion ? <><span className="rc-et">Objeción</span> {l.analisis.objecion}
+                      {l.analisis.momento ? ` · en el ${l.analisis.momento}` : ''}</> : null}
+                  </p>
+                ) : null}
+              </article>
+            ))}
+          </section>
         ) : null}
 
         <section className="doc-bloque">
