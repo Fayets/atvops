@@ -330,13 +330,12 @@ function Documento({ periodo, closer, m, lab, llamadas = [], conclusiones, setCo
   const cambiar = (i, campo, valor) =>
     setConclusiones(conclusiones.map((c, j) => (j === i ? { ...c, [campo]: valor } : c)));
 
-  // La hoja 1 lista las llamadas del mes en el mismo orden en que pasaron. La hoja 2 se
-  // queda con las que dejaron algo escrito —la nota del closer o lo que sacó la IA de la
-  // transcripción—, que es lo único que se puede leer llamada por llamada.
+  // Las llamadas del mes, en el orden en que pasaron: van listadas en la misma hoja que
+  // los números. Las notas que el closer carga en cada una no salen en el reporte —son
+  // su apunte de trabajo, no algo que dirección lea mes a mes— y se leen en la llamada.
   const delMes = [...llamadas]
     .filter((l) => l.estado !== 'descartada' && l.estado !== 'duplicada')
     .sort((a2, b2) => (a2.fechaAt || '').localeCompare(b2.fechaAt || ''));
-  const conLetra = delMes.filter((l) => (l.reporte || '').trim() || l.analisis);
 
   return (
     <>
@@ -461,36 +460,6 @@ function Documento({ periodo, closer, m, lab, llamadas = [], conclusiones, setCo
             </>
           ) : null}
         </section>
-        ) : null}
-
-        {/* Hoja 2. Arranca en hoja nueva y no al hilo de la primera: son los apuntes
-            llamada por llamada, y mezclarlos con los números los deja en el margen de
-            una hoja que ya está llena. */}
-        {conLetra.length ? (
-          <section className="doc-bloque doc-hoja">
-            <h2>Llamada por llamada
-              <span>{conLetra.length} de {delMes.length} dejaron algo escrito</span></h2>
-            {conLetra.map((l) => (
-              <article key={l.eventoId || l.id} className="doc-nota-llamada">
-                <div className="cab">
-                  <b>{l.prospecto}</b>
-                  <span className="dim">{corta(l.fechaAt)}</span>
-                  <span className={`est ${esVenta(l) ? 'ok' : ''}`}>
-                    {(l.resultado || 'sin cargar').toLowerCase()}
-                  </span>
-                  {esVenta(l) && l.cashUsd ? <span className="plata">{usd(l.cashUsd)}</span> : null}
-                </div>
-                {(l.reporte || '').trim() ? <p>{l.reporte}</p> : null}
-                {l.analisis?.objecion || l.analisis?.avatar ? (
-                  <p className="ia">
-                    {l.analisis.avatar ? <><span className="rc-et">Avatar</span> {l.analisis.avatar}{' '}</> : null}
-                    {l.analisis.objecion ? <><span className="rc-et">Objeción</span> {l.analisis.objecion}
-                      {l.analisis.momento ? ` · en el ${l.analisis.momento}` : ''}</> : null}
-                  </p>
-                ) : null}
-              </article>
-            ))}
-          </section>
         ) : null}
 
         <section className="doc-bloque">
