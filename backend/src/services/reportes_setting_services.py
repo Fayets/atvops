@@ -5,18 +5,15 @@ Tres bloques fijos, mismo molde que el de closing: las métricas del mes, el lab
 —de dónde salieron los pitches y cuáles convirtieron— y las conclusiones para el mes
 que viene.
 
-Los pitches salen de `setting_services.listar()`, el mismo origen que la pantalla del
-setter. Las cuentas del reporte se hacen acá sobre esa lista, con las mismas definiciones
+El embudo arranca en el chat. Los chats del mes salen de marketing —los reels y los
+videos que alguien marcó como que suman chats— y de ahí en adelante son los pitches del
+setter, que salen de `setting_services.listar()`, el mismo origen que su pantalla. Las cuentas del reporte se hacen acá sobre esa lista, con las mismas definiciones
 de estado: lo que el reporte agrega es la lectura de embudo sobre un solo denominador —de
 cien links mandados, cuántos agendaron y cuántos terminaron en venta—, que encadenando
 tasas de bases distintas no se responde.
 
 Qué pidió dirección y todavía no se puede sostener con la base, para que no se busque:
 
-- **Chats abiertos y la tasa de chat a pitch.** No hay una fuente única del total de
-  chats del mes: lo que existe son conteos sueltos marcados a mano por publicación
-  (`reels_suma_chats`, `videos_suma_chats`, `secuencias_cta`). El día que ese total viva
-  en un lado, el embudo arranca un escalón antes.
 - **Tiempo de respuesta en WhatsApp.** No se guarda la hora de ningún mensaje.
 - **Horarios de mayor engagement.** `pitch_at` es una fecha sin hora.
 - **Avatares y objeciones del chat.** El pitch no tiene campo de avatar, y `nota` está
@@ -35,7 +32,7 @@ from __future__ import annotations
 import json
 import logging
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException
 
@@ -74,6 +71,32 @@ def _rango(periodo: str) -> tuple[str, str]:
     return f"{periodo}-01", f"{periodo}-{monthrange(anio, mes)[1]:02d}"
 
 
+def chats_del_mes(periodo: str) -> dict:
+    """Los chats del mes, pedidos a quien ya sabe contarlos.
+
+    No se recalculan acá. `conversaciones_services.chats()` es el único lugar que suma las
+    tres puertas —respuestas a historias con CTA, reels y YouTube marcados a mano, y lo
+    que entra por otro canal— y es el mismo número que muestran Marketing y el embudo de
+    Ventas. Escribir una segunda cuenta era exactamente lo que pasó la primera vez: miré
+    solo los reels y los videos, dejé afuera las historias, y el mes daba 507 en vez de
+    2.715.
+    """
+    from calendar import monthrange
+
+    from src.services import conversaciones_services
+
+    anio, mes = (int(x) for x in periodo.split("-"))
+    desde = date(anio, mes, 1)
+    hasta = date(anio, mes, monthrange(anio, mes)[1]) + timedelta(days=1)
+    try:
+        d = conversaciones_services.chats(desde, hasta)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los chats del mes: %s", str(e)[:160])
+        return {"total": 0, "partes": [], "hay": False}
+    total = int(d.get("total") or 0)
+    return {"total": total, "partes": d.get("partes") or [], "hay": total > 0}
+
+
 def _tasa(parte: int, sobre: int) -> float | None:
     return round(parte * 100 / sobre, 1) if sobre else None
 
@@ -87,7 +110,7 @@ def _del_mes(pitches: list[dict], desde: str, hasta: str) -> list[dict]:
     return [p for p in pitches if p.get("pitchAt") and desde <= p["pitchAt"] <= hasta]
 
 
-def metricas(pitches: list[dict]) -> dict:
+def metricas(pitches: list[dict], chats: dict | None = None) -> dict:
     """El bloque 1: el mes en números.
 
     Se calcula todo acá sobre los pitches del mes, en vez de arrastrar el bloque entero
@@ -119,7 +142,17 @@ def metricas(pitches: list[dict]) -> dict:
                                    key=lambda x: (orden.index(x[0]) if x[0] in orden else len(orden),
                                                   -x[1]))]
 
+    chats = chats or {"total": 0, "hay": False}
     return {
+        # El escalón que viene antes del setter: lo que el contenido trajo. Sin él el
+        # embudo arranca en el pitch y la primera pregunta —de cada cien que escriben,
+        # cuántos reciben el link— no se puede responder.
+        "chatsDelMes": chats.get("total") or 0,
+        # El reparto por puerta: un mes puede ser bueno por historias y malo por reels, y
+        # eso es justamente la decisión que hay que tomar.
+        "chatsPartes": chats.get("partes") or [],
+        "hayChats": bool(chats.get("hay")),
+        "chatAPitch": _tasa(total, chats.get("total") or 0) if chats.get("hay") else None,
         "pitchesDelMes": total,
         "agendasDelMes": agendas,
         "cerraronDelMes": cerraron,
@@ -212,7 +245,7 @@ def armar(periodo: str, setter: str | None, usuario: dict) -> dict:
         "periodo": periodo,
         "setter": setter or (quienes[0] if len(quienes) == 1 else None),
         "settersDisponibles": quienes,
-        "metricas": metricas(pitches),
+        "metricas": metricas(pitches, chats_del_mes(periodo)),
         "laboratorio": laboratorio(pitches),
         "pitches": sorted(pitches, key=lambda p: p.get("pitchAt") or "", reverse=True),
         "guardado": obtener(periodo),

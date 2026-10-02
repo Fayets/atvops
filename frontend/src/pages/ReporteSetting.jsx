@@ -143,7 +143,15 @@ export default function ReporteSetting() {
           <Card title="El mes en números"
             foot="Son los mismos pitches que carga el setter en Mi setting: el reporte no los recalcula.">
             <div className="rc-kpis">
-              <Kpi l="Pitches del mes" v={m.pitchesDelMes ?? 0} n="links de agenda mandados"
+              {/* El escalón que viene antes del setter. El número es el mismo que ve
+                  Marketing: lo cuenta `conversaciones_services.chats()` y nadie más. */}
+              {m.hayChats ? (
+                <Kpi l="Chats" v={(m.chatsDelMes ?? 0).toLocaleString('es-AR')}
+                  n={(m.chatsPartes ?? []).filter((x) => x.cuantos > 0)
+                    .map((x) => `${x.fuente.toLowerCase()} ${x.cuantos.toLocaleString('es-AR')}`).join(' · ')} />
+              ) : null}
+              <Kpi l="Pitches del mes" v={m.pitchesDelMes ?? 0}
+                n={m.chatAPitch != null ? `${pct(m.chatAPitch)} de los chats` : 'links de agenda mandados'}
                 onVer={ver('Pitches del mes', 'Todos los links de agenda que se mandaron en el mes. El corte es el día que se mandó el link, no el día de la llamada.', pitches, elCanal, 'Canal · origen')} />
               <Kpi l="Pitch → agenda" v={pct(m.pitchAAgenda)} tono="ok"
                 n={`${m.agendasDelMes ?? 0} agendaron`}
@@ -247,13 +255,30 @@ function Documento({ periodo, setter, m, lab, conclusiones, setConclusiones,
         </header>
 
         <section className="doc-bloque">
-          <h2>El mes en números<span>sobre los links de agenda mandados</span></h2>
+          <h2>El mes en números</h2>
           <div className="doc-resumen">
+            {m.hayChats ? (
+              <div><div className="l">Chats</div>
+                <div className="v">{(m.chatsDelMes ?? 0).toLocaleString('es-AR')}</div></div>
+            ) : null}
+            {m.chatAPitch != null ? (
+              <div><div className="l">Chat → pitch</div>
+                <div className="v">{pct(m.chatAPitch)}</div></div>
+            ) : null}
             <div><div className="l">Pitches</div><div className="v">{m.pitchesDelMes ?? 0}</div></div>
             <div><div className="l">Pitch → agenda</div><div className="v ok">{pct(m.pitchAAgenda)}</div></div>
             <div><div className="l">Agenda → cierre</div><div className="v">{pct(m.agendaACierre)}</div></div>
             <div><div className="l">Pitch → cierre</div><div className="v ok">{pct(m.pitchACierre)}</div></div>
           </div>
+
+          {m.hayChats ? (
+            <p className="dim" style={{ margin: '8px 0 0', fontSize: 11.5 }}>
+              Los chats salen de Marketing, por las mismas tres puertas que muestra ahí:{' '}
+              {(m.chatsPartes ?? []).filter((x) => x.cuantos > 0)
+                .map((x) => `${x.fuente.toLowerCase()} ${x.cuantos.toLocaleString('es-AR')}`)
+                .join(' · ')}.
+            </p>
+          ) : null}
 
           <h3>Cómo salió el pitch</h3>
           <table>
@@ -315,13 +340,6 @@ function Documento({ periodo, setter, m, lab, conclusiones, setConclusiones,
             <div><div className="l">Reprogramaciones</div><div className="v">{v.reprogramaciones ?? 0}</div></div>
           </div>
 
-          {/* Lo que el reporte todavía no puede responder, dicho en el reporte: callarlo
-              hace que el que lo lee crea que esos números no existen porque son cero. */}
-          {(lab.faltan ?? []).length ? (
-            <p className="rc-aviso">
-              Fuera de este bloque por ahora: {lab.faltan.join(' ')}
-            </p>
-          ) : null}
         </section>
 
         <section className="doc-bloque">
