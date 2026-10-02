@@ -350,7 +350,7 @@ function Documento({ periodo, closer, m, lab, llamadas = [], conclusiones, setCo
         </header>
 
         <section className="doc-bloque">
-          <h2>El mes en números<span>{m.llamadas ?? 0} llamadas · sin las descartadas</span></h2>
+          <h2>El mes en números</h2>
           <div className="doc-resumen">
             <div><div className="l">Show rate</div><div className="v ok">{pct(m.showRate)}</div></div>
             <div><div className="l">Close rate</div><div className="v">{pct(m.closeRate)}</div></div>
