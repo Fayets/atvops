@@ -5387,6 +5387,17 @@ button.lista-item:hover { background: var(--surface-2); }
 .editor-reunion .modal-cab .dim { font-size: 12px; text-transform: none; }
 .editor-reunion-aviso { font-size: 12px; }
 
+/* Los anillos y las barras del embudo se abren: un número que no se puede abrir obliga
+   a creerle al sistema, y acá se trata de poder discutirlo con el que lo mira. */
+.anillo-card.clickable, .barra-fila.clickable { cursor: pointer; }
+.anillo-card.clickable:hover { border-color: var(--border-fuerte, var(--text-3)); }
+.anillo-ver { font-size: 10px; color: var(--text-3); text-transform: uppercase;
+  letter-spacing: .05em; margin-top: 4px; opacity: 0; transition: opacity .12s ease; }
+.anillo-card.clickable:hover .anillo-ver,
+.anillo-card.clickable:focus-visible .anillo-ver { opacity: 1; }
+.barra-fila.clickable:hover .barra-pista { outline: 1px solid var(--border); outline-offset: 2px; }
+.barra-fila.clickable:hover .barra-label { color: var(--text); }
+
 /* Los cierres que vienen de otro mes. Se ven en los dos lados —una franja arriba y la
    tarjeta en su día— pero nunca como una reunión más: ese día no hubo llamada, lo que
    pasó fue que entró la plata. El punteado es lo que dice eso de un vistazo. */

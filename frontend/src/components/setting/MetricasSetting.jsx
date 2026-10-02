@@ -146,7 +146,7 @@ export default function MetricasSetting({ pitches, sesiones = 0, hoy, ancla = ho
             ))}
           </div>
 
-          <Card>{!m ? <SkeletonBlock height={220} /> : <TasasEmbudo m={m} />}</Card>
+          <Card>{!m ? <SkeletonBlock height={220} /> : <TasasEmbudo m={m} pitches={pitches} lim={lim} canal={canal} />}</Card>
 
           <Card
             title="Cash flow"

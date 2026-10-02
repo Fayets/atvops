@@ -145,6 +145,54 @@ export function descargarJson(nombre, datos) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * De qué pitches sale cada tasa y cada etapa del embudo.
+ *
+ * Espejo de `_bloque` en `setting_services.py`: los mismos conjuntos, con los mismos
+ * nombres, para que al abrir un número se vea exactamente lo que el servidor contó. Si
+ * allá cambia una definición, acá también —por eso están las dos listas de estados
+ * copiadas tal cual y no inventadas de nuevo.
+ *
+ * `leads` son los pitches mandados en el período y `calls` las llamadas que caían en él:
+ * el booking se juzga sobre el día del pitch y el show sobre el día de la llamada.
+ */
+const SHOW = ['showed', 'deposit', 'closed'];
+const NO_VINO = ['no_show', 'cancelled'];
+const RESUELTOS = [...SHOW, ...NO_VINO];
+const sinResolver = (p) => p.pitchEstado === 'booked'
+  && ['', 'scheduled'].includes(p.llamadaEstado || '');
+
+export function conjuntosDeTasas(pitches = [], lim = {}, canal = '') {
+  const filas = canal ? pitches.filter((p) => p.canal === canal) : pitches;
+  const leads = filas.filter((p) => enPeriodo(p.pitchAt, lim));
+  const calls = filas.filter((p) => enPeriodo(p.fechaLlamada, lim));
+  const resueltos = leads.filter((p) => p.pitchEstado !== 'pendiente');
+  return {
+    leads,
+    calls,
+    booking: { parte: leads.filter((p) => p.pitchEstado === 'booked'), sobre: resueltos },
+    show: {
+      parte: calls.filter((p) => SHOW.includes(p.llamadaEstado)),
+      sobre: calls.filter((p) => RESUELTOS.includes(p.llamadaEstado)),
+    },
+    close: {
+      parte: calls.filter((p) => p.llamadaEstado === 'closed'),
+      sobre: calls.filter((p) => SHOW.includes(p.llamadaEstado)),
+    },
+    setting: {
+      parte: leads.filter((p) => p.llamadaEstado === 'closed'),
+      sobre: resueltos.filter((p) => !sinResolver(p)),
+    },
+    etapas: {
+      pitches: leads,
+      agendas: leads.filter((p) => p.pitchEstado === 'booked'),
+      shows: calls.filter((p) => SHOW.includes(p.llamadaEstado)),
+      cierres: calls.filter((p) => p.llamadaEstado === 'closed'),
+      depositos: calls.filter((p) => p.llamadaEstado === 'deposit'),
+    },
+  };
+}
+
 export const pct = (v) => (v == null ? '—' : `${v}%`);
 export const zona = (v, verde, amarillo) =>
   (v == null ? '' : v >= verde ? ' zona-ok' : v >= amarillo ? ' zona-warn' : ' zona-alert');

@@ -89,7 +89,7 @@ export default function Sets({ pitches, hoy, ancla = hoy, modoInicial = 'semana'
       </div>
 
       <Card>
-        {!m ? <SkeletonBlock height={220} /> : <TasasEmbudo m={m} />}
+        {!m ? <SkeletonBlock height={220} /> : <TasasEmbudo m={m} pitches={pitches} lim={lim} canal={canal} />}
       </Card>
 
       <Card

@@ -46,7 +46,8 @@ function Lista({ llamadas, columna, encabezado, vacio }) {
 }
 
 export default function DetalleMetrica({ titulo, explicacion, llamadas = [], columna,
-                                         encabezado, grupos, resumen, onCerrar }) {
+                                         encabezado, grupos, resumen, onCerrar,
+                                         unidad = ['llamada', 'llamadas'] }) {
   const total = grupos
     ? grupos.reduce((n, g) => n + g.llamadas.length, 0)
     : llamadas.length;
@@ -89,7 +90,7 @@ export default function DetalleMetrica({ titulo, explicacion, llamadas = [], col
           <Lista llamadas={llamadas} columna={columna} encabezado={encabezado} />
         )}
         <footer className="dim">
-          {total} {total === 1 ? 'llamada' : 'llamadas'} · base de ATV Ops
+          {total} {total === 1 ? unidad[0] : unidad[1]} · base de ATV Ops
         </footer>
       </div>
     </div>
