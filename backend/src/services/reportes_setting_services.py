@@ -5,10 +5,11 @@ Tres bloques fijos, mismo molde que el de closing: las métricas del mes, el lab
 —de dónde salieron los pitches y cuáles convirtieron— y las conclusiones para el mes
 que viene.
 
-**Las tasas no se recalculan acá.** Salen de `setting_services.metricas()`, que es lo
-mismo que pinta la pantalla del setter: tener dos cuentas del mismo mes es tener dos
-verdades. Lo que este archivo agrega es el corte por canal y por origen, la velocidad del
-embudo y lo que se guarda.
+Los pitches salen de `setting_services.listar()`, el mismo origen que la pantalla del
+setter. Las cuentas del reporte se hacen acá sobre esa lista, con las mismas definiciones
+de estado: lo que el reporte agrega es la lectura de embudo sobre un solo denominador —de
+cien links mandados, cuántos agendaron y cuántos terminaron en venta—, que encadenando
+tasas de bases distintas no se responde.
 
 Qué pidió dirección y todavía no se puede sostener con la base, para que no se busque:
 
@@ -21,6 +22,12 @@ Qué pidió dirección y todavía no se puede sostener con la base, para que no 
 - **Avatares y objeciones del chat.** El pitch no tiene campo de avatar, y `nota` está
   vacía en todos los pitches de septiembre. El día que se carguen, este bloque los agrupa
   igual que el de closing agrupa los de Fathom.
+- **La plata.** El pitch tiene un `cash_usd` que Cris carga en SetSystem, pero es la misma
+  plata que Nick ya anota en cada llamada, y no coincide: en septiembre daba 19.851 contra
+  28.500, porque Cris no registra las señas y los importes difieren venta por venta.
+  Mostrar los dos convierte un cierre en dos cobros para quien junte los reportes, así que
+  acá no va ninguno: el cash del mes sale del registro de llamadas y de ningún otro lado.
+  Lo que este reporte sí responde es cuántos de los links mandados terminaron en venta.
 """
 
 from __future__ import annotations
@@ -80,18 +87,19 @@ def _del_mes(pitches: list[dict], desde: str, hasta: str) -> list[dict]:
     return [p for p in pitches if p.get("pitchAt") and desde <= p["pitchAt"] <= hasta]
 
 
-def metricas(base: dict, pitches: list[dict]) -> dict:
+def metricas(pitches: list[dict]) -> dict:
     """El bloque 1: el mes en números.
 
-    `base` es lo que ya devuelve la pantalla del setter. Lo que se agrega acá es la
-    lectura de embudo que el reporte pide: de cada cien links mandados, cuántos agendaron
-    y cuántos terminaron en plata.
+    Se calcula todo acá sobre los pitches del mes, en vez de arrastrar el bloque entero
+    que arma la pantalla del setter. Ese bloque trae, anidada, la plata que Cris carga en
+    cada pitch —`cash`, `cashPorPitch`, el ticket por fuente— y el reporte no la muestra
+    por lo que dice el encabezado del archivo. Esparcirlo era servirla igual, un nivel más
+    abajo, donde nadie la ve hasta que alguien la lee de la respuesta.
     """
     total = len(pitches)
     agendas = sum(1 for p in pitches if p.get("pitchEstado") == "booked")
     cerraron = sum(1 for p in pitches if p.get("llamadaEstado") == "closed")
     senas = sum(1 for p in pitches if p.get("llamadaEstado") == "deposit")
-    cash = round(sum(float(p.get("cashUsd") or 0) for p in pitches), 2)
 
     por_pitch: dict[str, int] = {}
     for p in pitches:
@@ -112,19 +120,16 @@ def metricas(base: dict, pitches: list[dict]) -> dict:
                                                   -x[1]))]
 
     return {
-        **base,
         "pitchesDelMes": total,
         "agendasDelMes": agendas,
         "cerraronDelMes": cerraron,
         "senasDelMes": senas,
-        "cashDelMes": cash,
         # El embudo de punta a punta, contado sobre el mismo denominador: los links que
         # se mandaron. Es la pregunta de dirección —de cien pitches, cuántos terminan en
         # plata— y no se puede responder encadenando tasas de bases distintas.
         "pitchAAgenda": _tasa(agendas, total),
         "pitchACierre": _tasa(cerraron, total),
         "agendaACierre": _tasa(cerraron, agendas),
-        "cashPorPitch": round(cash / total, 2) if total else 0,
         "porPitch": reparto(por_pitch, ORDEN_PITCH, PITCH_TEXTO, total),
         "porLlamada": reparto(por_llamada, ORDEN_LLAMADA, LLAMADA_TEXTO,
                               sum(por_llamada.values())),
@@ -145,15 +150,13 @@ def laboratorio(pitches: list[dict]) -> dict:
             if not v:
                 continue
             g = grupos.setdefault(v, {"clave": v, "valor": textos.get(v, v), "n": 0,
-                                      "agendas": 0, "cierres": 0, "cashUsd": 0.0})
+                                      "agendas": 0, "cierres": 0})
             g["n"] += 1
             if p.get("pitchEstado") == "booked":
                 g["agendas"] += 1
             if p.get("llamadaEstado") in ("closed", "deposit"):
                 g["cierres"] += 1
-            g["cashUsd"] += float(p.get("cashUsd") or 0)
         for g in grupos.values():
-            g["cashUsd"] = round(g["cashUsd"], 2)
             g["tasaAgenda"] = _tasa(g["agendas"], g["n"])
             g["tasaCierre"] = _tasa(g["cierres"], g["n"])
             g["pct"] = _tasa(g["n"], len(pitches))
@@ -203,14 +206,13 @@ def armar(periodo: str, setter: str | None, usuario: dict) -> dict:
     if setter:
         todos = [p for p in todos if (p.get("setter") or "").strip().lower() == setter.lower()]
     pitches = _del_mes(todos, desde, hasta)
-    base = setting_services.metricas(usuario, desde=desde, hasta=hasta)
 
     quienes = sorted({(p.get("setter") or "").strip() for p in todos if (p.get("setter") or "").strip()})
     return {
         "periodo": periodo,
         "setter": setter or (quienes[0] if len(quienes) == 1 else None),
         "settersDisponibles": quienes,
-        "metricas": metricas(base, pitches),
+        "metricas": metricas(pitches),
         "laboratorio": laboratorio(pitches),
         "pitches": sorted(pitches, key=lambda p: p.get("pitchAt") or "", reverse=True),
         "guardado": obtener(periodo),
@@ -256,8 +258,7 @@ def listar() -> list[dict]:
             return {}
         m = d.get("metricas") or {}
         return {"pitches": m.get("pitchesDelMes"), "agendas": m.get("agendasDelMes"),
-                "cierres": m.get("cerraronDelMes"), "cashUsd": m.get("cashDelMes"),
-                "pitchAAgenda": m.get("pitchAAgenda")}
+                "cierres": m.get("cerraronDelMes"), "pitchAAgenda": m.get("pitchAAgenda")}
 
     with db_session:
         return [{

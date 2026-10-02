@@ -18,7 +18,6 @@ import { useMes } from '../lib/MesContext.jsx';
  * así que no hay nada que pegar a mano antes de armarlo.
  */
 
-const usd = (n) => `US$ ${Math.round(n || 0).toLocaleString('es-AR')}`;
 const pct = (n) => (n == null ? '—' : `${n}%`);
 const corta = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—');
 const dias = (n) => (n == null ? '—' : `${n} ${n === 1 ? 'día' : 'días'}`);
@@ -66,7 +65,6 @@ export default function ReporteSetting() {
   // que usa el cálculo: si un pitch no está acá, tampoco contó.
   const agendados = pitches.filter((p) => p.pitchEstado === 'booked');
   const cierres = pitches.filter((p) => p.llamadaEstado === 'closed');
-  const senas = pitches.filter((p) => p.llamadaEstado === 'deposit');
 
   /** DetalleMetrica habla de llamadas: un pitch se le presenta con esa forma. */
   const comoLlamada = (p) => ({
@@ -81,7 +79,6 @@ export default function ReporteSetting() {
     return p ? f(p) : '—';
   };
   const elCanal = conPitch((p) => `${p.canal || '—'} · ${p.origen || '—'}`);
-  const elDinero = conPitch((p) => (p.cashUsd ? usd(p.cashUsd) : '—'));
 
   const verPitch = (e) => ver(
     e.estado,
@@ -90,7 +87,7 @@ export default function ReporteSetting() {
   const verLlamada = (e) => ver(
     e.estado,
     `Las llamadas que salieron de un pitch del mes y terminaron en «${e.estado.toLowerCase()}».`,
-    pitches.filter((p) => p.llamadaEstado === e.clave), elDinero, 'Cash');
+    pitches.filter((p) => p.llamadaEstado === e.clave), elCanal, 'Canal · origen');
 
   async function guardar(cerrar = false) {
     setGuardando(true);
@@ -153,10 +150,13 @@ export default function ReporteSetting() {
                 onVer={ver('Pitch → agenda', 'De los links mandados, cuántos terminaron con una llamada agendada.', agendados, elCanal, 'Canal · origen')} />
               <Kpi l="Agenda → cierre" v={pct(m.agendaACierre)}
                 n={`${m.cerraronDelMes ?? 0} cerraron · ${m.senasDelMes ?? 0} con seña`}
-                onVer={ver('Agenda → cierre', 'De las agendas que trajo el setting, cuántas terminaron en venta cerrada.', cierres, elDinero, 'Cash')} />
-              <Kpi l="Cash del setting" v={usd(m.cashDelMes)} tono="ok"
-                n={`${usd(m.cashPorPitch)} por pitch mandado`}
-                onVer={ver('Cash del setting', 'Lo que entró de las llamadas que salieron de un pitch del mes.', [...cierres, ...senas], elDinero, 'Cash')} />
+                onVer={ver('Agenda → cierre', 'De las agendas que trajo el setting, cuántas terminaron en venta cerrada.', cierres, elCanal, 'Canal · origen')} />
+              {/* La plata no sale acá: el mismo cierre lo anota Nick en su llamada y los
+                  dos números no coinciden. Lo que el setting sí responde es cuántos de
+                  los links mandados terminaron en venta. */}
+              <Kpi l="Terminaron en venta" v={pct(m.pitchACierre)} tono="ok"
+                n={`${m.cerraronDelMes ?? 0} de ${m.pitchesDelMes ?? 0} pitches`}
+                onVer={ver('Terminaron en venta', 'De todos los links de agenda mandados en el mes, cuántos terminaron en una venta cerrada.', cierres, elCanal, 'Canal · origen')} />
             </div>
           </Card>
 
@@ -252,8 +252,7 @@ function Documento({ periodo, setter, m, lab, conclusiones, setConclusiones,
             <div><div className="l">Pitches</div><div className="v">{m.pitchesDelMes ?? 0}</div></div>
             <div><div className="l">Pitch → agenda</div><div className="v ok">{pct(m.pitchAAgenda)}</div></div>
             <div><div className="l">Agenda → cierre</div><div className="v">{pct(m.agendaACierre)}</div></div>
-            <div><div className="l">Pitch → cierre</div><div className="v">{pct(m.pitchACierre)}</div></div>
-            <div><div className="l">Cash</div><div className="v ok">{usd(m.cashDelMes)}</div></div>
+            <div><div className="l">Pitch → cierre</div><div className="v ok">{pct(m.pitchACierre)}</div></div>
           </div>
 
           <h3>Cómo salió el pitch</h3>
@@ -282,14 +281,13 @@ function Documento({ periodo, setter, m, lab, conclusiones, setConclusiones,
 
           <h3>Por canal</h3>
           <table>
-            <thead><tr><th>Canal</th><th>Pitches</th><th>Agendó</th><th>Cerró</th><th>Cash</th></tr></thead>
+            <thead><tr><th>Canal</th><th>Pitches</th><th>Agendó</th><th>Cerró</th></tr></thead>
             <tbody>
               {(lab.porCanal ?? []).map((g) => (
                 <tr key={g.clave}>
                   <td>{g.valor}</td><td>{g.n}</td>
                   <td className={g.tasaAgenda >= 70 ? 'ok' : 'mal'}>{pct(g.tasaAgenda)}</td>
                   <td>{pct(g.tasaCierre)}</td>
-                  <td>{usd(g.cashUsd)}</td>
                 </tr>
               ))}
             </tbody>
@@ -297,14 +295,13 @@ function Documento({ periodo, setter, m, lab, conclusiones, setConclusiones,
 
           <h3>Por origen</h3>
           <table>
-            <thead><tr><th>Origen</th><th>Pitches</th><th>Agendó</th><th>Cerró</th><th>Cash</th></tr></thead>
+            <thead><tr><th>Origen</th><th>Pitches</th><th>Agendó</th><th>Cerró</th></tr></thead>
             <tbody>
               {(lab.porOrigen ?? []).map((g) => (
                 <tr key={g.clave}>
                   <td>{g.valor}</td><td>{g.n}</td>
                   <td className={g.tasaAgenda >= 70 ? 'ok' : 'mal'}>{pct(g.tasaAgenda)}</td>
                   <td>{pct(g.tasaCierre)}</td>
-                  <td>{usd(g.cashUsd)}</td>
                 </tr>
               ))}
             </tbody>
