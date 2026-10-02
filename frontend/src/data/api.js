@@ -1026,6 +1026,24 @@ export async function descartarLlamada(leadId, { recuperar = false, mes, lista =
   });
 }
 
+/**
+ * Una seña que terminó de cerrar: el cash se anota en el mes en que entró.
+ *
+ * La llamada no se toca —sigue siendo la seña del mes en que pasó— así que cerrar algo
+ * de septiembre en octubre no reescribe septiembre. `abrir: true` deshace el cierre.
+ */
+export async function cerrarSena(leadId, { cierreMes, cashUsd, evento, abrir = false, mes, lista = true } = {}) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  if (!lista) q.set('lista', 'false');
+  const cola = q.toString();
+  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/cerrar${cola ? `?${cola}` : ''}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(abrir ? { abrir: true } : { cierreMes, cashUsd, evento }),
+  });
+}
+
 /** El reporte de una semana: marketing, ventas, cartera y ads en un solo lugar. */
 export async function getReporteSemanal(semana, { refrescar = false } = {}) {
   const q = new URLSearchParams();

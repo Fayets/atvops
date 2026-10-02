@@ -113,6 +113,24 @@ def registrar_resultado(lead_id: str, user: dict = Depends(solo_interno), payloa
         raise HTTPException(status_code=500, detail=f"No se pudo guardar el resultado: {str(e)[:180]}")
 
 
+@router.post("/llamadas/{lead_id}/cerrar")
+def cerrar_sena(lead_id: str, user: dict = Depends(solo_interno), payload: dict = Body(...),
+                mes: str | None = None, lista: bool = True):
+    """Una seña que terminó de cerrar: el cash se anota en el mes en que entró.
+
+    La llamada no se toca. `abrir: true` deshace el cierre.
+    """
+    try:
+        if (payload or {}).get("abrir"):
+            return ventas.abrir_sena(lead_id, user, mes=mes, con_lista=lista)
+        return ventas.cerrar_sena(lead_id, payload, user, mes=mes, con_lista=lista)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló cerrar la seña de la llamada %s", lead_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo cerrar la llamada: {str(e)[:180]}")
+
+
 @router.post("/llamadas/{lead_id}/descartar")
 def descartar_llamada(lead_id: str, user: dict = Depends(solo_interno), recuperar: bool = False,
                       mes: str | None = None, lista: bool = True):

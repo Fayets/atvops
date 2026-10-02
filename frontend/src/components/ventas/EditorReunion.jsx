@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import CerrarSena from './CerrarSena.jsx';
 import { FormResultado } from './ListaLlamadas.jsx';
 import { descartarLlamada } from '../../data/api.js';
 
@@ -40,7 +41,15 @@ export default function EditorReunion({ reunion, estado, programas, estados, equ
     reporte: estado.reporte,
     closer: estado.closer || reunion.closer || '',
     eventoId: estado.eventoId || reunion.id,
+    facturacionUsd: estado.facturacionUsd,
+    cierreMes: estado.cierreMes || '',
+    cierreCashUsd: estado.cierreCashUsd || 0,
   };
+
+  // Cerrar una seña es otra cosa que corregir el resultado: no cambia cómo salió la
+  // llamada, anota que la plata terminó de entrar y en qué mes. Por eso vive aparte del
+  // formulario y solo aparece sobre una llamada que quedó en seña.
+  const enSena = ['seña', 'sena'].includes((llamada.resultado || '').trim().toLowerCase());
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCerrar}>
@@ -76,6 +85,9 @@ export default function EditorReunion({ reunion, estado, programas, estados, equ
             Esta reunión todavía no está en el CRM. Se crea al guardar el resultado.
           </div>
         )}
+        {enSena ? (
+          <CerrarSena llamada={llamada} mes={mes} onGuardado={() => { onGuardado(); onCerrar(); }} />
+        ) : null}
         <FormResultado
           llamada={llamada}
           programas={programas}

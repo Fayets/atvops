@@ -202,6 +202,9 @@ def _a_dict(r) -> dict:
         "calificacion": (r.calificacion or "").strip().lower(),
         "eventoId": r.evento_id if not r.evento_id.startswith(("lead:", "ops:")) else "",
         "segunda": bool(r.segunda), "url": r.url,
+        # Una seña que ya terminó de cerrar en otro mes: la ficha lo muestra en vez de
+        # volver a ofrecer el botón de cerrar.
+        "cierreMes": r.cierre_mes or "", "cierreCashUsd": round(float(r.cierre_cash_usd or 0), 2),
         # Sigue significando lo mismo: la reunión está en el calendario y nadie cargó
         # todavía qué pasó con ella.
         "soloCalendario": bool(r.fuente == "calendario" and not r.lead_id and not resultado),

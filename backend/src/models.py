@@ -324,6 +324,14 @@ class ReunionCrm(db.Entity):
     fathom_url = Optional(str, nullable=True)
     # Lo que la IA saca de la transcripción para el reporte de closing. Va en la reunión
     # y no en el reporte: son de la llamada, y sirven igual el mes que viene.
+    # Una seña que terminó de cerrar en otro mes. La fila sigue siendo la de la llamada
+    # —mismo día, mismo resultado, mismo cash— y esto es lo que entró después: en qué mes
+    # se cerró y cuánto. Así el mes de la llamada no cambia cuando el cierre llega tarde.
+    cierre_mes = Optional(str, nullable=True, index=True)   # YYYY-MM
+    cierre_cash_usd = Required(float, default=0)
+    cierre_at = Optional(datetime, nullable=True)
+    cierre_por = Optional(str, nullable=True)
+
     avatar = Optional(str, nullable=True)
     objecion = Optional(str, nullable=True)
     analisis_closing = Optional(LongStr, nullable=True)

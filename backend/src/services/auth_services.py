@@ -201,6 +201,11 @@ def ensure_reunion_crm_columns() -> None:
         # El avatar y la objeción que la IA saca de la transcripción, para el reporte
         # mensual de closing.
         ("avatar", "TEXT"), ("objecion", "TEXT"), ("analisis_closing", "TEXT"),
+        # Una seña que termina de cerrar meses después. La llamada no se toca —sigue
+        # siendo la seña del mes en que pasó, con el cash que entró entonces— y lo que
+        # entra al cerrar se anota en el mes en que entró. Cada plata en su mes.
+        ("cierre_mes", "TEXT"), ("cierre_cash_usd", "DOUBLE PRECISION DEFAULT 0 NOT NULL"),
+        ("cierre_at", "TIMESTAMP"), ("cierre_por", "TEXT"),
     ]
     if ES_POSTGRES:
         import psycopg2
@@ -232,6 +237,12 @@ def ensure_reunion_crm_columns() -> None:
     if filename in {":memory:", ":sharedmemory:"}:
         return
     path = Path(filename)
+    # Igual que el bind de Pony: `DB_FILENAME` viene relativo y acá se resolvía contra el
+    # directorio desde el que se arrancó el proceso. Arrancando uvicorn desde la raíz del
+    # repo el archivo "no existía", los ALTER no corrían, y el backend moría al arrancar
+    # porque Pony esperaba una columna que nunca se agregó.
+    if not path.is_absolute():
+        path = _BACKEND_ROOT / path
     if not path.exists():
         return
     con = sqlite3.connect(path)
@@ -286,6 +297,12 @@ def _agregar_columnas(tabla_pg: str, tabla_sqlite: str, columnas: list[tuple[str
     if filename in {":memory:", ":sharedmemory:"}:
         return
     path = Path(filename)
+    # Igual que el bind de Pony: `DB_FILENAME` viene relativo y acá se resolvía contra el
+    # directorio desde el que se arrancó el proceso. Arrancando uvicorn desde la raíz del
+    # repo el archivo "no existía", los ALTER no corrían, y el backend moría al arrancar
+    # porque Pony esperaba una columna que nunca se agregó.
+    if not path.is_absolute():
+        path = _BACKEND_ROOT / path
     if not path.exists():
         return
     con = sqlite3.connect(path)
@@ -339,6 +356,12 @@ def ensure_conversacion_columns() -> None:
     if filename in {":memory:", ":sharedmemory:"}:
         return
     path = Path(filename)
+    # Igual que el bind de Pony: `DB_FILENAME` viene relativo y acá se resolvía contra el
+    # directorio desde el que se arrancó el proceso. Arrancando uvicorn desde la raíz del
+    # repo el archivo "no existía", los ALTER no corrían, y el backend moría al arrancar
+    # porque Pony esperaba una columna que nunca se agregó.
+    if not path.is_absolute():
+        path = _BACKEND_ROOT / path
     if not path.exists():
         return
     con = sqlite3.connect(path)

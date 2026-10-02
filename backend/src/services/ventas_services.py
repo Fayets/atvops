@@ -1632,6 +1632,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
                                   l.get("soloCalendario", False), l.get("duplicada", False),
                                   l.get("reprogramada", False)),
             "soloCalendario": bool(l.get("soloCalendario")),
+            "cierreMes": l.get("cierreMes") or "",
+            "cierreCashUsd": float(l.get("cierreCashUsd") or 0),
             "segunda": bool(l.get("segunda")),
             "seguimiento": bool(l.get("seguimiento")),
             "reprogramada": bool(l.get("reprogramada")),
@@ -1660,6 +1662,9 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
 
     del_mes = [x for x in llamadas if _del_mes(x)]
     ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
+    # Una seña de agosto que cerró en septiembre deja su plata en septiembre. La llamada
+    # se queda donde pasó; lo que viaja es el cash, porque entró ahora.
+    diferidos = cierres_diferidos(inicio_mes, (fin_mes or hoy), set(nombres))
     return {
         "generadoAt": datetime.now(AR_TZ).isoformat(),
         # El nombre que se informa es el del closer que se está mirando, que no siempre
@@ -1669,7 +1674,10 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         "programas": programas(),
         "estados": list(ESTADOS_LLAMADA),
         "llamadas": llamadas,
-        "mes": _metricas_closer(del_mes, ventas),
+        "mes": _metricas_closer(del_mes, ventas, diferidos),
+        # Las señas de meses anteriores que cerraron en este. Su plata está en el cash
+        # del mes; la lista va aparte para poder decir de dónde salió.
+        "cierresDiferidos": diferidos,
         "closersDisponibles": disponibles if puede_mirar_otros else [],
         # Quién puede figurar como closer de una llamada. Va siempre: cuando Cris toma
         # una call de Nick hay que poder decirlo, o le queda contada a Nick.
@@ -1677,7 +1685,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     }
 
 
-def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
+def _metricas_closer(del_mes: list[dict], ventas: list[dict],
+                     diferidos: list[dict] | None = None) -> dict:
     """Los números del mes del closer: agenda, show rate, close rate y ticket promedio.
 
     La seña no es un cierre: es plata que entró con la venta a medio hacer. Va contada
@@ -1701,7 +1710,11 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
     evaluables = len(del_mes)
     cerradas = [x for x in ventas if _norm(x["resultado"]) == _norm("Cerrado")]
     senas = [x for x in ventas if x not in cerradas]
-    cash = round(sum(x["cashUsd"] for x in ventas), 2)
+    # El cash del mes es la plata que entró en el mes: la de las llamadas de este mes más
+    # la de las señas de meses anteriores que terminaron de cerrar ahora. Los cierres
+    # diferidos no tocan ninguna tasa —no hubo llamada este mes que medir— solo la plata.
+    cash_diferido = round(sum(float(d.get("cashUsd") or 0) for d in (diferidos or [])), 2)
+    cash = round(sum(x["cashUsd"] for x in ventas) + cash_diferido, 2)
     facturacion = round(sum(x["facturacionUsd"] for x in ventas), 2)
     return {
         # Cada reunión del mes es una agenda, sea la primera del prospecto o la tercera, y
@@ -1722,6 +1735,8 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
         "senas": len(senas),
         "ventas": len(ventas),
         "cashUsd": cash,
+        "cashDiferidoUsd": cash_diferido,
+        "cierresDiferidos": len(diferidos or []),
         "facturacionUsd": facturacion,
         "saldoUsd": round(sum(x["saldoUsd"] for x in ventas), 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
@@ -1735,8 +1750,10 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict]) -> dict:
         # AOV: el cash cobrado dividido por la cantidad de cierres. La seña no es un
         # cierre, así que no entra al divisor: si entrara, dos señas chicas bajarían el
         # promedio de una venta que todavía no está hecha.
-        "aovUsd": round(cash / len(cerradas), 2) if cerradas else 0,
-        "cashPromedioUsd": round(cash / len(ventas), 2) if ventas else 0,
+        # El AOV y el promedio se miden sobre las ventas del mes, sin lo diferido: ese
+        # cash no tiene una llamada de este mes que lo divida.
+        "aovUsd": round((cash - cash_diferido) / len(cerradas), 2) if cerradas else 0,
+        "cashPromedioUsd": round((cash - cash_diferido) / len(ventas), 2) if ventas else 0,
     }
 
 
@@ -2104,6 +2121,121 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
     logger.info("Llamada %s marcada %s por %s (cash %s)", lead_id, resultado, usuario.get("username"), cash)
     _olvidar_meses()
     return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
+
+
+def cerrar_sena(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,
+                con_lista: bool = True) -> dict:
+    """Una seña que termina de cerrar meses después.
+
+    La llamada **no se toca**: sigue siendo la seña del mes en que pasó, con el cash que
+    entró entonces. Lo que entra al cerrar se anota aparte, con el mes en que entró.
+
+    Es la única forma de que un cierre que llega tarde no reescriba un mes ya entregado.
+    Si al marcar Cerrado se pisara la fila, septiembre perdería una seña, ganaría un
+    cierre y se le sumaría plata que entró en octubre; el reporte que se mandó dejaría de
+    coincidir con el sistema.
+    """
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cerrar llamadas.")
+
+    cierre_mes = str(datos.get("cierreMes") or "").strip()
+    try:
+        date.fromisoformat(f"{cierre_mes}-01")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="El mes de cierre va como YYYY-MM.") from None
+    try:
+        cash = round(float(datos.get("cashUsd") or 0), 2)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="El cash del cierre tiene que ser un número.") from None
+    if cash < 0:
+        raise HTTPException(status_code=400, detail="El cash del cierre no puede ser negativo.")
+
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    lead_id, evento_de_la_ficha = _ficha_para(lead_id, usuario)
+    evento = str(datos.get("evento") or "").strip() or evento_de_la_ficha
+    quien = (usuario.get("username") or "")[:80]
+
+    with db_session:
+        fila = (ReunionCrm.get(evento_id=evento) if evento else None) or _fila_del_lead(int(lead_id))
+        if fila is None:
+            raise HTTPException(status_code=404, detail="No encontré esa llamada.")
+        if _norm(fila.resultado) not in {_norm("Seña"), "sena"}:
+            raise HTTPException(status_code=400,
+                                detail="Solo se cierra una llamada que quedó en seña.")
+        fila.cierre_mes = cierre_mes
+        fila.cierre_cash_usd = cash
+        fila.cierre_at = datetime.utcnow()
+        fila.cierre_por = quien
+        fila.actualizado_por = quien
+        fila.actualizado_at = datetime.utcnow()
+        prospecto = fila.prospecto
+    logger.info("Seña de %s cerrada en %s por %s (cash %s)", prospecto, cierre_mes, quien, cash)
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {
+        "guardado": True, "id": int(lead_id), "cierreMes": cierre_mes, "cierreCashUsd": cash}
+
+
+def abrir_sena(lead_id: int | str, usuario: dict, mes: str | None = None,
+               con_lista: bool = True) -> dict:
+    """Deshace el cierre diferido: la seña vuelve a estar abierta y su plata desaparece."""
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cerrar llamadas.")
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    lead_id, evento_de_la_ficha = _ficha_para(lead_id, usuario)
+    with db_session:
+        fila = (ReunionCrm.get(evento_id=evento_de_la_ficha) if evento_de_la_ficha else None) \
+            or _fila_del_lead(int(lead_id))
+        if fila is None:
+            raise HTTPException(status_code=404, detail="No encontré esa llamada.")
+        fila.cierre_mes = None
+        fila.cierre_cash_usd = 0
+        fila.cierre_at = None
+        fila.cierre_por = None
+        fila.actualizado_por = (usuario.get("username") or "")[:80]
+        fila.actualizado_at = datetime.utcnow()
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
+
+
+def cierres_diferidos(desde: date, hasta: date, closers: set[str] | None = None) -> list[dict]:
+    """Las señas de meses anteriores que terminaron de cerrar dentro de este período.
+
+    Su plata es de este mes —entró ahora— pero la llamada es de otro, así que se devuelven
+    aparte: suman al cash y no al close rate, porque no hubo llamada este mes que medir.
+    """
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    # `hasta` llega exclusivo —el 1° del mes siguiente—, así que el último día del
+    # período es el anterior. Sin esto, pedir septiembre traía también los cierres de
+    # octubre y su plata aparecía en los dos meses.
+    ultimo = hasta - timedelta(days=1) if hasta > desde else desde
+    primero_n = desde.year * 12 + desde.month - 1
+    meses = {f"{(primero_n + i) // 12:04d}-{(primero_n + i) % 12 + 1:02d}"
+             for i in range((ultimo.year * 12 + ultimo.month - 1) - primero_n + 1)}
+    quienes = {_norm(c) for c in (closers or set())}
+    try:
+        with db_session:
+            filas = [r for r in ReunionCrm.select()
+                     if r.cierre_mes in meses and not r.descartada]
+            return sorted([{
+                "id": r.id, "eventoId": r.evento_id or "", "prospecto": r.prospecto,
+                "fechaAt": r.inicio_at.isoformat() if r.inicio_at else None,
+                "cierreMes": r.cierre_mes, "cashUsd": round(float(r.cierre_cash_usd or 0), 2),
+                "programa": r.programa or "", "closer": r.closer or "",
+            } for r in filas
+                if not quienes or _norm(r.closer) in quienes],
+                key=lambda x: x["fechaAt"] or "")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los cierres diferidos: %s", str(e)[:160])
+        return []
 
 
 # ------------------------------------------------- reportes diarios del setter
