@@ -7881,14 +7881,23 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .rc-barra > span, .rc-barra > button { display: block; min-width: 2px; border: 0; padding: 0; }
 .rc-barra > button { cursor: pointer; transition: filter .12s ease; }
 .rc-barra > button:hover, .rc-barra > button:focus-visible { filter: brightness(1.12); }
-.rc-leyenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 4px 18px; }
-.rc-leyenda div, .rc-leyenda button { display: flex; align-items: baseline; gap: 7px; font-size: 12px; }
+/* Los siete estados en una sola fila. En grid de 176px cada ítem ocupaba una celda fija
+   y la leyenda se partía en dos renglones aunque sobrara lugar, con el orden —que ahora
+   es fijo, del mejor desenlace al peor— cortado al medio. En flex cada uno ocupa su ancho
+   natural: entra la fila completa desde unos 1000px y abajo de eso envuelve sola. */
+.rc-leyenda { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+/* `flex: 0 0 auto`: sin encogerse. Con shrink, al faltar lugar los ítems se achicaban
+   hasta pisarse entre sí —"15.9%No show"— en vez de dejar que la fila scrollee. */
+.rc-leyenda div, .rc-leyenda button { display: flex; align-items: baseline; gap: 6px;
+  font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
 .rc-leyenda button { border: 0; background: none; font-family: var(--font); color: var(--text);
   padding: 2px 4px; margin: -2px -4px; border-radius: 5px; cursor: pointer; text-align: left; }
 .rc-leyenda button:hover { background: var(--surface-2); }
 .rc-leyenda i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
-.rc-leyenda b { margin-left: auto; font-variant-numeric: tabular-nums; }
-.rc-leyenda .dim { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+/* Pegados al nombre, no empujados al borde de una celda: en una fila el `margin-left:
+   auto` separaba el número de su estado y los dejaba a todos desalineados. */
+.rc-leyenda b { font-variant-numeric: tabular-nums; }
+.rc-leyenda .dim { font-variant-numeric: tabular-nums; }
 
 .rc-lista { display: flex; flex-direction: column; gap: var(--space-3); }
 .rc-llamada { border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
@@ -7942,6 +7951,10 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .doc-bloque h2, .doc-columna h3 { break-after: avoid; }
 
   .rc-barra > button, .rc-leyenda button { cursor: default; }
+  /* En papel la hoja es más angosta: la fila entra achicando el texto. */
+  .rc-leyenda { flex-wrap: nowrap; gap: 0 10px; font-size: 9.5px; }
+  .rc-leyenda div, .rc-leyenda button { font-size: 9.5px; gap: 4px; padding: 0; }
+  .rc-leyenda i { width: 7px; height: 7px; }
   .doc-head { padding-bottom: 5px; margin-bottom: 8px; }
   .doc-head img { width: 30px; height: 30px; }
   .doc-head h1 { font-size: 17px; }
