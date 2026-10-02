@@ -49,6 +49,9 @@ function Fechas({ p }) {
  */
 export default function FilaPitch({ p, modo = 'call', onCambiar, onBorrar }) {
   const [abierto, setAbierto] = useState(false);
+  // Borrar pide confirmación en la fila y no con un `confirm` del navegador: el diálogo
+  // del sistema tapa la fila justo cuando hay que mirarla para saber si es la correcta.
+  const [confirmando, setConfirmando] = useState(false);
   const cambiar = (patch) => onCambiar(p.id, patch);
   const estado = p.llamadaEstado || 'scheduled';
   const pill = p.pitchEstado === 'booked' ? LLAMADA_ESTADO[estado] : PITCH_ESTADO[p.pitchEstado];
@@ -88,6 +91,22 @@ export default function FilaPitch({ p, modo = 'call', onCambiar, onBorrar }) {
           </span>
           <Toggle valor={p.origen} opciones={ORIGEN} onCambiar={(origen) => cambiar({ origen })}
             className="origen" etiqueta="Origen" />
+          {onBorrar && (
+            confirmando ? (
+              <span className="pitch-borrar-confirma">
+                <span className="dim">¿Lo borro?</span>
+                <button type="button" className="btn sm alerta"
+                  onClick={() => { setConfirmando(false); onBorrar(p.id); }}>Sí</button>
+                <button type="button" className="btn sm ghost"
+                  onClick={() => setConfirmando(false)}>No</button>
+              </span>
+            ) : (
+              <button type="button" className="pitch-borrar" onClick={() => setConfirmando(true)}
+                title={`Borrar el pitch de ${p.prospecto}`} aria-label={`Borrar el pitch de ${p.prospecto}`}>
+                ✕
+              </button>
+            )
+          )}
         </span>
       </div>
 
@@ -107,11 +126,6 @@ export default function FilaPitch({ p, modo = 'call', onCambiar, onBorrar }) {
           <label className="ancho">Nota<input defaultValue={p.nota || ''} onBlur={(e) => (e.target.value.trim() || null) !== (p.nota || null) && cambiar({ nota: e.target.value })} /></label>
           <div className="pitch-detalle-pie">
             <span className="dim">{contacto || 'Sin datos de contacto'}</span>
-            {onBorrar && (
-              <button type="button" className="btn sm alerta" onClick={() => window.confirm(`¿Borrar el pitch de ${p.prospecto}?`) && onBorrar(p.id)}>
-                Borrar
-              </button>
-            )}
           </div>
         </div>
       )}
