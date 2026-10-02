@@ -34,6 +34,9 @@ function FormDia({ dia, campos, rol, onGuardado, onCerrar }) {
  */
 export default function CalendarioReportes({ rol = 'setter', mes: mesInicial }) {
   const [mes, setMes] = useState(mesInicial ?? new Date().toISOString().slice(0, 7));
+  // El mes de arriba manda y puede cambiar sin desmontar la pestaña: con `useState` a
+  // secas se quedaba en el valor del primer render.
+  useEffect(() => { if (mesInicial) setMes(mesInicial); }, [mesInicial]);
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);

@@ -19,9 +19,13 @@ const VISTAS_CALLS = [['hoy', 'Hoy'], ['semana', 'Semana'], ['proximas', 'Próxi
  * que pasó con las de ayer y agrega los pitches del día. Por eso todo se edita en la
  * misma fila, sin abrir formularios.
  */
-export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear, onBorrar }) {
-  const [modo, setModo] = useState('semana');
-  const [ref, setRef] = useState(hoy);
+export default function Sets({ pitches, hoy, ancla = hoy, modoInicial = 'semana',
+                               cargando, tick, onCambiar, onCrear, onBorrar }) {
+  const [modo, setModo] = useState(modoInicial);
+  const [ref, setRef] = useState(ancla);
+  // El mes de arriba manda: cuando cambia, la pestaña vuelve a ese mes. Sin esto la
+  // elección de arriba no llegaba hasta acá y la pantalla quedaba en la semana de hoy.
+  useEffect(() => { setModo(modoInicial); setRef(ancla); }, [ancla, modoInicial]);
   const [rango, setRango] = useState({ desde: '', hasta: '' });
   const [canal, setCanal] = useState('');
   const [vistaCalls, setVistaCalls] = useState('semana');
@@ -38,10 +42,10 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
   }, [lim, canal, tick]);
 
   const filtrados = useMemo(() => (canal ? pitches.filter((p) => p.canal === canal) : pitches), [pitches, canal]);
-  const lunes = lunesDe(modo === 'todo' || modo === 'rango' ? hoy : ref);
-  const calls = useMemo(() => callsDe(filtrados, vistaCalls, hoy, lunes), [filtrados, vistaCalls, hoy, lunes]);
+  const lunes = lunesDe(modo === 'todo' || modo === 'rango' ? ancla : ref);
+  const calls = useMemo(() => callsDe(filtrados, vistaCalls, ancla, lunes), [filtrados, vistaCalls, ancla, lunes]);
   const sinResolver = calls.filter((p) => p.sinResolver).length;
-  const trackeo = useMemo(() => trackeoDe(filtrados, lunes, hoy), [filtrados, lunes, hoy]);
+  const trackeo = useMemo(() => trackeoDe(filtrados, lunes, ancla), [filtrados, lunes, ancla]);
   // Las flechas son la semana: mover una semana vuelve a ese modo aunque estés en otro.
   const mover = (n) => {
     setModo('semana');
@@ -62,7 +66,7 @@ export default function Sets({ pitches, hoy, cargando, tick, onCambiar, onCrear,
           <div className="tabs sm">
             {MODOS.map(([v, l]) => (
               <button key={v} type="button" className={`tab${modo === v ? ' active' : ''}`}
-                onClick={() => { setModo(v); if (v === 'hoy') setRef(hoy); }}>{l}</button>
+                onClick={() => { setModo(v); if (v === 'hoy') setRef(ancla); }}>{l}</button>
             ))}
           </div>
           {modo === 'rango' && (

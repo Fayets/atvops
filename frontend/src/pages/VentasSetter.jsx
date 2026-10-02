@@ -11,6 +11,8 @@ import {
   actualizarPitch, borrarPitch, crearPitch, getPitches, getSesionesNotas,
 } from '../data/api.js';
 import { useResource } from '../lib/hooks.js';
+import { mesActualId } from '../lib/mes.js';
+import { useMes } from '../lib/MesContext.jsx';
 import { iso } from '../lib/setting.js';
 
 const VISTAS = [
@@ -28,6 +30,7 @@ const VISTAS = [
  * optimista: la fila cambia al toque y si el servidor dice que no, vuelve.
  */
 export default function VentasSetter() {
+  const { mes } = useMes();
   const [params, setParams] = useSearchParams();
   const vista = VISTAS.some((v) => v.value === params.get('vista')) ? params.get('vista') : 'sets';
   const setVista = (v) => setParams((p) => { const n = new URLSearchParams(p); n.set('vista', v); return n; }, { replace: true });
@@ -83,6 +86,15 @@ export default function VentasSetter() {
     }
   }, [recargar]);
 
+  // El mes de arriba manda también acá. Cada pestaña arrancaba en "hoy" por su cuenta,
+  // así que elegir septiembre un 1° de octubre dejaba la pantalla entera en cero mirando
+  // la semana del 28 de septiembre al 4 de octubre, sin que nada lo dijera.
+  //
+  // En el mes corriente se abre en la semana —es el día a día del setter— y en cualquier
+  // otro, en el mes entero, que es lo único que se puede mirar de un mes ya cerrado.
+  const esMesCorriente = mes === mesActualId();
+  const ancla = esMesCorriente ? hoy : `${mes}-01`;
+
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
   return (
@@ -93,17 +105,19 @@ export default function VentasSetter() {
       />
 
       {vista === 'sets' && (
-        <Sets pitches={pitches} hoy={hoy} cargando={cargando} tick={tick}
+        <Sets pitches={pitches} hoy={hoy} ancla={ancla} modoInicial={esMesCorriente ? 'semana' : 'mes'}
+          cargando={cargando} tick={tick}
           onCambiar={cambiar} onCrear={crear} onBorrar={borrar} />
       )}
       {vista === 'metricas' && (
-        <MetricasSetting pitches={pitches} sesiones={sesiones.data?.sesiones?.length ?? 0} hoy={hoy} tick={tick} onRecargar={recargar} />
+        <MetricasSetting pitches={pitches} sesiones={sesiones.data?.sesiones?.length ?? 0}
+          hoy={hoy} ancla={ancla} tick={tick} onRecargar={recargar} />
       )}
       {vista === 'notas' && (
         <NotasSetting sesiones={sesiones.data?.sesiones ?? []} motor={sesiones.data?.motor} pitches={pitches}
           hoy={hoy} cargando={sesiones.loading} onRecargar={recargar} />
       )}
-      {vista === 'reporte' && <CalendarioReportes rol="setter" />}
+      {vista === 'reporte' && <CalendarioReportes rol="setter" mes={mes} />}
     </div>
   );
 }

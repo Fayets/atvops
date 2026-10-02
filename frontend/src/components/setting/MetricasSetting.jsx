@@ -25,9 +25,13 @@ function Dato({ valor, label }) {
  * Sales responde "cómo vengo": plata, velocidad, dónde conviene trabajar. Marketing
  * responde "de dónde conviene traer": qué hace cada fuente y si ya se puede afirmar.
  */
-export default function MetricasSetting({ pitches, sesiones = 0, hoy, tick, onRecargar }) {
+export default function MetricasSetting({ pitches, sesiones = 0, hoy, ancla = hoy,
+                                          tick, onRecargar }) {
   const [periodo, setPeriodo] = useState('mes');
-  const [ref, setRef] = useState(hoy);
+  const [ref, setRef] = useState(ancla);
+  // Igual que en Sets: el mes de arriba manda. Con `ref` clavado en hoy, "Mes" era
+  // siempre el mes corriente aunque arriba dijera otro.
+  useEffect(() => { setRef(ancla); }, [ancla]);
   const [rango, setRango] = useState({ desde: '', hasta: '' });
   const [vista, setVista] = useState('sales');
   const [canal, setCanal] = useState('');
