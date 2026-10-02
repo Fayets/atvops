@@ -186,7 +186,6 @@ export default function ReporteClosing() {
       <PageHeader
         eyebrow="Dirección"
         title="Reporte de closing"
-        desc={`Cómo le fue a ${data?.closer || 'el closer'} en el mes. Sale siempre con el mismo formato.`}
         actions={paso === 3
           ? <button type="button" className="btn" onClick={() => window.print()}>Descargar PDF</button>
           : null}
@@ -213,7 +212,6 @@ export default function ReporteClosing() {
       {paso === 1 ? (
         <>
           <Card title="El mes en números"
-            sub={`${m.llamadas ?? 0} llamadas · las descartadas no entran en ningún número`}
             foot="Son los mismos números que muestra la pantalla del closer: el reporte no los recalcula.">
             <div className="rc-kpis">
               <Kpi l="Llamadas" v={m.llamadas} n={`${m.sinReportar ?? 0} sin resultado cargado`}
@@ -235,7 +233,7 @@ export default function ReporteClosing() {
             </div>
           </Card>
 
-          <Card title="Cómo salieron" sub="Los estados que carga el equipo. Descartada y Agendado no cuentan.">
+          <Card title="Distribución de llamadas">
             <div className="rc-barra">
               {(m.porEstado ?? []).filter((e) => e.estado !== 'Agendado').map((e) => (
                 <button key={e.estado} type="button" style={{ width: `${e.pct}%`, background: color(e.estado) }}
