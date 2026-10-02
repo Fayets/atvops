@@ -5390,17 +5390,17 @@ button.lista-item:hover { background: var(--surface-2); }
 /* Los cierres que vienen de otro mes. Se ven en los dos lados —una franja arriba y la
    tarjeta en su día— pero nunca como una reunión más: ese día no hubo llamada, lo que
    pasó fue que entró la plata. El punteado es lo que dice eso de un vistazo. */
-.cal-de-otro-mes { margin: 0 0 var(--space-3); padding: 9px 12px; border: 1px dashed var(--border);
-  border-radius: var(--radius-sm); background: var(--surface-2); }
-.cal-de-otro-mes-cab { display: flex; align-items: baseline; gap: var(--space-2);
-  font-size: 12px; margin-bottom: 7px; }
-.cal-de-otro-mes-cab .dim { font-size: 11.5px; }
-.cal-de-otro-mes-lista { display: flex; flex-wrap: wrap; gap: 6px; }
-.cal-otro-mes-chip { display: inline-flex; align-items: baseline; gap: 7px; font-size: 11.5px;
+/* Una línea y nada más. Con una caja propia y dos renglones ocupaba tanto como un día
+   entero de la semana para decir que hubo un cierre: el calendario es lo que se vino a
+   mirar y esto es una nota al pie. */
+.cal-de-otro-mes { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
+  margin: 0 0 6px; font-size: 11.5px; }
+.cal-de-otro-mes-cab { display: inline-flex; align-items: baseline; gap: 6px; color: var(--text-2); }
+.cal-de-otro-mes-cab b { color: var(--text); }
+.cal-otro-mes-chip { display: inline-flex; align-items: baseline; gap: 6px; font-size: 11px;
   font-family: var(--font); color: var(--text); cursor: pointer; text-align: left;
-  padding: 4px 9px; border: 1px dashed var(--ok); border-radius: 999px; background: var(--surface); }
-.cal-otro-mes-chip:hover { background: var(--surface-2); }
-.cal-otro-mes-chip .dim { font-size: 10.5px; }
+  padding: 2px 8px; border: 1px dashed var(--ok); border-radius: 999px; background: var(--ok-dim); }
+.cal-otro-mes-chip:hover { background: rgba(21, 128, 61, 0.15); }
 .cal-otro-mes-cash { color: var(--ok); font-variant-numeric: tabular-nums; font-weight: 600; }
 /* Con fondo blanco como las demás se leía como una reunión más y había que fijarse en
    el punteado para notar la diferencia. El fondo tintado la saca del flujo de un vistazo:

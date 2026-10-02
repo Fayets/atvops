@@ -289,25 +289,20 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
           grilla aparecen además marcadas, en el día del cierre. */}
       {cierresDelMesVisible.length ? (
         <div className="cal-de-otro-mes">
-          <div className="cal-de-otro-mes-cab">
-            <b>Vienen de otro mes</b>
-            <span className="dim">
-              {cierresDelMesVisible.length} {cierresDelMesVisible.length === 1 ? 'cierre' : 'cierres'}
-              {' · '}
+          <span className="cal-de-otro-mes-cab">
+            Señas a Cerrado: <b>{cierresDelMesVisible.length}</b>
+            <span className="cal-otro-mes-cash">
               {formatValue(cierresDelMesVisible.reduce((n, c) => n + (c.cashUsd || 0), 0), 'usd')}
             </span>
-          </div>
-          <div className="cal-de-otro-mes-lista">
-            {cierresDelMesVisible.map((c) => (
-              <button key={c.eventoId} type="button" className="cal-otro-mes-chip"
-                title="Cerró este mes · la llamada fue antes"
-                onClick={() => onSelect?.({ ...c, prospecto: c.prospecto, fechaAt: c.fechaLlamadaAt })}>
-                <b>{c.prospecto}</b>
-                <span className="dim">llamada {corto(c.fechaLlamadaAt)}</span>
-                <span className="cal-otro-mes-cash">{formatValue(c.cashUsd || 0, 'usd')}</span>
-              </button>
-            ))}
-          </div>
+          </span>
+          {cierresDelMesVisible.map((c) => (
+            <button key={c.eventoId} type="button" className="cal-otro-mes-chip"
+              title={`Cerró este mes · la llamada fue el ${corto(c.fechaLlamadaAt)}`}
+              onClick={() => onSelect?.({ ...c, prospecto: c.prospecto, fechaAt: c.fechaLlamadaAt })}>
+              <b>{c.prospecto}</b>
+              <span className="cal-otro-mes-cash">{formatValue(c.cashUsd || 0, 'usd')}</span>
+            </button>
+          ))}
         </div>
       ) : null}
 
