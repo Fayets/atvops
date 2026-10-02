@@ -7812,6 +7812,13 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .doc-resumen { display: flex; flex-wrap: wrap; gap: 1px;
   background: var(--border-soft); border: 1px solid var(--border-soft); margin-bottom: 24px; }
 .doc-resumen > div { background: var(--surface); padding: 10px 13px; flex: 1 1 150px; min-width: 0; }
+/* Seis números en flex quedaban cuatro arriba y dos abajo, con media fila vacía. Tres y
+   tres es la única partición pareja que deja respirar a las etiquetas: la tarjeta mide
+   unos 620px y en seis columnas "Agenda → cierre" entra en 104px y se corta. Son tres
+   fijas y no auto-fit porque el media query mide la ventana y no la tarjeta, que es
+   bastante más angosta. */
+.doc-resumen.seis { display: grid; grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 560px) { .doc-resumen.seis { grid-template-columns: repeat(2, 1fr); } }
 .doc-resumen .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-3); font-weight: 500; }
 .doc-resumen .v { font-size: 17px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums;

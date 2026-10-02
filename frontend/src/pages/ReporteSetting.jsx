@@ -256,7 +256,7 @@ function Documento({ periodo, setter, m, lab, conclusiones, setConclusiones,
 
         <section className="doc-bloque">
           <h2>El mes en números</h2>
-          <div className="doc-resumen">
+          <div className={`doc-resumen${m.hayChats ? ' seis' : ''}`}>
             {m.hayChats ? (
               <div><div className="l">Chats</div>
                 <div className="v">{(m.chatsDelMes ?? 0).toLocaleString('es-AR')}</div></div>
