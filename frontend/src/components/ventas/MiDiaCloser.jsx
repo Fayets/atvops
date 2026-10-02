@@ -96,6 +96,7 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
         onRango={onRango}
         estados={reuniones?.porEvento}
         ocultos={reuniones?.ocultos}
+        cierresDeOtroMes={reuniones?.cierresDeOtroMes ?? []}
         onEditar={(reunion, estado) => setEditando({ reunion, estado })}
         onAgregar={() => setAgregando(true)}
         onOcultar={async (l) => {

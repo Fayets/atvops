@@ -126,6 +126,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
           onActualizar={onActualizar}
           onRango={onRango}
           estados={reuniones?.porEvento}
+        cierresDeOtroMes={reuniones?.cierresDeOtroMes ?? []}
           ocultos={reuniones?.ocultos}
           onEditar={(reunion, estado) => setEditando({ reunion, estado })}
           onAgregar={() => setAgregando(true)}

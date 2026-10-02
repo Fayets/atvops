@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
-import { formatFecha, formatFechaHora } from '../../lib/format.js';
+import { formatFecha, formatFechaHora, formatValue } from '../../lib/format.js';
 
 const ESTADO = {
   confirmado: { tone: 'ok', label: 'confirmó' },
@@ -43,9 +43,14 @@ function parseAt(iso) {
  *           onMover?: (l: object, fecha: string) => void,
  }} props
  */
+/** "9 sept" — para decir de qué día era la llamada sin ocupar media línea. */
+const corto = (iso) => (iso
+  ? new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+  : '—');
+
 export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando, onActualizar, onRango,
                                            estados, onEditar, onAgregar, onOcultar, onMostrar, ocultos,
-                                           onMover }) {
+                                           onMover, cierresDeOtroMes = [] }) {
   const [modo, setModo] = useState('semana');
   const [ancla, setAncla] = useState(() => new Date());
 
@@ -84,12 +89,21 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
       if (!map[key]) map[key] = [];
       map[key].push(l);
     }
+    // Los cierres que vienen de otro mes se dibujan en su día como una tarjeta más, pero
+    // marcadas: la plata es de este mes y hay que verla donde entró, sin que parezca una
+    // reunión que pasó ese día.
+    for (const c of cierresDeOtroMes ?? []) {
+      const d = parseAt(c.fechaAt);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!map[key]) map[key] = [];
+      map[key].push({ ...c, id: c.eventoId, titulo: c.prospecto, deOtroMes: true });
+    }
     for (const k of Object.keys(map)) {
       map[k].sort((a, b) => (estados?.[a.id]?.fechaAt || a.fechaAt)
         .localeCompare(estados?.[b.id]?.fechaAt || b.fechaAt));
     }
     return map;
-  }, [llamados, ocultos, estados]);
+  }, [llamados, ocultos, estados, cierresDeOtroMes]);
 
   const keyDe = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   // Se pide desde el 1° del mes más temprano visible: el contador de agendas es del
@@ -207,6 +221,13 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     setAncla(n);
   };
 
+  // Los cierres que caen en el mes que se está mirando. En semana también se muestran:
+  // el chip de arriba es del mes, no de los siete días, porque el cierre se anota por mes
+  // y no por día.
+  const mesVisible = `${ancla.getFullYear()}-${String(ancla.getMonth() + 1).padStart(2, '0')}`;
+  const cierresDelMesVisible = (cierresDeOtroMes ?? [])
+    .filter((c) => (c.cierreMes || c.fechaAt?.slice(0, 7)) === mesVisible);
+
   const titulo =
     modo === 'semana'
       ? `${formatFecha(semana[0].toISOString())} – ${formatFecha(semana[6].toISOString())}`
@@ -262,6 +283,34 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
         </span>
       }
     >
+      {/* Las señas de otros meses que cerraron en el que se está mirando. Van arriba y
+          aparte: su plata es de este mes pero la llamada no, así que mezclarlas sin más
+          haría leer la semana como si hubiera habido una reunión que no hubo. En la
+          grilla aparecen además marcadas, en el día del cierre. */}
+      {cierresDelMesVisible.length ? (
+        <div className="cal-de-otro-mes">
+          <div className="cal-de-otro-mes-cab">
+            <b>Vienen de otro mes</b>
+            <span className="dim">
+              {cierresDelMesVisible.length} {cierresDelMesVisible.length === 1 ? 'cierre' : 'cierres'}
+              {' · '}
+              {formatValue(cierresDelMesVisible.reduce((n, c) => n + (c.cashUsd || 0), 0), 'usd')}
+            </span>
+          </div>
+          <div className="cal-de-otro-mes-lista">
+            {cierresDelMesVisible.map((c) => (
+              <button key={c.eventoId} type="button" className="cal-otro-mes-chip"
+                title="Cerró este mes · la llamada fue antes"
+                onClick={() => onSelect?.({ ...c, prospecto: c.prospecto, fechaAt: c.fechaLlamadaAt })}>
+                <b>{c.prospecto}</b>
+                <span className="dim">llamada {corto(c.fechaLlamadaAt)}</span>
+                <span className="cal-otro-mes-cash">{formatValue(c.cashUsd || 0, 'usd')}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className={`ventas-cal-body${actualizando ? ' is-loading' : ''}`}>
         {modo === 'semana' ? (
           <div className="ventas-cal-semana">
@@ -283,6 +332,10 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                     ) : (
                       items.map((l) => {
                         const n = numeroDe(l);
+                        // Una seña de otro mes que cerró en este: no se arrastra, no se
+                        // edita y no lleva número de agenda, porque no es una agenda de
+                        // este mes. Se la ve, se la toca y se abre la llamada original.
+                        if (l.deOtroMes) return <ChipDeOtroMes key={l.id} c={l} onSelect={onSelect} />;
                         return (
                         <button
                           key={l.id}
@@ -344,6 +397,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                   <div className="num-dia">{d.getDate()}</div>
                   {items.slice(0, 3).map((l) => {
                     const n = numeroDe(l);
+                    if (l.deOtroMes) return <ChipDeOtroMes key={l.id} c={l} onSelect={onSelect} chico />;
                     return (
                     <button
                       key={l.id}
@@ -378,6 +432,31 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
         )}
       </div>
     </Card>
+  );
+}
+
+/**
+ * Un cierre que vino de otro mes, dibujado en el día en que se cerró.
+ *
+ * Es una tarjeta aparte y no una llamada más porque ese día no hubo reunión: lo que pasó
+ * ese día fue que entró la plata. Por eso no se arrastra, no se edita y no lleva número
+ * de agenda; tocarla abre la llamada original, que vive en su mes.
+ */
+function ChipDeOtroMes({ c, onSelect, chico }) {
+  const mes = c.fechaLlamadaAt
+    ? new Date(c.fechaLlamadaAt).toLocaleDateString('es-AR', { month: 'long' })
+    : 'otro mes';
+  return (
+    <button
+      type="button"
+      className={`ventas-cal-ev de-otro-mes${chico ? ' chico' : ''}`}
+      title={`Cerró este mes · la llamada fue el ${corto(c.fechaLlamadaAt)}`}
+      onClick={() => onSelect?.({ ...c, fechaAt: c.fechaLlamadaAt })}
+    >
+      <span className="hora">cierre</span>
+      <span className="who">{c.prospecto}</span>
+      <span className="meta">viene de {mes} · {formatValue(c.cashUsd || 0, 'usd')}</span>
+    </button>
   );
 }
 

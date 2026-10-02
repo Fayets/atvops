@@ -571,9 +571,44 @@ def estado_de_las_reuniones(desde: date, hasta: date, usuario: dict | None = Non
         "equipo": equipo_services.nombres(),
         "porEvento": _numerar_agendas(por_evento, manuales),
         "manuales": manuales,
+        # Las señas de meses anteriores que terminaron de cerrar dentro de este rango.
+        # Van aparte de `manuales` a propósito: no son agendas de este mes y el calendario
+        # las dibuja marcadas, para que la semana se siga leyendo como lo que pasó.
+        "cierresDeOtroMes": _cierres_de_otro_mes(desde, hasta),
         "ocultos": (eventos_ocultos()
                     if (usuario or {}).get("rol") in ROLES_CARGAN_LLAMADAS else {}),
     }
+
+
+def _cierres_de_otro_mes(desde: date, hasta: date) -> list[dict]:
+    """Las señas que cerraron en este rango pero cuya llamada fue en otro mes.
+
+    El día que se les asigna es el que tiene sentido para el mes elegido: si el cierre se
+    cargó dentro de ese mes, el día en que se cargó; si se cargó después —porque se anotó
+    a destiempo— el primero del mes. Nunca cae fuera del mes que eligió el que cerró.
+    """
+    salida = []
+    for c in cierres_diferidos(desde, hasta):
+        try:
+            anio, mes = (int(x) for x in c["cierreMes"].split("-"))
+        except (ValueError, AttributeError):
+            continue
+        cuando = datetime(anio, mes, 1, 12, 0)
+        llamada = c.get("fechaAt") or ""
+        salida.append({
+            **c,
+            # Id propio: la fila original sigue viviendo en su mes con su evento, y las
+            # dos no pueden compartir llave o el calendario pisa una con la otra.
+            "eventoId": f"cierre:{c['id']}",
+            "eventoOriginal": c.get("eventoId") or "",
+            "fechaAt": cuando.isoformat(),
+            "fechaLlamadaAt": llamada,
+            "estado": "cierre",
+            "resultado": "Cerrado",
+            "vieneDeOtroMes": True,
+            "mesDeLaLlamada": llamada[:7],
+        })
+    return salida
 
 
 def _numerar_agendas(por_evento: dict, manuales: list[dict]) -> dict:
