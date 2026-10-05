@@ -36,6 +36,7 @@ export const FUENTE = {
   llamadasAgendadas: 'el calendario del closer',
   showsLlamadas: 'el resultado que carga el closer',
   cierres: 'el resultado que carga el closer',
+  senasUsd: 'el cash de las llamadas que quedaron en seña',
   cashUsd: 'el cash que carga el closer en cada llamada',
   pif: 'cargado a mano en Configurar',
 };
@@ -97,8 +98,10 @@ export function formulaDe(key, m = {}) {
         [{ label: 'Cierres', valor: n(m.cierres) },
           { label: 'Vinieron', valor: n(m.showsLlamadas || m.llamadasAgendadas) }]);
     case 'aov':
-      return f('cash ÷ cierres',
-        [{ label: 'Cash collected', valor: n(m.cashUsd), usd: true }, { label: 'Cierres', valor: n(m.cierres) }]);
+      return f(n(m.senasUsd) ? 'cash sin las señas ÷ cierres' : 'cash ÷ cierres',
+        [{ label: 'Cash de cierres', valor: n(m.cashUsd) - n(m.senasUsd), usd: true },
+          ...(n(m.senasUsd) ? [{ label: 'Señas, que no entran', valor: n(m.senasUsd), usd: true }] : []),
+          { label: 'Cierres', valor: n(m.cierres) }]);
     case 'pifRate':
       return f('pagos completos ÷ cierres',
         [{ label: 'Pagaron todo', valor: n(m.pif) }, { label: 'Cierres', valor: n(m.cierres) }]);
@@ -131,6 +134,7 @@ export const QUE_ES = {
   llamadasAgendadas: 'Las llamadas que quedaron en el calendario del closer después del webinar.',
   showsLlamadas: 'A cuántas de esas llamadas vino el prospecto.',
   cierres: 'Cuántas terminaron en venta cerrada. Las señas no cuentan: la venta no está hecha.',
-  cashUsd: 'La plata que entró de esos cierres.',
+  cashUsd: 'Toda la plata que entró: los cierres y las señas. Una seña se cobró igual, aunque la venta no esté hecha.',
+  senasUsd: 'Lo que entró en señas. Suma al cash pero no al AOV.',
   pif: 'Cuántos pagaron el programa completo de una.',
 };

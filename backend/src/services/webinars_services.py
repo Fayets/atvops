@@ -148,6 +148,10 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
     shows_call = int(num("showsLlamadas"))
     cierres = int(num("cierres"))
     cash = num("cashUsd")
+    # Las señas están dentro del cash: es plata que entró. Pero no son una venta hecha, y
+    # si entraran también al AOV una seña de 200 sobre un cierre de 1.000 dejaría el
+    # ticket promedio en 1.200, que no es lo que vale ningún programa.
+    senas_cash = num("senasUsd")
     pif = int(num("pif"))
 
     return {
@@ -159,7 +163,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
         "vivos": vivos, "shows": vivos,
         "picoConcurrentes": pico, "retenidosPitch": retenidos, "booked": booked,
         "llamadasAgendadas": llamadas, "showsLlamadas": shows_call,
-        "cierres": cierres, "cashUsd": cash, "pif": pif,
+        "cierres": cierres, "cashUsd": cash, "senasUsd": senas_cash, "pif": pif,
         "gastoAdsUsd": round(gasto, 2),
         "ctr": tasa(clicks, impresiones), "cpc": money(gasto, clicks),
         # Optins = registros cuando no hay contador aparte (landing de webinar).
@@ -180,7 +184,7 @@ def _metricas_completas(m: dict, gasto: float) -> dict:
         "bookingRate": tasa(booked, retenidos or vivos),
         "showRateCalls": tasa(shows_call, llamadas),
         "closeRate": tasa(cierres, shows_call or llamadas),
-        "aov": money(cash, cierres),
+        "aov": money(max(cash - senas_cash, 0), cierres),
         "pifRate": tasa(pif, cierres),
     }
 
@@ -399,6 +403,8 @@ class WebinarsServices:
 
         vinieron = [l for l in del_webinar if l["vino"]]
         cerraron = [l for l in del_webinar if l["cerro"]]
+        # Toda la plata que entró, cierres y señas: la seña se cobró igual.
+        con_plata = [l for l in del_webinar if l["cashUsd"]]
         return {
             "desde": arranca.isoformat(),
             "delWebinar": del_webinar,
@@ -408,7 +414,8 @@ class WebinarsServices:
                 "sinCargar": sum(1 for l in del_webinar if not l["cargada"]),
                 "showsLlamadas": len(vinieron),
                 "cierres": len(cerraron),
-                "cashUsd": round(sum(l["cashUsd"] for l in cerraron), 2),
+                "cashUsd": round(sum(l["cashUsd"] for l in con_plata), 2),
+                "senasUsd": round(sum(l["cashUsd"] for l in con_plata if not l["cerro"]), 2),
                 "delSetting": len(del_setting),
             },
         }
@@ -770,7 +777,7 @@ class WebinarsServices:
                           "agendasWebinar", "vivos", "shows",
                           "picoConcurrentes",
                           "retenidosPitch", "booked", "llamadasAgendadas", "showsLlamadas",
-                          "cierres", "cashUsd", "pif", "gastoAdsUsd",
+                          "cierres", "cashUsd", "senasUsd", "pif", "gastoAdsUsd",
                       )}
         gasto = 0.0
         impresiones = 0

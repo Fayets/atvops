@@ -357,9 +357,14 @@ export function fasesDeWebinar(raw = {}, opts = {}) {
       { key: 'llamadasAgendadas', label: 'Llamadas agendadas', valor: m.llamadasAgendadas, formato: 'count' },
       { key: 'showRateCalls', label: 'Show rate calls', valor: m.showRateCalls, formato: 'pct', detalle: de(m.showsLlamadas, m.llamadasAgendadas) },
       { key: 'closeRate', label: 'Close rate', valor: m.closeRate, formato: 'pct', detalle: de(m.cierres, m.showsLlamadas || m.llamadasAgendadas) },
-      { key: 'aov', label: 'AOV', valor: m.aov, formato: 'usd', detalle: sobre(m.cierres, 'cierres') },
+      { key: 'aov', label: 'AOV', valor: m.aov, formato: 'usd',
+        detalle: sobre(m.cierres, 'cierres'),
+        ayuda: m.senasUsd ? 'sin contar las señas: no son una venta hecha' : undefined },
       { key: 'pifRate', label: 'PIF rate', valor: m.pifRate, formato: 'pct', detalle: de(m.pif, m.cierres) },
-      { key: 'cashUsd', label: 'Cash collected', valor: m.cashUsd, formato: 'usd', portada: true },
+      { key: 'cashUsd', label: 'Cash collected', valor: m.cashUsd, formato: 'usd', portada: true,
+        detalle: m.senasUsd
+          ? `incluye US$ ${Math.round(m.senasUsd).toLocaleString('es-AR')} de señas`
+          : undefined },
     ],
   };
 
