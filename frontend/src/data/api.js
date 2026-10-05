@@ -1044,6 +1044,11 @@ export async function cerrarSena(leadId, { cierreMes, cashUsd, evento, abrir = f
   });
 }
 
+/** Las llamadas que hay detrás de los números de la fase 3 de un webinar. */
+export async function getLlamadasDelPost(webinarId) {
+  return pedir(`/api/webinars/${encodeURIComponent(webinarId)}/llamadas`);
+}
+
 /** El reporte de una semana: marketing, ventas, cartera y ads en un solo lugar. */
 export async function getReporteSemanal(semana, { refrescar = false } = {}) {
   const q = new URLSearchParams();

@@ -336,6 +336,83 @@ class WebinarsServices:
             filas.sort(key=lambda w: w.fecha_hora or w.creado_at, reverse=True)
             return [_a_dict(w, ahora) for w in filas]
 
+
+    def llamadas_del_post(self, webinar_id: int) -> dict:
+        """Qué llamadas hay detrás de los números de la fase 3.
+
+        Un número que no se puede abrir obliga a creerle a quien lo cargó. Estas son las
+        llamadas que el closer tiene en su calendario desde que terminó el webinar, con el
+        resultado que ya cargó.
+
+        **Qué se considera "del webinar".** Una llamada agendada después del webinar que no
+        tenga detrás un pitch del setter: si Cris le mandó el link, la trajo el setting y no
+        el webinar. Es el criterio con el que se cargaron los números de la fase, y por eso
+        se devuelven las dos listas —las del webinar y las que quedaron afuera— para poder
+        discutirlo en vez de tener que creerlo.
+        """
+        from src.models import ReunionCrm, Webinar
+        from src.services import ventas_services
+
+        with db_session:
+            w = Webinar.get(id=webinar_id)
+            if w is None or w.borrado_at is not None:
+                raise HTTPException(status_code=404, detail="No encontré ese webinar.")
+            arranca = w.fecha_hora
+            if arranca is None:
+                return {"desde": None, "delWebinar": [], "delSetting": [], "resumen": {}}
+            filas = [r for r in ReunionCrm.select()
+                     if r.inicio_at and r.inicio_at >= arranca and not r.descartada]
+
+        # Los pitches del setter que terminaron en una llamada desde el webinar: su primer
+        # nombre alcanza para reconocerlos, que es como se cruzan a mano.
+        def _clave(nombre: str) -> str:
+            n = ventas_services._norm(nombre).split()
+            return n[0] if n else ""
+
+        try:
+            from src.services import setting_services
+
+            con_pitch = {_clave(p["prospecto"]) for p in setting_services.listar({"rol": "admin"})
+                         if p.get("fechaLlamada") and p["fechaLlamada"] >= arranca.date().isoformat()}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("No se pudieron leer los pitches para el cruce: %s", str(e)[:160])
+            con_pitch = set()
+
+        def _fila(r) -> dict:
+            res = (r.resultado or "").strip()
+            return {
+                "id": r.id, "prospecto": r.prospecto, "fechaAt": r.inicio_at.isoformat(),
+                "resultado": res, "cashUsd": round(float(r.cash_usd or 0), 2),
+                "programa": (r.programa or "").strip(),
+                "closer": (r.closer or "").strip(),
+                "cargada": bool(res),
+                "vino": ventas_services._norm(res) in {ventas_services._norm(x)
+                                                       for x in ventas_services.ESTADOS_LLAMADA} and
+                        ventas_services._norm(res) not in {"no show", "no contesta", "cancelada",
+                                                           "cancelado", "re-agenda", "agendado"},
+                "cerro": ventas_services._norm(res) == ventas_services._norm("Cerrado"),
+            }
+
+        del_webinar, del_setting = [], []
+        for r in sorted(filas, key=lambda x: x.inicio_at):
+            (del_setting if _clave(r.prospecto) in con_pitch else del_webinar).append(_fila(r))
+
+        vinieron = [l for l in del_webinar if l["vino"]]
+        cerraron = [l for l in del_webinar if l["cerro"]]
+        return {
+            "desde": arranca.isoformat(),
+            "delWebinar": del_webinar,
+            "delSetting": del_setting,
+            "resumen": {
+                "llamadasAgendadas": len(del_webinar),
+                "sinCargar": sum(1 for l in del_webinar if not l["cargada"]),
+                "showsLlamadas": len(vinieron),
+                "cierres": len(cerraron),
+                "cashUsd": round(sum(l["cashUsd"] for l in cerraron), 2),
+                "delSetting": len(del_setting),
+            },
+        }
+
     def obtener(self, webinar_id: int) -> dict:
         from src.models import Webinar
 

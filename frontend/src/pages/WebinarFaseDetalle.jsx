@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import DesgloseKpi from '../components/webinars/DesgloseKpi.jsx';
 import { Link, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -31,6 +32,8 @@ const GRUPOS = {
  * Un número de personas sin los nombres detrás no se puede trabajar: "8 agendaron" no
  * dice a quién llamar. La lista ya existe en Webinars → Agendas; lo que faltaba era el
  * camino desde el número. */
+// Los dos que llevan a una pantalla propia, con nombre y apellido de cada uno. El resto
+// abre el desglose, que explica de dónde sale el número sin sacarte de la fase.
 const SE_ABREN = {
   ctaCompletado: '/webinars/agendas',
   booked: '/webinars/agendas',
@@ -44,6 +47,7 @@ const A_MANO = {
  * Detalle de una fase del embudo: portada, métricas, raw y cuello típico.
  */
 export default function WebinarFaseDetalle() {
+  const [desglose, setDesglose] = useState(null);
   const { id, faseId } = useParams();
   const [webinar, setWebinar] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -203,11 +207,16 @@ export default function WebinarFaseDetalle() {
             <li
               key={m.key}
               className={`${m.portada ? 'es-portada' : ''}${
-                m.key === 'frecuencia' && campanias.length ? ' se-abre' : ''}`}
+                m.key === 'frecuencia' && campanias.length ? ' se-abre'
+                  : SE_ABREN[m.key] || A_MANO[m.key] ? '' : ' se-abre'}`}
               onClick={m.key === 'frecuencia' && campanias.length
-                ? () => setVerCampanias(true) : undefined}
+                ? () => setVerCampanias(true)
+                : SE_ABREN[m.key] || A_MANO[m.key] ? undefined
+                  : () => setDesglose(m)}
               title={m.key === 'frecuencia' && campanias.length
-                ? 'Ver la frecuencia de cada campaña' : undefined}
+                ? 'Ver la frecuencia de cada campaña'
+                : SE_ABREN[m.key] || A_MANO[m.key] ? undefined
+                  : 'Ver de dónde sale'}
             >
               {SE_ABREN[m.key] ? (
                 <Link to={SE_ABREN[m.key]} className="wb-abre" title="Ver quiénes son">
@@ -313,6 +322,10 @@ export default function WebinarFaseDetalle() {
           Editar números
         </Link>
       </Card>
+      {desglose ? (
+        <DesgloseKpi webinarId={id} metrica={desglose} metricas={webinar?.metricas ?? {}}
+          onCerrar={() => setDesglose(null)} />
+      ) : null}
       <Modal
         open={verCampanias}
         onClose={() => setVerCampanias(false)}

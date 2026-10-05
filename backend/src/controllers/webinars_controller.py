@@ -165,6 +165,17 @@ def actualizar(webinar_id: int, body: schemas.WebinarUpdate, user: dict = Depend
         raise HTTPException(status_code=500, detail=f"No se pudo actualizar el webinar: {e}") from e
 
 
+@router.get("/{webinar_id}/llamadas")
+def llamadas_del_post(webinar_id: int, user: dict = Depends(_puede_webinars)):
+    """Las llamadas que hay detrás de los números de la fase 3, para poder abrirlos."""
+    try:
+        return service.llamadas_del_post(webinar_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"No se pudieron leer las llamadas: {e}") from e
+
+
 @router.get("/{webinar_id}/vivo")
 def vivo(webinar_id: int, user: dict = Depends(_puede_webinars)):
     """Estado del webinar en curso, armado con los webhooks de Zoom."""
