@@ -5,6 +5,7 @@ import AppShell from './components/layout/AppShell.jsx';
 import Calendario from './pages/Calendario.jsx';
 import Asistente from './pages/Asistente.jsx';
 import Cobranza from './pages/Cobranza.jsx';
+import ProximosAVencer from './pages/ProximosAVencer.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
 import Home from './pages/Home.jsx';
@@ -205,6 +206,7 @@ export default function App() {
             <Route path="integraciones" element={<Integraciones />} />
             <Route path="claves" element={<ClavesApi />} />
             <Route path="cobranza" element={<Cobranza />} />
+            <Route path="cobranza/proximos-a-vencer" element={<ProximosAVencer />} />
         <Route path="asistente" element={<Asistente />} />
             <Route path="ideas" element={<Ideas />} />
             <Route path="configuracion" element={<Configuracion />} />

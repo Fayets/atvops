@@ -104,7 +104,13 @@ const NAV = [
     grupo: 'Sistema',
     roles: ['admin', 'founder', 'operaciones'],
   },
-  { to: '/cobranza', icon: 'cobranza', label: 'Cobranza', grupo: 'Áreas' },
+  { to: '/cobranza', icon: 'cobranza', label: 'Cobranza', grupo: 'Áreas',
+    sub: [
+      // El listado de vencimientos es de dirección: es con lo que se sale a renovar,
+      // y lleva la deuda de cada uno al lado.
+      { to: '/cobranza/proximos-a-vencer', label: 'Próximos a vencer',
+        roles: ['admin', 'founder', 'operaciones'] },
+    ] },
   { to: '/ideas', icon: 'ideas', label: 'Ideas', grupo: 'Sistema' },
   { to: '/configuracion', icon: 'config', label: 'Configuración', grupo: 'Sistema' },
 ];

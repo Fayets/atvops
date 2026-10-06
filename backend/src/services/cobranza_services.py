@@ -27,7 +27,95 @@ def _mes_label(d: date | None = None) -> str:
     return f"{d.year:04d}-{d.month:02d}"
 
 
+# ------------------------------------------------------------------ próximos a vencer
+
+
+# En cuántos días se corta cada tramo. No es decorativo: lo que vence esta semana se
+# llama hoy, lo del mes se prepara, y lo de más adelante solo se mira.
+TRAMOS = (
+    ("esta_semana", "Esta semana", 7),
+    ("este_mes", "En el mes", 30),
+    ("despues", "Más adelante", 90),
+)
+
+
 class CobranzaServices:
+
+    def proximos_a_vencer(self, dias: int = 90) -> dict:
+        """Los clientes cuyo acceso vence en los próximos `dias`, para salir a renovarlos.
+
+        Sale del esquema `clients`, que es donde vive la cartera: el vencimiento manda sobre
+        todo lo demás —si venció, el cliente pierde el Classroom— y es el disparador de la
+        conversación de renovación.
+
+        Van agrupados por urgencia y no en una lista sola: lo que vence esta semana es una
+        llamada de hoy, lo del mes se prepara, y lo de más adelante solo se mira. Una lista
+        ordenada por fecha deja las tres cosas con el mismo peso visual.
+        """
+        from src.services import clients_db
+
+        if not clients_db.disponible():
+            raise HTTPException(status_code=503,
+                                detail="Sin acceso al esquema clients: falta CLIENTS_DSN.")
+        dias = max(1, min(int(dias or 90), 365))
+        hoy = _hoy_ar()
+        filas = clients_db.consultar(
+            "SELECT nombre, plan_actual, estado_cliente, oportunidad, responsable, "
+            "       fecha_inicio, fecha_vencimiento, "
+            "       coalesce(total_pagado_usd, 0) AS pagado, "
+            "       coalesce(total_adeudado_usd, 0) AS adeudado, "
+            "       coalesce(observaciones, '') AS observaciones "
+            "FROM {esquema}.clientes "
+            "WHERE fecha_vencimiento >= %s AND fecha_vencimiento <= %s "
+            "ORDER BY fecha_vencimiento",
+            (hoy, hoy + timedelta(days=dias)),
+        )
+
+        def _dias(f) -> int:
+            v = f.get("fecha_vencimiento")
+            return (v - hoy).days if v else 0
+
+        clientes = [{
+            "nombre": (f.get("nombre") or "Sin nombre").strip(),
+            "plan": (f.get("plan_actual") or "").strip(),
+            "estado": (f.get("estado_cliente") or "").strip(),
+            "oportunidad": (f.get("oportunidad") or "").strip(),
+            "responsable": (f.get("responsable") or "").strip(),
+            "inicioAt": f["fecha_inicio"].isoformat() if f.get("fecha_inicio") else None,
+            "venceAt": f["fecha_vencimiento"].isoformat() if f.get("fecha_vencimiento") else None,
+            "dias": _dias(f),
+            "pagadoUsd": round(float(f.get("pagado") or 0), 2),
+            "adeudadoUsd": round(float(f.get("adeudado") or 0), 2),
+            "nota": (f.get("observaciones") or "").strip()[:300],
+        } for f in filas]
+
+        grupos, usados = [], 0
+        for clave, titulo, tope in TRAMOS:
+            if tope > dias:
+                tope = dias
+            items = [c for c in clientes if usados <= c["dias"] <= tope]
+            usados = tope + 1
+            if items:
+                grupos.append({
+                    "clave": clave, "titulo": titulo, "hastaDias": tope,
+                    "clientes": items,
+                    "deudaUsd": round(sum(c["adeudadoUsd"] for c in items), 2),
+                })
+
+        return {
+            "generadoAt": datetime.utcnow().isoformat(),
+            "hoy": hoy.isoformat(),
+            "dias": dias,
+            "grupos": grupos,
+            "clientes": clientes,
+            "resumen": {
+                "total": len(clientes),
+                "conDeuda": sum(1 for c in clientes if c["adeudadoUsd"] > 0),
+                "deudaUsd": round(sum(c["adeudadoUsd"] for c in clientes), 2),
+                "inactivos": sum(1 for c in clientes if c["estado"].lower() in ("inactivo", "pausa")),
+            },
+        }
+
     def _clients_base(self) -> str:
         return config("ATV_CLIENTS_API_URL", default="http://127.0.0.1:8001").rstrip("/")
 
@@ -240,3 +328,4 @@ class CobranzaServices:
             "kpis": kpis,
             "syncAt": ahora_iso,
         }
+

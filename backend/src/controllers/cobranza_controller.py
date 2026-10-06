@@ -9,6 +9,21 @@ router = APIRouter(dependencies=[Depends(solo_interno)])
 service = CobranzaServices()
 
 
+@router.get("/proximos-a-vencer")
+def proximos_a_vencer(
+    dias: int = Query(default=90, ge=1, le=365, description="Ventana en días"),
+    _user=Depends(get_current_user),
+):
+    """Los clientes cuyo acceso vence pronto, agrupados por urgencia."""
+    try:
+        return service.proximos_a_vencer(dias)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500,
+                            detail=f"No se pudo leer el listado de vencimientos: {e}") from e
+
+
 @router.get("")
 def resumen_cobranza(
     month: str | None = Query(default=None, description="Mes YYYY-MM (default: mes AR actual)"),

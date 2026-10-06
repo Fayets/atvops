@@ -5387,6 +5387,30 @@ button.lista-item:hover { background: var(--surface-2); }
 .editor-reunion .modal-cab .dim { font-size: 12px; text-transform: none; }
 .editor-reunion-aviso { font-size: 12px; }
 
+/* Próximos a vencer. Es una lista para tener al lado mientras se llama, así que lo que
+   manda es que entren muchos renglones legibles, no el aire entre tarjetas. */
+.pv-acciones { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.pv-doc .doc-resumen { margin-bottom: var(--space-4); }
+.pv-bloque { margin-top: var(--space-4); }
+.pv-bloque table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pv-bloque th { text-align: left; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-3); font-weight: 600; padding: 0 8px 6px 0;
+  border-bottom: 1px solid var(--border); white-space: nowrap; }
+.pv-bloque td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border-soft);
+  text-align: left; }
+.pv-bloque tr:last-child td { border-bottom: none; }
+.pv-bloque .nom { font-weight: 600; }
+.pv-bloque .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pv-bloque .c { text-align: center; }
+.pv-bloque .der { text-align: right; }
+.pv-bloque .mal { color: var(--alert); }
+.pv-bloque td.mal { font-weight: 600; }
+.pv-pie { margin: var(--space-4) 0 0; font-size: 11.5px; }
+@media (max-width: 640px) {
+  .pv-bloque { overflow-x: auto; }
+  .pv-bloque table { min-width: 560px; }
+}
+
 /* De dónde sale un número del webinar. Casi todos se cargan a mano, así que el panel
    separa tres cosas: cómo se calcula, de qué sistema vino el dato, y quiénes son las
    filas cuando las hay. */
@@ -8089,6 +8113,14 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   .doc-bloque h2, .doc-columna h3 { break-after: avoid; }
 
   .rc-barra > button, .rc-leyenda button { cursor: default; }
+  /* El listado de vencimientos: achica para que entren más renglones por hoja y evita
+     que un cliente quede partido entre dos. */
+  .pv-bloque table { font-size: 9.5px; }
+  .pv-bloque th { font-size: 8.5px; padding-bottom: 4px; }
+  .pv-bloque td { padding: 3px 8px 3px 0; }
+  .pv-bloque tr, .pv-bloque thead { break-inside: avoid; }
+  .pv-bloque h2 { break-after: avoid; }
+  .pv-acciones { display: none; }
   /* En papel la hoja es más angosta: la fila entra achicando el texto. */
   .rc-leyenda { flex-wrap: nowrap; gap: 0 10px; font-size: 9.5px; }
   .rc-leyenda div, .rc-leyenda button { font-size: 9.5px; gap: 4px; padding: 0; }

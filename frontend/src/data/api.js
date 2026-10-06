@@ -1044,6 +1044,11 @@ export async function cerrarSena(leadId, { cierreMes, cashUsd, evento, abrir = f
   });
 }
 
+/** Los clientes cuyo acceso vence en los próximos `dias`, agrupados por urgencia. */
+export async function getProximosAVencer(dias = 90) {
+  return pedir(`/api/cobranza/proximos-a-vencer?dias=${encodeURIComponent(dias)}`);
+}
+
 /** Las llamadas que hay detrás de los números de la fase 3 de un webinar. */
 export async function getLlamadasDelPost(webinarId) {
   return pedir(`/api/webinars/${encodeURIComponent(webinarId)}/llamadas`);
