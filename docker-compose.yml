@@ -16,6 +16,11 @@ services:
     volumes:
       - /opt/atv-clients/transcripts:/opt/atv-clients/transcripts:ro
       - /opt/atv-ops/data:/app/data
+      # La sesión del CLI de Claude. Sin esto hay que pegar un token en el .env en cada
+      # rebuild, y un token pegado a mano se corrompe en el camino: perdimos una tarde
+      # con uno que llegaba con caracteres no-ASCII desde el portapapeles. Con la sesión
+      # en un volumen, `claude /login` se hace una vez y sobrevive a los deploys.
+      - /opt/atv-ops/claude-home:/root/.claude
 
   frontend:
     build:
