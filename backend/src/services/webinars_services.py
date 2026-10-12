@@ -840,6 +840,19 @@ class WebinarsServices:
         except Exception as e:  # noqa: BLE001
             logger.info("CTA del webinar: %s", str(e)[:160])
 
+        # La fase 3 sale del calendario del closer, en vivo: las llamadas que cayeron
+        # después del webinar y no las trajo un pitch de setting. Si se dejara en lo que
+        # alguien cargó a mano el día del webinar, el cash y los shows quedarían
+        # congelados mientras Nick sigue cargando resultados. El PIF se mantiene a mano:
+        # saber si pagó todo de una necesita el saldo, que la llamada no guarda.
+        try:
+            post = self.llamadas_del_post(int(data["id"]))
+            if post.get("delWebinar"):
+                for k in ("llamadasAgendadas", "showsLlamadas", "cierres", "cashUsd", "senasUsd"):
+                    crudas[k] = post["resumen"][k]
+        except Exception as e:  # noqa: BLE001
+            logger.info("Llamadas del post-webinar: %s", str(e)[:160])
+
         # Visitas / optins / TY / WhatsApp desde el script de tracking.
         try:
             from src.services.integraciones_services import IntegracionesServices
