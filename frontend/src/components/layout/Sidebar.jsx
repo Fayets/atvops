@@ -62,22 +62,21 @@ const NAV = [
     label: 'Ventas',
     grupo: 'Áreas',
     sub: [
-      // Las pantallas propias de cada uno: Mi día es de Nick y Mi setting es de Cris.
-      // No son lecturas del área, así que no van en el menú de ops ni de dirección.
+      // El orden sigue el trabajo de cada uno, de lo más inmediato a lo más lejano:
+      // primero lo de hoy, después el registro, después el análisis y al final la plata.
+      // Lo propio de cada rol va primero —Mi día es de Nick, Mi setting es de Cris— y no
+      // aparece en el menú de ops ni de dirección, que entran por el análisis.
       { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer'] },
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer'] },
-      // Caja 1 es la plata de las ventas nuevas: lo que el closer cerró y todavía hay
-      // que terminar de cobrar. Caja 2 —upsell y recompra— no es suya y vive en Cobranza.
-      { to: '/ventas/caja', label: 'Caja 1', roles: ['closer', 'ventas', 'admin', 'founder', 'operaciones'] },
       { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter'] },
-      // Ventas abre el dashboard del área —setting y closing, nada más— y debajo cuelgan
-      // los dos laboratorios. Operativa, Performance, Setting y Salud vs meta salieron
-      // del menú: sus rutas siguen vivas y su contenido se va a repartir entre los dos
-      // laboratorios cuando se definan.
-      // El closer no entra acá: el laboratorio de setting es de Cris y del área. Tenerlo
-      // en su menú era un copiar y pegar de la línea de abajo.
+      // Los laboratorios son el análisis del área. El closer no ve el de setting: es de
+      // Cris y del área. Operativa, Performance, Setting y Salud vs meta salieron del
+      // menú; sus rutas siguen vivas hasta que se repartan entre los dos laboratorios.
       { to: '/ventas/lab-setting', label: 'Laboratorio Setting', roles: ['setter', 'ventas', 'admin', 'operaciones', 'founder'] },
       { to: '/ventas/lab-closing', label: 'Laboratorio Closing', roles: ['closer', 'ventas', 'admin', 'operaciones', 'founder'] },
+      // Caja 1 cierra la lista: es lo que quedó de las ventas y todavía hay que terminar
+      // de cobrar. Caja 2 —upsell y recompra— no es del área y vive en Cobranza.
+      { to: '/ventas/caja', label: 'Caja 1', roles: ['closer', 'ventas', 'admin', 'founder', 'operaciones'] },
     ],
   },
   { to: '/reporte', icon: 'check', label: 'Reporte semanal', grupo: 'Dirección' },
