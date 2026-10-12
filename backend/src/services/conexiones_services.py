@@ -59,6 +59,12 @@ CAMPOS = {
         {"clave": "form_id", "label": "ID del formulario", "secreto": False,
          "ayuda": "El código de la URL: form.typeform.com/to/XXXXXXXX"},
     ],
+    # Para buscar una grabación por su link desde el Laboratorio Closing. El webhook
+    # sigue entrando solo; la clave es para las llamadas que el webhook no trajo.
+    "fathom": [
+        {"clave": "api_key", "label": "API key", "secreto": True,
+         "ayuda": "De fathom.video → Settings → API keys. Con eso se lee la transcripción de un link."},
+    ],
     "zoom": [
         {"clave": "account_id", "label": "Account ID", "secreto": False,
          "ayuda": "De la app Server-to-Server OAuth, no el número de cuenta de la factura."},
@@ -77,6 +83,7 @@ ETIQUETAS = {
     "google_calendar": "Google Calendar",
     "typeform": "Typeform · agendas",
     "zoom": "Zoom Webinars",
+    "fathom": "Fathom · grabaciones",
 }
 
 _cache: dict = {}

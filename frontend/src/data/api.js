@@ -2866,6 +2866,15 @@ export async function buscarClientesReporte(q) {
 // ------------------------------------------------------------- reporte de closing
 
 /** El mes entero: métricas, laboratorio y las llamadas con su análisis. */
+/** Pega un link de Fathom a una llamada y la manda a analizar. Invalida el caché al volver. */
+export async function analizarFathom(llamadaId, url) {
+  return pedir('/api/ventas/lab-closing/analizar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ llamadaId, url }),
+  });
+}
+
 /** Las llamadas grabadas por Fathom del mes, con lo que la IA sacó de cada una. */
 export async function getLabClosing(mes) {
   return pedir(`/api/ventas/lab-closing${mes ? `?mes=${encodeURIComponent(mes)}` : ''}`);

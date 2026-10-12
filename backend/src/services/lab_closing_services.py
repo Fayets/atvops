@@ -14,6 +14,8 @@ import logging
 import re
 from datetime import date, datetime, timedelta, timezone
 
+from fastapi import HTTPException
+
 from src.services import ventas_services as ventas
 
 logger = logging.getLogger("atv_ops.lab_closing")
@@ -23,6 +25,17 @@ AR_TZ = timezone(timedelta(hours=-3))
 # no son parte del nombre. Se limpian para mostrar; el registro queda como está.
 _PREFIJOS = re.compile(r"^\s*(canceled|cancelled|cancelado|cancelada|ingreso|reunion atv|reunión atv)\s*[:\-–]?\s*",
                        re.IGNORECASE)
+
+
+def _canonico(closer) -> str:
+    """"Nick" y "Nick Xanderz" son la misma persona: se muestra como figura en el equipo."""
+    nombre = (closer or "").strip()
+    if not nombre:
+        return ""
+    try:
+        return ventas._persona(nombre, "closer") or nombre
+    except Exception:  # noqa: BLE001
+        return nombre
 
 
 def _nombre_limpio(nombre: str) -> str:
@@ -108,7 +121,7 @@ def _fila(r, ia: dict) -> dict:
         "eventoId": r.evento_id,
         "prospecto": _nombre_limpio(r.prospecto) or (ia.get("lead") or "Sin nombre").strip(),
         "fechaAt": r.inicio_at.isoformat() if r.inicio_at else None,
-        "closer": (r.closer or "").strip(),
+        "closer": _canonico(r.closer),
         "setter": (r.setter or "").strip(),
         "resultado": resultado,
         "programa": (r.programa or "").strip(),
@@ -125,33 +138,96 @@ def _fila(r, ia: dict) -> dict:
     }
 
 
+# Las llamadas que de verdad pasaron: con resultado, cerradas, o ya pasadas y sin cargar.
+# Las que no pasaron (no show, cancelada, descartada) no tienen grabación que mirar.
+_PASARON = {"cierre", "show", "sin_reportar", "sin_crm"}
+
+
+def _es_del_closer(nombre: str, propios: set[str]) -> bool:
+    primero = ventas._norm(nombre or "").split()[:1]
+    return bool(primero) and primero[0] in propios
+
+
+def _fila_calendario(f: dict, ahora: datetime) -> dict:
+    """Una llamada del calendario que todavía no tiene grabación analizada."""
+    evento = f.get("eventoId") or ""
+    return {
+        "id": f.get("id"),
+        "eventoId": evento,
+        "prospecto": _nombre_limpio(f.get("nombre") or "") or "Sin nombre",
+        "fechaAt": f["call"].isoformat() if f.get("call") else None,
+        "closer": _canonico(f.get("closer")),
+        "setter": (f.get("setter") or "").strip(),
+        "resultado": (f.get("resultado") or "").strip(),
+        "programa": (f.get("programa_ofrecido") or "").strip(),
+        "cashUsd": _num(f.get("pago")) or None,
+        "cargada": bool((f.get("resultado") or "").strip()),
+        "estado": (f.get("resultado") or "").strip() or "Sin cargar",
+        "grupo": _grupo((f.get("resultado") or "").strip()),
+        "fathomUrl": "",
+        "fathomEmbed": "",
+        "reporteAt": None,
+        "ia": {},
+        "coincide": None,
+        "analizada": False,
+    }
+
+
 def listar(usuario: dict, mes: str | None = None) -> dict:
-    """Las llamadas con grabación del mes. El closer ve las suyas; el resto, todas."""
+    """Las llamadas del mes que pasaron, con la grabación analizada si la hay.
+
+    La base es el calendario, no Fathom: una llamada sin grabación tiene que estar igual,
+    para poder pegarle el link y analizarla. El closer ve las suyas; el resto, todas.
+    """
     from pony.orm import db_session
 
     from src.models import ReunionCrm
 
     desde, hasta = _rango(mes)
-    d0 = datetime.combine(desde, datetime.min.time())
-    d1 = datetime.combine(hasta, datetime.min.time())
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     es_closer = (usuario.get("rol") or "") == "closer"
     propios = {ventas._norm(n).split()[0] for n in ventas._nombres_crm(usuario) if ventas._norm(n)}
 
-    filas: list[dict] = []
+    # Lo que quedó en ATV Ops por evento: la grabación y el análisis viven ahí.
     with db_session:
-        for r in list(ReunionCrm.select()):
-            if r.descartada or not (r.fathom_url or r.reporte_ia):
+        registro = {r.evento_id: r for r in list(ReunionCrm.select())
+                    if r.evento_id and r.inicio_at and desde <= r.inicio_at.date() < hasta
+                    and not r.descartada}
+        filas: list[dict] = []
+        vistos: set[str] = set()
+        for f in ventas._sumar_reuniones_del_calendario(desde, hasta):
+            if f.get("duplicada") or not f.get("call") or f["call"] > ahora:
                 continue
-            if not r.inicio_at or not (d0 <= r.inicio_at < d1):
+            clase = ventas._clasificar(f.get("resultado", ""), f.get("calificacion", ""), f["call"], ahora,
+                                       f.get("soloCalendario", False), f.get("duplicada", False),
+                                       f.get("reprogramada", False))
+            if clase not in _PASARON:
                 continue
-            if es_closer:
-                primero = ventas._norm(r.closer or "").split()[:1]
-                if not primero or primero[0] not in propios:
-                    continue
-            filas.append(_fila(r, _ia_de(r.reporte_ia)))
+            if es_closer and not _es_del_closer(f.get("closer"), propios):
+                continue
+            evento = f.get("eventoId") or ""
+            r = registro.get(evento)
+            if r is not None and (r.fathom_url or r.reporte_ia):
+                fila = _fila(r, _ia_de(r.reporte_ia))
+                fila["analizada"] = True
+                fila["id"] = f.get("id")
+            else:
+                fila = _fila_calendario(f, ahora)
+            vistos.add(evento)
+            filas.append(fila)
+        # Una llamada analizada que el calendario ya no muestra (se movió, se borró el
+        # evento) se conserva igual: la grabación sigue valiendo.
+        for evento, r in registro.items():
+            if evento in vistos or not (r.fathom_url or r.reporte_ia):
+                continue
+            if es_closer and not _es_del_closer(r.closer, propios):
+                continue
+            fila = _fila(r, _ia_de(r.reporte_ia))
+            fila["analizada"] = True
+            filas.append(fila)
 
     filas.sort(key=lambda f: f["fechaAt"] or "", reverse=True)
-    conteo = {"todas": len(filas)}
+    conteo = {"todas": len(filas), "analizadas": sum(1 for f in filas if f["analizada"])}
     for f in filas:
         conteo[f["grupo"]] = conteo.get(f["grupo"], 0) + 1
     closers = sorted({f["closer"] for f in filas if f["closer"]})
@@ -162,3 +238,23 @@ def listar(usuario: dict, mes: str | None = None) -> dict:
         "conteo": conteo,
         "closers": closers,
     }
+
+
+def analizar(llamada_id, url: str, usuario: dict) -> dict:
+    """Pega el link de Fathom a una llamada y la analiza. Si la llamada es solo del
+    calendario, primero se le crea la ficha en ATV Ops, como al cargar un resultado."""
+    from src.services import fathom_services
+
+    # Primero lo barato y lo que puede fallar: el link y la clave. Recién después se
+    # crea la ficha, así una llamada del calendario no queda con ficha a medias por un
+    # link mal pegado.
+    if not fathom_services._id_del_link(url):
+        raise HTTPException(status_code=400,
+                            detail="Ese link no es de Fathom. Tiene que ser fathom.video/calls/… o /share/…")
+    if not fathom_services._api_key():
+        raise HTTPException(status_code=503,
+                            detail="Falta la API key de Fathom. Va en Sistema → Claves API → Fathom.")
+    _lead, evento = ventas._ficha_para(llamada_id, usuario)
+    if not evento:
+        raise HTTPException(status_code=400, detail="Esa llamada no tiene evento de calendario.")
+    return fathom_services.analizar_por_link(evento, url, usuario)

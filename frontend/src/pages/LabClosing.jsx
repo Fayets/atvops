@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import { getLabClosing } from '../data/api.js';
+import { analizarFathom, getLabClosing } from '../data/api.js';
 import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
@@ -17,6 +17,7 @@ import { useResource } from '../lib/hooks.js';
 
 const FILTROS = [
   { clave: 'todas', label: 'Todas' },
+  { clave: 'analizadas', label: 'Con grabación' },
   { clave: 'cerradas', label: 'Cerradas' },
   { clave: 'seguimiento', label: 'Seguimiento' },
   { clave: 'otras', label: 'Sin venta' },
@@ -59,7 +60,7 @@ function hojaDe(l) {
 function Tarjeta({ l, onAbrir }) {
   const { enc, bloques } = hojaDe(l);
   return (
-    <button type="button" className={`lab-tarjeta${l.cargada ? '' : ' sin-cargar'}`} onClick={onAbrir}>
+    <button type="button" className={`lab-tarjeta${l.analizada ? '' : ' sin-cargar'}`} onClick={onAbrir}>
       <div className="lab-hoja">
         <div className="lab-hoja-papel">
           <div className="lab-hoja-fila">
@@ -72,11 +73,17 @@ function Tarjeta({ l, onAbrir }) {
               <div className="lab-hoja-t">{b.texto}</div>
             </div>
           ))}
-          {bloques.length === 0 && <div className="lab-hoja-t dim">La IA todavía no leyó esta grabación.</div>}
+          {bloques.length === 0 && (
+            <div className="lab-hoja-t dim">
+              {l.analizada ? 'La IA todavía no leyó esta grabación.' : 'Sin grabación. Abrí la ficha y pegá el link de Fathom.'}
+            </div>
+          )}
         </div>
-        <span className="lab-fathom" title="Grabada en Fathom" aria-hidden="true">
-          <svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 1.5l8 4.5-8 4.5z" /></svg>
-        </span>
+        {l.analizada && (
+          <span className="lab-fathom" title="Grabada en Fathom" aria-hidden="true">
+            <svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 1.5l8 4.5-8 4.5z" /></svg>
+          </span>
+        )}
       </div>
       <div className="lab-pie">
         <div className="lab-nombre">{l.prospecto}</div>
@@ -100,9 +107,26 @@ function Campo({ titulo, children, tenue }) {
   );
 }
 
-function Ficha({ l, onCerrar }) {
+function Ficha({ l, onCerrar, onAnalizada }) {
   const ia = l.ia || {};
   const enc = encajeDe(ia);
+  const [link, setLink] = useState(l.fathomUrl || '');
+  const [analizando, setAnalizando] = useState(false);
+  const [errorLink, setErrorLink] = useState('');
+
+  const analizar = async (e) => {
+    e.preventDefault();
+    if (!link.trim() || analizando) return;
+    setAnalizando(true); setErrorLink('');
+    try {
+      await analizarFathom(l.id, link.trim());
+      onAnalizada();
+    } catch (err) {
+      setErrorLink(err?.message || 'No se pudo analizar la grabación.');
+    } finally {
+      setAnalizando(false);
+    }
+  };
   const iniciales = l.prospecto.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
   useEffect(() => {
@@ -123,7 +147,7 @@ function Ficha({ l, onCerrar }) {
             <div className="lab-portada">
               <span className="lab-portada-ini">{iniciales}</span>
               <span className="lab-portada-txt">
-                {l.fathomUrl ? 'Grabación en Fathom' : 'Sin grabación'}
+                {l.fathomUrl ? 'Grabación en Fathom' : 'Sin grabación todavía'}
               </span>
             </div>
           )}
@@ -144,6 +168,23 @@ function Ficha({ l, onCerrar }) {
               <div><div className="lab-k">Factura hoy</div>
                 <div className="lab-n">{ia.facturacionUsd ? `${usd(ia.facturacionUsd)} / mes` : '—'}</div></div>
             </div>
+            {!l.analizada && (
+              <form className="lab-link" onSubmit={analizar}>
+                <label htmlFor={`fathom-${l.id}`} className="lab-k">Link de Fathom</label>
+                <div className="lab-link-fila">
+                  <input id={`fathom-${l.id}`} type="url" value={link} placeholder="https://fathom.video/calls/…"
+                    onChange={(e) => setLink(e.target.value)} disabled={analizando} />
+                  <button type="submit" className="btn primary" disabled={analizando || !link.trim()}>
+                    {analizando ? 'Analizando…' : 'Analizar'}
+                  </button>
+                </div>
+                <div className="dim" style={{ fontSize: 12 }}>
+                  {errorLink
+                    ? <span className="mal">{errorLink}</span>
+                    : 'La IA lee la transcripción y arma el laboratorio de esta llamada. Tarda un minuto.'}
+                </div>
+              </form>
+            )}
             <div className="lab-ficha-acciones">
               {l.fathomUrl && (
                 <a className="btn" href={l.fathomUrl} target="_blank" rel="noreferrer">
@@ -214,7 +255,18 @@ function Ficha({ l, onCerrar }) {
               </footer>
             </div>
           ) : (
-            <p className="dim">La IA todavía no leyó esta grabación.</p>
+            <div className="lab-analisis">
+              <p className="dim" style={{ margin: 0 }}>
+                {l.analizada
+                  ? 'La IA todavía no leyó esta grabación.'
+                  : 'Esta llamada no tiene grabación analizada. Pegá el link de Fathom a la izquierda y se arma el laboratorio.'}
+              </p>
+              {l.cargada && (
+                <footer className="lab-coincide">
+                  <span>Lo que cargó {l.closer || 'el closer'}: {l.resultado}{l.programa ? ` · ${l.programa}` : ''}{l.cashUsd ? ` · ${usd(l.cashUsd)}` : ''}</span>
+                </footer>
+              )}
+            </div>
           )}
         </section>
       </div>
@@ -224,13 +276,16 @@ function Ficha({ l, onCerrar }) {
 
 export default function LabClosing() {
   const { mes } = useMes();
-  const { data, error, loading } = useResource(() => getLabClosing(mes), [mes]);
+  // `tick` sube cuando se analiza una grabación: vuelve a pedir la lista.
+  const [tick, setTick] = useState(0);
+  const { data, error, loading } = useResource(() => getLabClosing(mes), [mes, tick]);
   const [filtro, setFiltro] = useState('todas');
   const [closer, setCloser] = useState('');
   const [abierta, setAbierta] = useState(null);
 
   const llamadas = useMemo(() => (data?.llamadas ?? []).filter((l) => (
-    (filtro === 'todas' || l.grupo === filtro) && (!closer || l.closer === closer)
+    (filtro === 'todas' || (filtro === 'analizadas' ? l.analizada : l.grupo === filtro))
+    && (!closer || l.closer === closer)
   )), [data, filtro, closer]);
 
   if (loading && !data) return <div className="page"><SkeletonBlock /></div>;
@@ -244,9 +299,9 @@ export default function LabClosing() {
     <div className="page">
       <div className="lab-cab">
         <div>
-          <div className="lab-titulo">Llamadas con grabación</div>
+          <div className="lab-titulo">Llamadas del mes</div>
           <div className="dim">
-            {conteo.todas ?? 0} {conteo.todas === 1 ? 'llamada analizada' : 'llamadas analizadas'} en el mes · cada una abre su ficha con lo que pasó adentro
+            {conteo.todas ?? 0} {conteo.todas === 1 ? 'llamada' : 'llamadas'} que pasaron · {conteo.analizadas ?? 0} con grabación analizada · cada una abre su ficha
           </div>
         </div>
         <div className="lab-filtros">
@@ -267,9 +322,9 @@ export default function LabClosing() {
 
       {llamadas.length === 0 ? (
         <div className="card lab-vacio">
-          <h3>No hay llamadas grabadas {filtro !== 'todas' || closer ? 'con ese filtro' : 'este mes'}</h3>
+          <h3>No hay llamadas {filtro !== 'todas' || closer ? 'con ese filtro' : 'que hayan pasado este mes'}</h3>
           <p className="dim">
-            Las llamadas entran solas cuando Fathom termina de grabar y la IA lee la transcripción.
+            Acá entran las llamadas del calendario que ya pasaron. La grabación llega sola por Fathom, o se pega el link en la ficha.
           </p>
         </div>
       ) : (
@@ -279,11 +334,14 @@ export default function LabClosing() {
       )}
 
       <p className="dim" style={{ fontSize: 12 }}>
-        Cada tarjeta es una llamada que Fathom grabó y la IA analizó. Las que el closer todavía no
-        cargó van con borde punteado. Tocá una para abrir la ficha.
+        Cada tarjeta es una llamada del calendario que ya pasó. Las que tienen grabación analizada
+        llevan la marca de Fathom; las de borde punteado todavía no: abrilas y pegá el link.
       </p>
 
-      {seleccionada && <Ficha l={seleccionada} onCerrar={() => setAbierta(null)} />}
+      {seleccionada && (
+        <Ficha key={`${seleccionada.id}-${seleccionada.analizada}`} l={seleccionada}
+          onCerrar={() => setAbierta(null)} onAnalizada={() => setTick((n) => n + 1)} />
+      )}
     </div>
   );
 }

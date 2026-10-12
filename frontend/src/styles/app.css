@@ -8170,6 +8170,12 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .lab-n { font-size: 15px; font-weight: 600; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .lab-v { font-size: 13.5px; line-height: 1.5; }
 .lab-ficha-acciones { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
+.lab-link { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--radius-sm);
+  background: var(--surface-2); }
+.lab-link-fila { display: flex; gap: 8px; }
+.lab-link-fila input { flex: 1; min-width: 0; font-family: var(--font); font-size: 13px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
+.lab-link .mal { color: var(--alert); }
 .lab-ficha-acciones .btn { display: inline-flex; align-items: center; gap: 6px; }
 .lab-ficha-der > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
   padding: 18px 24px; border-bottom: 1px solid var(--border-soft); }

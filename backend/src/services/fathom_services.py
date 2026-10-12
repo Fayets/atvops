@@ -34,6 +34,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 
 from decouple import config
+from fastapi import HTTPException
 from pony.orm import db_session
 
 from src.models import ReunionCrm
@@ -875,3 +876,108 @@ def reencolar(ids: list[str]) -> int:
             r.reporte_enviado_at = None
             n += 1
     return n
+
+
+# ------------------------------------------------------------------ por link, a mano
+
+API_BASE = "https://api.fathom.ai/external/v1"
+
+
+def _api_key() -> str:
+    """Primero Claves API, después el `.env`. Igual que Typeform y Zoom."""
+    from src.services import conexiones_services
+
+    try:
+        if conexiones_services.editada_aca("fathom"):
+            valor = str((conexiones_services.obtener("fathom") or {}).get("api_key") or "").strip()
+            if valor:
+                return valor
+    except Exception:  # noqa: BLE001
+        pass
+    return config("FATHOM_API_KEY", default="").strip()
+
+
+def _id_del_link(url: str) -> str:
+    """El identificador de la grabación en el link: `/calls/853532880` o `/share/<token>`."""
+    m = re.search(r"fathom\.video/(?:calls|share)/([A-Za-z0-9_-]+)", url or "")
+    return m.group(1) if m else ""
+
+
+def buscar_grabacion(url: str, cuando: datetime | None) -> dict:
+    """La grabación que corresponde a ese link, con su transcripción.
+
+    La API de Fathom no busca por id: lista las reuniones por fecha de creación. Se pide
+    la ventana alrededor de la llamada —o los últimos 90 días si no se sabe cuándo fue—
+    y se queda con la que tiene ese `recording_id` o ese link.
+    """
+    from urllib.error import HTTPError, URLError
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
+
+    clave = _api_key()
+    if not clave:
+        raise HTTPException(status_code=503,
+                            detail="Falta la API key de Fathom. Va en Sistema → Claves API → Fathom.")
+    ident = _id_del_link(url)
+    if not ident:
+        raise HTTPException(status_code=400,
+                            detail="Ese link no es de Fathom. Tiene que ser fathom.video/calls/… o /share/…")
+    ahora = datetime.now(timezone.utc)
+    if cuando is not None:
+        centro = cuando.replace(tzinfo=timezone.utc) if cuando.tzinfo is None else cuando
+        desde, hasta = centro - timedelta(days=4), min(centro + timedelta(days=4), ahora + timedelta(hours=1))
+    else:
+        desde, hasta = ahora - timedelta(days=90), ahora + timedelta(hours=1)
+    params = {"include_transcript": "true", "include_summary": "true",
+              "created_after": desde.strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "created_before": hasta.strftime("%Y-%m-%dT%H:%M:%SZ")}
+    cursor = None
+    for _ in range(12):
+        q = dict(params, **({"cursor": cursor} if cursor else {}))
+        req = Request(f"{API_BASE}/meetings?{urlencode(q)}",
+                      headers={"X-Api-Key": clave, "Accept": "application/json"})
+        try:
+            with urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except HTTPError as e:
+            cuerpo = e.read().decode("utf-8", errors="replace")[:200]
+            if e.code in (401, 403):
+                raise HTTPException(status_code=502, detail="Fathom rechazó la API key.") from e
+            raise HTTPException(status_code=502, detail=f"Fathom respondió {e.code}: {cuerpo}") from e
+        except URLError as e:
+            raise HTTPException(status_code=503, detail=f"No se pudo conectar a Fathom: {e}") from e
+        for item in data.get("items") or []:
+            if (str(item.get("recording_id") or "") == ident
+                    or ident in str(item.get("url") or "") or ident in str(item.get("share_url") or "")):
+                return item
+        cursor = data.get("next_cursor")
+        if not cursor:
+            break
+    raise HTTPException(status_code=404,
+                        detail="Fathom no tiene una grabación con ese link en esas fechas. "
+                               "Si la llamada es de otro día, revisá la fecha de la reunión.")
+
+
+def analizar_por_link(evento_id: str, url: str, usuario: dict) -> dict:
+    """Pega un link de Fathom a una llamada del calendario y la analiza como si hubiera
+    llegado por el webhook. La reunión se identifica por su evento, no por el nombre."""
+    url = (url or "").strip()
+    with db_session:
+        reunion = ReunionCrm.get(evento_id=evento_id)
+        if reunion is None:
+            raise HTTPException(status_code=404, detail="Esa llamada no está en ATV Ops.")
+        cuando = reunion.inicio_at
+    payload = buscar_grabacion(url, cuando)
+    datos = datos_de(payload)
+    datos["url"] = url
+    if not datos["transcripcion"]:
+        raise HTTPException(status_code=422,
+                            detail="La grabación existe pero Fathom no devolvió transcripción.")
+    campos = extraer(datos)
+    with db_session:
+        reunion = ReunionCrm.get(evento_id=evento_id)
+        guardado = _guardar(reunion, datos, campos)
+        reunion.reporte_mensaje = mensaje(datos, campos, reunion)
+    log.info("Fathom por link (%s): %s → %s (completó %s)", usuario.get("username"), datos["titulo"],
+             campos["estado"], guardado["completados"] or "nada")
+    return {"ok": True, "eventoId": evento_id, "estado": campos["estado"], **guardado}

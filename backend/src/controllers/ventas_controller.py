@@ -79,6 +79,18 @@ def lab_closing_llamadas(user: dict = Depends(solo_interno), mes: str | None = N
         raise HTTPException(status_code=500, detail="No se pudo armar el laboratorio de closing.")
 
 
+@router.post("/lab-closing/analizar")
+def lab_closing_analizar(user: dict = Depends(solo_interno), payload: dict = Body(...)):
+    """Pega un link de Fathom a una llamada y la analiza con la IA."""
+    try:
+        return lab_closing.analizar((payload or {}).get("llamadaId"), (payload or {}).get("url") or "", user)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        log.exception("No se pudo analizar la grabación")
+        raise HTTPException(status_code=500, detail="No se pudo analizar la grabación.")
+
+
 @router.get("/mis-llamadas")
 def mis_llamadas(user: dict = Depends(solo_interno), closer: str | None = None, mes: str | None = None):
     """Las llamadas del closer logueado: lo que viene y lo que le falta reportar."""
