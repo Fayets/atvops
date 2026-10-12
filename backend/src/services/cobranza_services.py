@@ -120,16 +120,17 @@ class CobranzaServices:
     def caja_uno(self, mes: str | None = None) -> dict:
         """Caja 1: la plata de las ventas nuevas, que es la que cierra el closer.
 
-        Caja 1 son las cuotas de una venta nueva; Caja 2 es upsell y recompra. El tipo
-        vive en la primera línea de `notas` de cada cuota (`cuota_venta`, `cuota_upsell`,
-        `cuota_recompra`, `sena`), que es como lo guarda ATV Clients.
+        Caja 1 son las cuotas de una venta nueva y sus señas; Caja 2 es upsell y
+        recompra. El tipo vive en la primera línea de `notas` de cada cuota
+        (`cuota_venta`, `sena`, `cuota_upsell`, `cuota_recompra`), que es como lo guarda
+        ATV Clients.
 
-        Tres cosas y no una: lo que entró, lo que vence este mes y todavía no entró, y lo
-        que venció antes y sigue sin pagarse. Un solo total no distingue un mes que cobró
-        todo de uno que cobró la mitad y arrastra el resto, y esa diferencia es el trabajo
-        que hay por delante.
-
-        Las señas quedan afuera: reservan cupo, no son una cuota de la venta.
+        Lo que entró sale de `pagos` —la plata real, con su fecha— y no de la cuota: una
+        cuota de 5.000 pagada en dos veces entra 1.000 este mes y 4.000 el que viene, y
+        mirarla desde la cuota la hacía aparecer entera el día que se terminó de pagar.
+        Así octubre decía 28.600 cuando en ATV Clients habían entrado 26.500. Lo que vence
+        y lo atrasado se miran desde la cuota, pero con el saldo que falta, descontando
+        lo que ya se imputó.
         """
         from src.services import clients_db
 
@@ -145,36 +146,58 @@ class CobranzaServices:
         hasta = date(anio + (m == 12), (m % 12) + 1, 1)
 
         TIPO = "split_part(coalesce(q.notas, ''), chr(10), 1)"
-        base = (
-            "SELECT c.nombre, q.monto_usd, q.fecha_vence, q.fecha_pago, q.numero_cuota, "
-            "       coalesce(q.estado, '') AS estado, coalesce(c.responsable, '') AS responsable "
-            "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
-            f"WHERE {TIPO} = 'cuota_venta' AND "
-        )
 
-        def _filas(cond: str, params: tuple) -> list[dict]:
-            return [{
+        def _fila(f: dict, monto) -> dict:
+            tipo = (f.get("tipo") or "").strip()
+            return {
                 "cliente": (f.get("nombre") or "Sin nombre").strip(),
-                "montoUsd": round(float(f.get("monto_usd") or 0), 2),
+                "montoUsd": round(float(monto or 0), 2),
                 "venceAt": f["fecha_vence"].isoformat() if f.get("fecha_vence") else None,
                 "pagoAt": f["fecha_pago"].isoformat() if f.get("fecha_pago") else None,
                 "cuota": f.get("numero_cuota"),
+                "tipo": tipo,
                 "estado": (f.get("estado") or "").strip(),
                 "responsable": (f.get("responsable") or "").strip(),
-            } for f in clients_db.consultar(base + cond, params)]
+            }
 
-        entro = _filas("q.fecha_pago >= %s AND q.fecha_pago < %s ORDER BY q.fecha_pago",
-                       (desde, hasta))
-        vence = _filas("q.fecha_vence >= %s AND q.fecha_vence < %s AND q.fecha_pago IS NULL "
-                       "ORDER BY q.fecha_vence", (desde, hasta))
-        atrasado = _filas("q.fecha_vence < %s AND q.fecha_pago IS NULL ORDER BY q.fecha_vence",
-                          (desde,))
+        # Entró: cada pago del mes imputado a una cuota de venta o a una seña, por lo que
+        # se imputó. Un pago sin imputación no se puede atribuir a una caja: queda afuera.
+        entro = [_fila(f, f.get("imputado")) for f in clients_db.consultar(
+            "SELECT c.nombre, pi.monto_usd AS imputado, p.fecha AS fecha_pago, q.fecha_vence, "
+            "       q.numero_cuota, coalesce(q.estado, '') AS estado, "
+            f"       {TIPO} AS tipo, coalesce(c.responsable, '') AS responsable "
+            "FROM {esquema}.pagos p "
+            "JOIN {esquema}.clientes c ON c.id = p.cliente_id "
+            "JOIN {esquema}.pago_imputaciones pi ON pi.pago_id = p.id "
+            "JOIN {esquema}.cuotas q ON q.id = pi.cuota_id "
+            f"WHERE p.fecha >= %s AND p.fecha < %s AND {TIPO} IN ('cuota_venta', 'sena') "
+            "ORDER BY p.fecha, c.nombre", (desde, hasta))]
+
+        # Vence y atrasado: la cuota de venta sin pagar, por lo que le falta.
+        base = (
+            "SELECT c.nombre, q.monto_usd, q.fecha_vence, q.fecha_pago, q.numero_cuota, "
+            f"       coalesce(q.estado, '') AS estado, {TIPO} AS tipo, "
+            "       coalesce(c.responsable, '') AS responsable, "
+            "       q.monto_usd - coalesce((SELECT sum(pi.monto_usd) FROM {esquema}.pago_imputaciones pi "
+            "                               WHERE pi.cuota_id = q.id), 0) AS saldo "
+            "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
+            f"WHERE {TIPO} = 'cuota_venta' AND q.fecha_pago IS NULL AND "
+        )
+
+        def _pendientes(cond: str, params: tuple) -> list[dict]:
+            filas = [_fila(f, f.get("saldo")) for f in clients_db.consultar(base + cond, params)]
+            return [f for f in filas if f["montoUsd"] > 0]
+
+        vence = _pendientes("q.fecha_vence >= %s AND q.fecha_vence < %s ORDER BY q.fecha_vence",
+                            (desde, hasta))
+        atrasado = _pendientes("q.fecha_vence < %s ORDER BY q.fecha_vence", (desde,))
 
         suma = lambda xs: round(sum(x["montoUsd"] for x in xs), 2)  # noqa: E731
         hoy = _hoy_ar()
         return {
             "mes": mes,
-            "entro": {"usd": suma(entro), "cuotas": len(entro), "filas": entro},
+            "entro": {"usd": suma(entro), "cuotas": len(entro), "filas": entro,
+                      "senasUsd": suma([x for x in entro if x["tipo"] == "sena"])},
             "vence": {"usd": suma(vence), "cuotas": len(vence), "filas": vence,
                       # Las de este mes que ya pasaron de fecha: son reclamo de hoy, no del 30.
                       "yaVencidas": sum(1 for x in vence

@@ -42,7 +42,7 @@ function Lista({ filas, campo, vacio, tono }) {
             <tr key={`${f.cliente}-${f[campo]}-${i}`}>
               <td className="num">{fecha(f[campo])}</td>
               <td className="nom">{f.cliente}</td>
-              <td className="c num">{f.cuota ?? '—'}</td>
+              <td className="c num">{f.tipo === 'sena' ? 'seña' : (f.cuota ?? '—')}</td>
               <td>{f.responsable || '—'}</td>
               <td className={`der num${tono ? ` ${tono}` : ''}`}>{usd(f.montoUsd)}</td>
             </tr>
@@ -118,7 +118,7 @@ function Detalle({ titulo, explicacion, resumen, bloques, onCerrar }) {
           ))}
         </div>
         <footer className="dim">
-          {cuotas} {cuotas === 1 ? 'cuota' : 'cuotas'} · cuotas de venta (Caja 1) de ATV Clients
+          {cuotas} {cuotas === 1 ? 'fila' : 'filas'} · Caja 1 de ATV Clients
         </footer>
       </div>
     </div>
@@ -141,17 +141,18 @@ export default function CajaUno() {
   const DETALLES = {
     entro: {
       titulo: 'Entró este mes',
-      explicacion: 'Las cuotas de venta que se cobraron con fecha de pago dentro del mes. Cuenta cuándo entró la plata, no cuándo vencía.',
+      explicacion: 'Los pagos del mes imputados a cuotas de venta o a señas, por lo que se pagó: una cuota pagada en dos veces entra en dos fechas. Es el mismo número que el Cobrado · Caja 1 de ATV Clients.',
       resumen: [
         { label: 'Entró', valor: usd(entro.usd), tono: 'var(--ok)' },
-        { label: 'Cuotas', valor: entro.cuotas ?? 0 },
+        { label: 'Pagos', valor: entro.cuotas ?? 0 },
+        ...(entro.senasUsd ? [{ label: 'De señas', valor: usd(entro.senasUsd), tenue: true }] : []),
       ],
       bloques: [{ titulo: 'Entró', filas: entro.filas, campo: 'pagoAt', tono: 'ok', usd: entro.usd,
         vacio: 'Todavía no entró ninguna cuota de venta este mes.' }],
     },
     vence: {
       titulo: 'Vence este mes',
-      explicacion: 'Las cuotas con vencimiento dentro del mes que todavía no se pagaron. Las que ya pasaron de fecha siguen acá hasta fin de mes; recién el mes que viene pasan a atrasado.',
+      explicacion: 'Las cuotas de venta con vencimiento dentro del mes que todavía no se terminaron de pagar, por lo que les falta. Las que ya pasaron de fecha siguen acá hasta fin de mes; recién el mes que viene pasan a atrasado.',
       resumen: [
         { label: 'Vence', valor: usd(vence.usd), tono: vence.usd ? 'var(--warn)' : undefined },
         { label: 'Cuotas', valor: vence.cuotas ?? 0 },
@@ -162,7 +163,7 @@ export default function CajaUno() {
     },
     atrasado: {
       titulo: 'Atrasado',
-      explicacion: 'Las cuotas que vencieron antes de este mes y siguen sin pagarse. Es la deuda que se arrastra: cada una es una conversación de cobranza pendiente.',
+      explicacion: 'Las cuotas de venta que vencieron antes de este mes y siguen sin terminar de pagarse, por lo que les falta. Es la deuda que se arrastra: cada una es una conversación de cobranza pendiente.',
       resumen: [
         { label: 'Atrasado', valor: usd(atrasado.usd), tono: atrasado.usd ? 'var(--alert)' : undefined },
         { label: 'Cuotas', valor: atrasado.cuotas ?? 0 },
@@ -191,7 +192,7 @@ export default function CajaUno() {
     <div className="page">
       <div className="kpi-grid">
         <Kpi label="Entró este mes" valor={usd(entro.usd)} color="var(--ok)"
-          nota={`${entro.cuotas ?? 0} cuotas cobradas`} onVer={() => setAbierto('entro')} />
+          nota={`${entro.cuotas ?? 0} pagos${entro.senasUsd ? ` · ${usd(entro.senasUsd)} de señas` : ''}`} onVer={() => setAbierto('entro')} />
         <Kpi label="Vence este mes" valor={usd(vence.usd)} color={vence.usd ? 'var(--warn)' : undefined}
           nota={`${vence.cuotas ?? 0} cuotas sin cobrar${vence.yaVencidas ? ` · ${vence.yaVencidas} ya pasaron de fecha` : ''}`}
           onVer={() => setAbierto('vence')} />
@@ -201,15 +202,16 @@ export default function CajaUno() {
           nota="todo lo que falta entrar" onVer={() => setAbierto('porCobrar')} />
       </div>
 
-      <Card title="Entró este mes" sub={`${entro.cuotas ?? 0} cuotas · ${usd(entro.usd)}`}>
+      <Card title="Entró este mes" sub={`${entro.cuotas ?? 0} pagos · ${usd(entro.usd)}`}>
         <Lista filas={entro.filas} campo="pagoAt" tono="ok"
           vacio="Todavía no entró ninguna cuota de venta este mes." />
       </Card>
 
       <p className="dim" style={{ fontSize: 12 }}>
-        Tocá un número para ver sus cuotas. Caja 1 son las cuotas de ventas nuevas. El upsell y la recompra son Caja 2 y no
-        entran acá; las señas tampoco, porque reservan cupo y no son una cuota de la venta.
-        Sale de ATV Clients.
+        Tocá un número para ver sus cuotas. Caja 1 son las cuotas de ventas nuevas y sus
+        señas, igual que en ATV Clients. El upsell y la recompra son Caja 2 y no entran acá.
+        Lo que entró son los pagos reales del mes; lo que vence y lo atrasado, lo que falta
+        pagar de cada cuota.
       </p>
 
       {abierto && <Detalle {...DETALLES[abierto]} onCerrar={() => setAbierto(null)} />}
