@@ -17,8 +17,9 @@ import { useResource } from '../lib/hooks.js';
  * en que se escribió.
  */
 
-const hoyIso = () => new Date().toISOString().slice(0, 10);
-const iso = (d) => d.toISOString().slice(0, 10);
+// Fecha local, no UTC: a la noche en Argentina `toISOString` ya da el día siguiente.
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hoyIso = () => iso(new Date());
 const lunesDe = (d) => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 
 const ATAJOS = [
@@ -77,9 +78,10 @@ export default function Reporte() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [paso, setPaso] = useState(1);
-  const [desde, setDesde] = useState(() => ATAJOS[3].rango()[0]);
-  const [hasta, setHasta] = useState(() => ATAJOS[3].rango()[1]);
-  const [atajo, setAtajo] = useState('mes_pasado');
+  // Por defecto, del 1° del mes a hoy: es lo que se mira casi siempre.
+  const [desde, setDesde] = useState(() => ATAJOS[2].rango()[0]);
+  const [hasta, setHasta] = useState(() => ATAJOS[2].rango()[1]);
+  const [atajo, setAtajo] = useState('mes');
   const [areas, setAreas] = useState(ELEGIDAS_POR_DEFECTO);
   const [hoja, setHoja] = useState(null);
   const [armando, setArmando] = useState(false);
