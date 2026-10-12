@@ -796,6 +796,27 @@ class ReporteSetting(db.Entity):
     actualizado_at = Optional(datetime, nullable=True)
 
 
+class ReporteDireccion(db.Entity):
+    """El reporte de dirección: un período cualquiera, las áreas elegidas, la hoja entera.
+
+    Se guarda con los números congelados y las lecturas escritas: un reporte es del
+    momento en que se escribió, no se recalcula."""
+
+    _table_ = _tabla("reportes_direccion", "ReporteDireccion")
+
+    id = PrimaryKey(int, auto=True)
+    titulo = Optional(str, nullable=True)
+    desde = Required(date, index=True)
+    hasta = Required(date)
+    areas = Optional(str, nullable=True)               # JSON: lista de claves
+    estado = Required(str, default="borrador", index=True)
+    hoja = Optional(LongStr, nullable=True)            # JSON: periodo, secciones, lecturas
+    creado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=lambda: datetime.utcnow())
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Optional(datetime, nullable=True)
+
+
 class ReporteClosing(db.Entity):
     """El reporte mensual de closing, tal como se cerró.
 

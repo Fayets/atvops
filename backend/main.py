@@ -32,6 +32,7 @@ from src.controllers.meta_controller import router as meta_router
 from src.controllers.reuniones_controller import router as reuniones_router
 from src.controllers.setting_controller import router as setting_router
 from src.controllers.transcripts_controller import router as transcripts_router
+from src.controllers.reporte_controller import router as reporte_router
 from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
@@ -190,6 +191,7 @@ app.include_router(ventas_router, prefix="/api/ventas", tags=["ventas"])
 app.include_router(setting_router, prefix="/api/setting", tags=["setting"])
 # Sin sesión: los avisos de afuera se validan con su propio token.
 app.include_router(webhooks_router, prefix="/api/webhooks", tags=["webhooks"])
+app.include_router(reporte_router, prefix="/api/reporte", tags=["reporte"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

@@ -2910,6 +2910,41 @@ export async function getLabClosing(mes) {
   return pedir(`/api/ventas/lab-closing${mes ? `?mes=${encodeURIComponent(mes)}` : ''}`);
 }
 
+/* ------------------------------------------------------- reporte de dirección */
+
+export async function getReporteAreas() {
+  return pedir('/api/reporte/areas');
+}
+
+/** Arma la hoja: período, áreas y, si `lecturas`, el texto propuesto por la IA. No se cachea. */
+export async function armarReporte({ desde, hasta, areas, lecturas = true }) {
+  return pedir('/api/reporte/armar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ desde, hasta, areas, lecturas }),
+  });
+}
+
+export async function pedirLecturas(hoja) {
+  return pedir('/api/reporte/lecturas', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hoja }),
+  });
+}
+
+export async function guardarReporte({ id, hoja, titulo, cerrar = false }) {
+  return pedir('/api/reporte', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, hoja, titulo, cerrar }),
+  });
+}
+
+export async function getReportesGuardados() {
+  return pedir('/api/reporte');
+}
+
+export async function getReporteGuardado(id) {
+  return pedir(`/api/reporte/${encodeURIComponent(id)}`);
+}
+
 export async function getReporteClosing(periodo, closer) {
   return pedir(`/api/reportes-closing/${periodo}${closer ? `?closer=${encodeURIComponent(closer)}` : ''}`);
 }

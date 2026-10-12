@@ -24,6 +24,7 @@ import ReporteClosing from './pages/ReporteClosing.jsx';
 import ReporteSetting from './pages/ReporteSetting.jsx';
 import ReporteProducto from './pages/ReporteProducto.jsx';
 import ReporteSemanal from './pages/ReporteSemanal.jsx';
+import Reporte from './pages/Reporte.jsx';
 import VentasCloser from './pages/VentasCloser.jsx';
 import VentasLlamadas from './pages/VentasLlamadas.jsx';
 import VentasOperativaPage from './pages/VentasOperativa.jsx';
@@ -151,7 +152,9 @@ export default function App() {
           <Route element={<RequireRole />}>
             <Route index element={<HomeIndex />} />
             <Route path="calendario" element={<Calendario />} />
-            <Route path="reporte" element={<ReporteSemanal />} />
+            <Route path="reporte" element={<Reporte />} />
+            <Route path="reporte/semanal" element={<ReporteSemanal />} />
+            <Route path="reporte/:id" element={<Reporte />} />
             <Route path="reporte-producto" element={<ReporteProducto />} />
             <Route path="reporte-producto/historial" element={<HistorialProducto />} />
             <Route path="reporte-closing" element={<ReporteClosing />} />
