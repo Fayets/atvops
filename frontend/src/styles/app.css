@@ -5396,6 +5396,14 @@ button.lista-item:hover { background: var(--surface-2); }
 .caja1-tabla .warn { color: var(--warn); font-weight: 600; }
 .caja1-tabla td.mal { color: var(--alert); font-weight: 600; }
 
+/* El detalle de cada número de Caja 1: bloques apilados, cada uno con su tabla. */
+.caja1-detalle { max-height: 86vh; }
+.caja1-detalle-bloques { display: grid; gap: var(--space-5); overflow-y: auto; min-height: 0;
+  max-height: 56vh; padding-right: 2px; }
+.caja1-detalle-bloques h4 { margin: 0 0 var(--space-2); font-size: 13.5px; font-weight: 600; }
+.caja1-detalle-bloques h4 .dim { font-weight: 400; font-size: 12px; }
+.caja1-detalle .caja1-tabla table { min-width: 0; width: 100%; }
+
 /* Próximos a vencer. Es una lista para tener al lado mientras se llama, así que lo que
    manda es que entren muchos renglones legibles, no el aire entre tarjetas. */
 .pv-acciones { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
