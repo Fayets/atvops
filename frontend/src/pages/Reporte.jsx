@@ -107,7 +107,8 @@ export default function Reporte() {
   const armar = async () => {
     setArmando(true); setError('');
     try {
-      const h = await armarReporte({ desde, hasta, areas, lecturas: true });
+      // Primero los datos crudos, sin IA: salen en segundos. Las lecturas se piden aparte.
+      const h = await armarReporte({ desde, hasta, areas, lecturas: false });
       setHoja(h); setGuardado(null); setPaso(3);
       if (id) navigate('/reporte', { replace: true });
     } catch (e) {
@@ -231,7 +232,6 @@ export default function Reporte() {
               {armando ? 'Armando el reporte…' : 'Armar el reporte →'}
             </button>
           </div>
-          {armando && <p className="dim" style={{ fontSize: 12.5 }}>Se cuentan los números de cada área y la IA propone una lectura por sección. Tarda alrededor de un minuto.</p>}
         </>
       )}
 
@@ -239,13 +239,13 @@ export default function Reporte() {
         <>
           <div className="rep-barra no-print">
             <div className="dim" style={{ fontSize: 13 }}>
-              Los números salen del sistema y no se tocan. La lectura de cada sección {conLectura ? 'la propuso la IA y ' : ''}<b>la corregís acá mismo</b>.
+              Los números salen del sistema y no se tocan. La lectura de cada sección {conLectura ? 'la propuso la IA y ' : 'la escribís vos o se la pedís a la IA, y '}<b>la corregís acá mismo</b>.
               {guardado && <span> · Guardado como <b>{guardado.titulo}</b> ({guardado.estado}).</span>}
             </div>
             <div className="rep-barra-botones">
               {!conLectura && (
                 <button type="button" className="btn" onClick={pedirLecturasDeNuevo} disabled={pidiendoLecturas}>
-                  {pidiendoLecturas ? 'Pidiendo…' : 'Pedir lecturas a la IA'}
+                  {pidiendoLecturas ? 'Escribiendo lecturas… (alrededor de un minuto)' : 'Pedir lecturas a la IA'}
                 </button>
               )}
               <button type="button" className="btn" onClick={() => guardar(false)} disabled={guardando}>Guardar borrador</button>
