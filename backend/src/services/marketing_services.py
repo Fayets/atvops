@@ -218,6 +218,9 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             "costoPorConversionUsd": round(gasto / conversiones, 2) if conversiones else 0,
             "campanias": [
                 {
+                    # El id de Meta: dos campañas pueden llamarse igual (se duplican desde
+                    # el Ads Manager) y la tabla las necesita distinguir.
+                    "id": str(c.get("id") or ""),
                     "nombre": c["nombre"], "estado": c["estado"], "objetivo": c["objetivo"],
                     "gastoUsd": round(_num(c["gastoUsd"]), 2), "impresiones": 0,
                     "clicks": 0, "conversiones": int(_num(c["leads"])),

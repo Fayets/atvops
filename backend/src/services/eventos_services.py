@@ -105,7 +105,7 @@ def registrar(cliente_id: str, canal_id: str, eventos: list[dict], fuente: str =
     ahora = datetime.utcnow()
     nuevos = 0
     with db_session:
-        abiertos = {e.clave: e for e in EventoCliente.select() if e.canal_id == canal_id and e.estado == "abierto"}
+        abiertos = {e.clave: e for e in list(EventoCliente.select()) if e.canal_id == canal_id and e.estado == "abierto"}
         for ev in eventos:
             if not isinstance(ev, dict):
                 continue
@@ -179,7 +179,7 @@ def listar(cliente_id: str | None = None, tipo: str | None = None, tag: str | No
 
 @db_session
 def resumen() -> dict:
-    todos = [_a_dict(e) for e in EventoCliente.select()]
+    todos = [_a_dict(e) for e in list(EventoCliente.select())]
     hace30 = datetime.now(AR_TZ) - timedelta(days=30)
     recientes = [e for e in todos if datetime.fromisoformat(e["fecha"]) >= hace30]
     por_tag: dict[str, int] = {}

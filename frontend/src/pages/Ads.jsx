@@ -142,10 +142,14 @@ export default function Ads() {
                 <p className="dim" style={{ margin: 0 }}>Sin publicaciones en este mes.</p>
               ) : (
                 <ul className="ig-pubs">
-                  {pubs.map((p) => (
-                    <li key={p.id} className="ig-pub">
+                  {/* Las publicaciones salen del registro propio (`contenido`), que las
+                      describe con `url`, `titulo` y `fecha`; las de Meta traen `permalink`,
+                      `caption` y `timestamp`. Se aceptan las dos formas: con una sola, la
+                      tarjeta salía vacía y sin key. */}
+                  {pubs.map((p, i) => (
+                    <li key={p.id ?? p.url ?? p.permalink ?? `${p.fecha || p.timestamp}-${i}`} className="ig-pub">
                       {p.thumbnailUrl ? (
-                        <a href={p.permalink || '#'} target="_blank" rel="noreferrer" className="ig-thumb">
+                        <a href={p.permalink || p.url || '#'} target="_blank" rel="noreferrer" className="ig-thumb">
                           <img src={p.thumbnailUrl} alt="" />
                         </a>
                       ) : (
@@ -153,13 +157,13 @@ export default function Ads() {
                       )}
                       <div className="ig-pub-body">
                         <div className="ig-pub-meta">
-                          <Pill tone="plain">{p.tipo || p.mediaType}</Pill>
-                          <span className="dim">{(p.timestamp || '').slice(0, 10)}</span>
-                          <span className="dim">{p.likes} likes · {p.comments} com.</span>
+                          <Pill tone="plain">{p.tipo || p.mediaType || 'reel'}</Pill>
+                          <span className="dim">{(p.timestamp || p.fecha || '').slice(0, 10)}</span>
+                          <span className="dim">{p.likes ?? 0} likes · {p.comments ?? p.comentarios ?? 0} com.</span>
                         </div>
-                        <p className="ig-caption">{p.caption || 'Sin caption'}</p>
-                        {p.permalink && (
-                          <a href={p.permalink} target="_blank" rel="noreferrer" className="dim" style={{ fontSize: 12 }}>
+                        <p className="ig-caption">{p.caption || p.titulo || 'Sin caption'}</p>
+                        {(p.permalink || p.url) && (
+                          <a href={p.permalink || p.url} target="_blank" rel="noreferrer" className="dim" style={{ fontSize: 12 }}>
                             Ver en Instagram →
                           </a>
                         )}

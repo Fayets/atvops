@@ -1806,9 +1806,12 @@ _VACIOS_LEAD = ("ig", "telefono", "avatar", "keyword", "content_url", "manychat_
 def _olvidar_meses() -> None:
     """Tira los resúmenes por mes, que son los que cambian al guardar. Se conservan el
     índice de dueños y el caché del calendario: rehacerlos en cada guardado es lo que
-    hacía que la respuesta tardara y el proxy cortara con un 502."""
+    hacía que la respuesta tardara y el proxy cortara con un 502. El catálogo de
+    programas y el setter único tampoco cambian por guardar una reunión: tienen su propia
+    invalidación y tirarlos acá solo sumaba consultas a Neon en la carga siguiente."""
     with _lock:
-        for k in [k for k in _cache if k not in ("duenios", "canonicos")]:
+        for k in [k for k in _cache
+                  if k not in ("duenios", "canonicos", "programas") and not k.startswith("unico:")]:
             _cache.pop(k, None)
 
 
@@ -2258,7 +2261,7 @@ def cierres_diferidos(desde: date, hasta: date, closers: set[str] | None = None)
     quienes = {_norm(c) for c in (closers or set())}
     try:
         with db_session:
-            filas = [r for r in ReunionCrm.select()
+            filas = [r for r in list(ReunionCrm.select())
                      if r.cierre_mes in meses and not r.descartada]
             return sorted([{
                 "id": r.id, "eventoId": r.evento_id or "", "prospecto": r.prospecto,

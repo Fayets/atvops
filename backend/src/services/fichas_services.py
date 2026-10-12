@@ -78,7 +78,7 @@ def obtener(cliente_id: str) -> dict | None:
 
 @db_session
 def todas() -> dict[str, dict]:
-    return {f.cliente_id: _ficha_a_dict(f) for f in FichaCliente.select()}
+    return {f.cliente_id: _ficha_a_dict(f) for f in list(FichaCliente.select())}
 
 
 def para_prompt(cliente_id: str) -> dict | None:

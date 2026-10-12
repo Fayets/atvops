@@ -364,7 +364,7 @@ class WebinarsServices:
             arranca = w.fecha_hora
             if arranca is None:
                 return {"desde": None, "delWebinar": [], "delSetting": [], "resumen": {}}
-            filas = [r for r in ReunionCrm.select()
+            filas = [r for r in list(ReunionCrm.select())
                      if r.inicio_at and r.inicio_at >= arranca and not r.descartada]
 
         # Los pitches del setter que terminaron en una llamada desde el webinar: su primer

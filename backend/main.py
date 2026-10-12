@@ -28,7 +28,6 @@ from src.controllers.reportes_setting_controller import router as reportes_setti
 from src.controllers.integraciones_controller import router as integraciones_router
 from src.controllers.track_controller import router as track_router
 from src.controllers.integrantes_controller import router as integrantes_router
-from src.controllers.mkt_controller import router as mkt_router
 from src.controllers.meta_controller import router as meta_router
 from src.controllers.reuniones_controller import router as reuniones_router
 from src.controllers.setting_controller import router as setting_router
@@ -140,11 +139,34 @@ app.add_middleware(
 # Después del CORS general: en Starlette el último middleware entra primero.
 app.add_middleware(TrackCorsMiddleware)
 
+
+class TiempoMiddleware(BaseHTTPMiddleware):
+    """Anota en el log cada pedido que tardó más de lo tolerable.
+
+    "El sistema anda lento" no se puede arreglar sin saber qué pedido fue: con esto,
+    `docker compose logs backend | grep Lento` lo dice. Solo el path, sin query ni
+    cuerpo, y solo arriba del umbral para que el log siga siendo legible.
+    """
+
+    UMBRAL_MS = 1500
+
+    async def dispatch(self, request, call_next):
+        t = time.perf_counter()
+        response = await call_next(request)
+        ms = int((time.perf_counter() - t) * 1000)
+        if ms >= self.UMBRAL_MS:
+            _log.warning("Lento: %s %s → %d ms", request.method, request.url.path, ms)
+        response.headers["Server-Timing"] = f"app;dur={ms}"
+        return response
+
+
+# El último que se agrega es el primero que ve el pedido: mide todo, CORS incluido.
+app.add_middleware(TiempoMiddleware)
+
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(transcripts_router, prefix="/api/transcripts", tags=["transcripts"])
 app.include_router(clientes_router, prefix="/api/clientes", tags=["clientes"])
 app.include_router(cobranza_router, prefix="/api/cobranza", tags=["cobranza"])
-app.include_router(mkt_router, prefix="/api/mkt", tags=["mkt"])
 app.include_router(meta_router, prefix="/api/meta", tags=["meta"])
 app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(webinars_router, prefix="/api/webinars", tags=["webinars"])

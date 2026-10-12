@@ -11,11 +11,37 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import json
+import threading
 
 from decouple import config
 from fastapi import HTTPException
 
 AR_OFFSET = timedelta(hours=-3)
+
+# Meta tarda entre medio segundo y dos por pedido, y cada tablero le pedía lo mismo en
+# cada carga: tres idas por Ads y hasta ocho por Instagram, o sea de dos a ocho segundos
+# mirando un spinner para ver el mismo gasto de hace un minuto. Diez minutos de caché
+# alcanzan —el gasto del día no cambia en ese tiempo— y `refrescar` lo saltea.
+CACHE_SEGUNDOS = int(config("META_CACHE_SEGUNDOS", default=600))
+_cache: dict = {}
+_lock = threading.Lock()
+
+
+def _recordado(clave: str, refrescar: bool, armar):
+    with _lock:
+        guardado = _cache.get(clave)
+        if guardado and not refrescar and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            return guardado["data"]
+    data = armar()
+    with _lock:
+        _cache[clave] = {"at": datetime.utcnow(), "data": data}
+    return data
+
+
+def _epoch(dia_iso: str, dias_extra: int = 0) -> str:
+    """Un día `YYYY-MM-DD` como timestamp unix, que es lo que entienden `since`/`until`."""
+    d = datetime.fromisoformat(dia_iso[:10]) + timedelta(days=dias_extra)
+    return str(int(d.timestamp()))
 
 FRECUENCIA_OBJETIVO = 1.4
 FRECUENCIA_QUEMADO = 1.6
@@ -161,7 +187,7 @@ class MetaServices:
         url = f"https://graph.facebook.com/{version}{path}?{urlencode(q)}"
         req = Request(url, headers={"Accept": "application/json"})
         try:
-            with urlopen(req, timeout=40) as resp:
+            with urlopen(req, timeout=20) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
@@ -183,7 +209,7 @@ class MetaServices:
             next_url = data["paging"]["next"]
             req = Request(next_url, headers={"Accept": "application/json"})
             try:
-                with urlopen(req, timeout=40) as resp:
+                with urlopen(req, timeout=20) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
             except HTTPError as e:
                 body = e.read().decode("utf-8", errors="replace")
@@ -196,7 +222,13 @@ class MetaServices:
 
     # ------------------------------------------------------------------ ads
 
-    def ads_resumen(self, month: str | None = None, incluir_sin_gasto: bool = False) -> dict:
+    def ads_resumen(self, month: str | None = None, incluir_sin_gasto: bool = False,
+                    refrescar: bool = False) -> dict:
+        """Campañas del mes con sus números, con caché de `CACHE_SEGUNDOS`."""
+        clave = f"ads:{month or _mes_label()}:{int(incluir_sin_gasto)}"
+        return _recordado(clave, refrescar, lambda: self._ads_resumen_crudo(month, incluir_sin_gasto))
+
+    def _ads_resumen_crudo(self, month: str | None = None, incluir_sin_gasto: bool = False) -> dict:
         """Campañas del mes con sus números.
 
         `incluir_sin_gasto` agrega también las que todavía no gastaron nada. Lo usa el
@@ -437,7 +469,11 @@ class MetaServices:
 
     # ----------------------------------------------------------- instagram
 
-    def ig_contenido(self, month: str | None = None) -> dict:
+    def ig_contenido(self, month: str | None = None, refrescar: bool = False) -> dict:
+        """Publicaciones y stories del mes, con caché de `CACHE_SEGUNDOS`."""
+        return _recordado(f"ig:{month or _mes_label()}", refrescar, lambda: self._ig_contenido_crudo(month))
+
+    def _ig_contenido_crudo(self, month: str | None = None) -> dict:
         token = self._ig_token()
         user = self._ig_user()
         ver = self._ig_ver()
@@ -455,12 +491,25 @@ class MetaServices:
             "id,caption,media_type,media_product_type,media_url,permalink,"
             "thumbnail_url,timestamp,like_count,comments_count,username"
         )
-        raw = self._graph_get_all(
-            ver,
-            f"/{user}/media",
-            token,
-            {"fields": fields, "limit": "50"},
-        )
+        # Acotado al mes: sin `since`/`until` traía todo el historial de la cuenta, página
+        # por página, para después tirar lo que no era del mes. Un día de margen a cada
+        # lado porque Meta fecha en UTC. Si algún día Meta rechaza el filtro, se pide
+        # como antes y el filtro de abajo sigue dejando solo el mes.
+        try:
+            raw = self._graph_get_all(
+                ver,
+                f"/{user}/media",
+                token,
+                {"fields": fields, "limit": "50",
+                 "since": _epoch(since, -1), "until": _epoch(until, 2)},
+            )
+        except HTTPException:
+            raw = self._graph_get_all(
+                ver,
+                f"/{user}/media",
+                token,
+                {"fields": fields, "limit": "50"},
+            )
 
         items = []
         for m in raw:

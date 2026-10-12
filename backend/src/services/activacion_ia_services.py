@@ -381,9 +381,9 @@ def _proximo_slot() -> datetime:
 def estado() -> dict:
     ultima = AnalisisCorrida.select().order_by(desc(AnalisisCorrida.id)).first()
     inicio_mes = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    mes = [c for c in AnalisisCorrida.select() if c.ejecutado_at >= inicio_mes]
+    mes = [c for c in list(AnalisisCorrida.select()) if c.ejecutado_at >= inicio_mes]
     n_analisis = AnalisisActivacion.select().count()
-    activados = sum(1 for a in AnalisisActivacion.select() if '"activado": true' in (a.resultado or ""))
+    activados = sum(1 for a in list(AnalisisActivacion.select()) if '"activado": true' in (a.resultado or ""))
     return {
         "cli_disponible": cli_disponible(),
         "cli": CLAUDE_BIN,

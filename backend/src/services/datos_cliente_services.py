@@ -54,7 +54,7 @@ def obtener(cliente_id: str) -> dict | None:
 
 @db_session
 def todos() -> dict[str, dict]:
-    return {d.cliente_id: _a_dict(d) for d in DatosCliente.select()}
+    return {d.cliente_id: _a_dict(d) for d in list(DatosCliente.select())}
 
 
 def guardar(cliente_id: str, canal_id: str, payload: dict, usuario: dict) -> dict:

@@ -1616,7 +1616,8 @@ export async function getMarketingReal(mes, { refrescar = false } = {}) {
 
 function campaniasDeAds(raw) {
   return (raw.ads.campanias ?? []).map((c) => ({
-    id: c.nombre,
+    // Por nombre se repetían: hay campañas duplicadas en el Ads Manager con el mismo nombre.
+    id: c.id || c.nombre,
     nombre: c.nombre,
     canal: 'Meta',
     objetivo: (c.objetivo ?? '').replace('OUTCOME_', '').toLowerCase(),
@@ -1682,8 +1683,8 @@ export async function getInstagram(mes) {
 }
 
 export async function getMarketing(mes) {
-  const raw = await getMarketingReal(mes);
-  const ads = await getMetaAds(mes);
+  // Dos fuentes distintas, ninguna depende de la otra: se piden juntas.
+  const [raw, ads] = await Promise.all([getMarketingReal(mes), getMetaAds(mes)]);
   const c = raw.contenido;
   const kpi = (id, label, value, format, nota, sourceId = 'mkt_crm') => ({
     id, label, value, format, previous: null, sourceId, updatedAt: raw.generadoAt, nota,
@@ -1833,6 +1834,9 @@ export async function getMetasMes(mesSel, opts = {}) {
   // El resumen de ventas está cerrado para marketing, y el decreto no lo necesita: pedirlo
   // solo devuelve un 403 en cada carga y tapa los errores que sí importan.
   const esMarketing = getStoredUser()?.rol === 'marketing';
+  // Meta no depende del CRM: se le pide a la vez y se espera después. Antes iba en
+  // serie y la Home sumaba los dos tiempos.
+  const adsPromesa = opts.incluirAds ? getMetaAds(ctx.mes).catch(() => null) : null;
 
   try {
     const mkt = esMarketing ? {} : await getMktResumen(ctx.mes);
@@ -1851,16 +1855,14 @@ export async function getMetasMes(mesSel, opts = {}) {
     /* sin MKT: real en cero */
   }
 
-  if (opts.incluirAds) {
-    try {
-      const ads = await getMetaAds(ctx.mes);
+  if (adsPromesa) {
+    const ads = await adsPromesa;
+    if (ads) {
       real = {
         ...real,
         inversionAds: ads.inversionAds ?? 0,
         syncAt: ads.syncAt || real.syncAt,
       };
-    } catch {
-      /* sin Meta Ads */
     }
   }
 
@@ -2063,7 +2065,7 @@ export async function getGrietas() {
  * un bloque por área. Marketing/Ventas/Cobranza salen de ATV MKT + ATV Clients.
  */
 export async function getHome(mesSel) {
-  const [fulfillment, clientes, sistemas, decretoData, cobranzaSettled, mktSettled] =
+  const [fulfillment, clientes, sistemas, decretoData, cobranza, mkt, transcripts] =
     await Promise.all([
       getFulfillment(),
       getClientes(),
@@ -2071,16 +2073,10 @@ export async function getHome(mesSel) {
       getMetasMes(mesSel),
       getCobranza(mesSel).catch((err) => cobranzaVacia(err?.message || 'ATV Clients no responde')),
       getMktResumen(mesSel).catch(() => null),
+      // Iba después, en serie: la Home esperaba primero a todo lo demás y recién
+      // entonces pedía los transcripts, que son 110 KB. Ahora viaja con el resto.
+      getTranscripts().catch(() => null),
     ]);
-  const cobranza = cobranzaSettled;
-  const mkt = mktSettled;
-
-  let transcripts = null;
-  try {
-    transcripts = await getTranscripts();
-  } catch {
-    transcripts = null;
-  }
 
   const hoy = ahora();
   const ctx = contextoDeMes(mesSel || decretoData.contexto?.mes || mesId(), hoy);

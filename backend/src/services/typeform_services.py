@@ -122,7 +122,26 @@ def _email_de(fila: dict, respuestas: list[dict]) -> str | None:
 _preguntas: dict = {}
 
 
+_cache_titulos: dict = {}
+
+
 def _titulos() -> dict[str, str]:
+    """Los títulos de las preguntas del formulario, con caché de diez minutos.
+
+    Es la definición del formulario, no sus respuestas: cambia cuando alguien edita el
+    Typeform, o sea casi nunca. Sin caché era una llamada más a Typeform —casi un
+    segundo— cada vez que se abría la pantalla del webinar, la mitad del tiempo de espera.
+    """
+    llave = _form_id()
+    guardado = _cache_titulos.get(llave)
+    if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < 600:
+        return guardado["titulos"]
+    titulos = _titulos_crudo()
+    _cache_titulos[llave] = {"at": datetime.utcnow(), "titulos": titulos}
+    return titulos
+
+
+def _titulos_crudo() -> dict[str, str]:
     """El texto de cada pregunta, por id.
 
     Las respuestas vienen con el id del campo —`f8b44053-af16-…`— y no con la pregunta.
@@ -193,10 +212,13 @@ def agendas(desde: datetime | None = None) -> list[dict]:
                 for r in respuestas
             ],
         }
-        llave = email or agenda["id"]
-        anterior = por_persona.get(llave)
+        # Ojo con el nombre: `llave` es la del caché. Durante meses este bucle la pisaba
+        # con el email de cada persona, el caché se guardaba bajo el último email y no
+        # se encontraba nunca: cada carga del webinar era una ida a Typeform.
+        quien = email or agenda["id"]
+        anterior = por_persona.get(quien)
         if anterior is None or str(agenda["agendoAt"] or "") >= str(anterior["agendoAt"] or ""):
-            por_persona[llave] = agenda
+            por_persona[quien] = agenda
 
     filas = sorted(por_persona.values(), key=lambda a: a["agendoAt"] or "", reverse=True)
     _cache_agendas[llave] = {"at": datetime.utcnow(), "filas": filas}
