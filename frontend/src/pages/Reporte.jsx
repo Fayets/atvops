@@ -201,7 +201,6 @@ export default function Reporte() {
             <div className="rep-card-cab">
               <div>
                 <h1>¿Qué áreas entran?</h1>
-                <p className="dim">Cada área es una sección del reporte, con sus números del período y una lectura que después podés corregir.</p>
               </div>
               <div className="rep-links">
                 <button type="button" className="btn ghost sm" onClick={() => setAreas((catalogo.data || []).map((a) => a.clave))}>Todas</button>
