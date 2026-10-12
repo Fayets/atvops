@@ -63,12 +63,11 @@ const NAV = [
     grupo: 'Áreas',
     sub: [
       // El orden sigue el trabajo de cada uno, de lo más inmediato a lo más lejano:
-      // primero lo de hoy, después el registro, después el análisis y al final la plata.
-      // Lo propio de cada rol va primero —Mi día es de Nick, Mi setting es de Cris— y no
-      // aparece en el menú de ops ni de dirección, que entran por el análisis.
-      { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer'] },
+      // el registro, después el análisis y al final la plata. La pantalla propia de
+      // cada rol —Mi día para Nick, Mi setting para Cris— no va en la lista: es adonde
+      // lleva "Ventas" cuando lo tocan ellos (ver filtrarNav), y repetirla abajo era
+      // tener el mismo link dos veces, uno arriba del otro.
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer'] },
-      { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter'] },
       // Los laboratorios son el análisis del área. El closer no ve el de setting: es de
       // Cris y del área. Operativa, Performance, Setting y Salud vs meta salieron del
       // menú; sus rutas siguen vivas hasta que se repartan entre los dos laboratorios.
@@ -160,13 +159,14 @@ export default function Sidebar() {
                 <NavLink
                   to={item.to}
                   end={item.end}
-                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  className={({ isActive }) => `nav-item${
+                    isActive || (item.raiz && pathname.startsWith(item.raiz)) ? ' active' : ''}`}
                 >
                   <Icon name={item.icon} />
                   {item.label}
                 </NavLink>
 
-                {item.sub && pathname.startsWith(item.to) && (
+                {item.sub && pathname.startsWith(item.raiz ?? item.to) && (
                   <div className="subnav">
                     {item.sub.map((s) => (
                       <NavLink

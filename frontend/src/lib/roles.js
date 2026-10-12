@@ -235,20 +235,23 @@ export function filtrarNav(nav, rol) {
         return puedeVerRuta(s.to, rol);
       });
       if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
+      // Cuando el link padre apunta a una pantalla concreta, `raiz` conserva la sección
+      // (/ventas, /fulfillment): el menú la usa para saber que seguís adentro de ella
+      // aunque estés en otra pantalla hija y para mantener el padre marcado.
       // Ops y dirección entran directo a la lectura de cartera, no al día a día del CSM.
       if (item.to === '/fulfillment' && rol !== 'csm') {
-        return { ...item, to: '/fulfillment/ops', sub };
+        return { ...item, to: '/fulfillment/ops', raiz: item.to, sub };
       }
       if (item.to.startsWith('/ventas') && sub.length === 0) return null;
       // Operaciones: el link padre de Ventas apunta a la vista OPS.
       if (item.to === '/ventas' && !puedeVerVentasDirector(rol) && !puedeVerVentasCloser(rol) && !puedeVerVentasSetter(rol) && puedeVerVentasOps(rol)) {
-        return { ...item, to: '/ventas/ops', sub };
+        return { ...item, to: '/ventas/ops', raiz: item.to, sub };
       }
       if (item.to === '/ventas' && puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
-        return { ...item, to: '/ventas/mi-dia', sub };
+        return { ...item, to: '/ventas/mi-dia', raiz: item.to, sub };
       }
       if (item.to === '/ventas' && puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
-        return { ...item, to: '/ventas/mi-progreso', sub };
+        return { ...item, to: '/ventas/mi-progreso', raiz: item.to, sub };
       }
       return { ...item, sub };
     })
