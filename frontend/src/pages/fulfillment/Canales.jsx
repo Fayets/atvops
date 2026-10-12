@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Conversacion from '../../components/transcripts/Conversacion.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
-import { bajarTxtCanal, getTranscriptCanal, getTranscripts } from '../../data/api.js';
+import { bajarTxtCanal, getTranscripts } from '../../data/api.js';
 import { formatValue, hace } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
 
@@ -11,8 +10,9 @@ import { useResource } from '../../lib/hooks.js';
  *
  * Dos columnas: a la izquierda el nombre del canal, separado en activos (el canal sigue
  * abierto en Discord) e inactivos (se cerró); a la derecha los datos del cliente. Por
- * ahora los datos son la conversación entera —el .txt que escribe el bot— y se puede
- * bajar tal cual. Lo demás de la ficha se va a ir sumando acá.
+ * ahora: el nombre y el .txt para bajar, nada más. Mauri lo pidió así —quiere probar las
+ * consultas en su propio sistema— y la conversación entera ya vive en la ficha del
+ * cliente. Lo demás de la ficha se va a ir sumando acá.
  */
 
 const INTERVALO_MS = 15000;
@@ -94,13 +94,6 @@ export default function Canales() {
     [navigate],
   );
 
-  const cargarDetalle = useCallback(
-    () => (seleccionado ? getTranscriptCanal(seleccionado.categoria, seleccionado.canal) : Promise.resolve(null)),
-    [seleccionado],
-  );
-  const detalle = useResource(cargarDetalle, [seleccionado?.id, tick]);
-  const detalleListo = detalle.data && detalle.data.canal.id === seleccionado?.id;
-
   const bajar = async () => {
     if (!seleccionado || bajando) return;
     setBajando(true); setErrorBajada('');
@@ -162,13 +155,24 @@ export default function Canales() {
                   </button>
                 </div>
               </header>
-              {detalle.error ? (
-                <ErrorState error={detalle.error} />
-              ) : !detalleListo ? (
-                <div className="empty">Abriendo la conversación…</div>
-              ) : (
-                <Conversacion canal={detalle.data.canal} mensajes={detalle.data.mensajes} resaltar={busqueda} />
-              )}
+              <div className="canales-datos-cuerpo">
+                <div className="canales-dato">
+                  <span className="lab-k">Archivo</span>
+                  <span className="num">{seleccionado.canal}.txt · {formatValue(Math.round((seleccionado.bytes || 0) / 1024), 'count')} KB</span>
+                </div>
+                <div className="canales-dato">
+                  <span className="lab-k">Conversación</span>
+                  <span>
+                    {seleccionado.primer_mensaje_at ? new Date(seleccionado.primer_mensaje_at).toLocaleDateString('es-AR') : '—'}
+                    {' → '}
+                    {seleccionado.ultimo_mensaje_at ? new Date(seleccionado.ultimo_mensaje_at).toLocaleDateString('es-AR') : '—'}
+                  </span>
+                </div>
+                <div className="canales-dato">
+                  <span className="lab-k">Quiénes hablan</span>
+                  <span>{seleccionado.autores.map((a) => a.nombre).join(', ') || '—'}</span>
+                </div>
+              </div>
             </>
           )}
         </section>
