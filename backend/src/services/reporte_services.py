@@ -227,8 +227,7 @@ def _seccion_onboarding(desde: date, hasta_ex: date, p_desde: date, p_hasta_ex: 
             _kpi("conFormulario", "Formulario", o.get("conFormulario"), nota=f"de {t}" + (f" · {o['medianaFormularioDias']} días" if o.get("medianaFormularioDias") is not None else "")),
             _kpi("conLlamadaHecha", "Llamada 1:1", o.get("conLlamadaHecha"), nota=f"de {t} · {o.get('conLlamadaAgendada') or 0} agendadas",
                  tono="warn" if t and not o.get("conLlamadaHecha") else None),
-            _kpi("conDiscord", "Discord", o.get("conDiscord"), nota=f"de {t}"),
-            _kpi("enSkool", "Skool", o.get("enSkool"), nota=f"de {t}"),
+            _kpi("conDiscord", "Discord", o.get("conDiscord"), nota=f"de {t} con canal abierto"),
         ],
         "detalle": {"sesiones": o.get("sesiones") or [], "porPlan": o.get("porPlan") or []},
     }

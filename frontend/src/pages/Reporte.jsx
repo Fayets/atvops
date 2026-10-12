@@ -237,26 +237,6 @@ export default function Reporte() {
 
       {paso === 3 && hoja && (
         <>
-          <div className="rep-barra no-print">
-            <div className="dim" style={{ fontSize: 13 }}>
-              Los números salen del sistema y no se tocan. La lectura de cada sección {conLectura ? 'la propuso la IA y ' : 'la escribís vos o se la pedís a la IA, y '}<b>la corregís acá mismo</b>.
-              {guardado && <span> · Guardado como <b>{guardado.titulo}</b> ({guardado.estado}).</span>}
-            </div>
-            <div className="rep-barra-botones">
-              {!conLectura && (
-                <button type="button" className="btn" onClick={pedirLecturasDeNuevo} disabled={pidiendoLecturas}>
-                  {pidiendoLecturas ? 'Escribiendo lecturas… (alrededor de un minuto)' : 'Pedir lecturas a la IA'}
-                </button>
-              )}
-              <button type="button" className="btn" onClick={() => guardar(false)} disabled={guardando}>Guardar borrador</button>
-              <button type="button" className="btn" onClick={() => window.print()}>Descargar PDF</button>
-              <button type="button" className="btn primary" onClick={() => guardar(true)} disabled={guardando}>
-                {guardando ? 'Guardando…' : `Guardar como reporte de ${hoja.periodo.label}`}
-              </button>
-            </div>
-          </div>
-          {error && <p className="mal no-print" style={{ fontSize: 13 }}>{error}</p>}
-
           <article className="rp-doc rep-doc">
             <header className="doc-head">
               <img src="/atv-logo.png" alt="ATV" width={38} height={38} />
@@ -342,9 +322,22 @@ export default function Reporte() {
             </footer>
           </article>
 
+          {error && <p className="mal no-print" style={{ fontSize: 13 }}>{error}</p>}
           <div className="rep-acciones no-print">
             <button type="button" className="btn" onClick={() => setPaso(2)}>← Volver a las áreas</button>
-            <span />
+            <div className="rep-barra-botones">
+              {guardado && <span className="dim" style={{ fontSize: 12.5, alignSelf: 'center' }}>Guardado · {guardado.estado}</span>}
+              {!conLectura && (
+                <button type="button" className="btn" onClick={pedirLecturasDeNuevo} disabled={pidiendoLecturas}>
+                  {pidiendoLecturas ? 'Escribiendo lecturas… (alrededor de un minuto)' : 'Pedir lecturas a la IA'}
+                </button>
+              )}
+              <button type="button" className="btn" onClick={() => guardar(false)} disabled={guardando}>Guardar borrador</button>
+              <button type="button" className="btn" onClick={() => window.print()}>Descargar PDF</button>
+              <button type="button" className="btn primary" onClick={() => guardar(true)} disabled={guardando}>
+                {guardando ? 'Guardando…' : 'Guardar reporte'}
+              </button>
+            </div>
           </div>
         </>
       )}
