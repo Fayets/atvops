@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import FileResponse, Response
 
 from src import schemas
 from src.controllers.auth_controller import get_current_user
@@ -27,6 +27,22 @@ def obtener_canal(categoria: str, canal: str, _user: dict = Depends(get_current_
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al leer el transcript.")
+
+
+@router.post("/zip")
+def bajar_zip(payload: dict = Body(...), _user: dict = Depends(get_current_user)):
+    """Los .txt de varios canales en un .zip. `canales`: lista de "categoria/canal"."""
+    ids = [str(x) for x in ((payload or {}).get("canales") or []) if x]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No se eligió ningún canal.")
+    try:
+        datos = service.zip_de(ids)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="No se pudo armar el .zip.")
+    return Response(datos, media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="canales.zip"'})
 
 
 @router.get("/{categoria}/{canal}/txt")

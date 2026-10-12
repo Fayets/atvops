@@ -2402,6 +2402,22 @@ export async function getTranscripts() {
  * @param {string} categoria
  * @param {string} canal
  */
+/** Baja varios .txt en un .zip. `ids` son "categoria/canal". */
+export async function bajarZipCanales(ids) {
+  const token = getToken();
+  const r = await fetch(`${API_BASE}/api/transcripts/zip`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ canales: ids }),
+  });
+  if (!r.ok) throw new Error('No se pudo armar el .zip.');
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a');
+  a.href = url; a.download = `canales-${new Date().toISOString().slice(0, 10)}.zip`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 /** Baja el .txt de un canal. El <a download> no puede mandar el token, así que se baja acá. */
 export async function bajarTxtCanal(categoria, canal) {
   const token = getToken();

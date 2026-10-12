@@ -8211,11 +8211,21 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 
 .canales { display: grid; grid-template-columns: minmax(220px, 25fr) minmax(0, 75fr); gap: var(--space-4);
   height: calc(100vh - var(--topbar-h) - 96px); min-height: 460px; }
-.canales-grupo-cab { display: flex; align-items: center; justify-content: space-between; width: 100%;
-  padding: 10px var(--space-4); border: 0; border-bottom: 1px solid var(--border-soft); background: var(--surface-2);
-  font-family: var(--font); font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--text-2); cursor: pointer; text-align: left; position: sticky; top: 0; z-index: 1; }
-.canales-item { width: 100%; border: 0; background: none; font-family: var(--font); text-align: left; cursor: pointer; }
+.canales-grupo-cab { display: flex; align-items: center; gap: 6px; padding: 0 var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--border-soft); background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
+.canales-grupo-btn { display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0;
+  padding: 10px 0; border: 0; background: none; font-family: var(--font); font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); cursor: pointer; text-align: left; }
+.canales-check { display: flex; align-items: center; flex-shrink: 0; }
+.canales-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--brand); cursor: pointer; }
+.canales-subcab { padding: 8px var(--space-4) 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-3); }
+.canales-fila { display: flex; align-items: stretch; gap: 2px; padding-left: var(--space-4); }
+.canales-fila.activo { background: var(--surface-2); }
+.canales-item { flex: 1; min-width: 0; border: 0; background: none; font-family: var(--font); text-align: left; cursor: pointer; }
+.canales-seleccion { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px;
+  font-size: 12px; flex-wrap: wrap; }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
 .canales-datos { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--surface);
   border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; }
 .canales-datos-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4);

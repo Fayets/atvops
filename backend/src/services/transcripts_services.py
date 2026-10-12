@@ -347,6 +347,30 @@ class TranscriptsServices:
             raise HTTPException(status_code=404, detail=f"El canal #{canal} no tiene transcript.")
         return archivo
 
+    def zip_de(self, ids: list[str]) -> bytes:
+        """Un .zip con el .txt de cada canal pedido (`categoria/canal`). Los que no
+        existen se saltean: bajar 50 archivos no puede fallar por uno que se cerró."""
+        import io
+        import zipfile
+
+        salida = io.BytesIO()
+        with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+            vistos: set[str] = set()
+            for ident in ids[:500]:
+                categoria, _, canal = str(ident or "").partition("/")
+                if not categoria or not canal:
+                    continue
+                try:
+                    archivo = self.ruta_txt(categoria, canal)
+                except HTTPException:
+                    continue
+                nombre = f"{canal}.txt"
+                if nombre in vistos:
+                    nombre = f"{categoria}-{canal}.txt"
+                vistos.add(nombre)
+                z.write(archivo, arcname=nombre)
+        return salida.getvalue()
+
     def obtener_canal(self, categoria: str, canal: str) -> dict:
         """Un canal con todos sus mensajes."""
         base = get_transcripts_base()
