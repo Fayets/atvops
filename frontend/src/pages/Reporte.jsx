@@ -33,7 +33,6 @@ const ATAJOS = [
 const ELEGIDAS_POR_DEFECTO = ['ventas', 'marketing', 'ads', 'fulfillment', 'onboarding'];
 
 const larga = (s) => (s ? new Date(`${s}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
-const dias = (a, b) => (a && b ? Math.round((new Date(`${b}T12:00:00`) - new Date(`${a}T12:00:00`)) / 86400000) + 1 : 0);
 
 function fmt(valor, formato) {
   if (valor == null) return '—';
@@ -161,7 +160,6 @@ export default function Reporte() {
         <>
           <section className="card rep-card">
             <h1>¿De qué fecha a qué fecha?</h1>
-            <p className="dim">Una semana, un mes o lo que necesites. Todos los números se cuentan dentro de este período y se comparan con el anterior del mismo largo.</p>
             <div className="rep-atajos">
               {ATAJOS.map((a) => (
                 <button key={a.clave} type="button" className={`chip${atajo === a.clave ? ' active' : ''}`} onClick={() => elegirAtajo(a)}>{a.label}</button>
@@ -172,9 +170,6 @@ export default function Reporte() {
                 <input id="rep-desde" type="date" value={desde} max={hasta} onChange={(e) => { setDesde(e.target.value); setAtajo(''); }} /></div>
               <div><label htmlFor="rep-hasta" className="lab-k">Hasta</label>
                 <input id="rep-hasta" type="date" value={hasta} min={desde} max={hoyIso()} onChange={(e) => { setHasta(e.target.value); setAtajo(''); }} /></div>
-            </div>
-            <div className="rep-resumen-periodo">
-              <b>{larga(desde)} → {larga(hasta)}</b> · {dias(desde, hasta)} días · se compara con los {dias(desde, hasta)} días anteriores
             </div>
           </section>
           <div className="rep-acciones">
