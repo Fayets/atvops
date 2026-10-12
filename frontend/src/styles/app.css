@@ -5387,6 +5387,15 @@ button.lista-item:hover { background: var(--surface-2); }
 .editor-reunion .modal-cab .dim { font-size: 12px; text-transform: none; }
 .editor-reunion-aviso { font-size: 12px; }
 
+/* Caja 1: tres listas de cuotas. Reusa `.pv-bloque`, la tabla densa del listado de
+   vencimientos, y solo agrega los tonos, que acá son el juicio sobre la plata: verde
+   entró, ámbar vence este mes, rojo se arrastra de meses anteriores. */
+.caja1-tabla { margin-top: 0; overflow-x: auto; }
+.caja1-tabla table { min-width: 460px; }
+.caja1-tabla .ok { color: var(--ok); font-weight: 600; }
+.caja1-tabla .warn { color: var(--warn); font-weight: 600; }
+.caja1-tabla td.mal { color: var(--alert); font-weight: 600; }
+
 /* Próximos a vencer. Es una lista para tener al lado mientras se llama, así que lo que
    manda es que entren muchos renglones legibles, no el aire entre tarjetas. */
 .pv-acciones { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }

@@ -116,6 +116,73 @@ class CobranzaServices:
             },
         }
 
+
+    def caja_uno(self, mes: str | None = None) -> dict:
+        """Caja 1: la plata de las ventas nuevas, que es la que cierra el closer.
+
+        Caja 1 son las cuotas de una venta nueva; Caja 2 es upsell y recompra. El tipo
+        vive en la primera línea de `notas` de cada cuota (`cuota_venta`, `cuota_upsell`,
+        `cuota_recompra`, `sena`), que es como lo guarda ATV Clients.
+
+        Tres cosas y no una: lo que entró, lo que vence este mes y todavía no entró, y lo
+        que venció antes y sigue sin pagarse. Un solo total no distingue un mes que cobró
+        todo de uno que cobró la mitad y arrastra el resto, y esa diferencia es el trabajo
+        que hay por delante.
+
+        Las señas quedan afuera: reservan cupo, no son una cuota de la venta.
+        """
+        from src.services import clients_db
+
+        if not clients_db.disponible():
+            raise HTTPException(status_code=503,
+                                detail="Sin acceso al esquema clients: falta CLIENTS_DSN.")
+        mes = (mes or _mes_label()).strip()
+        try:
+            anio, m = int(mes[:4]), int(mes[5:7])
+        except (ValueError, IndexError):
+            raise HTTPException(status_code=400, detail="El mes va como YYYY-MM.") from None
+        desde = date(anio, m, 1)
+        hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+
+        TIPO = "split_part(coalesce(q.notas, ''), chr(10), 1)"
+        base = (
+            "SELECT c.nombre, q.monto_usd, q.fecha_vence, q.fecha_pago, q.numero_cuota, "
+            "       coalesce(q.estado, '') AS estado, coalesce(c.responsable, '') AS responsable "
+            "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
+            f"WHERE {TIPO} = 'cuota_venta' AND "
+        )
+
+        def _filas(cond: str, params: tuple) -> list[dict]:
+            return [{
+                "cliente": (f.get("nombre") or "Sin nombre").strip(),
+                "montoUsd": round(float(f.get("monto_usd") or 0), 2),
+                "venceAt": f["fecha_vence"].isoformat() if f.get("fecha_vence") else None,
+                "pagoAt": f["fecha_pago"].isoformat() if f.get("fecha_pago") else None,
+                "cuota": f.get("numero_cuota"),
+                "estado": (f.get("estado") or "").strip(),
+                "responsable": (f.get("responsable") or "").strip(),
+            } for f in clients_db.consultar(base + cond, params)]
+
+        entro = _filas("q.fecha_pago >= %s AND q.fecha_pago < %s ORDER BY q.fecha_pago",
+                       (desde, hasta))
+        vence = _filas("q.fecha_vence >= %s AND q.fecha_vence < %s AND q.fecha_pago IS NULL "
+                       "ORDER BY q.fecha_vence", (desde, hasta))
+        atrasado = _filas("q.fecha_vence < %s AND q.fecha_pago IS NULL ORDER BY q.fecha_vence",
+                          (desde,))
+
+        suma = lambda xs: round(sum(x["montoUsd"] for x in xs), 2)  # noqa: E731
+        hoy = _hoy_ar()
+        return {
+            "mes": mes,
+            "entro": {"usd": suma(entro), "cuotas": len(entro), "filas": entro},
+            "vence": {"usd": suma(vence), "cuotas": len(vence), "filas": vence,
+                      # Las de este mes que ya pasaron de fecha: son reclamo de hoy, no del 30.
+                      "yaVencidas": sum(1 for x in vence
+                                        if x["venceAt"] and x["venceAt"] < hoy.isoformat())},
+            "atrasado": {"usd": suma(atrasado), "cuotas": len(atrasado), "filas": atrasado},
+            "total": {"porCobrarUsd": round(suma(vence) + suma(atrasado), 2)},
+        }
+
     def _clients_base(self) -> str:
         return config("ATV_CLIENTS_API_URL", default="http://127.0.0.1:8001").rstrip("/")
 

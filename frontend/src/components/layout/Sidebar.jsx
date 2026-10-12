@@ -66,6 +66,9 @@ const NAV = [
       // No son lecturas del área, así que no van en el menú de ops ni de dirección.
       { to: '/ventas/mi-dia', label: 'Mi día', roles: ['closer'] },
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer'] },
+      // Caja 1 es la plata de las ventas nuevas: lo que el closer cerró y todavía hay
+      // que terminar de cobrar. Caja 2 —upsell y recompra— no es suya y vive en Cobranza.
+      { to: '/ventas/caja', label: 'Caja 1', roles: ['closer', 'ventas', 'admin', 'founder', 'operaciones'] },
       { to: '/ventas/mi-progreso', label: 'Mi setting', roles: ['setter'] },
       // Ventas abre el dashboard del área —setting y closing, nada más— y debajo cuelgan
       // los dos laboratorios. Operativa, Performance, Setting y Salud vs meta salieron

@@ -6,6 +6,7 @@ import Calendario from './pages/Calendario.jsx';
 import Asistente from './pages/Asistente.jsx';
 import Cobranza from './pages/Cobranza.jsx';
 import ProximosAVencer from './pages/ProximosAVencer.jsx';
+import CajaUno from './pages/CajaUno.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
 import Home from './pages/Home.jsx';
@@ -194,6 +195,7 @@ export default function App() {
               <Route path="operativa" element={<VentasOperativaPage />} />
               <Route path="lab-setting" element={<Laboratorio cual="setting" />} />
               <Route path="lab-closing" element={<Laboratorio cual="closing" />} />
+              <Route path="caja" element={<CajaUno />} />
               <Route path="mi-dia" element={<VentasMiDiaRoute />} />
               <Route path="llamadas" element={<VentasLlamadas />} />
               <Route path="mi-progreso" element={<VentasMiProgresoRoute />} />

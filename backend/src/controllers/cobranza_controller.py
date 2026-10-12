@@ -9,6 +9,20 @@ router = APIRouter(dependencies=[Depends(solo_interno)])
 service = CobranzaServices()
 
 
+@router.get("/caja-1")
+def caja_uno(
+    month: str | None = Query(default=None, description="Mes YYYY-MM (default: mes AR actual)"),
+    _user=Depends(get_current_user),
+):
+    """Caja 1: lo que entró de ventas nuevas, lo que vence y lo atrasado."""
+    try:
+        return service.caja_uno(month)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"No se pudo leer la caja 1: {e}") from e
+
+
 @router.get("/proximos-a-vencer")
 def proximos_a_vencer(
     dias: int = Query(default=90, ge=1, le=365, description="Ventana en días"),

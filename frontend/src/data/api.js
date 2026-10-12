@@ -1044,6 +1044,11 @@ export async function cerrarSena(leadId, { cierreMes, cashUsd, evento, abrir = f
   });
 }
 
+/** Caja 1 del mes: lo que entró de ventas nuevas, lo que vence y lo atrasado. */
+export async function getCajaUno(mes) {
+  return pedir(`/api/cobranza/caja-1${mes ? `?month=${encodeURIComponent(mes)}` : ''}`);
+}
+
 /** Los clientes cuyo acceso vence en los próximos `dias`, agrupados por urgencia. */
 export async function getProximosAVencer(dias = 90) {
   return pedir(`/api/cobranza/proximos-a-vencer?dias=${encodeURIComponent(dias)}`);

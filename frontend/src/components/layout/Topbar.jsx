@@ -27,6 +27,7 @@ const TITULOS = {
   '/cobranza/proximos-a-vencer': 'Cobranza · Próximos a vencer',
   '/ventas/llamadas': 'Ventas · Llamadas',
   '/ventas/mi-dia': 'Ventas · Mi día',
+  '/ventas/caja': 'Ventas · Caja 1',
   '/ventas/mi-progreso': 'Ventas',
   '/ventas/performance': 'Ventas · Performance',
   '/ventas/ops': 'Ventas · Salud vs meta',
