@@ -29,6 +29,18 @@ def obtener_canal(categoria: str, canal: str, _user: dict = Depends(get_current_
         raise HTTPException(status_code=500, detail="Error inesperado al leer el transcript.")
 
 
+@router.get("/{categoria}/{canal}/txt")
+def bajar_txt(categoria: str, canal: str, _user: dict = Depends(get_current_user)):
+    """El transcript entero del canal como archivo, para bajarlo."""
+    try:
+        ruta = service.ruta_txt(categoria, canal)
+        return FileResponse(ruta, media_type="text/plain; charset=utf-8", filename=f"{canal}.txt")
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer el transcript.")
+
+
 @router.get("/{categoria}/{canal}/adjuntos/{archivo}")
 def obtener_adjunto(categoria: str, canal: str, archivo: str, _user: dict = Depends(get_current_user)):
     try:

@@ -337,6 +337,16 @@ class TranscriptsServices:
             raise HTTPException(status_code=404, detail="Ese adjunto no está guardado.")
         return ruta
 
+    def ruta_txt(self, categoria: str, canal: str) -> Path:
+        """El .txt entero del canal, para bajarlo tal cual lo escribe el bot."""
+        if any(x in categoria or x in canal for x in ("/", "\\", "..")) or categoria.startswith("."):
+            raise HTTPException(status_code=400, detail="Canal inválido.")
+        carpeta = get_transcripts_base() / categoria / canal
+        archivo = self._archivo_de_canal(carpeta) if carpeta.is_dir() else None
+        if archivo is None:
+            raise HTTPException(status_code=404, detail=f"El canal #{canal} no tiene transcript.")
+        return archivo
+
     def obtener_canal(self, categoria: str, canal: str) -> dict:
         """Un canal con todos sus mensajes."""
         base = get_transcripts_base()

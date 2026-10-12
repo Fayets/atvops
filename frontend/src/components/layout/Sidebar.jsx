@@ -24,6 +24,8 @@ const NAV = [
     sub: [
       { to: '/fulfillment/ops', label: 'Salud de cartera', roles: ['admin', 'operaciones', 'founder'] },
       { to: '/fulfillment', label: 'Resumen', end: true, roles: ['csm'] },
+      // Un canal por cliente con sus datos al lado; por ahora, la conversación y su .txt.
+      { to: '/fulfillment/canales', label: 'Canales', roles: ['csm', 'admin', 'operaciones', 'founder'] },
       { to: '/fulfillment/diagnostico', label: 'Diagnóstico', roles: ['csm', 'operaciones', 'admin', 'founder'] },
       { to: '/fulfillment/pendientes', label: 'Updates', roles: ['csm'] },
       { to: '/fulfillment/outcomes', label: 'Resultados', roles: ['csm'] },

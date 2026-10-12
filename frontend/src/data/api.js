@@ -2402,6 +2402,20 @@ export async function getTranscripts() {
  * @param {string} categoria
  * @param {string} canal
  */
+/** Baja el .txt de un canal. El <a download> no puede mandar el token, así que se baja acá. */
+export async function bajarTxtCanal(categoria, canal) {
+  const token = getToken();
+  const r = await fetch(`${API_BASE}/api/transcripts/${encodeURIComponent(categoria)}/${encodeURIComponent(canal)}/txt`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) throw new Error('No se pudo bajar el transcript.');
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a');
+  a.href = url; a.download = `${canal}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export async function getTranscriptCanal(categoria, canal) {
   return pedir(`/api/transcripts/${encodeURIComponent(categoria)}/${encodeURIComponent(canal)}`);
 }
