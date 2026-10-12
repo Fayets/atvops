@@ -51,7 +51,8 @@ export default function Canales() {
   const navigate = useNavigate();
   const params = useParams();
   const [busqueda, setBusqueda] = useState('');
-  const [abiertos, setAbiertos] = useState({ activos: true, inactivos: true });
+  // Los dos grupos arrancan cerrados: la lista es larga y lo primero es elegir activos o inactivos.
+  const [abiertos, setAbiertos] = useState({ activos: false, inactivos: false });
   const [bajando, setBajando] = useState(false);
   const [errorBajada, setErrorBajada] = useState('');
 
@@ -83,8 +84,10 @@ export default function Canales() {
       const m = data.canales.find((c) => c.canal === params.canal && c.categoria === params.categoria);
       if (m) return m;
     }
-    return activos[0] ?? inactivos[0] ?? null;
-  }, [data, params.canal, params.categoria, activos, inactivos]);
+    // Sin canal en la URL no se abre ninguno: los grupos están cerrados y abrir uno que
+    // no se ve en la lista confunde.
+    return null;
+  }, [data, params.canal, params.categoria]);
 
   const abrir = useCallback(
     (c) => navigate(`/fulfillment/canales/${c.categoria}/${encodeURIComponent(c.canal)}`),
