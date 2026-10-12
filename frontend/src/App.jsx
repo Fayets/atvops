@@ -31,6 +31,7 @@ import VentasOps from './pages/VentasOps.jsx';
 import VentasPerformancePage from './pages/VentasPerformance.jsx';
 import Setting from './pages/Setting.jsx';
 import Laboratorio from './pages/Laboratorio.jsx';
+import LabClosing from './pages/LabClosing.jsx';
 import VentasDashboard from './pages/VentasDashboard.jsx';
 import VentasSetter from './pages/VentasSetter.jsx';
 import Webinars from './pages/Webinars.jsx';
@@ -194,7 +195,7 @@ export default function App() {
               <Route index element={<VentasIndex />} />
               <Route path="operativa" element={<VentasOperativaPage />} />
               <Route path="lab-setting" element={<Laboratorio cual="setting" />} />
-              <Route path="lab-closing" element={<Laboratorio cual="closing" />} />
+              <Route path="lab-closing" element={<LabClosing />} />
               <Route path="caja" element={<CajaUno />} />
               <Route path="mi-dia" element={<VentasMiDiaRoute />} />
               <Route path="llamadas" element={<VentasLlamadas />} />

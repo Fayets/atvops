@@ -12,6 +12,7 @@ from src.services import marketing_services as marketing
 from src.services import onboarding_services as onboarding
 from src.services import reporte_semanal_services as reporte
 from src.services import llamadas_services as llamadas
+from src.services import lab_closing_services as lab_closing
 from src.services import ventas_services as ventas
 
 router = APIRouter()
@@ -64,6 +65,18 @@ def borrar_programa(programa_id: int, user: dict = Depends(solo_interno)):
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al borrar el programa.")
+
+
+@router.get("/lab-closing")
+def lab_closing_llamadas(user: dict = Depends(solo_interno), mes: str | None = None):
+    """Las llamadas grabadas por Fathom con lo que la IA sacó de cada una."""
+    try:
+        return lab_closing.listar(user, mes=mes)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        log.exception("No se pudo armar el laboratorio de closing")
+        raise HTTPException(status_code=500, detail="No se pudo armar el laboratorio de closing.")
 
 
 @router.get("/mis-llamadas")

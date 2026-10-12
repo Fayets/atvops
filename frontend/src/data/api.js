@@ -2866,6 +2866,11 @@ export async function buscarClientesReporte(q) {
 // ------------------------------------------------------------- reporte de closing
 
 /** El mes entero: métricas, laboratorio y las llamadas con su análisis. */
+/** Las llamadas grabadas por Fathom del mes, con lo que la IA sacó de cada una. */
+export async function getLabClosing(mes) {
+  return pedir(`/api/ventas/lab-closing${mes ? `?mes=${encodeURIComponent(mes)}` : ''}`);
+}
+
 export async function getReporteClosing(periodo, closer) {
   return pedir(`/api/reportes-closing/${periodo}${closer ? `?closer=${encodeURIComponent(closer)}` : ''}`);
 }

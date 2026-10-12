@@ -8106,6 +8106,101 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 
 /* El PDF que se le manda a Juan. Objetivo: una sola hoja, con los números arriba y las
    llamadas del mes abajo. */
+/* ------------------------------------------- Laboratorio Closing: galería y ficha */
+
+.lab-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4);
+  flex-wrap: wrap; margin-bottom: var(--space-5); }
+.lab-titulo { font-size: 19px; font-weight: 600; margin-bottom: 4px; }
+.lab-cab .dim { font-size: 13px; }
+.lab-filtros { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.lab-select { font-family: var(--font); font-size: 12.5px; font-weight: 500; color: var(--text-2);
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); padding: 6px 12px; }
+
+.lab-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px;
+  margin-bottom: var(--space-5); }
+.lab-tarjeta { display: flex; flex-direction: column; text-align: left; padding: 0; font-family: var(--font);
+  background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow); cursor: pointer; color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.lab-tarjeta:hover, .lab-tarjeta:focus-visible { border-color: var(--border); transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.08); }
+.lab-tarjeta.sin-cargar { border-style: dashed; box-shadow: none; }
+.lab-hoja { position: relative; height: 168px; background: var(--surface-2); border-bottom: 1px solid var(--border-soft);
+  padding: 18px 18px 0; overflow: hidden; }
+.lab-hoja-papel { height: 100%; background: var(--surface); border: 1px solid var(--border-soft); border-bottom: 0;
+  border-radius: 6px 6px 0 0; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 6px; }
+.lab-hoja-fila { display: flex; justify-content: space-between; align-items: center; }
+.lab-hoja-k { font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+.lab-hoja-t { font-size: 8.5px; line-height: 1.45; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.lab-hoja-encaje { font-size: 11px; font-weight: 700; }
+.lab-hoja-encaje.ok { color: var(--ok); } .lab-hoja-encaje.warn { color: var(--warn); }
+.lab-hoja-encaje.alert { color: var(--alert); } .lab-hoja-encaje.off { color: var(--text-3); }
+.lab-fathom { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--border-soft); display: flex; align-items: center;
+  justify-content: center; }
+.lab-fathom svg, .lab-ficha-acciones svg { fill: var(--brand); }
+.lab-pie { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.lab-nombre { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lab-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); flex-wrap: wrap; }
+.lab-estado { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.lab-estado i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.lab-estado.ok { color: var(--ok); } .lab-estado.warn { color: var(--warn); } .lab-estado.off { color: var(--text-3); }
+.lab-estado.grande { padding: 5px 11px; border-radius: var(--radius-pill); font-size: 12.5px; white-space: nowrap; }
+.lab-estado.grande.ok { background: var(--ok-dim); } .lab-estado.grande.warn { background: var(--warn-dim); }
+.lab-estado.grande.off { background: var(--off-dim); }
+
+/* La ficha: la grabación a la izquierda, el análisis a la derecha, mitad y mitad. */
+.modal-card.lab-ficha { width: min(1180px, 96vw); max-height: 90vh; padding: 0; display: grid;
+  grid-template-columns: 1fr 1fr; overflow: hidden; }
+.lab-ficha-izq { border-right: 1px solid var(--border-soft); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.lab-ficha-der { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.lab-video { width: 100%; aspect-ratio: 16 / 9; border: 0; background: #1c1917; display: block; }
+.lab-portada { aspect-ratio: 16 / 9; background: radial-gradient(ellipse at 30% 40%, #3b3532 0%, #1c1917 65%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #d6d3d1; }
+.lab-portada-ini { font-size: 44px; font-weight: 700; letter-spacing: 0.02em; color: #fff; }
+.lab-portada-txt { font-size: 12px; }
+.lab-ficha-datos { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+.lab-ficha-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.lab-ficha-cab h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.lab-ficha-cab .dim { font-size: 13px; }
+.lab-ficha-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 14px;
+  border-top: 1px solid var(--border-soft); }
+.lab-k { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+.lab-n { font-size: 15px; font-weight: 600; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.lab-v { font-size: 13.5px; line-height: 1.5; }
+.lab-ficha-acciones { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
+.lab-ficha-acciones .btn { display: inline-flex; align-items: center; gap: 6px; }
+.lab-ficha-der > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: 18px 24px; border-bottom: 1px solid var(--border-soft); }
+.lab-ficha-der > header h3 { margin: 2px 0 0; font-size: 16px; }
+.lab-analisis { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 18px; }
+.lab-encaje { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: var(--radius-sm);
+  background: var(--surface-2); }
+.lab-encaje-n { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; height: 64px;
+  border-radius: 50%; background: var(--surface); border: 3px solid var(--text-3); flex-shrink: 0; color: var(--text-3); }
+.lab-encaje-n b { font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+.lab-encaje-n span { font-size: 9.5px; color: var(--text-3); margin-top: 2px; }
+.lab-encaje-n.ok { border-color: var(--ok); color: var(--ok); } .lab-encaje-n.warn { border-color: var(--warn); color: var(--warn); }
+.lab-encaje-n.alert { border-color: var(--alert); color: var(--alert); }
+.lab-encaje-t { font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
+.lab-encaje-t .ok { color: var(--ok); } .lab-encaje-t .warn { color: var(--warn); } .lab-encaje-t .alert { color: var(--alert); }
+.lab-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.lab-campo .lab-k { margin-bottom: 6px; }
+.lab-proximo { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft); }
+.lab-proximo svg { flex-shrink: 0; margin-top: 2px; }
+.lab-proximo .lab-k { margin-bottom: 4px; }
+.lab-coincide { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding-top: 12px; border-top: 1px solid var(--border-soft); font-size: 12px; color: var(--text-3); }
+.lab-coincide .ok { color: var(--ok); font-weight: 600; } .lab-coincide .warn { color: var(--warn); font-weight: 600; }
+@media (max-width: 860px) {
+  .modal-card.lab-ficha { grid-template-columns: 1fr; max-height: 92vh; overflow-y: auto; }
+  .lab-ficha-izq { border-right: 0; border-bottom: 1px solid var(--border-soft); overflow: visible; }
+  .lab-ficha-der { overflow: visible; }
+  .lab-dos { grid-template-columns: 1fr; }
+}
+
 @media print {
   /* Las llamadas achican medio punto más en papel: con 63 filas en tres columnas, medio
      punto es la diferencia entre entrar en la hoja 1 y empujar a la 2. */
