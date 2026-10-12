@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
 import { getCajaUno } from '../data/api.js';
 import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
@@ -14,10 +14,10 @@ import { useResource } from '../lib/hooks.js';
  * todo y uno que cobró la mitad y arrastra el resto suman parecido y no son lo mismo; la
  * diferencia entre los dos es el trabajo que hay por delante.
  *
- * Las cuotas detrás de cada número no están a la vista: se abren tocando el número. Con
- * tres tablas abiertas la pantalla era una lista larga que había que recorrer entera
- * para encontrar el dato; así, primero se lee el estado y recién después, si hace falta,
- * quién debe qué.
+ * Lo que entró queda a la vista apenas se abre: es lo primero que el closer quiere ver.
+ * Lo que falta y lo atrasado se abren tocando el número; con tres tablas abiertas la
+ * pantalla era una lista larga que había que recorrer entera para encontrar el estado.
+ * La barra de arriba ya dice "Ventas · Caja 1": no se repite el título en la página.
  */
 
 const usd = (n) => formatValue(n || 0, 'usd');
@@ -189,12 +189,6 @@ export default function CajaUno() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Ventas"
-        title="Caja 1"
-        desc="La plata de las ventas nuevas: lo que entró, lo que falta y lo que se arrastra. Tocá un número para ver las cuotas."
-      />
-
       <div className="kpi-grid">
         <Kpi label="Entró este mes" valor={usd(entro.usd)} color="var(--ok)"
           nota={`${entro.cuotas ?? 0} cuotas cobradas`} onVer={() => setAbierto('entro')} />
@@ -207,8 +201,13 @@ export default function CajaUno() {
           nota="todo lo que falta entrar" onVer={() => setAbierto('porCobrar')} />
       </div>
 
+      <Card title="Entró este mes" sub={`${entro.cuotas ?? 0} cuotas · ${usd(entro.usd)}`}>
+        <Lista filas={entro.filas} campo="pagoAt" tono="ok"
+          vacio="Todavía no entró ninguna cuota de venta este mes." />
+      </Card>
+
       <p className="dim" style={{ fontSize: 12 }}>
-        Caja 1 son las cuotas de ventas nuevas. El upsell y la recompra son Caja 2 y no
+        Tocá un número para ver sus cuotas. Caja 1 son las cuotas de ventas nuevas. El upsell y la recompra son Caja 2 y no
         entran acá; las señas tampoco, porque reservan cupo y no son una cuota de la venta.
         Sale de ATV Clients.
       </p>
