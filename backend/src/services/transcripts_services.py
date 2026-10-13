@@ -24,14 +24,11 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import logging
-
 from fastapi import HTTPException
 
 from src.transcripts_source import CANONICAL_BASE, base_disponible, get_transcripts_base
 
 AR_TZ = timezone(timedelta(hours=-3))
-logger = logging.getLogger("atv_ops.transcripts")
 
 # Encabezado que el bot escribe solo en la primera corrida de cada canal.
 _HEADER_SEP = "=" * 20
@@ -168,15 +165,10 @@ class TranscriptsServices:
         txts = sorted(carpeta.glob("*.txt"))
         return txts[0] if txts else None
 
-    def _leer_canal(self, categoria: str, carpeta: Path, slug_classroom: str | None = None) -> dict | None:
-        """slug_classroom: canal del classroom cuyos mensajes se suman a esta carpeta. Solo para el
-        canal vivo del cliente (si cambió de programa, la carpeta vieja es historial y no se toca)."""
+    def _leer_canal(self, categoria: str, carpeta: Path) -> dict | None:
         archivo = self._archivo_de_canal(carpeta)
         if not archivo:
             return None
-        from src.services import classroom_chat
-
-        firma_classroom = classroom_chat.firma(slug_classroom)
 
         stat = archivo.stat()
         clave = str(archivo)
@@ -187,7 +179,7 @@ class TranscriptsServices:
             dir_mtime = 0.0
         adj_dir = carpeta / "adjuntos"
         adj_n = sum(1 for _ in adj_dir.iterdir()) if adj_dir.is_dir() else 0
-        firma = (stat.st_mtime + dir_mtime + firma_classroom[1], stat.st_size + adj_n + firma_classroom[0])
+        firma = (stat.st_mtime + dir_mtime, stat.st_size + adj_n)
         cacheado = self._cache.get(clave)
         if cacheado and cacheado[0] == firma[0] and cacheado[1] == firma[1]:
             return cacheado[2]
@@ -202,13 +194,6 @@ class TranscriptsServices:
         # encabezado es un fragmento: la historia previa quedó en otra máquina.
         tiene_header = texto.startswith("Canal:")
         mensajes = self._parsear(texto, _leer_directorio(get_transcripts_base()), carpeta / "adjuntos")
-        if slug_classroom:
-            # La conversación sigue en el classroom: se intercala por fecha con la de Discord.
-            extra = classroom_chat.mensajes_por_canal().get(slug_classroom) or []
-            if extra:
-                mensajes = sorted(mensajes + [dict(m) for m in extra], key=lambda m: m["fecha_at"])
-                for i, m in enumerate(mensajes):
-                    m["indice"] = i
         autores: dict[str, dict] = {}
         adjuntos = 0
         caracteres = 0
@@ -270,35 +255,18 @@ class TranscriptsServices:
             return []
 
         vivos = _canales_vivos(base)
-        alias = self._alias_classroom(base, vivos)
         canales: list[dict] = []
         for categoria_dir in sorted(p for p in base.iterdir() if p.is_dir()):
             if categoria_dir.name.startswith("_"):
                 continue
             for canal_dir in sorted(p for p in categoria_dir.iterdir() if p.is_dir()):
-                vivo = vivos is None or vivos.get(canal_dir.name) == categoria_dir.name
-                datos = self._leer_canal(categoria_dir.name, canal_dir, alias.get(canal_dir.name) if vivo else None)
+                datos = self._leer_canal(categoria_dir.name, canal_dir)
                 if datos:
                     # Un canal que está en disco pero ya no en Discord es un cliente
                     # que terminó o un canal archivado: se conserva, pero cerrado.
                     datos["en_discord"] = _esta_vivo(datos, vivos)
                     canales.append(datos)
         return canales
-
-    @staticmethod
-    def _alias_classroom(base: Path, vivos: dict[str, str] | None) -> dict[str, str]:
-        """carpeta viva → canal del classroom (ver classroom_chat.asociar)."""
-        from src.services import classroom_chat
-
-        if vivos is not None:
-            carpetas = list(vivos.keys())
-        else:
-            carpetas = [c.name for cat in base.iterdir() if cat.is_dir() and not cat.name.startswith("_") for c in cat.iterdir() if c.is_dir()]
-        try:
-            return classroom_chat.asociar(carpetas)
-        except Exception:  # noqa: BLE001 — el chat del classroom no puede tumbar la lectura de Discord
-            logger.exception("No se pudo leer el chat del classroom")
-            return {}
 
     @staticmethod
     def _sin_mensajes(datos: dict) -> dict:
@@ -410,12 +378,9 @@ class TranscriptsServices:
         if not carpeta.is_dir():
             raise HTTPException(status_code=404, detail=f"No existe el canal #{canal}.")
 
-        vivos = _canales_vivos(base)
-        vivo = vivos is None or vivos.get(canal) == categoria
-        alias = self._alias_classroom(base, vivos) if vivo else {}
-        datos = self._leer_canal(categoria, carpeta, alias.get(canal))
+        datos = self._leer_canal(categoria, carpeta)
         if not datos:
             raise HTTPException(status_code=404, detail=f"El canal #{canal} no tiene transcript.")
-        datos["en_discord"] = _esta_vivo(datos, vivos)
+        datos["en_discord"] = _esta_vivo(datos, _canales_vivos(base))
 
         return {"canal": self._sin_mensajes(datos), "mensajes": datos["_mensajes"]}
