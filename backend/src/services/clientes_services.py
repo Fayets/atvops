@@ -133,13 +133,17 @@ def _semana_label(fecha: datetime) -> str:
 def _staff_desde_canales(canales: list[dict]) -> set[str]:
     """Quién escribe en varios canales = equipo ATV, no el cliente del canal."""
     por_autor: dict[str, set[str]] = defaultdict(set)
+    seguros: set[str] = set()
     for canal in canales:
         slug = canal["canal"]
         for msg in canal.get("_mensajes") or []:
             key = _norm(msg["autor"])
             if key:
                 por_autor[key].add(slug)
-    return {autor for autor, chs in por_autor.items() if len(chs) >= STAFF_MIN_CANALES}
+                # Los mensajes del classroom ya dicen si son del equipo: no hace falta adivinar.
+                if msg.get("de_equipo"):
+                    seguros.add(key)
+    return seguros | {autor for autor, chs in por_autor.items() if len(chs) >= STAFF_MIN_CANALES}
 
 
 def _autor_es_cliente(autor: str, canal: str, staff: set[str]) -> bool:
