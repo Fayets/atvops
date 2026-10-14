@@ -46,9 +46,9 @@ PITCH_TEXTO = {"booked": "Agendó", "pendiente": "Sin respuesta todavía",
                "denied": "Dijo que no", "ghosted": "Ghosteó"}
 
 # Qué pasó con la llamada que salió del pitch.
-ORDEN_LLAMADA = ("closed", "deposit", "showed", "scheduled", "no_show", "cancelled")
+ORDEN_LLAMADA = ("closed", "deposit", "showed", "scheduled", "rescheduled", "no_show", "cancelled")
 LLAMADA_TEXTO = {"closed": "Cerró", "deposit": "Dejó seña", "showed": "Se presentó",
-                 "scheduled": "Todavía no pasó", "no_show": "No se presentó",
+                 "scheduled": "Todavía no pasó", "rescheduled": "Se reprogramó", "no_show": "No se presentó",
                  "cancelled": "Cancelada"}
 
 CANAL_TEXTO = {"dm": "DM", "phone": "Teléfono", "hibrido": "Híbrido"}

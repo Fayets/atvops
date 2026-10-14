@@ -10,36 +10,29 @@ import { LLAMADA_ESTADO, PITCH_ESTADO, conjuntosDeTasas, pct } from '../../lib/s
  * porcentaje, y no valen lo mismo.
  */
 
-// El anillo se pinta con el juicio del número contra su rango sano, no con un color
-// decorativo por tasa: si el color no dice nada, es ruido.
+// Cada anillo lleva el color de su escalón del embudo, como en SetSystem: el booking es
+// el de las agendas, el show el de los shows, el close el de los closes. Así se lee qué
+// tasa corresponde a qué barra sin buscar la etiqueta. El setting rate no tiene barra
+// propia y va en ámbar.
 const TASAS = [
-  { id: 'booking', label: 'Booking rate', unidad: 'pitches', num: 'agendas', den: 'pitchesResueltos', verde: 30, amarillo: 20,
+  { id: 'booking', color: 'var(--set-agendas)', label: 'Booking rate', unidad: 'pitches', num: 'agendas', den: 'pitchesResueltos', verde: 30, amarillo: 20,
     detalle: 'Los pitches del período que ya se resolvieron: agendaron, dijeron que no o ghostearon. Los que todavía no contestaron no entran, porque no fallaron nada.' },
-  { id: 'show', label: 'Show rate', unidad: 'calls', num: 'shows', den: 'llamadasResueltas', verde: 80, amarillo: 65,
+  { id: 'show', color: 'var(--set-shows)', label: 'Show rate', unidad: 'calls', num: 'shows', den: 'llamadasResueltas', verde: 80, amarillo: 65,
     detalle: 'Las llamadas que caían en el período y ya se sabe qué pasó con ellas. El corte es el día de la llamada, no el del pitch.' },
-  { id: 'close', label: 'Close rate', unidad: 'shows', num: 'cierres', den: 'shows', verde: 25, amarillo: 15,
+  { id: 'close', color: 'var(--set-closes)', label: 'Close rate', unidad: 'shows', num: 'cierres', den: 'shows', verde: 25, amarillo: 15,
     detalle: 'Las llamadas a las que el prospecto vino. Sobre eso se mide cuántas cerraron.' },
-  { id: 'setting', label: 'Setting rate', unidad: 'ciclos completos', num: 'cierresDelPitch', den: 'recorridosCompletos',
+  { id: 'setting', color: 'var(--set-setting)', label: 'Setting rate', unidad: 'ciclos completos', num: 'cierresDelPitch', den: 'recorridosCompletos',
     detalle: 'Los pitches que llegaron al final: o no agendaron, o agendaron y la llamada ya se resolvió. Los que tienen la call por delante quedan afuera.' },
 ];
 
-const tono = (v, verde, amarillo) => {
-  if (v == null || !verde) return 'var(--s4)';
-  if (v >= verde) return 'var(--ok)';
-  if (v >= amarillo) return 'var(--warn)';
-  return 'var(--alert)';
-};
-
-// El embudo es una sola cosa que se va achicando: una escala de grafito lo cuenta mejor
-// que cuatro colores, y deja el verde libre para cuando de verdad significa algo.
 const ETAPAS = [
-  { label: 'Pitches', campo: 'pitches', color: 'var(--s3)',
+  { label: 'Pitches', campo: 'pitches', color: 'var(--set-pitches)',
     detalle: 'Todos los links de agenda mandados en el período.' },
-  { label: 'Agendas', campo: 'agendas', color: 'var(--s4)',
+  { label: 'Agendas', campo: 'agendas', color: 'var(--set-agendas)',
     detalle: 'Los pitches del período que terminaron con una llamada agendada.' },
-  { label: 'Shows', campo: 'shows', color: 'var(--s1)',
+  { label: 'Shows', campo: 'shows', color: 'var(--set-shows)',
     detalle: 'Las llamadas del período a las que el prospecto vino.' },
-  { label: 'Closes', campo: 'cierres', color: 'var(--ok)',
+  { label: 'Closes', campo: 'cierres', color: 'var(--set-closes)',
     detalle: 'Las llamadas del período que cerraron. Las señas no entran: reservaron cupo, la venta no está hecha.' },
 ];
 
@@ -110,7 +103,7 @@ export default function TasasEmbudo({ m, pitches, lim, canal = '' }) {
       <div className="anillos">
         {TASAS.map((t) => (
           <Anillo key={t.id} label={t.label} unidad={t.unidad} valor={m[t.id]}
-            num={m[t.num]} den={m[t.den]} color={tono(m[t.id], t.verde, t.amarillo)}
+            num={m[t.num]} den={m[t.den]} color={t.color}
             onVer={C ? abrir(t.label, t.detalle, C[t.id].sobre) : undefined} />
         ))}
       </div>

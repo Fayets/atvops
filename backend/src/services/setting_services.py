@@ -21,7 +21,9 @@ logger = logging.getLogger("atv_ops.setting")
 CANALES = ("dm", "phone", "hibrido")
 ORIGENES = ("organico", "ads")
 PITCH_ESTADOS = ("pendiente", "booked", "ghosted", "denied")
-LLAMADA_ESTADOS = ("scheduled", "showed", "no_show", "cancelled", "deposit", "closed")
+# `rescheduled`: la llamada se movió y sigue viva. Cuenta como sin resolver, igual que
+# `scheduled`, hasta que se sepa qué pasó.
+LLAMADA_ESTADOS = ("scheduled", "rescheduled", "showed", "no_show", "cancelled", "deposit", "closed")
 # Lo que cuenta como show: vino a la llamada, haya cerrado o no.
 SHOW = {"showed", "deposit", "closed"}
 # No vino: da igual si avisó antes o no apareció, la llamada no pasó.
@@ -131,7 +133,7 @@ def _sin_resolver(p: dict) -> bool:
     No mira la fecha a propósito: una call de ayer sin resultado cargado tampoco resolvió
     nada, y meterla en el show rate como si hubiera fallado ensucia el número.
     """
-    return p.get("pitchEstado") == "booked" and (p.get("llamadaEstado") or "") in ("", "scheduled")
+    return p.get("pitchEstado") == "booked" and (p.get("llamadaEstado") or "") in ("", "scheduled", "rescheduled")
 
 
 def _bloque(leads: list[dict], calls: list[dict]) -> dict:
@@ -654,14 +656,12 @@ def importar(payload: dict, usuario: dict) -> dict:
 
 def desde_setsystem(lead: dict) -> dict:
     """Un lead de SetSystem con los nombres de ATV Ops."""
-    # SetSystem dice `pitched`; acá es `pendiente`. `rescheduled` es una llamada
-    # todavía viva: queda `scheduled` y la fecha nueva va en reprogramadaAt.
+    # SetSystem dice `pitched`; acá es `pendiente`. `rescheduled` se conserva: es una
+    # llamada todavía viva, con la fecha nueva en reprogramadaAt.
     estado_pitch = lead.get("pitch_status") or "pendiente"
     if estado_pitch == "pitched":
         estado_pitch = "pendiente"
     estado_llamada = lead.get("call_status") or None
-    if estado_llamada == "rescheduled":
-        estado_llamada = "scheduled"
     return {
         "externoId": lead.get("id"), "prospecto": lead.get("name") or "Sin nombre",
         "pitchAt": lead.get("pitch_date"), "canal": lead.get("channel") or "dm",

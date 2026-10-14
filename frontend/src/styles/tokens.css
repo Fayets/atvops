@@ -75,6 +75,15 @@
      los números. Si no carga, cae en la del sistema y se lee igual. */
   --font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
+  /* La paleta del sistema del setter, copiada de SetSystem a pedido de Cris: ahí cada
+     estado tiene su color y el setter lo lee sin leer la palabra. Es la excepción a "un
+     color, un trabajo", y vive solo en la vista del setter. */
+  --set-pitches: #a8a29e;
+  --set-agendas: #7c6cf0;   /* booking rate y la barra de agendas */
+  --set-shows: #0f9fb0;     /* show rate y la barra de shows */
+  --set-closes: #16a34a;    /* close rate y la barra de closes */
+  --set-setting: #d4a03c;   /* setting rate: no tiene barra */
+
   --sidebar-w: 248px;
   --topbar-h: 60px;
   --content-max: 1360px;

@@ -19,6 +19,7 @@ export const PITCH_ESTADO = {
 };
 export const LLAMADA_ESTADO = {
   scheduled: { label: 'agendada', tone: 'info' },
+  rescheduled: { label: 'rescheduled', tone: 'warn' },
   showed: { label: 'show no close', tone: 'ok' },
   no_show: { label: 'no show', tone: 'alert' },
   cancelled: { label: 'cancelled', tone: 'off' },
@@ -160,7 +161,7 @@ const SHOW = ['showed', 'deposit', 'closed'];
 const NO_VINO = ['no_show', 'cancelled'];
 const RESUELTOS = [...SHOW, ...NO_VINO];
 const sinResolver = (p) => p.pitchEstado === 'booked'
-  && ['', 'scheduled'].includes(p.llamadaEstado || '');
+  && ['', 'scheduled', 'rescheduled'].includes(p.llamadaEstado || '');
 
 export function conjuntosDeTasas(pitches = [], lim = {}, canal = '') {
   const filas = canal ? pitches.filter((p) => p.canal === canal) : pitches;

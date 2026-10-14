@@ -6342,6 +6342,34 @@ body.gate-abierto .shell { display: none; }
 .pill-estado.tono-warn { color: var(--warn); border-color: var(--warn); background: var(--warn-dim); }
 .pill-estado.tono-info { color: var(--info); border-color: var(--info); background: var(--info-dim); }
 .pill-estado.tono-off { color: var(--text-2); }
+/* Pastilla con el color de cada estado, como en SetSystem. Fondo lleno y texto oscuro:
+   se lee de lejos qué pasó con cada lead sin leer la palabra. */
+.pill-estado[class*="est-"] { border: 0; border-radius: 6px; padding: 3px 4px 3px 8px; gap: 5px; font-weight: 500; }
+.pill-estado .pill-punto { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .55; flex: none; }
+.pill-estado .pill-canal-in { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(0, 0, 0, .12); }
+.pill-estado.est-scheduled, .pill-estado.est-booked { background: #7aa6d6; color: #0f2236; }
+.pill-estado.est-rescheduled { background: #e2b977; color: #3a2606; }
+.pill-estado.est-showed { background: #22a7b4; color: #04282c; }
+.pill-estado.est-closed { background: #22a35a; color: #04230f; }
+.pill-estado.est-deposit { background: #6fae86; color: #0a2916; }
+.pill-estado.est-no_show { background: #e19a9a; color: #3d1010; }
+.pill-estado.est-cancelled { background: #cfd2d8; color: #2a2d33; }
+.pill-estado.est-pendiente { background: #8b7cf6; color: #fff; }
+.pill-estado.est-ghosted { background: #c6c9cf; color: #2a2d33; }
+.pill-estado.est-denied { background: #f0a294; color: #3d140c; }
+
+/* Minimalista, como pidió Cris: el canal, los contadores, el ADS/ORG que no está elegido
+   y el borrar aparecen solo con el cursor encima de la fila. En una pantalla táctil no
+   hay cursor, así que ahí quedan siempre a la vista. */
+@media (hover: hover) {
+  .pitch-fila .pitch-controles, .pitch-fila .toggle.origen button:not(.activo) {
+    opacity: 0; transition: opacity .12s ease; }
+  .pitch-fila .toggle.origen { border-color: transparent; transition: border-color .12s ease; }
+  .pitch-fila .toggle.origen button.activo { background: none; }
+  .pitch-fila:hover .pitch-controles, .pitch-fila:focus-within .pitch-controles,
+  .pitch-fila:hover .toggle.origen button, .pitch-fila:focus-within .toggle.origen button { opacity: 1; }
+  .pitch-fila:hover .toggle.origen, .pitch-fila:focus-within .toggle.origen { border-color: var(--border-soft); }
+}
 .pill-canal { font-size: 10.5px; color: var(--text-3); background: var(--surface-2); border: 1px solid var(--border-soft);
   border-radius: var(--radius-pill); padding: 2px 8px; }
 

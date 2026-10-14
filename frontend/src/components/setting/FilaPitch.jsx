@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CANAL, LLAMADA_ESTADO, ORIGEN, PITCH_ESTADO, fechaCorta } from '../../lib/setting.js';
+import { CANAL, CANAL_PILL, LLAMADA_ESTADO, ORIGEN, PITCH_ESTADO, fechaCorta } from '../../lib/setting.js';
 
 /** Un contador con flechas: reprogramaciones, follow-ups, llamadas. */
 function Contador({ letra, titulo, valor, onCambiar }) {
@@ -54,7 +54,8 @@ export default function FilaPitch({ p, modo = 'call', onCambiar, onBorrar }) {
   const [confirmando, setConfirmando] = useState(false);
   const cambiar = (patch) => onCambiar(p.id, patch);
   const estado = p.llamadaEstado || 'scheduled';
-  const pill = p.pitchEstado === 'booked' ? LLAMADA_ESTADO[estado] : PITCH_ESTADO[p.pitchEstado];
+  // La clave del estado que se ve: con ella se pinta la pastilla, con los colores de SetSystem.
+  const clave = p.pitchEstado === 'booked' ? estado : p.pitchEstado;
   const contacto = [p.usuarioIg && `@${p.usuarioIg}`, p.email, p.telefono].filter(Boolean).join(' · ');
 
   return (
@@ -74,8 +75,9 @@ export default function FilaPitch({ p, modo = 'call', onCambiar, onBorrar }) {
             onCambiar={(llamadas) => cambiar({ llamadas })} />
         </span>
         <span className="pitch-estado">
-          <span className={`pill-estado tono-${pill?.tone ?? 'off'}`}>
-            <select value={p.pitchEstado === 'booked' ? estado : p.pitchEstado}
+          <span className={`pill-estado est-${clave}`}>
+            <i className="pill-punto" aria-hidden="true" />
+            <select value={clave}
               onChange={(e) => {
                 const v = e.target.value;
                 cambiar(v in PITCH_ESTADO ? { pitchEstado: v } : { llamadaEstado: v });
@@ -88,6 +90,7 @@ export default function FilaPitch({ p, modo = 'call', onCambiar, onBorrar }) {
                 {Object.entries(LLAMADA_ESTADO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </optgroup>
             </select>
+            {p.canal && <span className="pill-canal-in">{CANAL_PILL[p.canal] ?? p.canal}</span>}
           </span>
           <Toggle valor={p.origen} opciones={ORIGEN} onCambiar={(origen) => cambiar({ origen })}
             className="origen" etiqueta="Origen" />
