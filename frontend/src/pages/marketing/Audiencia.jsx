@@ -195,7 +195,8 @@ export default function Audiencia() {
 
   return (
     <div className="page">
-      {!permisos.comentarios && (
+      {permisos.aviso && <p className="aud-aviso">{permisos.aviso} Los datos ya guardados se ven igual.</p>}
+      {permisos.comentarios === false && (
         <div className="aud-alerta">
           <b>Falta un permiso de Instagram para leer quién comenta.</b> Hoy los comentarios llegan sin el usuario,
           así que no hay a quién analizar. Hay que volver a conectar Instagram con el permiso

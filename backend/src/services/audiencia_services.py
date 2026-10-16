@@ -130,16 +130,32 @@ def _pedir(token: str, path: str, **params) -> dict:
         return {"_error": str(e)[:200]}
 
 
+_permisos_cache: dict = {}
+
+
 def permisos() -> dict:
-    """Qué puede hacer hoy el token: leer comentarios con usuario y leer perfiles."""
+    """Qué puede hacer hoy el token: leer comentarios con usuario y leer perfiles.
+
+    Se guarda una hora: los permisos no cambian solos y cada consulta gasta cupo de la API.
+    Si Instagram no contesta (límite de pedidos, caída) se devuelve `comentarios: None`,
+    que quiere decir "no se sabe", y no `False`: un error pasajero no es un permiso que
+    falta, y mostrarlo como tal mandaba a reconectar Instagram sin motivo."""
+    guardado = _permisos_cache.get("v")
+    if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < 3600:
+        return guardado["data"]
     token, _uid = _credenciales()
-    datos = _pedir(token, "me/permissions").get("data") or []
-    otorgados = {p.get("permission") for p in datos if p.get("status") == "granted"}
-    return {
+    r = _pedir(token, "me/permissions")
+    if r.get("_error"):
+        previo = (guardado or {}).get("data")
+        return {**(previo or {"comentarios": None, "perfiles": None}), "aviso": "Instagram no contestó: puede ser el límite de pedidos por hora."}
+    otorgados = {p.get("permission") for p in (r.get("data") or []) if p.get("status") == "granted"}
+    data = {
         "comentarios": "instagram_manage_comments" in otorgados,
         "perfiles": "instagram_basic" in otorgados,
         "otorgados": sorted(otorgados),
     }
+    _permisos_cache["v"] = {"at": datetime.utcnow(), "data": data}
+    return data
 
 
 def _usuario_limpio(texto: str) -> str:
