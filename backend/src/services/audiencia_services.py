@@ -88,8 +88,8 @@ REGLAS DE DESCALIFICACIÓN AUTOMÁTICA
 Si se cumple cualquiera de estas, el veredicto es DESCARTADO sin importar el puntaje:
 - El comentario es spam o promociona otro servicio/producto
 - La cuenta es claramente un bot (sin posts, seguidores raros, bio vacía)
-- Es un competidor directo (otra mentoría o agencia del mismo nicho vendiendo lo mismo)
 - El comentario pide algo fuera de contexto (ej: "seguidme", "mirá mi perfil")
+Que la persona tenga una mentoría, agencia o servicio parecido al de ATV NO descalifica: es alguien que ya vende en el nicho. Si lo detectás, anotalo como señal, no como red flag.
 
 CÁLCULO DEL PUNTAJE FINAL
 puntaje_final = (negocio × 0.35) + (financiero × 0.30) + (intención × 0.25) + (avatar × 0.10)
