@@ -33,11 +33,12 @@ from src.controllers.reuniones_controller import router as reuniones_router
 from src.controllers.setting_controller import router as setting_router
 from src.controllers.transcripts_controller import router as transcripts_router
 from src.controllers.reporte_controller import router as reporte_router
+from src.controllers.audiencia_controller import router as audiencia_router
 from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
 from src.controllers.clientes_controller import service as clientes_service
-from src.services import (activacion_ia_services, cerebro_services, instagram_services,
+from src.services import (activacion_ia_services, audiencia_services, cerebro_services, instagram_services,
                           llamadas_services, pedidos_services, youtube_services)
 
 import logging
@@ -81,6 +82,8 @@ async def lifespan(_app: FastAPI):
     # Las llamadas de ventas: el calendario y el CRM se cruzan acá cada 10 minutos y lo
     # que queda escrito es lo que muestran las vistas.
     threading.Thread(target=llamadas_services.iniciar_scheduler, args=(stop,), daemon=True, name="llamadas").start()
+    # Audiencia: comentarios de los reels → perfil → veredicto de la IA, cada 2 h.
+    threading.Thread(target=audiencia_services.iniciar_scheduler, args=(stop,), daemon=True, name="audiencia").start()
     yield
     stop.set()
 
@@ -192,6 +195,7 @@ app.include_router(setting_router, prefix="/api/setting", tags=["setting"])
 # Sin sesión: los avisos de afuera se validan con su propio token.
 app.include_router(webhooks_router, prefix="/api/webhooks", tags=["webhooks"])
 app.include_router(reporte_router, prefix="/api/reporte", tags=["reporte"])
+app.include_router(audiencia_router, prefix="/api/audiencia", tags=["audiencia"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

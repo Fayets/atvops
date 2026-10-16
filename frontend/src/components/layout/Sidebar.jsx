@@ -40,6 +40,8 @@ const NAV = [
       { to: '/marketing', label: 'Resumen', end: true },
       { to: '/marketing/calendario', label: 'Calendario' },
       { to: '/marketing/reels', label: 'Reels' },
+      // Quién comenta los reels y si es un lead calificado, con el criterio de marketing.
+      { to: '/marketing/audiencia', label: 'Audiencia' },
       { to: '/marketing/historias', label: 'Historias' },
       { to: '/marketing/youtube', label: 'YouTube' },
     ],

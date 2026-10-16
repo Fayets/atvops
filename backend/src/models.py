@@ -796,6 +796,47 @@ class ReporteSetting(db.Entity):
     actualizado_at = Optional(datetime, nullable=True)
 
 
+class LeadAudiencia(db.Entity):
+    """Alguien que comentó un reel (o que se cargó a mano), con su perfil y el veredicto.
+
+    El perfil sale de Business Discovery de Instagram: solo cuentas de empresa o creador
+    lo exponen. Las personales quedan sin datos de perfil y se juzgan por el comentario."""
+
+    _table_ = _tabla("leads_audiencia", "LeadAudiencia")
+
+    id = PrimaryKey(int, auto=True)
+    ig_usuario = Required(str, index=True)
+    media_id = Optional(str, nullable=True, index=True)      # el reel; None si se cargó a mano
+    reel_caption = Optional(str, nullable=True)
+    reel_url = Optional(str, nullable=True)
+    comentario = Optional(LongStr, nullable=True)
+    comentado_at = Optional(datetime, nullable=True)
+    comentario_id = Optional(str, nullable=True, unique=True)
+    tipo_cuenta = Required(str, default="desconocido")        # empresa | personal | desconocido
+    perfil = Optional(LongStr, nullable=True)                 # JSON: bio, seguidores, posts, web
+    perfil_at = Optional(datetime, nullable=True)
+    veredicto = Required(str, default="sin_analizar", index=True)   # calificado | tibio | no | sin_analizar
+    puntaje = Optional(float, nullable=True)                  # puntaje final ponderado, 0 a 10
+    motivo = Optional(LongStr, nullable=True)
+    analisis = Optional(LongStr, nullable=True)               # JSON: dimensiones, señales, red flags
+    analizado_at = Optional(datetime, nullable=True)
+    estado = Required(str, default="nuevo", index=True)       # nuevo | a_setting | descartado
+    pitch_id = Optional(int, nullable=True)
+    creado_at = Required(datetime, default=lambda: datetime.utcnow())
+    creado_por = Optional(str, nullable=True)
+
+
+class AjusteAudiencia(db.Entity):
+    """Lo que marketing configura de la herramienta: el criterio de lead calificado."""
+
+    _table_ = _tabla("ajustes_audiencia", "AjusteAudiencia")
+
+    clave = PrimaryKey(str)
+    valor = Optional(LongStr, nullable=True)
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Optional(datetime, nullable=True)
+
+
 class ReporteDireccion(db.Entity):
     """El reporte de dirección: un período cualquiera, las áreas elegidas, la hoja entera.
 

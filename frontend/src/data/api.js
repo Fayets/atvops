@@ -2910,6 +2910,30 @@ export async function getLabClosing(mes) {
   return pedir(`/api/ventas/lab-closing${mes ? `?mes=${encodeURIComponent(mes)}` : ''}`);
 }
 
+/* ------------------------------------------------------- audiencia */
+
+export async function getAudiencia() {
+  return pedir('/api/audiencia');
+}
+export async function audienciaCorrer() {
+  return pedir('/api/audiencia/correr', { method: 'POST' });
+}
+export async function audienciaCargar(texto) {
+  return pedir('/api/audiencia/cargar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+}
+export async function guardarCriterioAudiencia(texto) {
+  return pedir('/api/audiencia/criterio', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+}
+export async function audienciaASetting(id) {
+  return pedir(`/api/audiencia/${id}/setting`, { method: 'POST' });
+}
+export async function audienciaMarcar(id, estado) {
+  return pedir(`/api/audiencia/${id}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }) });
+}
+export async function audienciaReanalizar(id) {
+  return pedir(`/api/audiencia/${id}/reanalizar`, { method: 'POST' });
+}
+
 /* ------------------------------------------------------- reporte de dirección */
 
 export async function getReporteAreas() {
