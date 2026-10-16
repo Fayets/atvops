@@ -475,19 +475,57 @@ def listar() -> dict:
     for f in filas:
         if f["estado"] != "descartado":
             conteo[f["veredicto"]] = conteo.get(f["veredicto"], 0) + 1
-    reels: dict[str, dict] = {}
-    for f in filas:
-        if f["reelId"]:
-            r = reels.setdefault(f["reelId"], {"id": f["reelId"], "caption": f["reelCaption"], "url": f["reelUrl"],
-                                              "leads": 0, "calificados": 0})
-            r["leads"] += 1
-            r["calificados"] += f["veredicto"] == "calificado"
+    reels = _reels(filas)
     try:
         estado_permisos = permisos()
     except HTTPException as e:
         estado_permisos = {"comentarios": False, "perfiles": False, "error": e.detail}
-    return {"leads": filas, "conteo": conteo, "reels": list(reels.values()), "permisos": estado_permisos,
+    return {"leads": filas, "conteo": conteo, "reels": reels, "permisos": estado_permisos,
             "criterio": criterio()}
+
+
+def _reels(filas: list[dict]) -> list[dict]:
+    """Los reels recientes con lo que dejaron sus comentarios, del más nuevo al más viejo.
+
+    La miniatura, el caption y el total de comentarios salen del sync de Instagram que ya
+    corre (`publicaciones_ig`, con la foto guardada en el servidor: la URL de Instagram
+    vence a los pocos días). Las cuentas por veredicto, de los leads de cada reel."""
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+
+    desde = datetime.utcnow() - timedelta(days=60)
+    with db_session:
+        publicados = {r.ig_id: r for r in list(PublicacionIg.select())
+                      if r.tipo == "reel" and r.publicado_at and r.publicado_at >= desde}
+        base = {}
+        for ig_id, r in publicados.items():
+            try:
+                metricas = json.loads(r.metricas or "{}")
+            except ValueError:
+                metricas = {}
+            base[ig_id] = {"id": ig_id, "caption": (r.caption or "")[:400], "url": r.permalink,
+                           "thumbnail": r.thumbnail or None,
+                           "fecha": r.publicado_at.isoformat() if r.publicado_at else None,
+                           "comentarios": int(metricas.get("comments") or 0)}
+    salida = {}
+    for f in filas:
+        rid = f["reelId"]
+        if not rid:
+            continue
+        r = salida.setdefault(rid, {**base.get(rid, {"id": rid, "caption": f["reelCaption"], "url": f["reelUrl"],
+                                                      "thumbnail": None, "fecha": None, "comentarios": 0}),
+                                    "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0})
+        r["personas"] += 1
+        r[f["veredicto"]] = r.get(f["veredicto"], 0) + 1
+    for rid, r in salida.items():
+        analizados = r["calificado"] + r["tibio"] + r["no"]
+        r["analizados"] = analizados
+        r["pctCalificados"] = round(r["calificado"] / analizados * 100, 1) if analizados else None
+        # Instagram cuenta cada comentario y las respuestas; las personas son únicas. Si el
+        # sync todavía no trajo el número, se muestran las personas.
+        r["comentarios"] = max(r["comentarios"], r["personas"])
+    return sorted(salida.values(), key=lambda r: r.get("fecha") or "", reverse=True)
 
 
 def a_setting(lead_id: int, usuario: dict) -> dict:

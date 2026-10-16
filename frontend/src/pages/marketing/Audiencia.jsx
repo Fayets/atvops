@@ -114,11 +114,53 @@ function Lead({ l, onSetting, onDescartar, onReanalizar, ocupado }) {
   );
 }
 
+const fecha = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : '');
+const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
+
+/** El reel elegido: la miniatura y lo que dice, con flechas para pasar al anterior. */
+function Reel({ r, i, total, onMover }) {
+  return (
+    <section className="card aud-reel">
+      <div className="aud-reel-foto">
+        {r.thumbnail ? <img src={r.thumbnail} alt="" /> : <div className="aud-reel-sin">Reel</div>}
+      </div>
+      <div className="aud-reel-texto">
+        <span className="lab-k">Reel{r.fecha ? ` · ${fecha(r.fecha)}` : ''}</span>
+        <p className="aud-reel-caption">{r.caption || 'Sin texto'}</p>
+        <div className="aud-reel-pie">
+          {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
+          <span className="aud-reel-nav">
+            <button type="button" className="btn ghost sm" onClick={() => onMover(1)} disabled={i >= total - 1} aria-label="Reel anterior">←</button>
+            <span className="dim num">{i + 1} / {total}</span>
+            <button type="button" className="btn ghost sm" onClick={() => onMover(-1)} disabled={i <= 0} aria-label="Reel siguiente">→</button>
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Lo que dejó el reel: comentarios, calificados, descalificados y el porcentaje. */
+function Numeros({ r }) {
+  return (
+    <section className="aud-numeros">
+      <div className="card aud-num"><span className="lab-k">Comentarios</span><b className="num">{formatValue(r.comentarios ?? 0, 'count')}</b>
+        <span className="dim">{r.personas} personas distintas</span></div>
+      <div className="card aud-num ok"><span className="lab-k">Calificados</span><b className="num">{r.calificado ?? 0}</b>
+        <span className="dim">{r.tibio ? `+ ${r.tibio} tibios para revisar` : 'listos para setting'}</span></div>
+      <div className="card aud-num"><span className="lab-k">Descalificados</span><b className="num">{r.no ?? 0}</b>
+        <span className="dim">{r.sin_analizar ? `${r.sin_analizar} sin analizar todavía` : 'todos analizados'}</span></div>
+      <div className="card aud-num destacado"><span className="lab-k">% calificados</span><b className="num">{pct(r.pctCalificados)}</b>
+        <span className="dim">sobre {r.analizados} analizados</span></div>
+    </section>
+  );
+}
+
 export default function Audiencia() {
   const [tick, setTick] = useState(0);
   const { data, error, loading } = useResource(() => getAudiencia(), [tick]);
   const [filtro, setFiltro] = useState('calificado');
-  const [reel, setReel] = useState('');
+  const [indice, setIndice] = useState(0);
   const [verDescartados, setVerDescartados] = useState(false);
   const [criterioAbierto, setCriterioAbierto] = useState(false);
   const [borrador, setBorrador] = useState(null);
@@ -126,16 +168,18 @@ export default function Audiencia() {
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState('');
 
+  const reels = data?.reels ?? [];
+  const reelActual = reels[Math.min(indice, Math.max(reels.length - 1, 0))] ?? null;
   const leads = useMemo(() => (data?.leads ?? []).filter((l) => (
     l.veredicto === filtro
-    && (!reel || l.reelId === reel)
+    && (reelActual ? l.reelId === reelActual.id : !l.reelId)
     && (verDescartados || l.estado !== 'descartado')
-  )), [data, filtro, reel, verDescartados]);
+  )), [data, filtro, reelActual, verDescartados]);
+  const manuales = (data?.leads ?? []).filter((l) => !l.reelId && l.veredicto === filtro);
 
   if (loading && !data) return <div className="page"><SkeletonBlock height={420} /></div>;
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
 
-  const conteo = data?.conteo ?? {};
   const permisos = data?.permisos ?? {};
   const criterio = data?.criterio ?? {};
 
@@ -162,32 +206,26 @@ export default function Audiencia() {
         </div>
       )}
 
-      <div className="aud-barra">
-        <div className="aud-filtros">
-          {FILTROS.map((f) => (
-            <button key={f.clave} type="button" className={`chip${filtro === f.clave ? ' active' : ''}`} onClick={() => setFiltro(f.clave)}>
-              {f.label} · {conteo[f.clave] ?? 0}
-            </button>
-          ))}
-          {data?.reels?.length > 0 && (
-            <select className="lab-select" value={reel} onChange={(e) => setReel(e.target.value)} aria-label="Reel">
-              <option value="">Todos los reels</option>
-              {data.reels.map((r) => (
-                <option key={r.id} value={r.id}>{(r.caption || 'Reel').slice(0, 48)} · {r.calificados}/{r.leads}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="aud-botones">
-          <button type="button" className="btn" onClick={() => { setBorrador(criterio.texto ?? ''); setCriterioAbierto((v) => !v); }}>
-            {criterioAbierto ? 'Cerrar criterio' : 'Criterio de lead'}
-          </button>
-          <button type="button" className="btn primary" disabled={ocupado}
-            onClick={() => hacer(audienciaCorrer, 'Analizando comentarios nuevos. Recargá en un par de minutos.')}>
-            Analizar ahora
-          </button>
-        </div>
+      <div className="aud-herramientas">
+        <button type="button" className="btn" onClick={() => { setBorrador(criterio.texto ?? ''); setCriterioAbierto((v) => !v); }}>
+          {criterioAbierto ? 'Cerrar criterio' : 'Criterio de lead'}
+        </button>
+        <button type="button" className="btn primary" disabled={ocupado}
+          onClick={() => hacer(audienciaCorrer, 'Analizando comentarios nuevos. Recargá en un par de minutos.')}>
+          Analizar ahora
+        </button>
       </div>
+
+      {reelActual ? (
+        <div className="aud-hero">
+          <Reel r={reelActual} i={Math.min(indice, reels.length - 1)} total={reels.length}
+            onMover={(d) => setIndice((n) => Math.max(0, Math.min(reels.length - 1, n + d)))} />
+          <Numeros r={reelActual} />
+        </div>
+      ) : (
+        <div className="card lab-vacio"><h3>Todavía no hay reels analizados</h3>
+          <p className="dim">Con "Analizar ahora" se traen los comentarios de los reels de las últimas tres semanas.</p></div>
+      )}
 
       {aviso && <p className="aud-aviso">{aviso}</p>}
 
@@ -206,22 +244,23 @@ export default function Audiencia() {
         </section>
       )}
 
-      <section className="card aud-pegar">
-        <label htmlFor="aud-pegar" className="lab-k">Analizar usuarios a mano</label>
-        <div className="aud-pegar-fila">
-          <textarea id="aud-pegar" rows={2} value={pegado} onChange={(e) => setPegado(e.target.value)}
-            placeholder="@usuario, links de perfil o una lista, uno por línea" />
-          <button type="button" className="btn" disabled={ocupado || !pegado.trim()}
-            onClick={() => hacer(() => audienciaCargar(pegado), (r) => { setPegado(''); return `${r.nuevos} nuevos de ${r.recibidos}. Se analizan en un par de minutos.`; })}>
-            Analizar
-          </button>
+
+      <div className="aud-lista-cab">
+        <h2>{filtro === 'calificado' ? 'Leads calificados' : FILTROS.find((f) => f.clave === filtro)?.label}
+          <span className="dim"> · {leads.length}</span></h2>
+        <div className="aud-filtros">
+          {FILTROS.map((f) => (
+            <button key={f.clave} type="button" className={`chip${filtro === f.clave ? ' active' : ''}`} onClick={() => setFiltro(f.clave)}>
+              {f.label}
+            </button>
+          ))}
         </div>
-      </section>
+      </div>
 
       {leads.length === 0 ? (
         <div className="card lab-vacio">
           <h3>No hay leads {filtro === 'calificado' ? 'calificados' : `en "${FILTROS.find((f) => f.clave === filtro)?.label}"`} todavía</h3>
-          <p className="dim">Los comentarios de los reels se analizan solos cada dos horas, o con "Analizar ahora".</p>
+          <p className="dim">{reelActual?.sin_analizar ? `Hay ${reelActual.sin_analizar} personas de este reel esperando análisis.` : 'Los comentarios se analizan solos cada dos horas, o con "Analizar ahora".'}</p>
         </div>
       ) : (
         <div className="aud-grilla">
@@ -233,6 +272,31 @@ export default function Audiencia() {
           ))}
         </div>
       )}
+
+      <details className="aud-mano">
+        <summary>Analizar usuarios a mano{manuales.length ? ` · ${manuales.length} en "${FILTROS.find((f) => f.clave === filtro)?.label}"` : ''}</summary>
+      <section className="card aud-pegar">
+        <label htmlFor="aud-pegar" className="lab-k">Analizar usuarios a mano</label>
+        <div className="aud-pegar-fila">
+          <textarea id="aud-pegar" rows={2} value={pegado} onChange={(e) => setPegado(e.target.value)}
+            placeholder="@usuario, links de perfil o una lista, uno por línea" />
+          <button type="button" className="btn" disabled={ocupado || !pegado.trim()}
+            onClick={() => hacer(() => audienciaCargar(pegado), (r) => { setPegado(''); return `${r.nuevos} nuevos de ${r.recibidos}. Se analizan en un par de minutos.`; })}>
+            Analizar
+          </button>
+        </div>
+      </section>
+        {manuales.length > 0 && (
+          <div className="aud-grilla">
+            {manuales.map((l) => (
+              <Lead key={l.id} l={l} ocupado={ocupado}
+                onSetting={(x) => hacer(() => audienciaASetting(x.id), `@${x.usuario} quedó en la bandeja del setter.`)}
+                onDescartar={(x, estado) => hacer(() => audienciaMarcar(x.id, estado))}
+                onReanalizar={(x) => hacer(() => audienciaReanalizar(x.id), `@${x.usuario} analizado de nuevo.`)} />
+            ))}
+          </div>
+        )}
+      </details>
 
       <label className="aud-check dim">
         <input type="checkbox" checked={verDescartados} onChange={(e) => setVerDescartados(e.target.checked)} /> Mostrar descartados
