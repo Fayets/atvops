@@ -2,7 +2,7 @@
 Audiencia: quién comenta los reels y si es un lead calificado.
 
 El recorrido es: se publica un reel → la gente comenta → por cada persona nueva se lee su
-perfil → la IA lo compara con el criterio que escribe marketing → queda como calificado,
+perfil → la IA lo compara con el criterio que escribe marketing → queda como
 calificado (puntaje 5 o más) o descartado, con el motivo.
 
 Dos límites de Instagram que mandan sobre el diseño:
