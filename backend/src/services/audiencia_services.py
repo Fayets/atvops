@@ -45,9 +45,9 @@ Sos un agente de calificación de leads para ATV, una mentoría de alto ticket (
 Tu trabajo es analizar comentarios de reels y perfiles de Instagram para determinar si la persona es un lead calificado o no. No vendés, no escribís mensajes, no interactuás. Solo analizás y clasificás.
 
 CRITERIOS DE CALIFICACIÓN
-Analizá 4 dimensiones y puntuá cada una de 0 a 10.
+Analizá 4 dimensiones y puntuá cada una de 0 a 10. Solo tres suman al puntaje.
 
-1. SEÑALES DE NEGOCIO (peso 35%)
+1. SEÑALES DE NEGOCIO (peso 45%)
 Buscá en bio, nombre, categoría de cuenta y posts:
 - Dueño de negocio, emprendedor, fundador, CEO, director
 - Coach, consultor, mentor, agencia
@@ -57,7 +57,7 @@ Puntaje alto (8-10): bio claramente de dueño de negocio o profesional estableci
 Puntaje medio (4-7): señales ambiguas, menciona trabajar pero no está claro qué.
 Puntaje bajo (0-3): estudiante, empleado buscando trabajo, sin señales de negocio.
 
-2. CAPACIDAD FINANCIERA (peso 30%)
+2. CAPACIDAD FINANCIERA (peso 40%)
 Buscá señales indirectas de poder adquisitivo:
 - Menciona facturación, resultados de negocio, clientes
 - Contenido profesional de calidad (no cuenta personal sin rumbo)
@@ -68,7 +68,8 @@ Puntaje medio (4-7): parece tener actividad pero sin señales claras de dinero.
 Puntaje bajo (0-3): cuenta personal, sin actividad, señales de apuro económico ("busco trabajo", "necesito plata").
 IMPORTANTE: nunca califiques por apariencia física, género, edad aparente ni país. Solo señales de negocio y capacidad.
 
-3. INTENCIÓN EN EL COMENTARIO (peso 25%)
+3. INTENCIÓN EN EL COMENTARIO (no puntúa)
+Los reels tienen un CTA: casi todos comentan la palabra que dispara el bot, así que la intención no suma ni resta. Puntuala igual, pero usá el comentario sobre todo para las reglas de descarte automático.
 Analizá el texto del comentario:
 - Pregunta específica sobre el tema del reel (alta intención)
 - Pide el recurso o más información (alta intención)
@@ -78,7 +79,7 @@ Puntaje alto (8-10): pregunta algo concreto o pide el recurso.
 Puntaje medio (4-7): comenta pero sin intención clara.
 Puntaje bajo (0-3): genérico, emoji solo, o spam.
 
-4. COHERENCIA CON EL AVATAR (peso 10%)
+4. COHERENCIA CON EL AVATAR (peso 15%)
 El avatar de ATV es: dueños de negocio de marketing, coaching, consultoría o servicios digitales en países hispanohablantes (Argentina, Chile, Uruguay, Paraguay, Colombia, España, México, Perú).
 Puntaje alto (8-10): encaja directo con el avatar.
 Puntaje medio (4-7): nicho cercano pero no exacto.
@@ -92,17 +93,16 @@ Si se cumple cualquiera de estas, el veredicto es DESCARTADO sin importar el pun
 Que la persona tenga una mentoría, agencia o servicio parecido al de ATV NO descalifica: es alguien que ya vende en el nicho. Si lo detectás, anotalo como señal, no como red flag.
 
 CÁLCULO DEL PUNTAJE FINAL
-puntaje_final = (negocio × 0.35) + (financiero × 0.30) + (intención × 0.25) + (avatar × 0.10)
+puntaje_final = (negocio × 0.45) + (financiero × 0.40) + (avatar × 0.15)
 
 VEREDICTOS
-- CALIFICADO: puntaje_final ≥ 7.0 y sin descarte automático
-- TIBIO: puntaje_final entre 5.0 y 6.9 y sin descarte automático
+- CALIFICADO: puntaje_final ≥ 5.0 y sin descarte automático
 - DESCARTADO: puntaje_final < 5.0 o descarte automático
 
 REGLAS FINALES
 - Si falta información del perfil (bio vacía, sin posts), bajá las dimensiones de negocio y financiero, no inventes datos.
-- Si el comentario es una pregunta pero el perfil es débil, el veredicto probablemente sea TIBIO, no CALIFICADO. La intención sola no califica.
-- Sé estricto con CALIFICADO. Es mejor un TIBIO que entra a revisión manual que un CALIFICADO falso que le hace perder tiempo al setter.
+- La intención sola no califica: decide el perfil.
+- Sé estricto con CALIFICADO: un calificado falso le hace perder tiempo al setter.
 - Escribí la razón siempre en español, en tono neutro y operativo, sin emojis."""
 
 
@@ -405,7 +405,7 @@ SYSTEM = (
     "Vas a recibir un CRITERIO (tu rol, cómo puntuar y las reglas) y una lista de PERSONAS. "
     "Aplicá el criterio a cada persona por separado, usando solo sus datos.\n"
     "Respondé EXCLUSIVAMENTE un JSON, sin texto antes ni después, con esta forma:\n"
-    "{\"leads\": [{\"username\": \"...\", \"veredicto\": \"CALIFICADO|TIBIO|DESCARTADO\", "
+    "{\"leads\": [{\"username\": \"...\", \"veredicto\": \"CALIFICADO|DESCARTADO\", "
     "\"descarte_automatico\": true|false, \"puntaje_final\": 0.0, "
     "\"dimensiones\": {\"negocio\": 0, \"financiero\": 0, \"intencion\": 0, \"avatar\": 0}, "
     "\"razon\": \"máximo 2 frases\", \"señales_detectadas\": [\"máximo 3\"], \"red_flags\": []}]}\n"
@@ -416,7 +416,10 @@ SYSTEM = (
 # cree al modelo: cuando se le pidió juzgar, el número que devolvía no siempre salía de
 # sus propias dimensiones. El modelo da los hechos (cuatro puntajes y si hay descarte
 # automático); el veredicto lo decide el código.
-PESOS = {"negocio": 0.35, "financiero": 0.30, "intencion": 0.25, "avatar": 0.10}
+# Sin intención (Franco, opción A): en reels con CTA todos comentan la palabra que
+# dispara el bot, así que la intención no separa a nadie y la IA la puntuaba distinto
+# para el mismo comentario. Decide el perfil; el comentario solo sirve para el descarte.
+PESOS = {"negocio": 0.45, "financiero": 0.40, "avatar": 0.15}
 # Franco: los tibios (5 a 6,9) se toman como calificados. El corte queda en 5.
 CORTE_TIBIO = 5.0
 
@@ -503,7 +506,7 @@ def analizar(limite: int = 60, reanalizar_ids: list[int] | None = None) -> dict:
                 x.veredicto, x.puntaje = _veredicto(dims, descarte)
                 x.motivo = str(r.get("razon") or r.get("motivo") or "")[:500]
                 x.analisis = json.dumps({
-                    "dimensiones": {k: dims.get(k) for k in PESOS},
+                    "dimensiones": {k: dims.get(k) for k in ("negocio", "financiero", "intencion", "avatar")},
                     "descarteAutomatico": descarte,
                     "señales": list(r.get("señales_detectadas") or r.get("senales_detectadas") or [])[:3],
                     "redFlags": list(r.get("red_flags") or [])[:5],

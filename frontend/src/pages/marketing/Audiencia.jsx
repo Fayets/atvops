@@ -24,9 +24,9 @@ const FILTROS = [
 const TONO = { calificado: 'ok', tibio: 'warn', no: 'off', sin_analizar: 'off' };
 const TEXTO = { calificado: 'calificado', tibio: 'tibio', no: 'descartado', sin_analizar: 'sin analizar' };
 // Las cuatro dimensiones del criterio de marketing, con su peso en el puntaje final.
+// La intención no suma: todos comentan la palabra del CTA (decisión de Franco).
 const DIMENSIONES = [
-  ['negocio', 'Negocio', '35%'], ['financiero', 'Capacidad', '30%'],
-  ['intencion', 'Intención', '25%'], ['avatar', 'Avatar', '10%'],
+  ['negocio', 'Negocio', '45%'], ['financiero', 'Capacidad', '40%'], ['avatar', 'Avatar', '15%'],
 ];
 
 const corta = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '');
