@@ -36,9 +36,11 @@ def _correr_seguro():
 
 @router.post("/cargar")
 def cargar(fondo: BackgroundTasks, payload: dict = Body(...), user: dict = Depends(_puede)):
-    """Usuarios pegados a mano. Se leen sus perfiles y se analizan en segundo plano."""
-    r = audiencia.cargar_a_mano(str((payload or {}).get("texto") or ""), user)
-    fondo.add_task(_correr_seguro)
+    """Usuarios pegados a mano: los primeros 12 se analizan en el momento y vuelven con su
+    resultado; si se pegaron más, el resto queda para la corrida automática."""
+    r = audiencia.analizar_a_mano(str((payload or {}).get("texto") or ""), user)
+    if r.get("pendientes"):
+        fondo.add_task(_correr_seguro)
     return r
 
 

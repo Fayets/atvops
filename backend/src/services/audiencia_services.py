@@ -368,7 +368,48 @@ def cargar_a_mano(texto: str, usuario: dict) -> dict:
                 continue
             LeadAudiencia(ig_usuario=u, creado_por=usuario.get("username"))
             nuevos += 1
-    return {"recibidos": len(usuarios), "nuevos": nuevos}
+    return {"recibidos": len(usuarios), "nuevos": nuevos, "usuarios": usuarios[:200]}
+
+
+MAX_A_MANO = 12   # cuántos se analizan en el momento; el resto queda para la corrida automática
+
+
+def analizar_a_mano(texto: str, usuario: dict) -> dict:
+    """Pegar usuarios y ver el análisis enseguida: se lee el perfil de cada uno y se pasa
+    por la IA en el momento, sin esperar la corrida automática (que además arranca por
+    los más viejos y podía no llegar a estos)."""
+    from pony.orm import db_session
+
+    from src.models import LeadAudiencia
+
+    r = cargar_a_mano(texto, usuario)
+    ahora = r["usuarios"][:MAX_A_MANO]
+    token, uid = _credenciales()
+    with db_session:
+        ids = [x.id for x in list(LeadAudiencia.select()) if x.ig_usuario in set(ahora)]
+        sin_perfil = [(x.id, x.ig_usuario) for x in list(LeadAudiencia.select()) if x.id in set(ids) and x.perfil_at is None]
+    limite = None
+    for lid, u in sin_perfil:
+        try:
+            tipo, perfil = leer_perfil(token, uid, u)
+        except LimiteInstagram:
+            limite = "Instagram pidió esperar (límite de pedidos por hora): algunos perfiles se leen en la próxima corrida."
+            break
+        with db_session:
+            x = LeadAudiencia.get(id=lid)
+            x.tipo_cuenta, x.perfil, x.perfil_at = tipo, (json.dumps(perfil, ensure_ascii=False) if perfil else None), datetime.utcnow()
+    with db_session:
+        listos = [x.id for x in list(LeadAudiencia.select()) if x.id in set(ids) and x.perfil_at is not None]
+    ia = analizar(reanalizar_ids=listos) if listos else {"analizados": 0, "errores": 0}
+    with db_session:
+        leads = [_a_dict(x) for x in list(LeadAudiencia.select()) if x.id in set(ids)]
+    for f in leads:
+        if f["veredicto"] == "tibio":
+            f["veredicto"] = "calificado"
+    orden = {u: i for i, u in enumerate(ahora)}
+    leads.sort(key=lambda f: orden.get(f["usuario"], 99))
+    return {**{k: v for k, v in r.items() if k != "usuarios"}, "leads": leads, "ia": ia,
+            "pendientes": max(0, len(r["usuarios"]) - MAX_A_MANO), "aviso": limite}
 
 
 # ------------------------------------------------------------------ perfiles + IA

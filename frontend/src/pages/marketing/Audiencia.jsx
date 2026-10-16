@@ -161,6 +161,8 @@ export default function Audiencia() {
   const [criterioAbierto, setCriterioAbierto] = useState(false);
   const [borrador, setBorrador] = useState(null);
   const [pegado, setPegado] = useState('');
+  const [aMano, setAMano] = useState(null);   // el resultado del último análisis a mano
+  const [analizandoAMano, setAnalizandoAMano] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState('');
 
@@ -171,7 +173,9 @@ export default function Audiencia() {
     && (reelActual ? l.reelId === reelActual.id : !l.reelId)
     && (verDescartados || l.estado !== 'descartado')
   )), [data, filtro, reelActual, verDescartados]);
-  const manuales = (data?.leads ?? []).filter((l) => !l.reelId && l.veredicto === filtro);
+  // Lo cargado a mano se muestra entero, con cualquier veredicto: es una consulta puntual.
+  const manuales = (data?.leads ?? []).filter((l) => !l.reelId && (verDescartados || l.estado !== 'descartado'))
+    .sort((a, b) => (b.creadoAt || '').localeCompare(a.creadoAt || ''));
 
   if (loading && !data) return <div className="page"><SkeletonBlock height={420} /></div>;
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
@@ -269,19 +273,37 @@ export default function Audiencia() {
         </div>
       )}
 
-      <details className="aud-mano">
-        <summary>Analizar usuarios a mano{manuales.length ? ` · ${manuales.length} en "${FILTROS.find((f) => f.clave === filtro)?.label}"` : ''}</summary>
+      <details className="aud-mano" open={Boolean(aMano) || analizandoAMano || undefined}>
+        <summary>Analizar usuarios a mano{manuales.length ? ` · ${manuales.length} analizados` : ''}</summary>
       <section className="card aud-pegar">
         <label htmlFor="aud-pegar" className="lab-k">Analizar usuarios a mano</label>
         <div className="aud-pegar-fila">
           <textarea id="aud-pegar" rows={2} value={pegado} onChange={(e) => setPegado(e.target.value)}
             placeholder="@usuario, links de perfil o una lista, uno por línea" />
-          <button type="button" className="btn" disabled={ocupado || !pegado.trim()}
-            onClick={() => hacer(() => audienciaCargar(pegado), (r) => { setPegado(''); return `${r.nuevos} nuevos de ${r.recibidos}. Se analizan en un par de minutos.`; })}>
-            Analizar
+          <button type="button" className="btn primary" disabled={analizandoAMano || !pegado.trim()}
+            onClick={async () => {
+              setAnalizandoAMano(true); setAviso(''); setAMano(null);
+              try {
+                const r = await audienciaCargar(pegado);
+                setAMano(r); setPegado(''); setTick((n) => n + 1);
+              } catch (e) {
+                setAviso(e?.message || 'No se pudo analizar.');
+              } finally {
+                setAnalizandoAMano(false);
+              }
+            }}>
+            {analizandoAMano ? 'Analizando…' : 'Analizar'}
           </button>
         </div>
       </section>
+        {analizandoAMano && <p className="dim aud-aviso">Leyendo los perfiles y analizándolos con la IA. Tarda entre 20 segundos y un minuto.</p>}
+        {aMano && (
+          <p className="aud-aviso">
+            {aMano.leads?.length ? `Listo: ${aMano.leads.length} ${aMano.leads.length === 1 ? 'perfil analizado' : 'perfiles analizados'}.` : 'No se pudo analizar ninguno.'}
+            {aMano.pendientes ? ` Los otros ${aMano.pendientes} se analizan en la próxima corrida.` : ''}
+            {aMano.aviso ? ` ${aMano.aviso}` : ''}
+          </p>
+        )}
         {manuales.length > 0 && (
           <div className="aud-grilla">
             {manuales.map((l) => (
