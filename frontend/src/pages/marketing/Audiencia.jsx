@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
-  audienciaASetting, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
+  audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
   getAudiencia, guardarCriterioAudiencia,
 } from '../../data/api.js';
 import { formatValue } from '../../lib/format.js';
@@ -11,8 +11,7 @@ import { useResource } from '../../lib/hooks.js';
  * Audiencia: quién comenta los reels y si es un lead calificado.
  *
  * Cada persona que comenta se analiza sola: se lee su perfil público y la IA lo compara
- * con el criterio que escribe marketing. Arriba de todo, los calificados; con un click
- * pasan a la bandeja del setter como pitch pendiente. El criterio es texto libre a
+ * con el criterio que escribe marketing. Arriba de todo, los calificados. El criterio es texto libre a
  * propósito: lo que define un buen lead cambia con la oferta, y tiene que poder cambiarlo
  * marketing sin pedirle nada a nadie.
  */
@@ -33,11 +32,14 @@ const DIMENSIONES = [
 
 const corta = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '');
 
-function Lead({ l, onSetting, onDescartar, onReanalizar, ocupado }) {
+function Lead({ l, onDescartar, onReanalizar, ocupado }) {
   const p = l.perfil || {};
   return (
     <article className={`aud-lead${l.estado === 'descartado' ? ' descartado' : ''}`}>
       <div className="aud-lead-cab">
+        <a href={l.url} target="_blank" rel="noreferrer" className="aud-avatar" aria-label={`Perfil de @${l.usuario}`}>
+          {p.foto ? <img src={p.foto} alt="" loading="lazy" /> : <span>{l.usuario.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase()}</span>}
+        </a>
         <div className="aud-quien">
           <a href={l.url} target="_blank" rel="noreferrer" className="aud-usuario">@{l.usuario}</a>
           {p.nombre && <span className="dim">{p.nombre}</span>}
@@ -96,15 +98,10 @@ function Lead({ l, onSetting, onDescartar, onReanalizar, ocupado }) {
       )}
 
       <div className="aud-acciones">
-        {l.estado === 'a_setting' ? (
-          <span className="aud-hecho">✓ En la bandeja del setter</span>
-        ) : l.estado === 'descartado' ? (
+        {l.estado === 'descartado' ? (
           <button type="button" className="btn ghost sm" onClick={() => onDescartar(l, 'nuevo')} disabled={ocupado}>Recuperar</button>
         ) : (
-          <>
-            <button type="button" className="btn primary sm" onClick={() => onSetting(l)} disabled={ocupado}>Pasar a setting</button>
-            <button type="button" className="btn ghost sm" onClick={() => onDescartar(l, 'descartado')} disabled={ocupado}>Descartar</button>
-          </>
+          <button type="button" className="btn ghost sm" onClick={() => onDescartar(l, 'descartado')} disabled={ocupado}>Descartar</button>
         )}
         {l.perfilLeido && (
           <button type="button" className="btn ghost sm" onClick={() => onReanalizar(l)} disabled={ocupado}>Volver a analizar</button>
@@ -147,7 +144,7 @@ function Numeros({ r }) {
       <div className="card aud-num"><span className="lab-k">Comentarios</span><b className="num">{formatValue(r.comentarios ?? 0, 'count')}</b>
         <span className="dim">{r.personas} personas distintas</span></div>
       <div className="card aud-num ok"><span className="lab-k">Calificados</span><b className="num">{r.calificado ?? 0}</b>
-        <span className="dim">{r.tibio ? `+ ${r.tibio} tibios para revisar` : 'listos para setting'}</span></div>
+        <span className="dim">{r.tibio ? `+ ${r.tibio} tibios para revisar` : 'según el criterio de marketing'}</span></div>
       <div className="card aud-num"><span className="lab-k">Descalificados</span><b className="num">{r.no ?? 0}</b>
         <span className="dim">{r.sin_analizar ? `${r.sin_analizar} sin analizar todavía` : 'todos analizados'}</span></div>
       <div className="card aud-num destacado"><span className="lab-k">% calificados</span><b className="num">{pct(r.pctCalificados)}</b>
@@ -266,7 +263,6 @@ export default function Audiencia() {
         <div className="aud-grilla">
           {leads.map((l) => (
             <Lead key={l.id} l={l} ocupado={ocupado}
-              onSetting={(x) => hacer(() => audienciaASetting(x.id), `@${x.usuario} quedó en la bandeja del setter.`)}
               onDescartar={(x, estado) => hacer(() => audienciaMarcar(x.id, estado))}
               onReanalizar={(x) => hacer(() => audienciaReanalizar(x.id), `@${x.usuario} analizado de nuevo.`)} />
           ))}
@@ -290,8 +286,7 @@ export default function Audiencia() {
           <div className="aud-grilla">
             {manuales.map((l) => (
               <Lead key={l.id} l={l} ocupado={ocupado}
-                onSetting={(x) => hacer(() => audienciaASetting(x.id), `@${x.usuario} quedó en la bandeja del setter.`)}
-                onDescartar={(x, estado) => hacer(() => audienciaMarcar(x.id, estado))}
+                  onDescartar={(x, estado) => hacer(() => audienciaMarcar(x.id, estado))}
                 onReanalizar={(x) => hacer(() => audienciaReanalizar(x.id), `@${x.usuario} analizado de nuevo.`)} />
             ))}
           </div>

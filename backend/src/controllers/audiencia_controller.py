@@ -57,11 +57,6 @@ def reanalizar(lead_id: int, _user: dict = Depends(_puede)):
     return audiencia.analizar(reanalizar_ids=[lead_id])
 
 
-@router.post("/{lead_id}/setting")
-def a_setting(lead_id: int, user: dict = Depends(_puede)):
-    return audiencia.a_setting(lead_id, user)
-
-
 @router.post("/{lead_id}/estado")
 def marcar(lead_id: int, payload: dict = Body(...), _user: dict = Depends(_puede)):
     return audiencia.marcar(lead_id, str((payload or {}).get("estado") or ""))

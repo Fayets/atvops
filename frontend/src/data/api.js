@@ -2924,9 +2924,6 @@ export async function audienciaCargar(texto) {
 export async function guardarCriterioAudiencia(texto) {
   return pedir('/api/audiencia/criterio', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
 }
-export async function audienciaASetting(id) {
-  return pedir(`/api/audiencia/${id}/setting`, { method: 'POST' });
-}
 export async function audienciaMarcar(id, estado) {
   return pedir(`/api/audiencia/${id}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }) });
 }

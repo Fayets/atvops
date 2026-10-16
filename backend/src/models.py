@@ -820,7 +820,7 @@ class LeadAudiencia(db.Entity):
     motivo = Optional(LongStr, nullable=True)
     analisis = Optional(LongStr, nullable=True)               # JSON: dimensiones, señales, red flags
     analizado_at = Optional(datetime, nullable=True)
-    estado = Required(str, default="nuevo", index=True)       # nuevo | a_setting | descartado
+    estado = Required(str, default="nuevo", index=True)       # nuevo | descartado
     pitch_id = Optional(int, nullable=True)
     creado_at = Required(datetime, default=lambda: datetime.utcnow())
     creado_por = Optional(str, nullable=True)

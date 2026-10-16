@@ -3,8 +3,7 @@ Audiencia: quién comenta los reels y si es un lead calificado.
 
 El recorrido es: se publica un reel → la gente comenta → por cada persona nueva se lee su
 perfil → la IA lo compara con el criterio que escribe marketing → queda como calificado,
-tibio o descartado, con el motivo. Los calificados se pasan a setting con un click, y le llegan a
-Cris como pitch pendiente con el usuario de Instagram ya cargado.
+tibio o descartado, con el motivo.
 
 Dos límites de Instagram que mandan sobre el diseño:
 
@@ -149,24 +148,89 @@ def _usuario_limpio(texto: str) -> str:
     return t.lstrip("@").strip().lower()
 
 
+class LimiteInstagram(Exception):
+    """Instagram no contestó por un motivo pasajero (límite de pedidos, caída)."""
+
+
+def _es_personal(r: dict) -> bool:
+    try:
+        err = json.loads(r.get("_error") or "{}").get("error") or {}
+    except ValueError:
+        return False
+    return err.get("code") == 110 or err.get("error_subcode") == 2207013
+
+
 def leer_perfil(token: str, uid: str, usuario: str) -> tuple[str, dict]:
     """El perfil público por Business Discovery. Devuelve (tipo_cuenta, perfil)."""
-    campos = ("username,name,biography,followers_count,follows_count,media_count,website,"
+    campos = ("username,name,biography,followers_count,follows_count,media_count,website,profile_picture_url,"
               "media.limit(6){caption,media_product_type,timestamp,like_count,comments_count}")
     r = _pedir(token, uid, fields=f"business_discovery.username({usuario}){{{campos}}}")
     bd = r.get("business_discovery")
     if not bd:
-        # Una cuenta personal o privada responde con error: no hay perfil por la API.
-        return "personal", {}
+        # Solo "usuario no encontrado" (110 / 2207013) quiere decir cuenta personal o
+        # privada. Cualquier otro error —sobre todo el límite de pedidos de Meta, código
+        # 4— es pasajero: marcarlo como personal lo dejaba así para siempre.
+        if _es_personal(r):
+            return "personal", {}
+        raise LimiteInstagram(str(r.get("_error") or "sin respuesta")[:200])
     posts = [{"caption": (m.get("caption") or "")[:280], "tipo": m.get("media_product_type"),
               "fecha": (m.get("timestamp") or "")[:10], "likes": m.get("like_count"),
               "comentarios": m.get("comments_count")}
              for m in (bd.get("media") or {}).get("data") or []]
     return "empresa", {
+        "foto": _guardar_foto(bd.get("profile_picture_url"), usuario),
         "nombre": bd.get("name"), "bio": bd.get("biography"), "web": bd.get("website"),
         "seguidores": bd.get("followers_count"), "seguidos": bd.get("follows_count"),
         "publicaciones": bd.get("media_count"), "posts": posts,
     }
+
+
+def _guardar_foto(url: str | None, usuario: str) -> str | None:
+    """Baja la foto de perfil y devuelve la ruta pública. El link de Instagram vence a
+    los pocos días, así que se guarda en el servidor como las miniaturas de los reels."""
+    from src.services.instagram_services import FOTOS
+
+    if not url:
+        return None
+    nombre = re.sub(r"[^a-z0-9._]", "", usuario.lower()) or "perfil"
+    destino = FOTOS / "perfiles" / f"{nombre}.jpg"
+    try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        pedido = urllib.request.Request(url, headers={"User-Agent": "atv-ops"})
+        with urllib.request.urlopen(pedido, timeout=20) as r:
+            datos = r.read()
+        if not datos:
+            return None
+        destino.write_bytes(datos)
+        return f"/uploads/ig/perfiles/{nombre}.jpg"
+    except Exception as e:  # noqa: BLE001
+        logger.info("Audiencia: no se pudo bajar la foto de %s: %s", usuario, str(e)[:120])
+        return None
+
+
+def completar_fotos(limite: int = 40) -> int:
+    """Los perfiles leídos antes de que se guardara la foto: se les vuelve a pedir solo eso."""
+    from pony.orm import db_session
+
+    from src.models import LeadAudiencia
+
+    token, uid = _credenciales()
+    with db_session:
+        faltan = [(x.id, x.ig_usuario) for x in list(LeadAudiencia.select())
+                  if x.tipo_cuenta == "empresa" and x.perfil and '"foto"' not in x.perfil][:limite]
+    hechos = 0
+    for lid, usuario in faltan:
+        r = _pedir(token, uid, fields=f"business_discovery.username({usuario}){{profile_picture_url}}")
+        if not r.get("business_discovery") and not _es_personal(r):
+            break
+        foto = _guardar_foto((r.get("business_discovery") or {}).get("profile_picture_url"), usuario)
+        with db_session:
+            x = LeadAudiencia.get(id=lid)
+            perfil = json.loads(x.perfil or "{}")
+            perfil["foto"] = foto
+            x.perfil = json.dumps(perfil, ensure_ascii=False)
+        hechos += 1
+    return hechos
 
 
 # ------------------------------------------------------------------ criterio
@@ -293,7 +357,7 @@ def cargar_a_mano(texto: str, usuario: dict) -> dict:
 
 # ------------------------------------------------------------------ perfiles + IA
 
-def completar_perfiles(limite: int = 60) -> int:
+def completar_perfiles(limite: int = 40) -> int:
     from pony.orm import db_session
 
     from src.models import LeadAudiencia
@@ -301,14 +365,24 @@ def completar_perfiles(limite: int = 60) -> int:
     token, uid = _credenciales()
     with db_session:
         pendientes = [x.id for x in list(LeadAudiencia.select()) if x.perfil_at is None][:limite]
+    hechos = 0
     for lid in pendientes:
         with db_session:
+            usuario = LeadAudiencia.get(id=lid).ig_usuario
+        try:
+            tipo, perfil = leer_perfil(token, uid, usuario)
+        except LimiteInstagram as e:
+            # Se corta la corrida y los que faltan quedan para la próxima.
+            logger.info("Audiencia: Instagram pidió esperar (%s). Quedan %d perfiles para después.",
+                        str(e)[:80], len(pendientes) - hechos)
+            break
+        hechos += 1
+        with db_session:
             x = LeadAudiencia.get(id=lid)
-            tipo, perfil = leer_perfil(token, uid, x.ig_usuario)
             x.tipo_cuenta = tipo
             x.perfil = json.dumps(perfil, ensure_ascii=False) if perfil else None
             x.perfil_at = datetime.utcnow()
-    return len(pendientes)
+    return hechos
 
 
 SYSTEM = (
@@ -437,6 +511,7 @@ def correr(usuario: dict | None = None) -> dict:
             logger.warning("Audiencia: comentarios: %s", str(e)[:200])
             resultado["comentarios"] = {"error": str(e)[:200]}
         resultado["perfiles"] = completar_perfiles()
+        resultado["fotos"] = completar_fotos()
         resultado["ia"] = analizar()
         logger.info("Audiencia: %s", resultado)
         return resultado
@@ -526,38 +601,6 @@ def _reels(filas: list[dict]) -> list[dict]:
         # sync todavía no trajo el número, se muestran las personas.
         r["comentarios"] = max(r["comentarios"], r["personas"])
     return sorted(salida.values(), key=lambda r: r.get("fecha") or "", reverse=True)
-
-
-def a_setting(lead_id: int, usuario: dict) -> dict:
-    """Crea el pitch pendiente para el setter con el usuario de Instagram cargado."""
-    from pony.orm import db_session
-
-    from src.models import LeadAudiencia
-    from src.services import setting_services
-
-    with db_session:
-        x = LeadAudiencia.get(id=lead_id)
-        if x is None:
-            raise HTTPException(status_code=404, detail="Ese lead no existe.")
-        if x.pitch_id:
-            return _a_dict(x)
-        perfil = json.loads(x.perfil) if x.perfil else {}
-        nombre = perfil.get("nombre") or x.ig_usuario
-        nota = f"Desde Audiencia ({x.veredicto}{f', {x.puntaje}/10' if x.puntaje is not None else ''}): {x.motivo or ''}"
-        if x.comentario:
-            nota += f" · Comentó: «{x.comentario[:120]}»"
-    # El pitch queda a nombre del setter, no de quien tocó el botón: es su bandeja.
-    from src.models import Usuario
-    with db_session:
-        setter = next((u.username for u in list(Usuario.select()) if u.rol == "setter"), None)
-    dueño = {"username": setter or usuario.get("username"), "rol": "setter"}
-    pitch = setting_services.crear({"prospecto": nombre, "usuarioIg": x.ig_usuario, "canal": "dm",
-                                    "origen": "organico", "pitchEstado": "pendiente", "nota": nota[:900]}, dueño)
-    with db_session:
-        x = LeadAudiencia.get(id=lead_id)
-        x.estado = "a_setting"
-        x.pitch_id = pitch.get("id")
-        return _a_dict(x)
 
 
 def marcar(lead_id: int, estado: str) -> dict:
