@@ -3,7 +3,7 @@ Audiencia: quién comenta los reels y si es un lead calificado.
 
 El recorrido es: se publica un reel → la gente comenta → por cada persona nueva se lee su
 perfil → la IA lo compara con el criterio que escribe marketing → queda como calificado,
-tibio o descartado, con el motivo.
+calificado (puntaje 5 o más) o descartado, con el motivo.
 
 Dos límites de Instagram que mandan sobre el diseño:
 
@@ -417,7 +417,8 @@ SYSTEM = (
 # sus propias dimensiones. El modelo da los hechos (cuatro puntajes y si hay descarte
 # automático); el veredicto lo decide el código.
 PESOS = {"negocio": 0.35, "financiero": 0.30, "intencion": 0.25, "avatar": 0.10}
-CORTE_CALIFICADO, CORTE_TIBIO = 7.0, 5.0
+# Franco: los tibios (5 a 6,9) se toman como calificados. El corte queda en 5.
+CORTE_TIBIO = 5.0
 
 
 def _veredicto(dimensiones: dict, descarte: bool) -> tuple[str, float]:
@@ -430,7 +431,7 @@ def _veredicto(dimensiones: dict, descarte: bool) -> tuple[str, float]:
     total = round(total, 1)
     if descarte or total < CORTE_TIBIO:
         return "no", total
-    return ("calificado" if total >= CORTE_CALIFICADO else "tibio"), total
+    return "calificado", total
 
 
 def _bloque(x) -> dict:
@@ -560,6 +561,11 @@ def listar() -> dict:
 
     with db_session:
         filas = [_a_dict(x) for x in list(LeadAudiencia.select())]
+    # Los que quedaron como "tibio" antes del cambio se leen como calificados: así no
+    # hace falta reescribir la base para que cuenten.
+    for f in filas:
+        if f["veredicto"] == "tibio":
+            f["veredicto"] = "calificado"
     orden = {"calificado": 0, "tibio": 1, "sin_analizar": 2, "no": 3}
     filas.sort(key=lambda f: (orden.get(f["veredicto"], 9), -(f["puntaje"] or -1), f["comentadoAt"] or f["creadoAt"] or ""))
     conteo: dict[str, int] = {}

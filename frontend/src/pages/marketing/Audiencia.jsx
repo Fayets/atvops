@@ -18,7 +18,6 @@ import { useResource } from '../../lib/hooks.js';
 
 const FILTROS = [
   { clave: 'calificado', label: 'Calificados' },
-  { clave: 'tibio', label: 'Tibios' },
   { clave: 'no', label: 'Descartados' },
   { clave: 'sin_analizar', label: 'Sin analizar' },
 ];
@@ -144,7 +143,7 @@ function Numeros({ r }) {
       <div className="card aud-num"><span className="lab-k">Comentarios</span><b className="num">{formatValue(r.comentarios ?? 0, 'count')}</b>
         <span className="dim">{r.personas} personas distintas</span></div>
       <div className="card aud-num ok"><span className="lab-k">Calificados</span><b className="num">{r.calificado ?? 0}</b>
-        <span className="dim">{r.tibio ? `+ ${r.tibio} tibios para revisar` : 'según el criterio de marketing'}</span></div>
+        <span className="dim">puntaje 5 o más, según el criterio</span></div>
       <div className="card aud-num"><span className="lab-k">Descalificados</span><b className="num">{r.no ?? 0}</b>
         <span className="dim">{r.sin_analizar ? `${r.sin_analizar} sin analizar todavía` : 'todos analizados'}</span></div>
       <div className="card aud-num destacado"><span className="lab-k">% calificados</span><b className="num">{pct(r.pctCalificados)}</b>
