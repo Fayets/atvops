@@ -35,6 +35,7 @@ def base(monkeypatch):
     monkeypatch.setattr(a, "_credenciales", lambda: ("token", "uid"))
     monkeypatch.setattr(a, "_cuenta_propia", lambda token, uid: "atv")
     monkeypatch.setattr(a, "_pagina", lambda token: ("pagina", "token_pagina"))
+    monkeypatch.setattr(a, "_guardar_historias_vivas", lambda token, uid: 0)
     yield ahora
     with db_session:
         for x in list(LeadAudiencia.select()):
@@ -97,6 +98,19 @@ def test_pedir_menos_datos_reintenta_con_menos_conversaciones(base, monkeypatch)
     monkeypatch.setattr(a, "_pedir", pedir)
     assert a.sincronizar_historias()["completo"]
     assert pedidos[:2] == [10, 5]
+
+
+def test_guarda_las_historias_vivas_que_faltan(base, monkeypatch):
+    """Una respuesta a una historia recién subida (todavía sin guardar) igual se cruza."""
+    from src.services import instagram_services
+
+    monkeypatch.undo()
+    monkeypatch.setattr(a, "_credenciales", lambda: ("token", "uid"))
+    guardadas = []
+    monkeypatch.setattr(instagram_services, "_insights", lambda token, mid, metricas: {"replies": 2})
+    monkeypatch.setattr(instagram_services, "_guardar", lambda tipo, item, metricas: guardadas.append(item["id"]) or True)
+    monkeypatch.setattr(a, "_pedir", lambda token, path, **p: {"data": [{"id": "hist_prueba_1", "timestamp": "x"}, {"id": "hist_prueba_nueva", "timestamp": "x"}]})
+    assert a._guardar_historias_vivas("token", "uid") == 1 and guardadas == ["hist_prueba_nueva"]
 
 
 def test_el_perfil_por_mensajes_trae_el_verificado(monkeypatch):

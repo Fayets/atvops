@@ -385,6 +385,28 @@ def _historias_guardadas(dias: int) -> dict[str, dict]:
                 if p.tipo == "historia" and p.publicado_at and p.publicado_at >= desde}
 
 
+def _guardar_historias_vivas(token: str, uid: str) -> int:
+    """Las historias que están publicadas ahora y Ops todavía no guardó.
+
+    La sincronización de Instagram corre cada 3 horas (y al arrancar tarda minutos): sin esto,
+    las respuestas a una secuencia recién subida se leían antes de que su historia estuviera
+    guardada, no tenían con qué cruzarse y se descartaban."""
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+    from src.services import instagram_services
+
+    vivas = _pedir(token, f"{uid}/stories", fields="id,media_type,timestamp,permalink,media_url,thumbnail_url").get("data") or []
+    with db_session:
+        guardadas = {p.ig_id for p in list(PublicacionIg.select()) if p.tipo == "historia"}
+    nuevas = 0
+    for h in vivas:
+        if h.get("id") and h["id"] not in guardadas:
+            instagram_services._guardar("historia", h, instagram_services._insights(token, h["id"], instagram_services.METRICAS_HISTORIA))
+            nuevas += 1
+    return nuevas
+
+
 def sincronizar_historias(dias: int = DIAS_DM) -> dict:
     """Las respuestas a historias que llegaron por mensaje directo: un lead por persona nueva.
 
@@ -397,6 +419,7 @@ def sincronizar_historias(dias: int = DIAS_DM) -> dict:
     token, uid = _credenciales()
     propia = _cuenta_propia(token, uid)
     page_id, token_pagina = _pagina(token)
+    _guardar_historias_vivas(token, uid)
     historias = _historias_guardadas(max(dias, 7))
     ahora = datetime.utcnow()
     with db_session:
