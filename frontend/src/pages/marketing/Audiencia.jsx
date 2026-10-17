@@ -8,7 +8,7 @@ import { formatValue } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
 
 /**
- * Audiencia: quién comenta los reels y si es un lead calificado.
+ * Audiencia: quién comenta los reels o responde las historias, y si es un lead calificado.
  *
  * Cada persona que comenta se analiza sola: se lee su perfil público y la IA lo compara
  * con el criterio que escribe marketing. Arriba de todo, los calificados. El criterio es texto libre a
@@ -40,7 +40,9 @@ function Lead({ l, onDescartar, onReanalizar, ocupado }) {
           {p.foto ? <img src={p.foto} alt="" loading="lazy" /> : <span>{l.usuario.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase()}</span>}
         </a>
         <div className="aud-quien">
-          <a href={l.url} target="_blank" rel="noreferrer" className="aud-usuario">@{l.usuario}</a>
+          <a href={l.url} target="_blank" rel="noreferrer" className="aud-usuario">
+            @{l.usuario}{p.verificado && <span className="aud-verificado" title="Cuenta verificada" aria-label="verificada">✓</span>}
+          </a>
           {p.nombre && <span className="dim">{p.nombre}</span>}
         </div>
         <div className="aud-veredicto">
@@ -80,6 +82,11 @@ function Lead({ l, onDescartar, onReanalizar, ocupado }) {
             <span><b className="num">{formatValue(p.publicaciones ?? 0, 'count')}</b> posts</span>
             {p.web && <a href={p.web} target="_blank" rel="noreferrer" className="dim">{p.web.replace(/^https?:\/\//, '').slice(0, 36)}</a>}
           </>
+        ) : l.perfilLeido && p.seguidores != null ? (
+          <>
+            <span><b className="num">{formatValue(p.seguidores ?? 0, 'count')}</b> seguidores</span>
+            <span className="dim">Cuenta personal: Instagram no muestra su bio ni sus posts.</span>
+          </>
         ) : l.perfilLeido ? (
           <span className="dim">Cuenta personal o privada: Instagram no muestra su perfil. Se juzgó por el comentario.</span>
         ) : (
@@ -89,7 +96,11 @@ function Lead({ l, onDescartar, onReanalizar, ocupado }) {
 
       {p.bio && <p className="aud-bio">{p.bio}</p>}
 
-      {l.comentario && (
+      {l.fuente === 'historia' ? (
+        <p className="aud-comentario">
+          <span className="dim">Respondió la historia por mensaje directo{l.comentadoAt ? ` el ${corta(l.comentadoAt)}` : ''}.</span>
+        </p>
+      ) : l.comentario && (
         <p className="aud-comentario">
           <span className="dim">Comentó{l.comentadoAt ? ` el ${corta(l.comentadoAt)}` : ''}:</span> «{l.comentario}»
           {l.reelUrl && <> · <a href={l.reelUrl} target="_blank" rel="noreferrer" className="dim">ver reel</a></>}
@@ -136,11 +147,36 @@ function Reel({ r, i, total, onMover }) {
   );
 }
 
-/** Lo que dejó el reel: comentarios, calificados, descalificados y el porcentaje. */
-function Numeros({ r }) {
+/** La secuencia elegida (un día de historias): sus piezas en fila y si tenía CTA. */
+function Secuencia({ s, i, total, onMover }) {
+  return (
+    <section className="card aud-secuencia">
+      <div className="aud-reel-cab">
+        <span className="lab-k">Historias · {fecha(`${s.fecha}T12:00:00`)}{s.cta ? ' · con CTA' : ''}</span>
+        <span className="aud-reel-nav">
+          <button type="button" className="btn ghost sm" onClick={() => onMover(1)} disabled={i >= total - 1} aria-label="Secuencia anterior">←</button>
+          <span className="dim num">{i + 1} / {total}</span>
+          <button type="button" className="btn ghost sm" onClick={() => onMover(-1)} disabled={i <= 0} aria-label="Secuencia siguiente">→</button>
+        </span>
+      </div>
+      <div className="aud-piezas">
+        {s.piezas.map((pz) => (
+          <a key={pz.id} href={pz.url || undefined} target="_blank" rel="noreferrer" className="aud-pieza" title={`${pz.respuestas} respuestas`}>
+            {pz.thumbnail ? <img src={pz.thumbnail} alt="" loading="lazy" /> : <span className="aud-reel-sin">Historia</span>}
+            {pz.respuestas > 0 && <span className="aud-pieza-n num">{pz.respuestas}</span>}
+          </a>
+        ))}
+      </div>
+      <p className="dim aud-secuencia-pie">{s.piezas.length} {s.piezas.length === 1 ? 'pieza' : 'piezas'}. El número de cada una es cuántas respuestas tuvo.</p>
+    </section>
+  );
+}
+
+/** Lo que dejó el reel o la secuencia: comentarios o respuestas, calificados, descalificados y el porcentaje. */
+function Numeros({ r, etiqueta = 'Comentarios', total }) {
   return (
     <section className="aud-numeros">
-      <div className="card aud-num"><span className="lab-k">Comentarios</span><b className="num">{formatValue(r.comentarios ?? 0, 'count')}</b>
+      <div className="card aud-num"><span className="lab-k">{etiqueta}</span><b className="num">{formatValue(total ?? r.comentarios ?? 0, 'count')}</b>
         <span className="dim">{r.personas} personas distintas</span></div>
       <div className="card aud-num ok"><span className="lab-k">Calificados</span><b className="num">{r.calificado ?? 0}</b>
         <span className="dim">puntaje 5 o más, según el criterio</span></div>
@@ -157,6 +193,8 @@ export default function Audiencia() {
   const { data, error, loading } = useResource(() => getAudiencia(), [tick]);
   const [filtro, setFiltro] = useState('calificado');
   const [indice, setIndice] = useState(0);
+  const [fuente, setFuente] = useState('reel');   // reel | historia
+  const [indiceH, setIndiceH] = useState(0);
   const [verDescartados, setVerDescartados] = useState(false);
   const [criterioAbierto, setCriterioAbierto] = useState(false);
   const [borrador, setBorrador] = useState(null);
@@ -168,11 +206,16 @@ export default function Audiencia() {
 
   const reels = data?.reels ?? [];
   const reelActual = reels[Math.min(indice, Math.max(reels.length - 1, 0))] ?? null;
+  const secuencias = data?.historias ?? [];
+  const secActual = secuencias[Math.min(indiceH, Math.max(secuencias.length - 1, 0))] ?? null;
+  const actual = fuente === 'historia' ? secActual : reelActual;
   const leads = useMemo(() => (data?.leads ?? []).filter((l) => (
     l.veredicto === filtro
-    && (reelActual ? l.reelId === reelActual.id : !l.reelId)
+    && (fuente === 'historia'
+      ? l.fuente === 'historia' && secActual && l.secuencia === secActual.id
+      : l.fuente !== 'historia' && (reelActual ? l.reelId === reelActual.id : !l.reelId))
     && (verDescartados || l.estado !== 'descartado')
-  )), [data, filtro, reelActual, verDescartados]);
+  )), [data, filtro, fuente, reelActual, secActual, verDescartados]);
   // Lo cargado a mano se muestra entero, con cualquier veredicto: es una consulta puntual.
   const manuales = (data?.leads ?? []).filter((l) => !l.reelId && (verDescartados || l.estado !== 'descartado'))
     .sort((a, b) => (b.creadoAt || '').localeCompare(a.creadoAt || ''));
@@ -208,16 +251,35 @@ export default function Audiencia() {
       )}
 
       <div className="aud-herramientas">
+        <div className="aud-fuente" role="group" aria-label="Qué mirar">
+          <button type="button" className={`chip${fuente === 'reel' ? ' active' : ''}`} aria-pressed={fuente === 'reel'} onClick={() => setFuente('reel')}>
+            Reels <span className="dim num">{reels.length}</span>
+          </button>
+          <button type="button" className={`chip${fuente === 'historia' ? ' active' : ''}`} aria-pressed={fuente === 'historia'} onClick={() => setFuente('historia')}>
+            Historias <span className="dim num">{secuencias.length}</span>
+          </button>
+        </div>
         <button type="button" className="btn" onClick={() => { setBorrador(criterio.texto ?? ''); setCriterioAbierto((v) => !v); }}>
           {criterioAbierto ? 'Cerrar criterio' : 'Criterio de lead'}
         </button>
         <button type="button" className="btn primary" disabled={ocupado}
-          onClick={() => hacer(audienciaCorrer, 'Analizando comentarios nuevos. Recargá en un par de minutos.')}>
+          onClick={() => hacer(audienciaCorrer, 'Analizando comentarios y respuestas nuevas. Recargá en un par de minutos.')}>
           Analizar ahora
         </button>
       </div>
 
-      {reelActual ? (
+      {fuente === 'historia' ? (
+        secActual ? (
+          <div className="aud-hero">
+            <Secuencia s={secActual} i={Math.min(indiceH, secuencias.length - 1)} total={secuencias.length}
+              onMover={(d) => setIndiceH((n) => Math.max(0, Math.min(secuencias.length - 1, n + d)))} />
+            <Numeros r={secActual} etiqueta="Respuestas" total={secActual.respuestas} />
+          </div>
+        ) : (
+          <div className="card lab-vacio"><h3>Todavía no hay respuestas a historias analizadas</h3>
+            <p className="dim">Quien responde una historia le escribe a la cuenta por mensaje directo. Con "Analizar ahora" se leen esos mensajes de las historias guardadas en Ops.</p></div>
+        )
+      ) : reelActual ? (
         <div className="aud-hero">
           <Reel r={reelActual} i={Math.min(indice, reels.length - 1)} total={reels.length}
             onMover={(d) => setIndice((n) => Math.max(0, Math.min(reels.length - 1, n + d)))} />
@@ -261,7 +323,7 @@ export default function Audiencia() {
       {leads.length === 0 ? (
         <div className="card lab-vacio">
           <h3>No hay leads {filtro === 'calificado' ? 'calificados' : `en "${FILTROS.find((f) => f.clave === filtro)?.label}"`} todavía</h3>
-          <p className="dim">{reelActual?.sin_analizar ? `Hay ${reelActual.sin_analizar} personas de este reel esperando análisis.` : 'Los comentarios se analizan solos cada dos horas, o con "Analizar ahora".'}</p>
+          <p className="dim">{actual?.sin_analizar ? `Hay ${actual.sin_analizar} personas ${fuente === 'historia' ? 'de esta secuencia' : 'de este reel'} esperando análisis.` : 'Se analizan solos cada dos horas, o con "Analizar ahora".'}</p>
         </div>
       ) : (
         <div className="aud-grilla">

@@ -338,6 +338,150 @@ def sincronizar_comentarios(dias: int = DIAS_REELS) -> dict:
     return {"reels": len(reels), "nuevos": nuevos, "sinUsuario": sin_usuario}
 
 
+# ------------------------------------------------------------------ respuestas a historias
+#
+# Quien responde una historia le escribe a la cuenta por mensaje directo. Instagram los
+# entrega por la página de Facebook vinculada (conversaciones de la bandeja), con el usuario
+# de quien escribió y el id de la historia que respondió: el mismo `ig_id` que Ops ya guarda
+# de cada pieza. Para leerlos hace falta el token de la página, que sale del token de la
+# cuenta (permiso instagram_manage_messages, que ya tiene).
+
+DM_POR_PEDIDO = 10        # conversaciones por pedido; con más, Instagram suele pedir "menos datos"
+MAX_PEDIDOS_DM = 80       # tope por corrida (~800 conversaciones: un día de CTA entra entero)
+DIAS_DM = 3               # la primera vez se mira hasta acá; después, solo lo nuevo desde la última lectura
+_pagina_cache: dict = {}
+
+
+def _pagina(token: str) -> tuple[str, str]:
+    """(id de la página, token de la página), guardado una hora."""
+    guardado = _pagina_cache.get("v")
+    if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < 3600:
+        return guardado["data"]
+    # El token tiene permiso sobre una sola página: es la que figura en sus permisos.
+    datos = _pedir(token, "debug_token", input_token=token).get("data") or {}
+    page_id = next((g["target_ids"][0] for g in datos.get("granular_scopes") or []
+                    if g.get("scope") == "pages_show_list" and g.get("target_ids")), None)
+    if not page_id:
+        cuentas = _pedir(token, "me/accounts", fields="id").get("data") or []
+        page_id = cuentas[0]["id"] if cuentas else None
+    pagina = _pedir(token, page_id, fields="access_token") if page_id else {}
+    if not pagina.get("access_token"):
+        raise HTTPException(status_code=503, detail="No se pudo leer la página de Facebook de Instagram para ver los mensajes.")
+    data = (page_id, pagina["access_token"])
+    _pagina_cache["v"] = {"at": datetime.utcnow(), "data": data}
+    return data
+
+
+def _historias_guardadas(dias: int) -> dict[str, dict]:
+    """ig_id → la pieza de historia guardada en Ops (con su día de secuencia)."""
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+
+    desde = datetime.utcnow() - timedelta(days=dias)
+    with db_session:
+        return {p.ig_id: {"caption": (p.caption or "")[:300], "url": p.permalink, "dia": p.publicado_at.strftime("%Y-%m-%d")}
+                for p in list(PublicacionIg.select())
+                if p.tipo == "historia" and p.publicado_at and p.publicado_at >= desde}
+
+
+def sincronizar_historias(dias: int = DIAS_DM) -> dict:
+    """Las respuestas a historias que llegaron por mensaje directo: un lead por persona nueva.
+
+    Se recorre la bandeja desde lo más nuevo hasta la última lectura (con 6 horas de margen,
+    porque la historia puede guardarse en Ops después de que alguien la respondió)."""
+    from pony.orm import db_session
+
+    from src.models import AjusteAudiencia, LeadAudiencia
+
+    token, uid = _credenciales()
+    propia = _cuenta_propia(token, uid)
+    page_id, token_pagina = _pagina(token)
+    historias = _historias_guardadas(max(dias, 7))
+    ahora = datetime.utcnow()
+    with db_session:
+        marca = AjusteAudiencia.get(clave="dm_leido_hasta")
+        leido = _fecha(marca.valor) if marca and marca.valor else None
+    desde = max(ahora - timedelta(days=dias), (leido - timedelta(hours=6)) if leido else ahora - timedelta(days=dias))
+    desde_iso = desde.strftime("%Y-%m-%dT%H:%M:%S")
+    with db_session:
+        conocidos = {x.ig_usuario for x in list(LeadAudiencia.select())}
+    nuevos = respuestas = conversaciones = pedidos = 0
+    mas_vieja = None
+    despues, por_pedido, completo = None, DM_POR_PEDIDO, False
+    while pedidos < MAX_PEDIDOS_DM:
+        params = {"platform": "instagram", "limit": por_pedido,
+                  "fields": "updated_time,messages.limit(5){id,created_time,from,story}"}
+        if despues:
+            params["after"] = despues
+        r = _pedir(token_pagina, f"{page_id}/conversations", **params)
+        pedidos += 1
+        if r.get("_error"):
+            # "Pedí menos datos": se reintenta con menos conversaciones por pedido.
+            if '"code":1,' in r["_error"].replace(" ", "") and por_pedido > 5:
+                por_pedido = max(5, por_pedido // 2)
+                continue
+            logger.info("Audiencia: mensajes: %s", r["_error"][:200])
+            break
+        filas = r.get("data") or []
+        for cv in filas:
+            conversaciones += 1
+            mas_vieja = cv.get("updated_time") or mas_vieja
+            for m in (cv.get("messages") or {}).get("data") or []:
+                historia = ((m.get("story") or {}).get("reply_to") or {}).get("id")
+                if not historia or historia not in historias:
+                    continue
+                respuestas += 1
+                de = m.get("from") or {}
+                usuario = _usuario_limpio(de.get("username") or "")
+                if not usuario or usuario == propia or usuario in conocidos:
+                    continue
+                h = historias[historia]
+                with db_session:
+                    if LeadAudiencia.get(comentario_id=f"dm:{m['id']}"):
+                        continue
+                    LeadAudiencia(
+                        ig_usuario=usuario, media_id=historia, reel_caption=h["caption"], reel_url=h["url"],
+                        # Sin el texto: de los mensajes directos no se guarda lo que dicen (política de
+                        # privacidad, igual que en instagram_mensajes_services). Alcanza con quién y cuándo.
+                        comentario=None, comentado_at=_fecha(m.get("created_time")),
+                        comentario_id=f"dm:{m['id']}", creado_por="historia",
+                        # El id de Instagram de quien escribió: con él se lee su perfil por mensajes,
+                        # que trae foto, seguidores y verificado también de las cuentas personales.
+                        perfil=json.dumps({"igsid": de.get("id")}),
+                    )
+                conocidos.add(usuario)
+                nuevos += 1
+        despues = ((r.get("paging") or {}).get("cursors") or {}).get("after")
+        if not filas or not despues or (filas[-1].get("updated_time") or "") < desde_iso:
+            completo = True
+            break
+    # Hasta dónde quedó leído: todo si se llegó a la lectura anterior; si se cortó por el tope,
+    # hasta la conversación más vieja que se alcanzó (más atrás de eso no se puede retomar:
+    # la bandeja se recorre siempre desde lo más nuevo).
+    hasta = ahora if completo else _fecha(mas_vieja)
+    if hasta:
+        with db_session:
+            marca = AjusteAudiencia.get(clave="dm_leido_hasta") or AjusteAudiencia(clave="dm_leido_hasta")
+            marca.valor = hasta.strftime("%Y-%m-%dT%H:%M:%S")
+            marca.actualizado_at = ahora
+    return {"conversaciones": conversaciones, "respuestas": respuestas, "nuevos": nuevos, "pedidos": pedidos, "completo": completo}
+
+
+def perfil_por_mensajes(token_pagina: str, igsid: str, usuario: str) -> dict:
+    """Lo que Instagram muestra de quien escribió por mensaje directo (sirve para cuentas personales)."""
+    r = _pedir(token_pagina, igsid, fields="name,username,profile_pic,follower_count,is_verified_user,is_user_follow_business")
+    if r.get("_error"):
+        if any(c in r["_error"].replace(" ", "") for c in ('"code":4,', '"code":32,', '"code":613,')):
+            raise LimiteInstagram(r["_error"][:200])
+        return {}
+    return {
+        "foto": _guardar_foto(r.get("profile_pic"), usuario), "nombre": r.get("name"),
+        "seguidores": r.get("follower_count"), "verificado": bool(r.get("is_verified_user")),
+        "teSigue": r.get("is_user_follow_business"),
+    }
+
+
 def _fecha(iso: str | None) -> datetime | None:
     if not iso:
         return None
@@ -423,11 +567,22 @@ def completar_perfiles(limite: int = 40) -> int:
     with db_session:
         pendientes = [x.id for x in list(LeadAudiencia.select()) if x.perfil_at is None][:limite]
     hechos = 0
+    token_pagina = None
     for lid in pendientes:
         with db_session:
-            usuario = LeadAudiencia.get(id=lid).ig_usuario
+            x = LeadAudiencia.get(id=lid)
+            usuario = x.ig_usuario
+            previo = json.loads(x.perfil) if x.perfil else {}
         try:
             tipo, perfil = leer_perfil(token, uid, usuario)
+            # Quien respondió una historia escribió por mensaje: de ahí salen foto, seguidores y
+            # el verificado aunque la cuenta sea personal (Business Discovery no la muestra).
+            if previo.get("igsid"):
+                if token_pagina is None:
+                    token_pagina = _pagina(token)[1]
+                por_mensajes = perfil_por_mensajes(token_pagina, previo["igsid"], usuario)
+                perfil = {**{k: v for k, v in por_mensajes.items() if v is not None}, **{k: v for k, v in perfil.items() if v is not None},
+                          "verificado": por_mensajes.get("verificado"), "teSigue": por_mensajes.get("teSigue"), "igsid": previo["igsid"]}
         except LimiteInstagram as e:
             # Se corta la corrida y los que faltan quedan para la próxima.
             logger.info("Audiencia: Instagram pidió esperar (%s). Quedan %d perfiles para después.",
@@ -480,7 +635,9 @@ def _veredicto(dimensiones: dict, descarte: bool) -> tuple[str, float]:
 
 def _bloque(x) -> dict:
     perfil = json.loads(x.perfil) if x.perfil else {}
+    historia = x.creado_por == "historia"
     return {
+        "origen": "respondió una historia por mensaje directo" if historia else ("comentó un reel" if x.media_id else "cargado a mano"),
         "comentario": (x.comentario or "")[:400] or None,
         "reel_tema": (x.reel_caption or "")[:300] or None,
         "perfil": {
@@ -493,7 +650,8 @@ def _bloque(x) -> dict:
             # Business Discovery solo responde por cuentas de empresa o creador: si no hay
             # perfil, es personal o privada y la API no deja ver nada más.
             "es_cuenta_privada": x.tipo_cuenta != "empresa",
-            "es_verificado": None,
+            "es_verificado": perfil.get("verificado"),
+            "sigue_a_la_cuenta": perfil.get("teSigue"),
             "categoria_cuenta": None,
             "ultimos_posts": [p.get("caption") for p in (perfil.get("posts") or [])[:5]] or None,
             "link_en_bio": perfil.get("web"),
@@ -571,6 +729,13 @@ def correr(usuario: dict | None = None) -> dict:
         except Exception as e:  # noqa: BLE001
             logger.warning("Audiencia: comentarios: %s", str(e)[:200])
             resultado["comentarios"] = {"error": str(e)[:200]}
+        try:
+            resultado["historias"] = sincronizar_historias()
+        except HTTPException as e:
+            resultado["historias"] = {"error": e.detail}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Audiencia: historias: %s", str(e)[:200])
+            resultado["historias"] = {"error": str(e)[:200]}
         resultado["perfiles"] = completar_perfiles()
         resultado["fotos"] = completar_fotos()
         resultado["ia"] = analizar()
@@ -584,6 +749,7 @@ def correr(usuario: dict | None = None) -> dict:
 
 def _a_dict(x) -> dict:
     perfil = json.loads(x.perfil) if x.perfil else {}
+    perfil.pop("igsid", None)  # el id interno de Instagram no le sirve a la pantalla
     return {
         "id": x.id, "usuario": x.ig_usuario, "url": f"https://instagram.com/{x.ig_usuario}",
         "comentario": x.comentario, "comentadoAt": x.comentado_at.isoformat() if x.comentado_at else None,
@@ -594,6 +760,7 @@ def _a_dict(x) -> dict:
         "analizadoAt": x.analizado_at.isoformat() if x.analizado_at else None,
         "estado": x.estado, "pitchId": x.pitch_id,
         "origen": "comentario" if x.media_id else "manual",
+        "fuente": "historia" if x.creado_por == "historia" else ("reel" if x.media_id else "manual"),
         "creadoAt": x.creado_at.isoformat() if x.creado_at else None,
     }
 
@@ -616,12 +783,13 @@ def listar() -> dict:
     for f in filas:
         if f["estado"] != "descartado":
             conteo[f["veredicto"]] = conteo.get(f["veredicto"], 0) + 1
-    reels = _reels(filas)
+    reels = _reels([f for f in filas if f["fuente"] != "historia"])
+    historias = _secuencias([f for f in filas if f["fuente"] == "historia"])
     try:
         estado_permisos = permisos()
     except HTTPException as e:
         estado_permisos = {"comentarios": False, "perfiles": False, "error": e.detail}
-    return {"leads": filas, "conteo": conteo, "reels": reels, "permisos": estado_permisos,
+    return {"leads": filas, "conteo": conteo, "reels": reels, "historias": historias, "permisos": estado_permisos,
             "criterio": criterio()}
 
 
@@ -667,6 +835,55 @@ def _reels(filas: list[dict]) -> list[dict]:
         # sync todavía no trajo el número, se muestran las personas.
         r["comentarios"] = max(r["comentarios"], r["personas"])
     return sorted(salida.values(), key=lambda r: r.get("fecha") or "", reverse=True)
+
+
+def _secuencias(filas: list[dict]) -> list[dict]:
+    """Las secuencias de historias (un día de historias) con lo que dejaron sus respuestas.
+
+    A cada lead se le anota el día de su secuencia (`secuencia`) para que la pantalla filtre.
+    Las respuestas totales salen de lo que midió Instagram en cada pieza."""
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+    from src.services.instagram_services import cta_marcadas
+
+    desde = datetime.utcnow() - timedelta(days=60)
+    with db_session:
+        piezas = sorted([p for p in list(PublicacionIg.select())
+                         if p.tipo == "historia" and p.publicado_at and p.publicado_at >= desde],
+                        key=lambda p: p.publicado_at)
+        dia_de, por_dia = {}, {}
+        for p in piezas:
+            try:
+                metricas = json.loads(p.metricas or "{}")
+            except ValueError:
+                metricas = {}
+            dia = p.publicado_at.strftime("%Y-%m-%d")
+            dia_de[p.ig_id] = dia
+            por_dia.setdefault(dia, []).append({"id": p.ig_id, "thumbnail": p.thumbnail or None, "url": p.permalink,
+                                                "respuestas": int(metricas.get("replies") or 0)})
+    try:
+        marcadas = cta_marcadas()
+    except Exception:  # noqa: BLE001
+        marcadas = set()
+    salida: dict[str, dict] = {}
+    for f in filas:
+        dia = dia_de.get(f["reelId"])
+        f["secuencia"] = dia
+        if not dia:
+            continue
+        s = salida.setdefault(dia, {"id": dia, "fecha": dia, "piezas": por_dia.get(dia, []), "cta": dia in marcadas,
+                                    "respuestas": sum(x["respuestas"] for x in por_dia.get(dia, [])),
+                                    "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0})
+        s["personas"] += 1
+        s[f["veredicto"]] = s.get(f["veredicto"], 0) + 1
+    for s in salida.values():
+        analizados = s["calificado"] + s["tibio"] + s["no"]
+        s["analizados"] = analizados
+        s["pctCalificados"] = round(s["calificado"] / analizados * 100, 1) if analizados else None
+        # Instagram cuenta cada respuesta (alguien puede responder varias piezas); las personas son únicas.
+        s["respuestas"] = max(s["respuestas"], s["personas"])
+    return sorted(salida.values(), key=lambda s: s["fecha"], reverse=True)
 
 
 def marcar(lead_id: int, estado: str) -> dict:

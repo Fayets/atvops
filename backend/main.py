@@ -71,6 +71,13 @@ async def lifespan(_app: FastAPI):
     IntegrantesServices().ensure_defaults()
     stop = threading.Event()
     threading.Thread(target=_precalentar_cartera, args=(stop,), daemon=True, name="precalentador").start()
+    # En la Mac se apagan (TAREAS_AUTOMATICAS=0 en el .env local): comparten con producción el
+    # cupo de pedidos de Meta y la base de llamadas, y una corrida local gastaba lo de producción.
+    if not config("TAREAS_AUTOMATICAS", default=True, cast=bool):
+        _log.info("Tareas automáticas apagadas (TAREAS_AUTOMATICAS=0).")
+        yield
+        stop.set()
+        return
     # Activación por Claude Code, 08:00 y 18:00 AR.
     threading.Thread(target=activacion_ia_services.iniciar_scheduler, args=(stop,), daemon=True, name="activacion-ia").start()
     # Rondas de pendientes de respuesta: 09, 13, 16 y 19 AR.
