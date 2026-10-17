@@ -86,6 +86,25 @@ def test_cada_persona_que_responde_una_historia_es_un_lead(base, monkeypatch):
     assert all(r["id"] != "hist_prueba_1" for r in listado["reels"])  # las historias no se mezclan con los reels
 
 
+def test_quien_ya_era_lead_por_un_reel_aparece_en_la_secuencia_con_su_analisis(base, monkeypatch):
+    from src.models import LeadAudiencia
+
+    ahora = base
+    with db_session:
+        LeadAudiencia(ig_usuario="prueba_reel", media_id="reel_x", comentario_id="c_prueba_reel", creado_por="instagram",
+                      tipo_cuenta="empresa", perfil=json.dumps({"bio": "coach"}), perfil_at=ahora,
+                      veredicto="calificado", puntaje=7.5, motivo="tiene negocio", analizado_at=ahora)
+    bandeja = {"data": [{"updated_time": ahora.strftime("%Y-%m-%dT%H:%M:%S+0000"), "messages": {"data": [
+        _mensaje("m9", "prueba_reel", "hist_prueba_1", ahora, "301")]}}], "paging": {}}
+    monkeypatch.setattr(a, "_pedir", lambda token, path, **p: bandeja)
+    assert a.sincronizar_historias()["nuevos"] == 1
+    with db_session:
+        copia = [x for x in list(LeadAudiencia.select()) if x.ig_usuario == "prueba_reel" and x.creado_por == "historia"]
+        assert len(copia) == 1 and copia[0].veredicto == "calificado" and copia[0].puntaje == 7.5
+        assert json.loads(copia[0].perfil) == {"bio": "coach", "igsid": "301"}
+    assert a.sincronizar_historias()["nuevos"] == 0  # una vez por secuencia
+
+
 def test_pedir_menos_datos_reintenta_con_menos_conversaciones(base, monkeypatch):
     pedidos = []
 

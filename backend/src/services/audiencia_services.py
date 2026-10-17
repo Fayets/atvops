@@ -428,13 +428,21 @@ def sincronizar_historias(dias: int = DIAS_DM) -> dict:
     desde = max(ahora - timedelta(days=dias), (leido - timedelta(hours=6)) if leido else ahora - timedelta(days=dias))
     desde_iso = desde.strftime("%Y-%m-%dT%H:%M:%S")
     with db_session:
-        conocidos = {x.ig_usuario for x in list(LeadAudiencia.select())}
+        todos = list(LeadAudiencia.select())
+        # Una persona aparece una vez por secuencia que respondió (aunque ya sea lead por un reel u
+        # otra secuencia): es lo que marketing quiere ver de cada secuencia.
+        conocidos = {(x.ig_usuario, historias.get(x.media_id, {}).get("dia")) for x in todos if x.creado_por == "historia"}
+        # Si ya está analizada por otro lado, se copia el análisis en vez de pagarlo de nuevo.
+        analizados = {}
+        for x in sorted(todos, key=lambda x: x.analizado_at or datetime.min):
+            if x.perfil_at is not None:
+                analizados[x.ig_usuario] = x.id
     nuevos = respuestas = conversaciones = pedidos = 0
     mas_vieja = None
     despues, por_pedido, completo = None, DM_POR_PEDIDO, False
     while pedidos < MAX_PEDIDOS_DM:
         params = {"platform": "instagram", "limit": por_pedido,
-                  "fields": "updated_time,messages.limit(5){id,created_time,from,story}"}
+                  "fields": "updated_time,messages.limit(15){id,created_time,from,story}"}
         if despues:
             params["after"] = despues
         r = _pedir(token_pagina, f"{page_id}/conversations", **params)
@@ -457,13 +465,13 @@ def sincronizar_historias(dias: int = DIAS_DM) -> dict:
                 respuestas += 1
                 de = m.get("from") or {}
                 usuario = _usuario_limpio(de.get("username") or "")
-                if not usuario or usuario == propia or usuario in conocidos:
-                    continue
                 h = historias[historia]
+                if not usuario or usuario == propia or (usuario, h["dia"]) in conocidos:
+                    continue
                 with db_session:
                     if LeadAudiencia.get(comentario_id=f"dm:{m['id']}"):
                         continue
-                    LeadAudiencia(
+                    nuevo = LeadAudiencia(
                         ig_usuario=usuario, media_id=historia, reel_caption=h["caption"], reel_url=h["url"],
                         # Sin el texto: de los mensajes directos no se guarda lo que dicen (política de
                         # privacidad, igual que en instagram_mensajes_services). Alcanza con quién y cuándo.
@@ -473,7 +481,14 @@ def sincronizar_historias(dias: int = DIAS_DM) -> dict:
                         # que trae foto, seguidores y verificado también de las cuentas personales.
                         perfil=json.dumps({"igsid": de.get("id")}),
                     )
-                conocidos.add(usuario)
+                    previo = LeadAudiencia.get(id=analizados[usuario]) if usuario in analizados else None
+                    if previo is not None:
+                        perfil_previo = json.loads(previo.perfil or "{}")
+                        nuevo.set(tipo_cuenta=previo.tipo_cuenta, perfil_at=previo.perfil_at, veredicto=previo.veredicto,
+                                  puntaje=previo.puntaje, motivo=previo.motivo, analisis=previo.analisis,
+                                  analizado_at=previo.analizado_at,
+                                  perfil=json.dumps({**perfil_previo, "igsid": de.get("id")}, ensure_ascii=False))
+                conocidos.add((usuario, h["dia"]))
                 nuevos += 1
         despues = ((r.get("paging") or {}).get("cursors") or {}).get("after")
         if not filas or not despues or (filas[-1].get("updated_time") or "") < desde_iso:
