@@ -243,6 +243,8 @@ def ensure_reunion_crm_columns() -> None:
         # entra al cerrar se anota en el mes en que entró. Cada plata en su mes.
         ("cierre_mes", "TEXT"), ("cierre_cash_usd", "DOUBLE PRECISION DEFAULT 0 NOT NULL"),
         ("cierre_at", "TIMESTAMP"), ("cierre_por", "TEXT"),
+        # La vista Theo: el reporte se puede editar o frenar antes de que salga al grupo.
+        ("reporte_editado_por", "TEXT"), ("reporte_frenado_por", "TEXT"),
     ]
     if ES_POSTGRES:
         import psycopg2

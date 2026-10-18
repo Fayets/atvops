@@ -209,6 +209,11 @@ export function puedeOcultarReuniones(rol) {
  * @param {Rol} rol
  */
 export function puedeVerRuta(pathname, rol) {
+  // La vista Theo es de sistemas y operaciones: acá operaciones NO hereda de founder,
+  // así Juan no la ve aunque vea todo lo demás.
+  if (pathname === '/theo' || pathname.startsWith('/theo/')) {
+    return ['admin', 'operaciones'].includes(normalizarRol(rol));
+  }
   const permitidas = RUTAS_POR_ROL[rolDeVista(rol)] ?? RUTAS_POR_ROL.operaciones;
   return permitidas.some((p) => {
     if (p === '/') return pathname === '/';
@@ -222,9 +227,13 @@ export function puedeVerRuta(pathname, rol) {
  * @param {Rol} rol
  */
 export function filtrarNav(nav, rol) {
+  const rolReal = normalizarRol(rol);
   rol = rolDeVista(rol);
   return nav
     .map((item) => {
+      // `rolesReales` mira el rol sin traducir: para ese ítem operaciones y founder dejan
+      // de ser lo mismo (la vista Theo es de operaciones, no de Juan).
+      if (item.rolesReales) return item.rolesReales.includes(rolReal) ? item : null;
       // Un ítem con subnav se muestra si el rol puede ver alguno de sus hijos, aunque no
       // tenga permiso sobre la ruta del padre: el closer entra a /ventas/mi-dia pero no
       // a /ventas, y sin esto Ventas desaparecía del menú con sus dos pantallas adentro.

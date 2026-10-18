@@ -796,8 +796,14 @@ def pendientes() -> list[dict]:
     avisa qué mandó. Sin la marca de enviado, el mismo reporte saldría en cada
     corrida y el grupo se llenaría de repetidos.
     """
+    from src.services import theo_services
+
+    # Desde la vista Theo se puede apagar el aviso o frenar un reporte puntual.
+    if not theo_services.envio_activo("llamadas"):
+        return []
     filas = [r for r in list(ReunionCrm.select())
-             if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None]
+             if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None
+             and not r.reporte_frenado_por]
     filas.sort(key=lambda r: r.reporte_at or datetime.min)
     return [{"eventoId": r.evento_id,
              "prospecto": r.prospecto,

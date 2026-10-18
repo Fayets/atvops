@@ -117,8 +117,19 @@ def mandar(texto: str) -> bool:
         return False
     if r.returncode != 0:
         print(f"openclaw devolvió {r.returncode}: {(r.stderr or r.stdout)[:300]}", file=sys.stderr)
+        _anotar(texto, False, (r.stderr or r.stdout)[:300])
         return False
+    _anotar(texto, True, None)
     return True
+
+
+def _anotar(texto: str, ok: bool, error: str | None) -> None:
+    """Queda en la vista Theo de ATV Ops. Si Ops no contesta, el aviso salió igual."""
+    try:
+        from registro_theo import anotar
+        anotar("landing", texto, ok, error)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def leer_estado() -> dict:

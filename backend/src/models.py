@@ -350,6 +350,8 @@ class ReunionCrm(db.Entity):
     reporte_mensaje = Optional(LongStr, nullable=True)  # el texto listo para el grupo
     reporte_at = Optional(datetime, nullable=True)
     reporte_enviado_at = Optional(datetime, nullable=True)
+    reporte_editado_por = Optional(str, nullable=True)   # vista Theo: quién lo cambió
+    reporte_frenado_por = Optional(str, nullable=True)   # vista Theo: no sale al grupo
 
 
 class PitchSetting(db.Entity):
@@ -951,3 +953,45 @@ class CierreDaily(db.Entity):
     guardado_at = Required(datetime)             # hora de Argentina, la primera vez
     actualizado_at = Required(datetime)
     a_tiempo = Required(bool, default=True)
+
+
+class TheoEnvio(db.Entity):
+    """Un envío automático de Theo: cuándo sale, a qué grupo y con qué plantilla.
+    Prenderlo o apagarlo acá es lo que decide si sale."""
+
+    _table_ = _tabla("theo_envios", "TheoEnvio")
+
+    clave = PrimaryKey(str)                      # daily | llamadas | landing | capacidad
+    nombre = Required(str)
+    cuando = Required(str)                       # texto para la pantalla
+    grupo_nombre = Optional(str, nullable=True)
+    grupo_jid = Optional(str, nullable=True)     # el id de WhatsApp del grupo (…@g.us)
+    plantilla = Optional(LongStr, nullable=True)
+    activo = Required(bool, default=True)
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Optional(datetime, nullable=True)
+
+
+class TheoMensaje(db.Entity):
+    """Un mensaje de Theo: lo que va a salir (se puede editar o frenar) o lo que salió.
+
+    `texto` vacío en uno pendiente quiere decir "se arma al salir" (la daily se arma a las
+    23:00 con lo que haya); si alguien lo edita, queda fijo."""
+
+    _table_ = _tabla("theo_mensajes", "TheoMensaje")
+
+    id = PrimaryKey(int, auto=True)
+    clave = Optional(str, unique=True, nullable=True)  # daily:2026-10-19 — evita duplicados
+    envio = Required(str, index=True)                  # clave de TheoEnvio
+    grupo_nombre = Optional(str, nullable=True)
+    grupo_jid = Optional(str, nullable=True)
+    texto = Optional(LongStr, nullable=True)
+    estado = Required(str, default="pendiente", index=True)  # pendiente | enviado | fallido | frenado
+    sale_at = Required(datetime, index=True)           # hora de Argentina
+    expira_at = Optional(datetime, nullable=True)      # pasado esto ya no tiene sentido mandarlo
+    enviado_at = Optional(datetime, nullable=True)
+    error = Optional(str, nullable=True)
+    intentos = Required(int, default=0)
+    editado_por = Optional(str, nullable=True)
+    frenado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=datetime.utcnow)

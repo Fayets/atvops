@@ -1,0 +1,310 @@
+import { useCallback, useEffect, useState } from 'react';
+import Card from '../components/ui/Card.jsx';
+import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
+import Pill from '../components/ui/Pill.jsx';
+import Tabs from '../components/ui/Tabs.jsx';
+import {
+  accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, getTheoEnvios, getTheoMensajes,
+} from '../data/api.js';
+import '../styles/theo.css';
+
+const ESTADO = {
+  pendiente: ['warn', 'Por salir'],
+  enviado: ['ok', 'Enviado'],
+  fallido: ['alert', 'Falló'],
+  frenado: ['off', 'No se mandó'],
+};
+
+const hora = (iso) => (iso ? iso.slice(11, 16) : '');
+const dia = (iso) => {
+  if (!iso) return 'En cola';
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'numeric' });
+};
+
+/**
+ * Lo que manda Theo por WhatsApp. Lo que todavía no salió se edita, se frena o se manda
+ * ya; lo que salió queda como registro. La ven sistemas y operaciones.
+ */
+export default function Theo() {
+  const [tab, setTab] = useState('pendientes');
+  return (
+    <div className="page">
+      <PageHeader
+        eyebrow="Sistema · Theo"
+        title="Lo que manda Theo"
+        desc="Todo lo que Theo manda por WhatsApp pasa por acá. Lo que todavía no salió se puede editar o frenar. Lo que ya salió queda como registro."
+      />
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'pendientes', label: 'Por salir' },
+          { value: 'enviados', label: 'Enviados' },
+          { value: 'envios', label: 'Envíos automáticos' },
+        ]}
+      />
+      {tab === 'envios' ? <Envios /> : <Mensajes key={tab} vista={tab} />}
+    </div>
+  );
+}
+
+function Kpis({ r }) {
+  if (!r) return null;
+  return (
+    <div className="th-kpis" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="th-kpi"><b>{r.pendientes}</b><span>por salir</span></div>
+      <div className="th-kpi"><b>{r.enviados_hoy}</b><span>enviados hoy</span></div>
+      <div className={`th-kpi${r.fallidos ? ' alert' : ''}`}><b>{r.fallidos}</b><span>fallaron esta semana</span></div>
+      <div className="th-kpi"><b>{r.envios_activos}/{r.envios}</b><span>envíos automáticos prendidos</span></div>
+    </div>
+  );
+}
+
+function Mensajes({ vista }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [sel, setSel] = useState(null);
+  const [envio, setEnvio] = useState('');
+  const [q, setQ] = useState('');
+
+  const cargar = useCallback(() => getTheoMensajes(vista, { envio, q })
+    .then((r) => { setData(r); setError(null); return r; })
+    .catch(setError), [vista, envio, q]);
+
+  useEffect(() => {
+    const t = setTimeout(cargar, q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [cargar, q]);
+
+  // Lo que está por salir se refresca solo: la daily cambia a medida que el equipo guarda.
+  useEffect(() => {
+    if (vista !== 'pendientes') return undefined;
+    const t = setInterval(cargar, 30_000);
+    return () => clearInterval(t);
+  }, [vista, cargar]);
+
+  if (error && !data) return <div style={{ marginTop: 16 }}><ErrorState error={error} /></div>;
+  if (!data) return <div style={{ marginTop: 16 }}><SkeletonBlock height={360} /></div>;
+
+  const lista = data.mensajes;
+  const actual = lista.find((m) => m.id === sel) ?? lista[0] ?? null;
+  const dias = [...new Set(lista.map((m) => dia(vista === 'pendientes' ? m.sale_at : (m.enviado_at ?? m.sale_at))))];
+
+  return (
+    <>
+      <Kpis r={data.resumen} />
+      <div className="th-grid" style={{ marginTop: 0 }}>
+        <Card flush>
+          {vista === 'enviados' && (
+            <div className="th-filtros">
+              <select value={envio} onChange={(e) => setEnvio(e.target.value)} aria-label="Envío">
+                <option value="">Todos los envíos</option>
+                <option value="daily">Daily completada</option>
+                <option value="llamadas">Resultado de cada llamada</option>
+                <option value="landing">Landing sin registros</option>
+                <option value="capacidad">Capacidad Operativa</option>
+              </select>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en el texto" aria-label="Buscar en el texto" />
+            </div>
+          )}
+          {lista.length === 0 && (
+            <p className="th-vacio">{vista === 'pendientes' ? 'No hay nada por salir.' : 'Todavía no salió nada en los últimos 30 días.'}</p>
+          )}
+          {dias.map((d) => (
+            <div key={d}>
+              <div className="th-dia">{d}</div>
+              {lista.filter((m) => dia(vista === 'pendientes' ? m.sale_at : (m.enviado_at ?? m.sale_at)) === d).map((m) => {
+                const [tono, label] = ESTADO[m.estado];
+                return (
+                  <button key={m.id} type="button" className="th-item" aria-pressed={actual?.id === m.id} onClick={() => setSel(m.id)}>
+                    <time>{m.ia && m.estado === 'pendiente' ? 'en cola' : hora(vista === 'pendientes' ? m.sale_at : (m.enviado_at ?? m.sale_at))}</time>
+                    <div className="t">
+                      <b>{m.envio_nombre}</b>
+                      <span>{(m.texto || '').split('\n')[0]}</span>
+                      <small>→ {m.grupo ?? 'sin grupo'}{m.editado_por ? ` · editado por ${m.editado_por}` : ''}</small>
+                    </div>
+                    <Pill tone={m.sin_grupo && m.estado === 'pendiente' ? 'alert' : tono}>{m.sin_grupo && m.estado === 'pendiente' ? 'Sin grupo' : label}</Pill>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </Card>
+        {actual ? <Detalle key={actual.id + actual.estado} m={actual} onCambio={cargar} /> : <span />}
+      </div>
+    </>
+  );
+}
+
+function Detalle({ m, onCambio }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(m.texto);
+  const [estado, setEstado] = useState('');
+  const [tono, label] = ESTADO[m.estado];
+  const pendiente = m.estado === 'pendiente';
+
+  async function hacer(fn) {
+    setEstado('');
+    try {
+      await fn();
+      setEditando(false);
+      onCambio();
+    } catch (e) {
+      setEstado(e.message);
+    }
+  }
+
+  return (
+    <Card flush className="th-det">
+      <div className="th-dh">
+        <span style={{ alignSelf: 'flex-start' }}><Pill tone={tono}>{label}</Pill></span>
+        <h2>{m.envio_nombre}{m.prospecto ? ` · ${m.prospecto}` : ''}</h2>
+        <div className="th-meta">
+          <span>Grupo <b>{m.grupo ?? '—'}</b></span>
+          {pendiente
+            ? <span>Sale <b>{m.ia ? 'en la próxima corrida' : `${dia(m.sale_at)} ${hora(m.sale_at)}`}</b></span>
+            : <span>{m.estado === 'enviado' ? 'Salió' : 'Era para'} <b>{dia(m.enviado_at ?? m.sale_at)} {hora(m.enviado_at ?? m.sale_at)}</b></span>}
+          <span>{m.ia ? 'Lo escribió la IA' : 'Lo armó Ops'}</span>
+        </div>
+      </div>
+      {m.error && <div className="th-error">{m.error}</div>}
+      {m.sin_grupo && pendiente && <div className="th-aviso">Este envío no tiene grupo de WhatsApp: no va a salir. Cargalo en Envíos automáticos.</div>}
+      {editando ? (
+        <div style={{ padding: '12px 18px' }}>
+          <textarea className="th-edit" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Texto del mensaje" />
+        </div>
+      ) : (
+        <div className="th-chat">
+          <div className="th-burbuja">{m.texto || '(vacío)'}<time>{hora(m.enviado_at)}</time></div>
+        </div>
+      )}
+      <div className="th-acciones">
+        {(pendiente || m.estado === 'fallido') && (editando ? (
+          <>
+            <button type="button" className="btn primary" disabled={!texto.trim()}
+              onClick={() => hacer(() => editarTheoMensaje(m.id, texto))}>Guardar cambios</button>
+            <button type="button" className="btn ghost" onClick={() => { setTexto(m.texto); setEditando(false); }}>Descartar</button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn" onClick={() => setEditando(true)}>Editar</button>
+            {m.mandar_ahora && (
+              <button type="button" className="btn" onClick={() => hacer(() => accionTheoMensaje(m.id, 'ahora'))}>
+                {m.estado === 'fallido' ? 'Reintentar' : 'Mandar ahora'}
+              </button>
+            )}
+            <button type="button" className="btn ghost" onClick={() => hacer(() => accionTheoMensaje(m.id, 'frenar'))}>No mandar</button>
+          </>
+        ))}
+        {m.estado === 'frenado' && (
+          <button type="button" className="btn" onClick={() => hacer(() => accionTheoMensaje(m.id, 'volver'))}>Volver a la cola</button>
+        )}
+        {m.estado === 'enviado' && (
+          <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(m.texto).then(() => setEstado('Copiado'), () => {})}>Copiar texto</button>
+        )}
+        {estado && <span className="dim">{estado}</span>}
+      </div>
+      <div className="th-nota">
+        {pendiente && (m.se_arma_al_salir
+          ? <><b>Se arma a las 23:00</b> con quién guardó su daily hasta ese momento. Si lo editás queda fijo y ya no se actualiza solo.</>
+          : <><b>Editar cambia solo este envío.</b> Para cambiar todos los que vienen, editá la plantilla en Envíos automáticos.</>)}
+        {m.estado === 'enviado' && <><b>Lo que ya salió no se puede cambiar desde acá:</b> WhatsApp no deja que Theo edite lo que mandó. Si hay un error, mandá una corrección.</>}
+        {m.estado === 'frenado' && <>Lo frenó {m.frenado_por ?? 'alguien'} antes de que saliera.</>}
+        {m.estado === 'fallido' && <>Se reintenta solo hasta tres veces mientras no se venza. También podés reintentarlo a mano.</>}
+      </div>
+    </Card>
+  );
+}
+
+function Envios() {
+  const [envios, setEnvios] = useState(null);
+  const [error, setError] = useState(null);
+  const [sel, setSel] = useState('daily');
+  const cargar = useCallback(() => getTheoEnvios().then((r) => { setEnvios(r); setError(null); }).catch(setError), []);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  if (error && !envios) return <div style={{ marginTop: 16 }}><ErrorState error={error} /></div>;
+  if (!envios) return <div style={{ marginTop: 16 }}><SkeletonBlock height={360} /></div>;
+  const actual = envios.find((e) => e.clave === sel) ?? envios[0];
+
+  async function prender(e) {
+    try {
+      await editarTheoEnvio(e.clave, { activo: !e.activo });
+      cargar();
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  return (
+    <div className="th-grid">
+      <Card flush>
+        {envios.map((e) => (
+          <div key={e.clave} className="th-job" aria-current={e.clave === actual.clave}>
+            <div><b>{e.nombre}</b><small>{e.cuando} · → {e.grupo ?? 'sin grupo'}</small></div>
+            <button type="button" className="th-switch" role="switch" aria-checked={e.activo}
+              aria-label={`${e.activo ? 'Apagar' : 'Prender'} ${e.nombre}`} onClick={() => prender(e)} />
+            <div className="how">
+              <span className="th-chip">{e.fuente}</span>
+              {e.ia ? <span className="th-chip ia">Escribe la IA</span> : <span className="th-chip">Sin IA</span>}
+              {e.plantilla && <span className="th-chip">Plantilla editable</span>}
+              {!e.grupo_jid && e.clave === 'daily' && <Pill tone="alert">Falta el grupo</Pill>}
+              <button type="button" className="btn ghost sm" onClick={() => setSel(e.clave)}>Ver →</button>
+            </div>
+          </div>
+        ))}
+      </Card>
+      <EnvioDetalle key={actual.clave} e={actual} onGuardado={cargar} />
+    </div>
+  );
+}
+
+function EnvioDetalle({ e, onGuardado }) {
+  const [plantilla, setPlantilla] = useState(e.plantilla ?? '');
+  const [grupo, setGrupo] = useState(e.grupo ?? '');
+  const [jid, setJid] = useState(e.grupo_jid ?? '');
+  const [estado, setEstado] = useState('');
+  const editable = e.clave === 'daily'; // las llamadas salen por avisar-llamadas.py, con su grupo fijo
+
+  async function guardar() {
+    setEstado('Guardando…');
+    try {
+      await editarTheoEnvio(e.clave, {
+        grupo, grupo_jid: jid, ...(e.plantilla != null ? { plantilla } : {}),
+      });
+      setEstado('Guardado. Vale desde el próximo envío.');
+      onGuardado();
+    } catch (err) {
+      setEstado(err.message);
+    }
+  }
+
+  return (
+    <Card flush className="th-det">
+      <div className="th-dh">
+        <h2>{e.nombre}</h2>
+        <div className="th-meta"><span><b>{e.cuando}</b></span><span>→ <b>{e.grupo ?? 'sin grupo'}</b></span></div>
+      </div>
+      {editable ? (
+        <div className="th-campos">
+          <label>Nombre del grupo<input value={grupo} onChange={(ev) => setGrupo(ev.target.value)} /></label>
+          <label>ID del grupo de WhatsApp<input value={jid} onChange={(ev) => setJid(ev.target.value)} placeholder="120363…@g.us" /></label>
+          {e.plantilla != null && (
+            <label>Plantilla
+              <textarea className="th-edit" style={{ minHeight: 130 }} value={plantilla} onChange={(ev) => setPlantilla(ev.target.value)} />
+              <span className="th-vars">{(e.variables ?? []).map((v) => <code key={v}>{v}</code>)}</span>
+            </label>
+          )}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button type="button" className="btn primary" onClick={guardar}>Guardar</button>
+            <span className="dim">{estado}</span>
+          </div>
+        </div>
+      ) : null}
+      {e.nota && <div className="th-nota">{e.nota}</div>}
+      {e.actualizado_por && <div className="th-nota">Último cambio: {e.actualizado_por}.</div>}
+    </Card>
+  );
+}

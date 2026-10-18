@@ -35,11 +35,12 @@ from src.controllers.transcripts_controller import router as transcripts_router
 from src.controllers.reporte_controller import router as reporte_router
 from src.controllers.audiencia_controller import router as audiencia_router
 from src.controllers.daily_controller import router as daily_router
+from src.controllers.theo_controller import router as theo_router
 from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
 from src.controllers.clientes_controller import service as clientes_service
-from src.services import (activacion_ia_services, audiencia_services, cerebro_services, daily_services, instagram_services,
+from src.services import (activacion_ia_services, audiencia_services, cerebro_services, daily_services, instagram_services, theo_services,
                           llamadas_services, pedidos_services, youtube_services)
 
 import logging
@@ -71,6 +72,7 @@ async def lifespan(_app: FastAPI):
     AuthServices().ensure_local_user()
     IntegrantesServices().ensure_defaults()
     daily_services.ensure_equipo()
+    theo_services.ensure_envios()
     stop = threading.Event()
     threading.Thread(target=_precalentar_cartera, args=(stop,), daemon=True, name="precalentador").start()
     # En la Mac se apagan (TAREAS_AUTOMATICAS=0 en el .env local): comparten con producción el
@@ -206,6 +208,7 @@ app.include_router(webhooks_router, prefix="/api/webhooks", tags=["webhooks"])
 app.include_router(reporte_router, prefix="/api/reporte", tags=["reporte"])
 app.include_router(audiencia_router, prefix="/api/audiencia", tags=["audiencia"])
 app.include_router(daily_router, prefix="/api/daily", tags=["daily"])
+app.include_router(theo_router, prefix="/api/theo", tags=["theo"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

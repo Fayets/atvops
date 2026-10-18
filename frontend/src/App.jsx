@@ -10,6 +10,7 @@ import CajaUno from './pages/CajaUno.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Ideas from './pages/Ideas.jsx';
 import Daily from './pages/Daily.jsx';
+import Theo from './pages/Theo.jsx';
 import Backbone from './pages/Backbone.jsx';
 import BackboneEquipo from './pages/BackboneEquipo.jsx';
 import Home from './pages/Home.jsx';
@@ -224,6 +225,7 @@ export default function App() {
         <Route path="asistente" element={<Asistente />} />
             <Route path="ideas" element={<Ideas />} />
             <Route path="daily" element={<Daily />} />
+            <Route path="theo" element={<Theo />} />
             <Route path="backbone" element={<Backbone />} />
             <Route path="backbone/equipo" element={<BackboneEquipo />} />
             <Route path="configuracion" element={<Configuracion />} />

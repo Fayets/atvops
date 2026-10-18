@@ -254,3 +254,122 @@ def test_una_abierta_hecha_cuenta_una_vez():
     d.guardar_dia("ale", JUEVES, marcas)
     ale = next(p for p in d.backbone(LUNES)["personas"] if p["username"] == "ale")
     assert not any(f["texto"] == abierta["texto"] for f in ale["faltas"])
+
+
+# ------------------------------------------------------------------ la vista Theo
+# Mismo módulo: comparte la base en memoria.
+
+from src.controllers.theo_controller import router as theo_router  # noqa: E402
+from src.services import fathom_services, theo_services as th  # noqa: E402
+
+_app.include_router(theo_router, prefix="/api/theo")
+GRUPO_EQUIPO = "120363000000000000@g.us"
+
+
+@pytest.fixture
+def theo_listo(monkeypatch):
+    th.ensure_envios()
+    monkeypatch.setattr(webhooks_controller, "AGENT_KEY", "clave-test")
+    th.actualizar_envio("daily", {"grupo_jid": GRUPO_EQUIPO}, "franco")
+
+
+def _a_las(monkeypatch, hora, minuto=0):
+    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 22, hora, minuto))
+
+
+def test_la_daily_de_hoy_espera_a_las_23(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 21)
+    p = th.listar("pendientes")["mensajes"]
+    daily = next(m for m in p if m["envio"] == "daily")
+    assert daily["sale_at"] == "2026-10-22T23:00" and daily["se_arma_al_salir"]
+    assert daily["texto"].startswith("Daily completada · jueves 22/10")
+    assert not [m for m in th.cola() if m["envio"] == "daily"]  # todavía no
+
+
+def test_a_las_23_sale_con_la_lista_de_ese_momento(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 23, 1)
+    c = [m for m in th.cola() if m["envio"] == "daily"]
+    assert len(c) == 1 and c[0]["jid"] == GRUPO_EQUIPO and "Nick ✅" in c[0]["texto"]
+    th.resultado(c[0]["id"], True, c[0]["texto"], None)
+    assert not [m for m in th.cola() if m["envio"] == "daily"]
+    enviada = next(m for m in th.listar("enviados")["mensajes"] if m["envio"] == "daily")
+    assert enviada["estado"] == "enviado"
+    with pytest.raises(HTTPException):
+        th.editar(enviada["id"], "otro texto", "franco")  # ya salió
+
+
+def test_sin_grupo_no_sale(monkeypatch):
+    th.ensure_envios()
+    from src.models import TheoMensaje
+    with db_session:
+        for m in TheoMensaje.select():
+            m.delete()
+    th.actualizar_envio("daily", {"grupo_jid": ""}, "franco")
+    _a_las(monkeypatch, 23, 5)
+    assert th.cola() == []
+    assert next(m for m in th.listar("pendientes")["mensajes"] if m["envio"] == "daily")["sin_grupo"]
+
+
+def test_editar_frenar_y_volver(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 23, 10)
+    m = next(x for x in th.listar("pendientes")["mensajes"] if x["envio"] == "daily")
+    th.editar(m["id"], "Hoy no hay daily: feriado", "franco")
+    c = [x for x in th.cola() if x["envio"] == "daily"]
+    assert c[0]["texto"] == "Hoy no hay daily: feriado"  # lo editado queda fijo
+    th.frenar(m["id"], "franco")
+    assert not [x for x in th.cola() if x["envio"] == "daily"]
+    th.volver_a_la_cola(m["id"])
+    assert [x for x in th.cola() if x["envio"] == "daily"]
+
+
+def test_si_falla_se_reintenta_y_despues_se_vence(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 23, 15)
+    c = next(x for x in th.cola() if x["envio"] == "daily")
+    th.resultado(c["id"], False, None, "openclaw devolvió 1")
+    assert [x for x in th.cola() if x["id"] == c["id"]]  # vuelve a intentar
+    _a_las(monkeypatch, 23, 59)
+    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 23, 0, 30))
+    assert not [x for x in th.cola() if x["id"] == c["id"]]  # la de ayer ya no sale
+
+
+def test_plantilla_sin_lista_no_se_guarda(theo_listo):
+    with pytest.raises(HTTPException):
+        th.actualizar_envio("daily", {"plantilla": "Hola equipo"}, "franco")
+    with pytest.raises(HTTPException):
+        th.actualizar_envio("daily", {"grupo_jid": "ventas"}, "franco")
+
+
+def test_las_llamadas_se_editan_y_frenan_en_su_propia_cola(theo_listo):
+    from src.models import ReunionCrm
+    with db_session:
+        ReunionCrm(evento_id="ev-1", prospecto="Martín", reporte_mensaje="📞 Martín · SEÑA",
+                   reporte_at=datetime(2026, 10, 22, 16, 40))
+    assert [r["eventoId"] for r in fathom_services.pendientes()] == ["ev-1"]
+    th.editar("ll-ev-1", "📞 Martín · SEÑA (USD 500)", "franco")
+    assert fathom_services.pendientes()[0]["mensaje"] == "📞 Martín · SEÑA (USD 500)"
+    th.frenar("ll-ev-1", "franco")
+    assert fathom_services.pendientes() == []  # avisar-llamadas.py ya no lo manda
+    th.volver_a_la_cola("ll-ev-1")
+    th.actualizar_envio("llamadas", {"activo": False}, "franco")
+    assert fathom_services.pendientes() == []  # apagado el envío, no sale nada
+    th.actualizar_envio("llamadas", {"activo": True}, "franco")
+    fathom_services.marcar_enviados(["ev-1"])
+    with pytest.raises(HTTPException):
+        th.editar("ll-ev-1", "x", "franco")
+
+
+def test_la_vista_theo_es_de_sistemas_y_operaciones(theo_listo):
+    assert api.get("/api/theo/mensajes", headers=_h("juan")).status_code == 403  # founder
+    assert api.get("/api/theo/mensajes", headers=_h("cris")).status_code == 403
+    assert api.get("/api/theo/mensajes?vista=enviados", headers=_h("franco")).status_code == 200
+    assert api.get("/api/theo/cola").status_code == 401
+    assert api.get("/api/theo/cola", headers={"X-Agent-Key": "clave-test"}).status_code == 200
+
+
+def test_otro_script_registra_lo_que_mando(theo_listo):
+    r = api.post("/api/theo/registro", headers={"X-Agent-Key": "clave-test"},
+                 json={"envio": "landing", "texto": "⚠️ La landing tiene 38 visitas y 0 registros", "ok": True})
+    assert r.status_code == 200
+    env = th.listar("enviados", envio="landing")["mensajes"]
+    assert env and env[0]["texto"].startswith("⚠️")
+    assert not [x for x in th.cola() if x["envio"] == "landing"]  # lo registrado no se reenvía

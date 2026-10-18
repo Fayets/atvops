@@ -31,8 +31,21 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001
         salir(f"No se pudo ejecutar openclaw: {str(e)[:160]}")
     if r.returncode != 0:
+        _anotar(False, (r.stderr or r.stdout)[:300])
         salir(f"openclaw devolvió {r.returncode}: {(r.stderr or r.stdout)[:300]}")
+    _anotar(True, None)
     print(f"Foto enviada a {grupo}.")
+
+
+def _anotar(ok: bool, error: str | None) -> None:
+    """Queda en la vista Theo de ATV Ops. Si Ops no contesta, la foto salió igual."""
+    try:
+        from pathlib import Path
+        sys.path.insert(0, str(Path("/opt/atv-ops/deploy/theo")))
+        from registro_theo import anotar
+        anotar("capacidad", f"[Imagen] Capacidad Operativa · {FOTO.name}", ok, error)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 if __name__ == "__main__":

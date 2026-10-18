@@ -3101,3 +3101,33 @@ export async function guardarTareasRol(username, tareas) {
     body: JSON.stringify(tareas),
   });
 }
+
+/* ------------------------------------------------------------ vista Theo */
+
+export async function getTheoMensajes(vista, { envio, q } = {}) {
+  const p = new URLSearchParams({ vista });
+  if (envio) p.set('envio', envio);
+  if (q) p.set('q', q);
+  return pedirDeVerdad(`/api/theo/mensajes?${p}`);
+}
+
+export async function editarTheoMensaje(id, texto) {
+  return pedirDeVerdad(`/api/theo/mensajes/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }),
+  });
+}
+
+/** accion: frenar | volver | ahora */
+export async function accionTheoMensaje(id, accion) {
+  return pedirDeVerdad(`/api/theo/mensajes/${encodeURIComponent(id)}/${accion}`, { method: 'POST' });
+}
+
+export async function getTheoEnvios() {
+  return pedirDeVerdad('/api/theo/envios');
+}
+
+export async function editarTheoEnvio(clave, cambios) {
+  return pedirDeVerdad(`/api/theo/envios/${clave}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios),
+  });
+}
