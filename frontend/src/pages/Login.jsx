@@ -70,9 +70,6 @@ export default function Login() {
         <form className="login-card" onSubmit={onSubmit}>
           <h1 className="login-title">Iniciar sesion</h1>
 
-          <BotonGoogle onCredencial={onGoogle} />
-          <div className="login-o"><span>o con usuario</span></div>
-
           <label className="login-field">
             <span>Usuario</span>
             <input
@@ -103,6 +100,9 @@ export default function Login() {
           >
             {loading ? 'Entrando…' : 'Iniciar sesion'}
           </button>
+
+          <div className="login-o"><span>o con Google</span></div>
+          <BotonGoogle onCredencial={onGoogle} />
         </form>
       </div>
     </div>
