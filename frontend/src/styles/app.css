@@ -8516,3 +8516,18 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   border: 1px solid var(--warn); background: var(--surface); color: var(--text); border-radius: 6px;
   padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer;
 }
+
+/* La ruedita del pie: Entrar como, Ver como y Reuniones ocultas en un menú que se abre hacia arriba. */
+.sidebar-ajustes { position: relative; }
+.sidebar-icono.abierto { color: var(--text); border-color: var(--text-3); background: var(--surface); }
+.sidebar-menu {
+  position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 40; width: 216px;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(28, 25, 23, 0.14);
+}
+.sidebar-menu-item {
+  text-align: left; border: 1px solid var(--border); background: var(--surface-2); border-radius: 6px;
+  padding: 6px 8px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer;
+}
+.sidebar-menu-item:hover { border-color: var(--text-3); }

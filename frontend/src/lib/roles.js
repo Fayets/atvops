@@ -266,6 +266,12 @@ export function filtrarNav(nav, rol) {
       if (item.to === '/ventas' && puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
         return { ...item, to: '/ventas/mi-progreso', raiz: item.to, sub };
       }
+      // Un grupo con una sola pantalla visible no despliega nada: es un link común.
+      if (sub.length === 1 && sub[0].to === item.to) return { ...item, sub: undefined };
+      // El grupo (Reportes) lleva a la primera pantalla que este rol puede ver.
+      if (sub.length && !puedeVerRuta(item.to, rol)) {
+        return { ...item, to: sub[0].to, raiz: item.raiz ?? item.to, sub };
+      }
       return { ...item, sub };
     })
     .filter(Boolean);

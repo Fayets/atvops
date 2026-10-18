@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession, entrarComoSesion, sesionOriginal, volverASesionOriginal } from '../../lib/auth.js';
 import { entrarComo, getEquipoDaily } from '../../data/api.js';
@@ -85,18 +85,17 @@ const NAV = [
       { to: '/ventas/caja', label: 'Caja 1', roles: ['closer', 'ventas', 'admin', 'founder', 'operaciones'] },
     ],
   },
-  // El reporte de dirección: período, áreas, hoja. La semana es un caso más del período.
-  { to: '/reporte', icon: 'check', label: 'Reporte', grupo: 'Dirección' },
-  // El reporte mensual de producto: lo arma dirección, no el área.
-  { to: '/reporte-producto', icon: 'check', label: 'Reporte de producto', grupo: 'Dirección',
-    roles: ['admin', 'founder', 'operaciones'],
-    // Los meses no van acá: se ven en el historial, que es donde además traen su cash,
-    // sus upsells y quiénes se fueron.
-    sub: [{ to: '/reporte-producto/historial', label: 'Historial' }] },
-  { to: '/reporte-closing', icon: 'check', label: 'Reporte de closing', grupo: 'Dirección',
-    roles: ['admin', 'founder', 'operaciones', 'ventas'] },
-  { to: '/reporte-setting', icon: 'check', label: 'Reporte de setting', grupo: 'Dirección',
-    roles: ['admin', 'founder', 'operaciones', 'ventas'] },
+  // Los cuatro reportes en un solo ítem: el menú se achica y se despliegan al entrar.
+  // Cada uno conserva sus permisos; a quien no ve el de dirección (ventas) el ítem lo
+  // lleva al primero que sí ve.
+  { to: '/reporte', icon: 'check', label: 'Reportes', grupo: 'Dirección', raiz: '/reporte',
+    sub: [
+      { to: '/reporte', label: 'Dirección', end: true },
+      { to: '/reporte-producto', label: 'Producto', end: true, roles: ['admin', 'founder', 'operaciones'] },
+      { to: '/reporte-producto/historial', label: 'Historial de producto', roles: ['admin', 'founder', 'operaciones'] },
+      { to: '/reporte-closing', label: 'Closing', roles: ['admin', 'founder', 'operaciones', 'ventas'] },
+      { to: '/reporte-setting', label: 'Setting', roles: ['admin', 'founder', 'operaciones', 'ventas'] },
+    ] },
   { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
   // El organigrama con lo que cada uno marcó en su daily. Equipo: mails, cargos y las
   // tareas fijas de cada rol, que edita Franco.
@@ -106,19 +105,18 @@ const NAV = [
   // Lo que manda Theo por WhatsApp: lo que va a salir se edita o se frena, lo que salió
   // queda de registro. Es de sistemas y operaciones, no de founder.
   { to: '/theo', icon: 'ideas', label: 'Theo', grupo: 'Sistema', rolesReales: ['admin', 'operaciones'] },
+  // Claves API cuelga de Integraciones: son las credenciales de esas mismas plataformas.
   {
     to: '/integraciones',
     icon: 'integraciones',
     label: 'Integraciones',
     grupo: 'Sistema',
     roles: ['admin', 'founder', 'operaciones', 'marketing'],
-  },
-  {
-    to: '/claves',
-    icon: 'config',
-    label: 'Claves API',
-    grupo: 'Sistema',
-    roles: ['admin', 'founder', 'operaciones'],
+    raiz: '/integraciones',
+    sub: [
+      { to: '/integraciones', label: 'Integraciones', end: true },
+      { to: '/claves', label: 'Claves API', roles: ['admin', 'founder', 'operaciones'] },
+    ],
   },
   { to: '/cobranza', icon: 'cobranza', label: 'Cobranza', grupo: 'Áreas',
     sub: [
@@ -131,6 +129,12 @@ const NAV = [
   { to: '/configuracion', icon: 'config', label: 'Configuración', grupo: 'Sistema' },
 ];
 
+/** Si la pantalla actual es de este ítem: su sección o cualquiera de sus subpantallas. */
+function dentroDe(item, pathname) {
+  const rutas = [item.raiz ?? item.to, ...(item.sub ?? []).map((s) => s.to)];
+  return rutas.some((r) => pathname === r || pathname.startsWith(`${r}/`) || (r === item.raiz && pathname.startsWith(r)));
+}
+
 export default function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -140,6 +144,18 @@ export default function Sidebar() {
   const comoOtro = Boolean(user?.por) || Boolean(sesionOriginal());
   const puedeEntrarComo = rolReal === 'admin' && !comoOtro;
   const [equipo, setEquipo] = useState([]);
+  // Entrar como, Ver como y Reuniones ocultas viven en la ruedita: el pie queda en una línea.
+  const [ajustes, setAjustes] = useState(false);
+  const ajustesRef = useRef(null);
+  const hayAjustes = puedeEntrarComo || (puedePreview && !comoOtro) || puedeOcultarReuniones(rol);
+  useEffect(() => {
+    if (!ajustes) return undefined;
+    const fuera = (e) => { if (!ajustesRef.current?.contains(e.target)) setAjustes(false); };
+    const esc = (e) => { if (e.key === 'Escape') setAjustes(false); };
+    document.addEventListener('mousedown', fuera);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', esc); };
+  }, [ajustes]);
   useEffect(() => {
     if (!puedeEntrarComo) return;
     getEquipoDaily().then(setEquipo).catch(() => setEquipo([]));
@@ -201,13 +217,13 @@ export default function Sidebar() {
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) => `nav-item${
-                    isActive || (item.raiz && pathname.startsWith(item.raiz)) ? ' active' : ''}`}
+                    isActive || dentroDe(item, pathname) ? ' active' : ''}`}
                 >
                   <Icon name={item.icon} />
                   {item.label}
                 </NavLink>
 
-                {item.sub && pathname.startsWith(item.raiz ?? item.to) && (
+                {item.sub && dentroDe(item, pathname) && (
                   <div className="subnav">
                     {item.sub.map((s) => (
                       <NavLink
@@ -246,42 +262,53 @@ export default function Sidebar() {
           </span>
         </div>
 
-        {puedeEntrarComo && equipo.length > 0 && (
-          <label className="sidebar-preview">
-            <span>Entrar como</span>
-            <select value="" onChange={onEntrarComo} aria-label="Entrar a la cuenta de">
-              <option value="">Elegí a alguien…</option>
-              {equipo.filter((p) => p.username !== user?.username).map((p) => (
-                <option key={p.username} value={p.username}>{p.nombre}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {puedePreview && !comoOtro && (
-          <label className="sidebar-preview">
-            <span>Ver como</span>
-            <select value={rol} onChange={onPreview} aria-label="Ver como rol">
-              {ROL_LIST.map((id) => (
-                <option key={id} value={id}>
-                  {ROLES[id]?.label ?? id}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
         <div className="sidebar-acciones">
-          {puedeOcultarReuniones(rol) && (
-            <button
-              type="button"
-              className="sidebar-icono"
-              onClick={() => setVerOcultas(true)}
-              title="Reuniones ocultas"
-              aria-label="Reuniones ocultas"
-            >
-              <Icon name="config" />
-            </button>
+          {hayAjustes && (
+            <div className="sidebar-ajustes" ref={ajustesRef}>
+              <button
+                type="button"
+                className={`sidebar-icono${ajustes ? ' abierto' : ''}`}
+                onClick={() => setAjustes((v) => !v)}
+                title="Ajustes"
+                aria-label="Ajustes"
+                aria-expanded={ajustes}
+              >
+                <Icon name="config" />
+              </button>
+              {ajustes && (
+                <div className="sidebar-menu" role="menu">
+                  {puedeEntrarComo && equipo.length > 0 && (
+                    <label className="sidebar-preview">
+                      <span>Entrar como</span>
+                      <select value="" onChange={onEntrarComo} aria-label="Entrar a la cuenta de">
+                        <option value="">Elegí a alguien…</option>
+                        {equipo.filter((p) => p.username !== user?.username).map((p) => (
+                          <option key={p.username} value={p.username}>{p.nombre}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {puedePreview && !comoOtro && (
+                    <label className="sidebar-preview">
+                      <span>Ver como</span>
+                      <select value={rol} onChange={onPreview} aria-label="Ver como rol">
+                        {ROL_LIST.map((id) => (
+                          <option key={id} value={id}>
+                            {ROLES[id]?.label ?? id}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {puedeOcultarReuniones(rol) && (
+                    <button type="button" className="sidebar-menu-item" role="menuitem"
+                      onClick={() => { setAjustes(false); setVerOcultas(true); }}>
+                      Reuniones ocultas
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           <button type="button" className="sidebar-salir" onClick={salir}>
             Salir
