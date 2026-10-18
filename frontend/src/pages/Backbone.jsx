@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { getBackbone } from '../data/api.js';
 import { BANDA_TEXTO, banda, DIAS_CORTOS, fechaCorta, sumarDias } from '../lib/daily.js';
@@ -42,47 +41,21 @@ export default function Backbone() {
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
   if (!data) return <div className="page"><SkeletonBlock height={520} /></div>;
 
-  const conDaily = data.personas.filter((p) => p.daily);
-  const cuenta = (b) => conDaily.filter((p) => banda(p.pct) === b).length;
-  const hoyIdx = data.corte;
-  const guardaronHoy = data.semana <= data.hoy && sumarDias(data.semana, 4) >= data.hoy
-    ? conDaily.filter((p) => p.dias?.[hoyIdx]?.estado === 'ok' || p.dias?.[hoyIdx]?.estado === 'tarde').length : null;
   const actual = data.semana <= data.hoy && sumarDias(data.semana, 4) >= data.hoy;
-
-  const antesDelInicio = data.semana < data.inicio;
   const futura = data.semana > data.hoy;
   const cerrar = () => { setSel(null); setSelEdge(null); };
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow={`Dirección · Backbone · semana del ${fechaCorta(data.semana)} al ${fechaCorta(sumarDias(data.semana, 4))}${actual ? ', a hoy' : ''}`}
-        title="Cómo viene el equipo"
-        desc="El color sale de las tareas que cada uno marcó en su daily. Clic en una persona para ver el detalle de su semana."
-        actions={(
-          <div className="dl-weeknav">
-            <button type="button" className="btn ghost sm" disabled={data.semana <= data.inicio}
-              onClick={() => { cerrar(); setSemana(sumarDias(data.semana, -7)); }}>←</button>
-            <button type="button" className="btn ghost sm" disabled={actual || futura}
-              onClick={() => { cerrar(); setSemana(sumarDias(data.semana, 7)); }}>→</button>
-          </div>
-        )}
-      />
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
-        {antesDelInicio || futura ? (
-          <Pill tone="off">{antesDelInicio ? 'La daily arrancó el lunes 19/10: esta semana no se cuenta' : 'Esta semana todavía no empezó'}</Pill>
-        ) : (
-          <>
-            <Pill tone="ok">{cuenta('ok')} en verde</Pill>
-            <Pill tone="warn">{cuenta('warn')} en ámbar</Pill>
-            <Pill tone="alert">{cuenta('alert')} en rojo</Pill>
-            {guardaronHoy != null && <Pill tone="off">Daily de hoy: {guardaronHoy}/{conDaily.length}</Pill>}
-          </>
-        )}
-      </div>
-
       <Card flush>
         <div className="bb-bar">
+          <div className="dl-weeknav">
+            <button type="button" className="btn ghost sm" disabled={data.semana <= data.inicio} aria-label="Semana anterior"
+              onClick={() => { cerrar(); setSemana(sumarDias(data.semana, -7)); }}>←</button>
+            <b>Semana del {fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 4))}</b>
+            <button type="button" className="btn ghost sm" disabled={actual || futura} aria-label="Semana siguiente"
+              onClick={() => { cerrar(); setSemana(sumarDias(data.semana, 7)); }}>→</button>
+          </div>
           <div className="bb-seg" role="group" aria-label="Flechas de entregas">
             {[['ninguna', 'Sin flechas'], ['todas', 'Ver entregas']].map(([k, l]) => (
               <button key={k} type="button" aria-pressed={modo === k}
