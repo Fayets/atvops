@@ -173,13 +173,13 @@ function Secuencia({ s, onVolver }) {
 function SecuenciasDelMes({ secuencias, mesLabel, onElegir }) {
   if (!secuencias.length) {
     return (
-      <div className="card lab-vacio"><h3>No hay secuencias de historias en {mesLabel}</h3>
+      <div className="card lab-vacio"><h3>No hay secuencias con CTA en {mesLabel}</h3>
         <p className="dim">Cambiá el mes arriba a la derecha, o usá "Analizar ahora" para traer las respuestas nuevas.</p></div>
     );
   }
   return (
     <section className="aud-secs">
-      <h2 className="aud-secs-tit">Secuencias de {mesLabel} <span className="dim num">· {secuencias.length}</span></h2>
+      <h2 className="aud-secs-tit">Secuencias con CTA de {mesLabel} <span className="dim num">· {secuencias.length}</span></h2>
       <div className="aud-secs-grilla">
         {secuencias.map((s) => {
           const tapa = s.piezas.find((p) => p.thumbnail)?.thumbnail;
@@ -191,8 +191,7 @@ function SecuenciasDelMes({ secuencias, mesLabel, onElegir }) {
               </span>
               <span className="aud-sec-txt">
                 <b>{fecha(`${s.fecha}T12:00:00`)}</b>
-                {s.cta && <span className="aud-sec-cta">con CTA</span>}
-                <span className="dim num">{s.respuestas ?? 0} respuestas · {s.calificado ?? 0} calificados</span>
+                                <span className="dim num">{s.respuestas ?? 0} respuestas · {s.calificado ?? 0} calificados</span>
                 <span className="num aud-sec-pct">{s.analizados ? pct(s.pctCalificados) : '—'} <span className="dim">calificados</span></span>
               </span>
             </button>
@@ -240,7 +239,8 @@ export default function Audiencia() {
   const reels = data?.reels ?? [];
   const reelActual = reels[Math.min(indice, Math.max(reels.length - 1, 0))] ?? null;
   const secuencias = data?.historias ?? [];
-  const secuenciasMes = secuencias.filter((s) => (s.fecha || '').startsWith(mes));
+  // Solo las secuencias con CTA: las demás no buscan respuestas y no dicen nada de leads.
+  const secuenciasMes = secuencias.filter((s) => s.cta && (s.fecha || '').startsWith(mes));
   const secActual = secuencias.find((s) => s.id === secId) ?? null;
   const mesLabel = (opciones ?? []).find((o) => o.id === mes)?.label?.toLowerCase() ?? 'este mes';
   const actual = fuente === 'historia' ? secActual : reelActual;
