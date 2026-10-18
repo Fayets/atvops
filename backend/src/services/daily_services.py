@@ -473,12 +473,17 @@ def borrar_tarea(username: str, tarea_id: int) -> None:
 
 def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
     """Guarda la daily de un día. Todas las tareas que vencían ese día tienen que venir con
-    estado, y las que no se hicieron (o no aplican) con motivo."""
+    estado, y las que no se hicieron (o no aplican) con motivo.
+
+    Un día que todavía no llegó también se puede marcar, para adelantar: la tarea del
+    viernes que se hizo el lunes. Ahí vale solo "hecha" o "no aplica", no hace falta
+    marcar todo y no cuenta como la daily de ese día: esa se guarda cuando llega."""
     h = hoy()
     if fecha.weekday() >= 5:
         raise HTTPException(status_code=400, detail="La daily es de lunes a viernes.")
-    if fecha > h:
-        raise HTTPException(status_code=400, detail="Ese día todavía no llegó.")
+    adelanto = fecha > h
+    if adelanto and lunes_de(fecha) > lunes_de(h) + timedelta(days=7):
+        raise HTTPException(status_code=400, detail="Solo se adelanta esta semana o la que viene.")
     semana = lunes_de(fecha)
     dia = fecha.weekday()
     por_id = {}
@@ -486,6 +491,8 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
         estado = m.get("estado")
         if estado is not None and estado not in ESTADOS:
             raise HTTPException(status_code=400, detail="Estado inválido.")
+        if adelanto and estado == "no":
+            raise HTTPException(status_code=400, detail="Ese día todavía no llegó: se puede marcar hecha o que no aplica.")
         por_id[int(m["tarea_id"])] = (estado, (m.get("motivo") or "").strip() or None)
     with db_session:
         _sincronizar_semana(username, semana)
@@ -496,7 +503,8 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
                 continue
             estado, motivo = por_id.get(t.id, (None, None))
             if estado is None:
-                faltan.append(t.texto)
+                if not adelanto:
+                    faltan.append(t.texto)
             elif estado != "hecha" and not motivo:
                 faltan.append(f"{t.texto} (falta el motivo)")
         if faltan:
@@ -518,7 +526,9 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
                 MarcaDaily(tarea=t, fecha=fecha, estado=estado, motivo=motivo if estado != "hecha" else None,
                            marcado_at=ahora())
         c = CierreDaily.get(usuario=username, fecha=fecha)
-        if c is None:
+        if adelanto:
+            pass  # lo adelantado no es la daily de ese día
+        elif c is None:
             CierreDaily(usuario=username, fecha=fecha, guardado_at=ahora(), actualizado_at=ahora(), a_tiempo=fecha == h)
         else:
             c.actualizado_at = ahora()

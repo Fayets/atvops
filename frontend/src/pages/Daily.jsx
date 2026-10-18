@@ -118,10 +118,13 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
   const [error, setError] = useState('');
   useEffect(() => { setDraft(inicial); setError(''); }, [inicial]);
 
-  const falta = deHoy.filter((t) => {
-    const v = draft[t.id];
-    return !v?.estado || (v.estado !== 'hecha' && !v.motivo.trim());
-  }).length;
+  // Hoy y los días pasados se guardan completos; uno que no llegó solo pide motivo en lo marcado.
+  const falta = d.futuro
+    ? [...deHoy, ...abiertas].filter((t) => { const v = draft[t.id]; return v?.estado && v.estado !== 'hecha' && !v.motivo.trim(); }).length
+    : deHoy.filter((t) => {
+      const v = draft[t.id];
+      return !v?.estado || (v.estado !== 'hecha' && !v.motivo.trim());
+    }).length;
   const pct = cumplimiento(data);
   const b = banda(pct);
 
@@ -156,14 +159,6 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
         {otro && <span>· hecha el {otro}</span>}
       </small>
     );
-    if (d.futuro) {
-      return (
-        <div className="dl-task" key={t.id}>
-          <div className="t"><b>{t.texto}</b>{etiquetas}</div>
-          <span />
-        </div>
-      );
-    }
     if (otro) {
       return (
         <div className="dl-task" key={t.id}>
@@ -176,7 +171,9 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       <div className="dl-task" key={t.id}>
         <div className="t"><b>{t.texto}</b>{etiquetas}</div>
         <div className="dl-seg" role="group" aria-label={`Estado de ${t.texto}`}>
-          {[['hecha', 'Hecha'], ['no', 'No la hice'], ['no_aplica', 'No aplica']].map(([k, l]) => (
+          {/* Un día que no llegó se adelanta: lo hiciste antes o no va a aplicar. */}
+          {(d.futuro ? [['hecha', 'Hecha'], ['no_aplica', 'No aplica']]
+            : [['hecha', 'Hecha'], ['no', 'No la hice'], ['no_aplica', 'No aplica']]).map(([k, l]) => (
             <button key={k} type="button" className={k} aria-pressed={v.estado === k} onClick={() => poner(t.id, k)}>{l}</button>
           ))}
         </div>
@@ -205,7 +202,10 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             <button key={x.fecha} type="button" className={`dl-day ${e}`} aria-pressed={i === dia} onClick={() => setDia(i)}>
               <b>{DIAS[i]}</b>
               <span>{fechaCorta(x.fecha)} · {n} {n === 1 ? 'tarea' : 'tareas'}</span>
-              <i>{x.futuro ? 'Todavía no llegó' : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : e === 'tarde' ? 'Cargada tarde' : '✕ Sin guardar'}</i>
+              <i>{x.futuro ? (() => {
+                const adelantadas = data.tareas.filter((t) => t.marcas[x.fecha]).length;
+                return adelantadas ? `${adelantadas} adelantada${adelantadas > 1 ? 's' : ''}` : 'Todavía no llegó';
+              })() : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : e === 'tarde' ? 'Cargada tarde' : '✕ Sin guardar'}</i>
               {x.es_hoy && <em>Hoy</em>}
             </button>
           );
@@ -214,22 +214,24 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       <div className="dl-grid">
         <Card flush>
           <div className="dl-sec">
-            <div className="dl-sech"><h3>{d.es_hoy ? 'Hoy' : `El ${DIAS[dia]}`}{d.futuro ? <span className="dim" style={{ fontWeight: 400 }}> · todavía no llegó, se marca ese día</span> : null}</h3><span>{deHoy.length} tareas</span></div>
+            <div className="dl-sech"><h3>{d.es_hoy ? 'Hoy' : `El ${DIAS[dia]}`}{d.futuro ? <span className="dim" style={{ fontWeight: 400 }}> · todavía no llegó: podés adelantar lo que ya hiciste</span> : null}</h3><span>{deHoy.length} tareas</span></div>
             {deHoy.length ? deHoy.map(fila) : <p className="dl-vacio">No hay tareas fijas este día.</p>}
           </div>
           <div className="dl-sec">
             <div className="dl-sech"><h3>Abiertas en la semana</h3><span>se cierran cualquier día</span></div>
             {abiertas.length ? abiertas.map(fila) : <p className="dl-vacio">Nada abierto. Sumá tareas en "Armar la semana".</p>}
           </div>
-          {!d.futuro && <div className="dl-save">
+          {<div className="dl-save">
             <span>
               {error ? <span className="dl-error">{error}</span>
+                : d.futuro ? (falta ? 'Falta el motivo en lo que marcaste como "no aplica".'
+                  : `Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`)
                 : falta ? `Faltan ${falta} tareas del día por marcar o con motivo.`
                   : d.guardado_at ? 'Ya está guardada. Si cambiaste algo, guardá de nuevo.'
                     : 'Todo marcado. Guardá para que cuente.'}
             </span>
             <button type="button" className="btn primary" disabled={guardando || falta > 0} onClick={guardar}>
-              {guardando ? 'Guardando…' : 'Guardar daily'}
+              {guardando ? 'Guardando…' : d.futuro ? 'Guardar' : 'Guardar daily'}
             </button>
           </div>}
         </Card>

@@ -114,10 +114,12 @@ def test_backbone_marca_la_entrega_cortada():
     assert e["estado"] == "alert"  # lunes a miércoles sin daily, jueves no la hizo
 
 
-def test_un_dia_que_no_llego_no_se_guarda():
+def test_un_dia_que_no_llego_no_cuenta_como_daily():
+    """Se puede adelantar todo el viernes, pero la daily del viernes se guarda el viernes."""
     s = d.ver_semana("ale", LUNES)
-    with pytest.raises(HTTPException):
-        d.guardar_dia("ale", date(2026, 10, 23), _marcar_todo(s, date(2026, 10, 23)))
+    d.guardar_dia("ale", date(2026, 10, 23), _marcar_todo(s, date(2026, 10, 23)))
+    with db_session:
+        assert d.CierreDaily.get(usuario="ale", fecha=date(2026, 10, 23)) is None
 
 
 def test_el_fin_de_semana_theo_no_manda():
@@ -392,3 +394,18 @@ def test_el_domingo_backbone_abre_la_semana_que_viene(monkeypatch):
 def test_el_detalle_trae_la_semana_entera():
     lucas = next(p for p in d.backbone(LUNES)["personas"] if p["username"] == "lucas")
     assert any(t["texto"] == "Revisión del pipeline" for t in lucas["tareas"])
+
+
+def test_se_adelanta_una_tarea_de_un_dia_que_no_llego():
+    """La tarea del viernes hecha el jueves: se marca ya y el viernes aparece hecha."""
+    viernes = date(2026, 10, 23)
+    s = d.ver_semana("lucas", LUNES)
+    reporte = next(t for t in s["tareas"] if t["texto"] == "Reporte semanal de ventas a Juan")
+    r = d.guardar_dia("lucas", viernes, [{"tarea_id": reporte["id"], "estado": "hecha", "motivo": None}])
+    t = next(x for x in r["tareas"] if x["id"] == reporte["id"])
+    assert t["marcas"]["2026-10-23"]["estado"] == "hecha"
+    assert r["dias"][4]["guardado_at"] is None  # no cuenta como la daily del viernes
+    with pytest.raises(HTTPException):
+        d.guardar_dia("lucas", viernes, [{"tarea_id": reporte["id"], "estado": "no", "motivo": "x"}])
+    with pytest.raises(HTTPException):
+        d.guardar_dia("lucas", date(2026, 11, 6), [])  # más allá de la semana que viene
