@@ -184,3 +184,30 @@
 .eq-form .full { grid-column: 1 / -1; }
 .eq-tarea { display: grid; grid-template-columns: minmax(0, 1fr) 110px 120px 130px 28px; gap: 6px; align-items: center; padding: 4px 0; }
 @media (max-width: 760px) { .eq-tarea { grid-template-columns: 1fr 1fr; } .eq-tarea input { grid-column: 1 / -1; } }
+
+/* Detalle de Backbone: panel que entra desde la derecha sobre el organigrama. */
+.bb-velo { position: fixed; inset: 0; background: rgba(28, 25, 23, .28); z-index: 60; display: flex; justify-content: flex-end; }
+.bb-drawer {
+  position: relative; width: min(600px, 100vw); height: 100%; overflow-y: auto; background: var(--surface);
+  box-shadow: -12px 0 32px rgba(28, 25, 23, .14); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  animation: bb-entra .18s ease-out;
+}
+@keyframes bb-entra { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bb-drawer { animation: none; } }
+.bb-cerrar { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--surface); cursor: pointer; color: var(--text-2); z-index: 1; }
+.bb-cerrar:hover { color: var(--text); border-color: var(--text-3); }
+.bb-drawer .bb-ph { padding-right: 56px; }
+.bb-tabla { overflow-x: auto; }
+.bb-tabla table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.bb-tabla th, .bb-tabla td { border-bottom: 1px solid var(--border-soft); padding: 6px 4px; }
+.bb-tabla thead th { font-size: 11px; color: var(--text-3); font-weight: 600; text-align: center; }
+.bb-tabla thead th:first-child { text-align: left; }
+.bb-tabla tbody th { text-align: left; font-weight: 500; min-width: 0; }
+.bb-tabla tbody th span { display: block; }
+.bb-tabla tbody th small { display: block; color: var(--text-3); font-size: 11px; font-weight: 400; }
+.bb-tabla td { width: 40px; text-align: center; font-weight: 700; }
+.bb-tabla td.ok { color: var(--ok); }
+.bb-tabla td.alert { color: var(--alert); background: var(--alert-dim); cursor: help; }
+.bb-tabla td.off { color: var(--text-3); cursor: help; }
+.bb-tabla td.falta { color: var(--alert); }
+.bb-tabla td.vacio { background: var(--surface-2); }

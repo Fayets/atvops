@@ -21,7 +21,7 @@ export default function Backbone() {
   const [semana, setSemana] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [modo, setModo] = useState('cortes');
+  const [modo, setModo] = useState('ninguna');
   const [sel, setSel] = useState(null);
   const [selEdge, setSelEdge] = useState(null);
 
@@ -49,54 +49,68 @@ export default function Backbone() {
     ? conDaily.filter((p) => p.dias?.[hoyIdx]?.estado === 'ok' || p.dias?.[hoyIdx]?.estado === 'tarde').length : null;
   const actual = data.semana <= data.hoy && sumarDias(data.semana, 4) >= data.hoy;
 
+  const antesDelInicio = data.semana < data.inicio;
+  const futura = data.semana > data.hoy;
+  const cerrar = () => { setSel(null); setSelEdge(null); };
+
   return (
     <div className="page">
       <PageHeader
         eyebrow={`Dirección · Backbone · semana del ${fechaCorta(data.semana)} al ${fechaCorta(sumarDias(data.semana, 4))}${actual ? ', a hoy' : ''}`}
         title="Cómo viene el equipo"
-        desc="El color sale de las tareas que cada uno marcó en su daily. Clic en una persona para ver qué le faltó y por qué."
+        desc="El color sale de las tareas que cada uno marcó en su daily. Clic en una persona para ver el detalle de su semana."
         actions={(
           <div className="dl-weeknav">
-            <button type="button" className="btn ghost sm" onClick={() => { setSel(null); setSelEdge(null); setSemana(sumarDias(data.semana, -7)); }}>←</button>
-            <button type="button" className="btn ghost sm" disabled={actual}
-              onClick={() => { setSel(null); setSelEdge(null); setSemana(sumarDias(data.semana, 7)); }}>→</button>
+            <button type="button" className="btn ghost sm" disabled={data.semana <= data.inicio}
+              onClick={() => { cerrar(); setSemana(sumarDias(data.semana, -7)); }}>←</button>
+            <button type="button" className="btn ghost sm" disabled={actual || futura}
+              onClick={() => { cerrar(); setSemana(sumarDias(data.semana, 7)); }}>→</button>
           </div>
         )}
       />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
-        <Pill tone="ok">{cuenta('ok')} en verde</Pill>
-        <Pill tone="warn">{cuenta('warn')} en ámbar</Pill>
-        <Pill tone="alert">{cuenta('alert')} en rojo</Pill>
-        {guardaronHoy != null && <Pill tone="off">Daily de hoy: {guardaronHoy}/{conDaily.length}</Pill>}
+        {antesDelInicio || futura ? (
+          <Pill tone="off">{antesDelInicio ? 'La daily arrancó el lunes 19/10: esta semana no se cuenta' : 'Esta semana todavía no empezó'}</Pill>
+        ) : (
+          <>
+            <Pill tone="ok">{cuenta('ok')} en verde</Pill>
+            <Pill tone="warn">{cuenta('warn')} en ámbar</Pill>
+            <Pill tone="alert">{cuenta('alert')} en rojo</Pill>
+            {guardaronHoy != null && <Pill tone="off">Daily de hoy: {guardaronHoy}/{conDaily.length}</Pill>}
+          </>
+        )}
       </div>
 
-      <div className="bb-grid">
-        <Card flush>
-          <div className="bb-bar">
-            <div className="bb-seg" role="group" aria-label="Entregas visibles">
-              {[['cortes', 'Solo cortes'], ['todas', 'Todas las entregas'], ['ninguna', 'Ninguna']].map(([k, l]) => (
-                <button key={k} type="button" aria-pressed={modo === k}
-                  onClick={() => { setModo(k); setSel(null); setSelEdge(null); }}>{l}</button>
-              ))}
-            </div>
-            <div className="bb-legend">
-              <span><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="currentColor" strokeWidth="1.4" /></svg>Entrega</span>
-              <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--ok)" /></svg>Daily a tiempo</span>
-              <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--warn)" /></svg>Cargada tarde</span>
-              <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--surface)" stroke="var(--alert)" /></svg>Sin daily</span>
-            </div>
+      <Card flush>
+        <div className="bb-bar">
+          <div className="bb-seg" role="group" aria-label="Flechas de entregas">
+            {[['ninguna', 'Sin flechas'], ['todas', 'Ver entregas']].map(([k, l]) => (
+              <button key={k} type="button" aria-pressed={modo === k}
+                onClick={() => { setModo(k); cerrar(); }}>{l}</button>
+            ))}
           </div>
-          <Organigrama data={data} layout={layout} modo={modo} sel={sel} selEdge={selEdge}
-            onSel={(u) => { setSel((s) => (s === u ? null : u)); setSelEdge(null); }}
-            onEdge={(id) => setSelEdge(id)}
-            onFondo={() => { setSel(null); setSelEdge(null); }} />
-          <div className="bb-hint">Debajo de cada nombre, los cinco días de la semana. Esc para volver al equipo.</div>
-        </Card>
-        <Card flush className="bb-panel">
-          <Panel data={data} sel={sel} selEdge={selEdge}
-            onSel={(u) => { setSel(u); setSelEdge(null); }} onEdge={setSelEdge} />
-        </Card>
-      </div>
+          <div className="bb-legend">
+            <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--ok)" /></svg>Daily a tiempo</span>
+            <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--warn)" /></svg>Cargada tarde</span>
+            <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--surface)" stroke="var(--alert)" /></svg>Sin daily</span>
+          </div>
+        </div>
+        <Organigrama data={data} layout={layout} modo={modo} sel={sel} selEdge={selEdge}
+          onSel={(u) => { setSel(u); setSelEdge(null); }}
+          onEdge={(id) => setSelEdge(id)}
+          onFondo={cerrar} />
+        <div className="bb-hint">Debajo de cada nombre, los cinco días de la semana. Clic en una persona para ver su detalle.</div>
+      </Card>
+
+      {(sel || selEdge != null) && (
+        <div className="bb-velo" onClick={cerrar} role="presentation">
+          <aside className="bb-drawer" role="dialog" aria-label="Detalle" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="bb-cerrar" onClick={cerrar} aria-label="Cerrar detalle">✕</button>
+            <Panel data={data} sel={sel} selEdge={selEdge}
+              onSel={(u) => { setSel(u); setSelEdge(null); }} onEdge={setSelEdge} />
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
@@ -311,7 +325,6 @@ function diaDe(f) {
 }
 
 function Panel({ data, sel, selEdge, onSel, onEdge }) {
-  const conDaily = data.personas.filter((p) => p.daily);
   if (selEdge != null) {
     const e = data.entregas.find((x) => x.id === selEdge);
     if (!e) return null;
@@ -327,33 +340,7 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
       </>
     );
   }
-  if (!sel) {
-    const cortes = data.entregas.filter((e) => e.estado === 'alert');
-    const ranking = [...conDaily].sort((a, b) => (a.pct ?? -1) - (b.pct ?? -1));
-    return (
-      <>
-        <div className="bb-sec">
-          <div className="bb-sech"><h3>Entregas cortadas</h3><span>{cortes.length}</span></div>
-          {cortes.length
-            ? cortes.map((e) => <Conexion key={e.id} e={e} otro={`${nombre(data, e.de)} → ${nombre(data, e.a)}`} onEdge={onEdge} />)
-            : <p className="dl-vacio">Ninguna entrega cortada a hoy.</p>}
-        </div>
-        <div className="bb-sec">
-          <div className="bb-sech"><h3>Cumplimiento</h3><span>de menor a mayor</span></div>
-          <div className="bb-rank">
-            {ranking.map((p) => (
-              <button key={p.username} type="button" onClick={() => onSel(p.username)}>
-                <span className="dot" style={{ color: TONO[banda(p.pct)] }} />
-                <span><b style={{ fontWeight: 600 }}>{p.nombre}</b> <small>{p.cargo}</small></span>
-                <span className="bb-mini">{p.dias.map((d) => <i key={d.fecha} className={d.estado} />)}</span>
-                <b style={{ fontVariantNumeric: 'tabular-nums' }}>{p.pct == null ? '—' : `${p.pct}%`}</b>
-              </button>
-            ))}
-          </div>
-        </div>
-      </>
-    );
-  }
+  if (!sel) return null;
   const p = data.personas.find((x) => x.username === sel);
   if (!p) return null;
   const mias = data.entregas.filter((e) => e.de === sel || e.a === sel);
@@ -398,6 +385,7 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
           </div>
         )) : <p className="dl-vacio">Nada. Cumplió todo lo que vencía hasta hoy.</p>}
       </div>
+      <SemanaCompleta p={p} />
       {p.no_aplica.length > 0 && (
         <div className="bb-sec">
           <div className="bb-sech"><h3>Marcó "no aplica"</h3><span>{p.no_aplica.length}</span></div>
@@ -422,5 +410,48 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
         </div>
       )}
     </>
+  );
+}
+
+const CELDA = { hecha: ['✓', 'ok'], no: ['✕', 'alert'], no_aplica: ['–', 'off'] };
+
+/** La semana entera de una persona: cada tarea, día por día, con el motivo al pasar el mouse. */
+function SemanaCompleta({ p }) {
+  if (!p.tareas?.length) return null;
+  const fechas = p.dias.map((d) => d.fecha);
+  const fila = (t, i) => {
+    const abierta = t.frecuencia === 'mensual' || (t.frecuencia === 'semanal' && t.dia == null);
+    return (
+      <tr key={i}>
+        <th scope="row">
+          <span>{t.texto}</span>
+          <small>{t.tipo === 'desplazamiento' ? 'Desplazamiento' : t.origen === 'rol' ? 'Rol' : 'Velocidad'}{abierta ? ' · en la semana' : ''}</small>
+        </th>
+        {fechas.map((f, d) => {
+          const m = t.marcas[f];
+          const vence = t.frecuencia === 'diaria' || (t.frecuencia === 'semanal' && t.dia === d);
+          const futuro = p.dias[d].estado === 'futuro';
+          if (m) {
+            const [txt, tono] = CELDA[m.estado];
+            return <td key={f} className={tono} title={m.motivo ?? undefined}>{txt}</td>;
+          }
+          if (!vence || futuro) return <td key={f} className="vacio" />;
+          return <td key={f} className="falta" title="Sin marcar">·</td>;
+        })}
+      </tr>
+    );
+  };
+  return (
+    <div className="bb-sec">
+      <div className="bb-sech"><h3>Semana completa</h3><span>pasá el mouse para ver el motivo</span></div>
+      <div className="bb-tabla">
+        <table>
+          <thead>
+            <tr><th scope="col">Tarea</th>{p.dias.map((d, i) => <th key={d.fecha} scope="col">{DIAS_CORTOS[i]}</th>)}</tr>
+          </thead>
+          <tbody>{p.tareas.map(fila)}</tbody>
+        </table>
+      </div>
+    </div>
   );
 }

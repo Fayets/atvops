@@ -373,3 +373,22 @@ def test_otro_script_registra_lo_que_mando(theo_listo):
     env = th.listar("enviados", envio="landing")["mensajes"]
     assert env and env[0]["texto"].startswith("⚠️")
     assert not [x for x in th.cola() if x["envio"] == "landing"]  # lo registrado no se reenvía
+
+
+def test_antes_del_inicio_no_hay_rojos(monkeypatch):
+    """La semana del 12/10 existió antes que la daily: no se cuenta ni se pinta de rojo."""
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 18))  # domingo
+    b = d.backbone(date(2026, 10, 12))
+    assert all(p.get("pct") is None for p in b["personas"])
+    assert all(not p.get("faltas") for p in b["personas"])
+    assert all(e["estado"] == "off" for e in b["entregas"])
+
+
+def test_el_domingo_backbone_abre_la_semana_que_viene(monkeypatch):
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 18))
+    assert d.backbone(None)["semana"] == "2026-10-19"
+
+
+def test_el_detalle_trae_la_semana_entera():
+    lucas = next(p for p in d.backbone(LUNES)["personas"] if p["username"] == "lucas")
+    assert any(t["texto"] == "Revisión del pipeline" for t in lucas["tareas"])

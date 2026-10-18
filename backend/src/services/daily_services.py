@@ -32,6 +32,9 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes")
 ESTADOS = ("hecha", "no", "no_aplica")
 AREAS = ("ventas", "marketing", "producto", "sistemas", "direccion")
 ROLES_BACKBONE = ("admin", "founder", "operaciones")
+# La primera semana con daily. Antes no existía: esas semanas no se cuentan ni se muestran
+# en rojo (no es que nadie cumplió, es que no había dónde cargar).
+INICIO = date(2026, 10, 19)
 
 # El equipo de octubre de 2026, como lo pasó Franco. Los mails salen del equipo del
 # classroom; Ignacio y Janner todavía no tienen y se cargan desde Backbone → Equipo.
@@ -330,7 +333,8 @@ def _sincronizar_semana(username: str, semana: date) -> None:
     rol = {t.id: t for t in TareaRol.select(lambda t: t.usuario == username)}
     ya = {t.tarea_rol: t for t in TareaSemana.select(
         lambda t: t.usuario == username and t.semana == semana and t.origen == "rol")}
-    editable = semana >= lunes_de(hoy())
+    # Una semana que ya terminó no se toca, y antes del inicio no hay nada que copiar.
+    editable = semana >= INICIO and semana + timedelta(days=4) >= hoy()
     for id_, r in rol.items():
         t = ya.get(id_)
         if t is None:
@@ -414,6 +418,7 @@ def ver_semana(username: str, semana: date | None) -> dict:
         return {
             "persona": _persona(u),
             "semana": semana.isoformat(),
+            "inicio": INICIO.isoformat(),
             "hoy": h.isoformat(),
             "dias": dias,
             "tareas": [_tarea_dict(t) for t in _tareas(username, semana)],
@@ -526,7 +531,7 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
 def _corte(semana: date) -> int:
     """Hasta qué día de la semana se cuenta: la semana pasada entera, la actual hasta hoy."""
     h = hoy()
-    if semana > h:
+    if semana > h or semana < INICIO:
         return -1
     if semana + timedelta(days=4) < h:
         return 4
@@ -583,6 +588,12 @@ def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
         "faltas": faltas,
         "no_aplica": no_aplica,
         "desplazamiento": despl,
+        # La semana entera, tarea por tarea y día por día: es el detalle de Backbone.
+        "tareas": [{
+            "texto": t.texto, "tipo": t.tipo, "origen": t.origen, "frecuencia": t.frecuencia,
+            "dia": t.dia, "destinatario": t.destinatario,
+            "marcas": {f.isoformat(): {"estado": m.estado, "motivo": m.motivo} for f, m in marcas[t.id].items()},
+        } for t in tareas],
     }
 
 
@@ -617,7 +628,8 @@ def _entregas(gente: list[Usuario], semana: date, corte: int) -> list[dict]:
 
 
 def backbone(semana: date | None) -> dict:
-    semana = lunes_de(semana or lunes_de(hoy()))
+    # Sin semana pedida: la que se está trabajando, o la que viene si es fin de semana.
+    semana = lunes_de(semana or semana_por_defecto())
     corte = _corte(semana)
     with db_session:
         gente = sorted(Usuario.select(lambda u: u.area is not None), key=lambda u: (u.orden, u.username))
@@ -633,6 +645,7 @@ def backbone(semana: date | None) -> dict:
             "semana": semana.isoformat(),
             "hoy": hoy().isoformat(),
             "corte": corte,
+            "inicio": INICIO.isoformat(),
             "personas": personas,
             "entregas": _entregas(conDaily, semana, corte),
         }
