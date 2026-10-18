@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException
 from pony.orm import db_session
 
+from src.db import db
 from src.models import ReunionCrm, TheoEnvio, TheoMensaje
 from src.services import daily_services
 
@@ -154,6 +155,30 @@ def _llamada_dict(r: ReunionCrm, e: TheoEnvio | None) -> dict:
     }
 
 
+def _tabla_sql(entidad) -> str:
+    t = entidad._table_
+    return ".".join(f'"{p}"' for p in (t if isinstance(t, tuple) else (t,)))
+
+
+# El texto del reporte es un campo largo: Pony no lo trae con la fila y lo pide aparte la
+# primera vez que se lee. Filtrar "tiene reporte" en Python leía ese texto de CADA reunión,
+# una consulta por reunión (medido: Theo tardaba 1,1 s, 0,7 de ellos el resumen). El filtro
+# va en SQL y el texto se lee solo de las que lo tienen.
+_CON_REPORTE = "reporte_mensaje IS NOT NULL AND TRIM(reporte_mensaje) <> ''"
+_SIN_FRENAR = "COALESCE(reporte_frenado_por, '') = ''"
+
+
+def _reuniones_con_reporte(enviadas: bool, desde: datetime | None = None) -> list:
+    """Las reuniones con reporte para el grupo: las que esperan salir o las que ya salieron (o
+    se frenaron) desde `desde`. Va dentro de un db_session."""
+    if enviadas:
+        sql = (f"SELECT * FROM {_tabla_sql(ReunionCrm)} WHERE {_CON_REPORTE} "
+               f"AND (reporte_enviado_at IS NOT NULL OR NOT ({_SIN_FRENAR})) AND reporte_at >= $desde")
+    else:
+        sql = f"SELECT * FROM {_tabla_sql(ReunionCrm)} WHERE {_CON_REPORTE} AND reporte_enviado_at IS NULL AND {_SIN_FRENAR}"
+    return list(ReunionCrm.select_by_sql(sql, globals={"desde": desde}))
+
+
 def listar(vista: str, envio: str | None = None, q: str | None = None) -> dict:
     """vista: "pendientes" (lo que va a salir) o "enviados" (lo que salió, falló o se frenó)."""
     with db_session:
@@ -162,14 +187,11 @@ def listar(vista: str, envio: str | None = None, q: str | None = None) -> dict:
         envios = {e.clave: e for e in TheoEnvio.select()}
         if vista == "pendientes":
             ms = list(TheoMensaje.select(lambda m: m.estado == "pendiente"))
-            ll = [r for r in list(ReunionCrm.select())
-                  if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None and not r.reporte_frenado_por]
+            ll = _reuniones_con_reporte(enviadas=False)
         else:
             desde = daily_services.ahora() - timedelta(days=30)
             ms = list(TheoMensaje.select(lambda m: m.estado != "pendiente" and m.sale_at >= desde))
-            ll = [r for r in list(ReunionCrm.select())
-                  if (r.reporte_mensaje or "").strip() and (r.reporte_enviado_at or r.reporte_frenado_por)
-                  and (r.reporte_at or datetime.min) >= desde]
+            ll = _reuniones_con_reporte(enviadas=True, desde=desde)
         items = [_msg_dict(m, envios) for m in ms] + [_llamada_dict(r, envios.get("llamadas")) for r in ll]
     if envio:
         items = [i for i in items if i["envio"] == envio]
@@ -182,18 +204,26 @@ def listar(vista: str, envio: str | None = None, q: str | None = None) -> dict:
 
 
 def resumen() -> dict:
+    """Los números de arriba de la vista, en una sola consulta (antes eran seis más una por reunión)."""
+    hoy = daily_services.ahora().date()
+    inicio = datetime.combine(hoy, datetime.min.time())
+    hace7 = inicio - timedelta(days=7)
+    m, r, e = _tabla_sql(TheoMensaje), _tabla_sql(ReunionCrm), _tabla_sql(TheoEnvio)
     with db_session:
-        hoy = daily_services.ahora().date()
-        inicio = datetime.combine(hoy, datetime.min.time())
-        pend = TheoMensaje.select(lambda m: m.estado == "pendiente").count()
-        pend += len([r for r in list(ReunionCrm.select())
-                     if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None and not r.reporte_frenado_por])
-        enviados_hoy = TheoMensaje.select(lambda m: m.estado == "enviado" and m.enviado_at >= inicio).count()
-        enviados_hoy += len([r for r in list(ReunionCrm.select()) if r.reporte_enviado_at and r.reporte_enviado_at >= inicio])
-        fallidos = TheoMensaje.select(lambda m: m.estado == "fallido" and m.sale_at >= inicio - timedelta(days=7)).count()
-        envios = list(TheoEnvio.select())
-        return {"pendientes": pend, "enviados_hoy": enviados_hoy, "fallidos": fallidos,
-                "envios_activos": sum(1 for e in envios if e.activo), "envios": len(envios)}
+        fila = db.select(
+            f"""SELECT
+                (SELECT COUNT(*) FROM {m} WHERE estado = 'pendiente'),
+                (SELECT COUNT(*) FROM {r} WHERE {_CON_REPORTE} AND reporte_enviado_at IS NULL AND {_SIN_FRENAR}),
+                (SELECT COUNT(*) FROM {m} WHERE estado = 'enviado' AND enviado_at >= $inicio),
+                (SELECT COUNT(*) FROM {r} WHERE reporte_enviado_at >= $inicio),
+                (SELECT COUNT(*) FROM {m} WHERE estado = 'fallido' AND sale_at >= $hace7),
+                (SELECT COUNT(*) FROM {e}),
+                (SELECT COALESCE(SUM(CASE WHEN activo THEN 1 ELSE 0 END), 0) FROM {e})""",
+            {"inicio": inicio, "hace7": hace7},
+        )[0]
+    pend_m, pend_r, env_m, env_r, fallidos, envios, activos = (int(x or 0) for x in fila)
+    return {"pendientes": pend_m + pend_r, "enviados_hoy": env_m + env_r, "fallidos": fallidos,
+            "envios_activos": activos, "envios": envios}
 
 
 def _buscar(ident: str):
