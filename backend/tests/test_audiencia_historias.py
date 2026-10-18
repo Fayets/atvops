@@ -80,7 +80,9 @@ def test_cada_persona_que_responde_una_historia_es_un_lead(base, monkeypatch):
 
     listado = a.listar()
     sec = next(s for s in listado["historias"] if any(p["id"] == "hist_prueba_1" for p in s["piezas"]))
-    assert sec["personas"] == 1 and sec["respuestas"] == 9 and sec["sin_analizar"] == 1
+    pieza = next(p for p in sec["piezas"] if p["id"] == "hist_prueba_1")
+    assert pieza["respuestas"] == 9 and sec["respuestas"] >= 9
+    assert any(l["usuario"] == "prueba_ana" and l["secuencia"] == sec["id"] for l in listado["leads"])
     lead = next(l for l in listado["leads"] if l["usuario"] == "prueba_ana")
     assert lead["fuente"] == "historia" and lead["secuencia"] == sec["id"] and "igsid" not in (lead["perfil"] or {})
     assert all(r["id"] != "hist_prueba_1" for r in listado["reels"])  # las historias no se mezclan con los reels

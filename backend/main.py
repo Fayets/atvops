@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from src.gzip_json import GZipJson
 from src.controllers.activacion_ia_controller import router as activacion_ia_router
 from src.controllers.asistente_controller import router as asistente_router
 from src.controllers.pendientes_controller import router as pendientes_router
@@ -100,6 +101,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="atv-ops", lifespan=lifespan)
+# El JSON de /api viajaba sin comprimir (ver src/gzip_json.py).
+app.add_middleware(GZipJson)
 
 
 class TrackCorsMiddleware(BaseHTTPMiddleware):
