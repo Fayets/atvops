@@ -275,11 +275,19 @@ def contenido(desde, hasta) -> dict:
     secuencias = [{**_secuencia(dia, items), "cta": dia in marcadas}
                   for dia, items in sorted(por_dia.items(), reverse=True)]
 
-    suma = reels_suma_chats()
+    # Los chats de cada reel salen solos de sus comentarios (chats_reels_services).
+    from src.services import chats_reels_services
+
+    try:
+        chats = chats_reels_services.por_reel()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los chats de reels: %s", str(e)[:160])
+        chats = {}
     for r in reels:
-        m = suma.get(r["id"])
-        r["sumaChats"] = bool(m)
-        r["chatsManual"] = int(m["chats"]) if m else None
+        c = chats.get(r["id"]) or {}
+        r["chats"] = int(c.get("chats") or 0)
+        if c.get("palabra"):
+            r["keyword"] = c["palabra"]
 
     return {"reels": sorted(reels, key=lambda r: r["fecha"], reverse=True),
             "secuencias": secuencias, "conectado": True}
@@ -448,6 +456,12 @@ def iniciar_scheduler(stop: threading.Event) -> None:
     while not stop.is_set():
         try:
             sincronizar()
+            try:
+                from src.services import chats_reels_services
+
+                chats_reels_services.sincronizar()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Chats de reels: %s", str(e)[:200])
         except Exception as e:  # noqa: BLE001
             logger.warning("Sincronización de Instagram falló: %s", str(e)[:200])
         stop.wait(espera)

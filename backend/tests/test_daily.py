@@ -422,3 +422,23 @@ def test_una_tarea_propia_de_un_dia_se_marca_ese_dia():
     assert t["id"] not in [m["tarea_id"] for m in _marcar_todo(s, date(2026, 10, 20))]
     with pytest.raises(HTTPException):
         d.agregar_tarea("nick", LUNES, "x", "velocidad", dia=5)
+
+
+# ------------------------------------------------------------------ chats de reels (con base)
+
+def test_cada_persona_que_comento_la_palabra_es_un_chat_una_vez():
+    from src.services import chats_reels_services as cr
+
+    comentarios = [
+        {"username": "ana", "text": "FORMULARIO", "timestamp": "2026-10-08T15:00:00+0000"},
+        {"username": "ana", "text": "formulario!!", "timestamp": "2026-10-08T15:05:00+0000"},
+        {"username": "beto", "text": "formulario 🔥", "timestamp": "2026-11-02T10:00:00+0000"},
+        {"username": "caro", "text": "genio", "timestamp": "2026-10-08T16:00:00+0000"},
+        {"username": "atv", "text": "te lo mandé por DM", "timestamp": "2026-10-08T16:01:00+0000"},
+    ]
+    assert cr.guardar("reel-1", "formulario", comentarios, propia="atv") == 2
+    assert cr.guardar("reel-1", "formulario", comentarios, propia="atv") == 0  # no duplica
+    assert cr.por_reel()["reel-1"] == {"chats": 2, "palabra": "formulario"}
+    # Cada chat cae en el mes de su comentario: ana en octubre, beto en noviembre.
+    octubre = cr.del_periodo(datetime(2026, 10, 1), datetime(2026, 11, 1))
+    assert [x[0] for x in octubre] == ["reel-1"]

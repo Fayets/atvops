@@ -105,9 +105,9 @@ export default function DeDondeVienenLosChats({ chats, onCerrar }) {
         </div>
 
         <footer className="dim">
-          Las historias suman solo si están marcadas con CTA en Marketing → Historias. Las
-          palabras las escucha ManyChat, que no mira historias: por eso las puertas se suman
-          sin contar a nadie dos veces.
+          Las historias suman solo si están marcadas con CTA en Marketing → Historias. Los
+          reels suman a cada persona que comentó su palabra, contada sola de los comentarios
+          de Instagram.
         </footer>
       </div>
     </div>

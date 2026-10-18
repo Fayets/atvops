@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pony.orm import LongStr, Optional, PrimaryKey, Required, Set
+from pony.orm import LongStr, Optional, PrimaryKey, Required, Set, composite_key
 
 from src.db import DB_SCHEMA, ES_POSTGRES, db
 
@@ -995,3 +995,20 @@ class TheoMensaje(db.Entity):
     editado_por = Optional(str, nullable=True)
     frenado_por = Optional(str, nullable=True)
     creado_at = Required(datetime, default=datetime.utcnow)
+
+
+class ChatReel(db.Entity):
+    """Una persona que comentó la palabra de un reel: es un chat que abrió el reel.
+
+    Sale de los comentarios de Instagram, sin ManyChat: quien comenta la palabra es quien
+    dispara la automatización. Una persona por reel; la fecha es la de su comentario, así
+    el chat cae en el mes en que se abrió aunque el reel sea de antes."""
+
+    _table_ = _tabla("chats_reels", "ChatReel")
+
+    id = PrimaryKey(int, auto=True)
+    reel_id = Required(str, index=True)
+    usuario = Required(str)
+    palabra = Required(str)
+    at = Required(datetime, index=True)
+    composite_key(reel_id, usuario)

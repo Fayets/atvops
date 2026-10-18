@@ -8586,3 +8586,4 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .ads-mas { margin-top: 10px; }
 .aud-sec-cap { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aud-sec-pend { align-self: flex-start; font-size: 11.5px; font-weight: 600; color: var(--warn); background: var(--warn-dim); border-radius: 6px; padding: 2px 7px; margin-top: 2px; }
+.aud-sec-chats { font-size: 12.5px; color: var(--text-2); } .aud-sec-chats b { color: var(--text); }

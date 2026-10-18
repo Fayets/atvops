@@ -7,7 +7,7 @@ import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import {
-  getInstagramPropio, getMarketing, getYouTubePropio,
+  getInstagramPropio, getYouTubePropio,
   sincronizarInstagram, sincronizarYouTube,
 } from '../../data/api.js';
 import { useMes } from '../../lib/MesContext.jsx';
@@ -39,19 +39,6 @@ const VISTAS = {
 /** Instagram hace falta en todas menos YouTube; el canal, en YouTube y en el calendario. */
 const NECESITA_IG = new Set(['calendario', 'reels', 'historias']);
 const NECESITA_YT = new Set(['calendario', 'youtube']);
-/** Los reels le piden al CRM solo la palabra clave y las conversaciones que abrió cada uno. */
-const NECESITA_CRM = new Set(['reels']);
-
-/** Le pega a cada reel la palabra clave y las conversaciones que abrió, atando por enlace. */
-function conNegocio(reels, publicaciones) {
-  if (!publicaciones?.length) return reels;
-  const porUrl = new Map(publicaciones.filter((p) => p.url).map((p) => [p.url, p]));
-  return reels.map((r) => {
-    const p = r.url ? porUrl.get(r.url) : null;
-    return p ? { ...r, keyword: p.keyword, conversaciones: p.conversaciones ?? 0 } : r;
-  });
-}
-
 /**
  * Una subvista de contenido dentro de Marketing: el calendario, Reels, Historias o YouTube.
  * @param {{ vista: 'calendario' | 'reels' | 'historias' | 'youtube' }} props
@@ -67,10 +54,6 @@ export default function ContenidoPage({ vista }) {
   const yt = useResource(
     () => (NECESITA_YT.has(vista) ? getYouTubePropio(mes) : Promise.resolve(null)),
     [mes, vista, tick],
-  );
-  const mkt = useResource(
-    () => (NECESITA_CRM.has(vista) ? getMarketing(mes) : Promise.resolve(null)),
-    [mes, vista],
   );
 
   const traerAhora = async () => {
@@ -113,7 +96,7 @@ export default function ContenidoPage({ vista }) {
       ) : vista === 'calendario' ? (
         <CalendarioContenido mes={mes} nombreMes={nombreMes} instagram={ig.data} youtube={yt.data} />
       ) : vista === 'reels' ? (
-        <Reels items={conNegocio(ig.data?.reels ?? [], mkt.data?.contenido?.publicaciones)} />
+        <Reels items={ig.data?.reels ?? []} />
       ) : vista === 'historias' ? (
         <Secuencias items={ig.data?.secuencias ?? []} />
       ) : (

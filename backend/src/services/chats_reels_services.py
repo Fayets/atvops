@@ -1,0 +1,196 @@
+"""
+Los chats de cada reel, sin ManyChat.
+
+Antes un reel sumaba chats si alguien lo prendía a mano en Marketing → Reels y escribía el
+número, o si el flujo de ManyChat avisaba con la palabra cargada en su JSON. Las dos cosas
+dependían de que alguien se acordara.
+
+Quien comenta la palabra de un reel es justamente quien dispara la automatización. Ops ya
+lee los comentarios de cada reel con el token de Instagram, así que alcanza con:
+
+1. **Saber cuál es la palabra.** Primero la que pide el texto del reel ("comentá
+   FORMULARIO"). Si el texto no la dice, el comentario que más se repite, siempre que sea
+   una palabra corta y la haya escrito una buena parte de la gente: así se encontró "clase"
+   o "papa" en reels cuyo texto no las nombraba.
+2. **Contar personas distintas** que comentaron esa palabra. Una persona es un chat por
+   reel, con la fecha de su comentario: el chat cae en el mes en que se abrió.
+
+Un reel sin palabra reconocible no suma: no pidió que le escriban.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import unicodedata
+import urllib.parse
+from collections import Counter
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+logger = logging.getLogger("atv_ops.chats_reels")
+AR_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
+
+DIAS = 60              # cuántos días hacia atrás se miran los reels en cada pasada
+MAX_COMENTARIOS = 3000  # tope por reel, por si uno explota
+MIN_PERSONAS = 5        # para tomar el comentario más repetido como la palabra
+MIN_PROPORCION = 0.35   # … y que lo haya escrito al menos esta parte de la gente
+MAX_PALABRAS = 3        # "doc", "clase", "quiero el doc": una llamada a la acción es corta
+
+
+def normalizar(texto: str | None) -> str:
+    """Minúsculas, sin acentos, sin emojis ni signos: "Clase🔥" y "clase" son lo mismo."""
+    base = unicodedata.normalize("NFD", str(texto or "").lower())
+    sin_acentos = "".join(c for c in base if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9ñ ]+", " ", sin_acentos)).strip()
+
+
+def coincide(comentario: str, palabra: str) -> bool:
+    """La palabra está en el comentario como palabra entera ("doc" sí en "el doc", no en "doctor")."""
+    return bool(palabra) and f" {palabra} " in f" {comentario} "
+
+
+def detectar_palabra(caption: str | None, comentarios: list[str]) -> str | None:
+    """La palabra del reel, o None si el reel no pidió ninguna. `comentarios` ya normalizados."""
+    from src.services.instagram_services import palabra_clave
+
+    comentarios = [c for c in comentarios if c]
+    pedida = normalizar(palabra_clave(caption or ""))
+    if pedida and any(coincide(c, pedida) for c in comentarios):
+        return pedida
+    cortos = Counter(c for c in comentarios if len(c.split()) <= MAX_PALABRAS)
+    if not cortos:
+        return None
+    palabra, veces = cortos.most_common(1)[0]
+    personas = len(comentarios)
+    if veces >= MIN_PERSONAS and veces / personas >= MIN_PROPORCION:
+        return palabra
+    return None
+
+
+def _comentarios(token: str, reel_id: str) -> list[dict]:
+    from src.services import audiencia_services as aud
+
+    url, params, out = f"{reel_id}/comments", {"fields": "id,text,username,timestamp", "limit": 50}, []
+    while url and len(out) < MAX_COMENTARIOS:
+        r = aud._pedir(token, url, **params)
+        out.extend(r.get("data") or [])
+        siguiente = (r.get("paging") or {}).get("next")
+        if not siguiente:
+            break
+        url = aud._ruta_siguiente(siguiente).split("?")[0]
+        params = dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
+        params.pop("access_token", None)
+    return out
+
+
+def _momento(iso: str | None) -> datetime:
+    """Hora de Argentina, como las publicaciones: así el chat cae en el mes correcto."""
+    try:
+        return datetime.strptime(iso or "", "%Y-%m-%dT%H:%M:%S%z").astimezone(AR_TZ).replace(tzinfo=None)
+    except ValueError:
+        return datetime.utcnow()
+
+
+def guardar(reel_id: str, palabra: str, comentarios: list[dict], propia: str) -> int:
+    """Una fila por persona que comentó la palabra. Devuelve cuántas nuevas."""
+    from pony.orm import db_session
+
+    from src.models import ChatReel
+
+    nuevos = 0
+    with db_session:
+        ya = {c.usuario for c in ChatReel.select(lambda c: c.reel_id == reel_id)}
+        for c in sorted(comentarios, key=lambda x: x.get("timestamp") or ""):
+            usuario = (c.get("username") or "").strip().lower()
+            if not usuario or usuario == propia or usuario in ya:
+                continue
+            if not coincide(normalizar(c.get("text")), palabra):
+                continue
+            ChatReel(reel_id=reel_id, usuario=usuario[:120], palabra=palabra[:60], at=_momento(c.get("timestamp")))
+            ya.add(usuario)
+            nuevos += 1
+    return nuevos
+
+
+def sincronizar(dias: int = DIAS) -> dict:
+    """Lee los comentarios de los reels recientes y anota los chats nuevos."""
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+    from src.services import audiencia_services as aud
+
+    token, uid = aud._credenciales()
+    propia = aud._cuenta_propia(token, uid)
+    desde = datetime.utcnow() - timedelta(days=dias)
+    with db_session:
+        reels = [(p.ig_id, p.caption) for p in list(PublicacionIg.select())
+                 if p.tipo == "reel" and p.publicado_at and p.publicado_at >= desde]
+    con_palabra = nuevos = 0
+    for reel_id, caption in reels:
+        palabra, n = _procesar(token, propia, reel_id, caption)
+        con_palabra += 1 if palabra else 0
+        nuevos += n
+    resultado = {"reels": len(reels), "conPalabra": con_palabra, "nuevos": nuevos}
+    logger.info("Chats de reels: %s", resultado)
+    return resultado
+
+
+def _procesar(token: str, propia: str, reel_id: str, caption: str | None) -> tuple[str | None, int]:
+    """Lee los comentarios de un reel, detecta su palabra y anota los chats. (palabra, nuevos)."""
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+
+    try:
+        comentarios = [c for c in _comentarios(token, reel_id)
+                       if (c.get("username") or "").strip().lower() != propia]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Chats de reels: no se leyeron los comentarios de %s: %s", reel_id, str(e)[:160])
+        return None, 0
+    # Una persona cuenta una vez para elegir la palabra: el que comenta tres veces no la define.
+    por_persona: dict[str, str] = {}
+    for c in comentarios:
+        por_persona.setdefault((c.get("username") or "").lower(), normalizar(c.get("text")))
+    palabra = detectar_palabra(caption, list(por_persona.values()))
+    if not palabra:
+        return None, 0
+    nuevos = guardar(reel_id, palabra, comentarios, propia)
+    with db_session:
+        p = PublicacionIg.get(ig_id=reel_id)
+        if p is not None and (p.keyword or "").strip().lower() != palabra:
+            p.keyword = palabra
+    return palabra, nuevos
+
+
+def sincronizar_reel(reel_id: str, caption: str | None = None) -> dict:
+    """Un reel puntual, de cualquier fecha (lo usa el análisis a mano de Audiencia)."""
+    from src.services import audiencia_services as aud
+
+    token, uid = aud._credenciales()
+    palabra, nuevos = _procesar(token, aud._cuenta_propia(token, uid), str(reel_id), caption)
+    return {"reel": reel_id, "palabra": palabra, "nuevos": nuevos}
+
+
+def por_reel() -> dict[str, dict]:
+    """reel_id → {chats, palabra}: cuántas personas comentaron la palabra, de siempre."""
+    from pony.orm import db_session
+
+    from src.models import ChatReel
+
+    out: dict[str, dict] = {}
+    with db_session:
+        for c in list(ChatReel.select()):
+            d = out.setdefault(c.reel_id, {"chats": 0, "palabra": c.palabra})
+            d["chats"] += 1
+    return out
+
+
+def del_periodo(inicio: datetime, fin: datetime) -> list:
+    """Los chats que se abrieron en el período (por la fecha del comentario)."""
+    from pony.orm import db_session
+
+    from src.models import ChatReel
+
+    with db_session:
+        return [(c.reel_id, c.palabra, c.at) for c in ChatReel.select(lambda c: c.at >= inicio and c.at < fin)]

@@ -133,7 +133,7 @@ function Reel({ r, onVolver, onAnalizar, ocupado }) {
         {r.thumbnail ? <img src={r.thumbnail} alt="" /> : <div className="aud-reel-sin">Reel</div>}
       </div>
       <div className="aud-reel-texto">
-        <span className="lab-k">Reel{r.fecha ? ` · ${fecha(r.fecha)}` : ''}</span>
+        <span className="lab-k">Reel{r.fecha ? ` · ${fecha(r.fecha)}` : ''}{r.chats ? ` · ${r.chats} chats con «${r.palabra}»` : ''}</span>
         <p className="aud-reel-caption">{r.caption || 'Sin texto'}</p>
         <div className="aud-reel-pie">
           {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
@@ -194,6 +194,7 @@ function ReelsDelMes({ reels, mesLabel, onElegir }) {
             <span className="aud-sec-txt">
               <b>{r.fecha ? fecha(r.fecha) : 'Sin fecha'}</b>
               <span className="dim aud-sec-cap">{(r.caption || 'Sin texto').split('\n')[0]}</span>
+              {r.chats > 0 && <span className="aud-sec-chats num"><b>{formatValue(r.chats, 'count')}</b> chats · comentaron «{r.palabra}»</span>}
               {r.personas ? (
                 <>
                   <span className="dim num">{r.personas} personas · {r.calificado ?? 0} calificados</span>

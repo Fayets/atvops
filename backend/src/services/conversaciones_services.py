@@ -193,8 +193,8 @@ def chats(desde, hasta) -> dict:
     - **Historias con CTA.** Alguien contesta una historia que pedía algo. Instagram lo
       cuenta pieza por pieza; solo suman las secuencias marcadas con el botón CTA, porque
       un día de historias sin CTA también junta respuestas y esas no son leads.
-    - **Reels.** Por ahora se marcan a mano en Marketing → Reels (solo los prendidos
-      suman). Si nadie marcó nada, se cae al webhook de ManyChat o al CRM de atv-mkt.
+    - **Reels.** Cada persona que comentó la palabra de un reel (chats_reels_services):
+      sale de los comentarios de Instagram, sin ManyChat y sin marcar nada a mano.
     - **YouTube.** Igual que reels: se marcan a mano en Marketing → YouTube.
     - **Otras.** WhatsApp, cargadas a mano: lo que entre por un canal que no es Instagram.
 
@@ -231,7 +231,6 @@ def chats(desde, hasta) -> dict:
         filas, historico = [], 0
 
     propias = [c for c in filas if c.evento == "conversacion"]
-    de_instagram = [c for c in propias if _canal(c.fuente) == "Instagram"]
     otras = [c for c in propias if _canal(c.fuente) != "Instagram"]
 
     # --- Historias con CTA + reels del período (una sola lectura de Instagram)
@@ -258,54 +257,45 @@ def chats(desde, hasta) -> dict:
         for x in sorted(con_cta, key=lambda y: y["fecha"], reverse=True)
     ]
 
-    # --- Reels. Por ahora se marcan a mano en Marketing → Reels: solo los prendidos
-    # suman. Si nadie marcó nada este mes, se cae al webhook de ManyChat o al CRM.
-    reels_marcados = [r for r in reels_mes if r.get("sumaChats")]
-    por_reels_manual = sum(int(r.get("chatsManual") or 0) for r in reels_marcados)
+    # --- Reels: quien comentó la palabra del reel abrió un chat. Sale de los comentarios de
+    # Instagram (chats_reels_services), sin ManyChat ni nada marcado a mano. Cuenta por la
+    # fecha del comentario: un reel viejo que sigue trayendo gente suma en el mes de hoy.
+    from src.services import chats_reels_services
 
-    del_crm = 0
-    palabras_crm: dict[str, int] = {}
-    if not reels_marcados and not de_instagram:
-        try:
-            from src.services import marketing_services
+    try:
+        chats_reels = chats_reels_services.del_periodo(inicio, fin)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los chats de reels: %s", str(e)[:160])
+        chats_reels = []
+    por_reels = len(chats_reels)
+    reels_por_id = {r["id"]: r for r in reels_mes}
+    try:
+        from src.models import PublicacionIg
 
-            bot = marketing_services._conversaciones_del_bot(desde, hasta)
-            del_crm = int(bot.get("total") or 0)
-            palabras_crm = bot.get("porPalabra") or {}
-        except Exception as e:  # noqa: BLE001
-            logger.warning("No se pudo leer el CRM de atv-mkt: %s", str(e)[:160])
-
-    if reels_marcados:
-        por_reels = por_reels_manual
-        filas_reels = [
-            {"cuando": (r.get("fecha") or "")[:10],
-             "quien": (r.get("titulo") or r.get("keyword") or "Reel")[:80],
-             "cuantos": int(r.get("chatsManual") or 0),
-             "foto": r.get("thumbnail"),
-             "dato": (r.get("keyword") or "").strip() or None}
-            for r in sorted(reels_marcados,
-                            key=lambda x: int(x.get("chatsManual") or 0), reverse=True)
-        ]
-        detalle_reels = "marcados a mano en Marketing → Reels"
-    elif de_instagram:
-        por_reels = len(de_instagram)
-        por_palabra: dict[str, int] = {}
-        for x in de_instagram:
-            por_palabra[(x.keyword or "").strip().lower() or "(sin palabra)"] = (
-                por_palabra.get((x.keyword or "").strip().lower() or "(sin palabra)", 0) + 1)
-        filas_reels = [{"quien": palabra, "cuantos": cuantos}
-                       for palabra, cuantos in sorted(por_palabra.items(), key=lambda kv: -kv[1])]
-        detalle_reels = "los abre el bot con la palabra"
-    else:
-        por_reels = del_crm
-        por_palabra = dict(palabras_crm)
-        sin_palabra = max(0, del_crm - sum(palabras_crm.values()))
-        if sin_palabra:
-            por_palabra["(sin palabra)"] = sin_palabra
-        filas_reels = [{"quien": palabra, "cuantos": cuantos}
-                       for palabra, cuantos in sorted(por_palabra.items(), key=lambda kv: -kv[1])]
-        detalle_reels = ("los cuenta el CRM de atv-mkt" if del_crm
-                         else "sin chats por palabra este mes")
+        with db_session:
+            for rid in {x[0] for x in chats_reels} - set(reels_por_id):
+                p = PublicacionIg.get(ig_id=rid)
+                if p is not None:
+                    reels_por_id[rid] = {"id": rid, "fecha": p.publicado_at.isoformat() if p.publicado_at else "",
+                                         "titulo": (p.caption or "").strip().split("\n")[0][:120],
+                                         "thumbnail": p.thumbnail or None}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los reels de los chats: %s", str(e)[:160])
+    cuenta: dict[str, int] = {}
+    palabra_de: dict[str, str] = {}
+    for rid, palabra, _ in chats_reels:
+        cuenta[rid] = cuenta.get(rid, 0) + 1
+        palabra_de[rid] = palabra
+    filas_reels = [
+        {"cuando": (reels_por_id.get(rid, {}).get("fecha") or "")[:10],
+         "quien": (reels_por_id.get(rid, {}).get("titulo") or palabra_de[rid])[:80],
+         "cuantos": n,
+         "foto": reels_por_id.get(rid, {}).get("thumbnail"),
+         "dato": palabra_de[rid]}
+        for rid, n in sorted(cuenta.items(), key=lambda kv: -kv[1])
+    ]
+    detalle_reels = ("comentaron la palabra del reel" if por_reels
+                     else "nadie comentó la palabra de un reel este mes")
 
     filas_otras = [
         {"cuando": x.at.date().isoformat(), "quien": x.nombre or x.ig_usuario or "Sin nombre",
@@ -353,8 +343,8 @@ def chats(desde, hasta) -> dict:
         "total": sum(p["cuantos"] for p in partes),
         "partes": partes,
         # Con qué nivel de confianza se mira el número de reels: propio, prestado o nada.
-        "reelsPropios": bool(de_instagram) or bool(reels_marcados),
-        "reelsManual": bool(reels_marcados),
+        "reelsPropios": True,   # salen de los comentarios de Instagram
+        "reelsManual": False,
         "youtubeManual": bool(videos_marcados),
         "webhookConectado": historico > 0,
         "secuenciasDelPeriodo": len(secuencias),

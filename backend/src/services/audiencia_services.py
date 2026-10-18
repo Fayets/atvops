@@ -117,6 +117,18 @@ def _credenciales() -> tuple[str, str]:
     return cred
 
 
+_HOST_GRAPH = re.compile(r"^https://graph\.(facebook|instagram)\.com/v[\d.]+/")
+
+
+def _ruta_siguiente(url_siguiente: str) -> str:
+    """La ruta de la página siguiente, sin host ni versión.
+
+    Instagram la devuelve con su propia versión (v25.0) aunque se haya pedido con otra: si
+    se recorta solo la versión de Ops, la ruta queda rota y la paginación se corta en la
+    primera página sin avisar. Pasó con reels de 150 comentarios que daban 1 o 2."""
+    return _HOST_GRAPH.sub("", url_siguiente).split("?")[0]
+
+
 def _pedir(token: str, path: str, **params) -> dict:
     params["access_token"] = token
     url = f"{API}/{path}?{urllib.parse.urlencode(params)}"
@@ -342,7 +354,7 @@ def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
         siguiente = (r.get("paging") or {}).get("next")
         if not siguiente:
             break
-        url, params = siguiente.replace(f"{API}/", "").split("?")[0], dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
+        url, params = _ruta_siguiente(siguiente).split("?")[0], dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
         params.pop("access_token", None)
     return nuevos, sin_usuario
 
@@ -359,6 +371,12 @@ def analizar_reel(media_id: str) -> dict:
         propia = _cuenta_propia(token, uid)
         m = _pedir(token, str(media_id), fields="id,caption,permalink,timestamp,comments_count")
         nuevos, sin_usuario = _comentarios_de_reel(token, propia, m)
+        try:
+            from src.services import chats_reels_services
+
+            chats_reels_services.sincronizar_reel(str(media_id), m.get("caption"))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Chats del reel %s: %s", media_id, str(e)[:160])
         perfiles = ia = 0
         # Hasta terminar con este reel (con tope, por si Instagram o la IA se traban).
         for _ in range(5):
@@ -812,6 +830,12 @@ def correr(usuario: dict | None = None) -> dict:
         except Exception as e:  # noqa: BLE001
             logger.warning("Audiencia: historias: %s", str(e)[:200])
             resultado["historias"] = {"error": str(e)[:200]}
+        try:
+            from src.services import chats_reels_services
+
+            resultado["chatsReels"] = chats_reels_services.sincronizar()
+        except Exception as e:  # noqa: BLE001
+            resultado["chatsReels"] = {"error": str(e)[:200]}
         resultado["perfiles"] = completar_perfiles()
         resultado["fotos"] = completar_fotos()
         resultado["ia"] = analizar()
@@ -905,7 +929,15 @@ def _reels(filas: list[dict]) -> list[dict]:
                                     "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0})
         r["personas"] += 1
         r[f["veredicto"]] = r.get(f["veredicto"], 0) + 1
+    from src.services import chats_reels_services
+
+    try:
+        chats = chats_reels_services.por_reel()
+    except Exception:  # noqa: BLE001
+        chats = {}
     for rid, r in salida.items():
+        r["chats"] = int((chats.get(rid) or {}).get("chats") or 0)
+        r["palabra"] = (chats.get(rid) or {}).get("palabra")
         analizados = r["calificado"] + r["tibio"] + r["no"]
         r["analizados"] = analizados
         r["pctCalificados"] = round(r["calificado"] / analizados * 100, 1) if analizados else None

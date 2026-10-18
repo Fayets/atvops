@@ -110,7 +110,7 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
             valor={calendlys}
             nota={conversaciones?.conectado
               ? `${formatValue(conversaciones.personas ?? 0, 'count')} ${conversaciones.personas === 1 ? 'persona escribió' : 'personas escribieron'} este mes`
-              : 'todavía no llega ningún aviso de Instagram ni de ManyChat'}
+              : 'todavía no llega ningún mensaje de Instagram'}
           />
           <Numero label="Reels publicados" valor={propio.reels} nota={`${formatValue(propio.reproducciones, 'count')} reproducciones`} />
           <Numero label="Alcance" valor={propio.alcance} nota={`${formatValue(propio.interacciones, 'count')} interacciones`} />
