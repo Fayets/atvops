@@ -8531,3 +8531,19 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
   padding: 6px 8px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer;
 }
 .sidebar-menu-item:hover { border-color: var(--text-3); }
+
+/* Audiencia · Historias: primero todas las secuencias del mes, como tarjetas para elegir. */
+.aud-secs { margin-bottom: var(--space-5); }
+.aud-secs-tit { font-size: 17px; margin: 0 0 var(--space-3); }
+.aud-secs-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.aud-sec { display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; cursor: pointer; font: inherit; color: inherit; border: 1px solid var(--border-soft); }
+.aud-sec:hover { border-color: var(--text-3); }
+.aud-sec:focus-visible { outline: 2px solid var(--brand-line); outline-offset: 2px; }
+.aud-sec-foto { position: relative; display: block; aspect-ratio: 9 / 12; background: var(--surface-3); }
+.aud-sec-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.aud-sec-n { position: absolute; left: 8px; bottom: 8px; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 11.5px; font-weight: 600; }
+.aud-sec-txt { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 12px; }
+.aud-sec-txt b { font-size: 14px; }
+.aud-sec-cta { align-self: flex-start; font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 6px; padding: 1px 6px; }
+.aud-sec-txt .dim { font-size: 12px; }
+.aud-sec-pct { font-size: 13px; font-weight: 600; }

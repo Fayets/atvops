@@ -6,6 +6,7 @@ import {
 } from '../../data/api.js';
 import { formatValue } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
+import { useMes } from '../../lib/MesContext.jsx';
 
 /**
  * Audiencia: quién comenta los reels o responde las historias, y si es un lead calificado.
@@ -148,16 +149,12 @@ function Reel({ r, i, total, onMover }) {
 }
 
 /** La secuencia elegida (un día de historias): sus piezas en fila y si tenía CTA. */
-function Secuencia({ s, i, total, onMover }) {
+function Secuencia({ s, onVolver }) {
   return (
     <section className="card aud-secuencia">
       <div className="aud-reel-cab">
         <span className="lab-k">Historias · {fecha(`${s.fecha}T12:00:00`)}{s.cta ? ' · con CTA' : ''}</span>
-        <span className="aud-reel-nav">
-          <button type="button" className="btn ghost sm" onClick={() => onMover(1)} disabled={i >= total - 1} aria-label="Secuencia anterior">←</button>
-          <span className="dim num">{i + 1} / {total}</span>
-          <button type="button" className="btn ghost sm" onClick={() => onMover(-1)} disabled={i <= 0} aria-label="Secuencia siguiente">→</button>
-        </span>
+        <button type="button" className="btn ghost sm" onClick={onVolver}>← Todas las secuencias</button>
       </div>
       <div className="aud-piezas">
         {s.piezas.map((pz) => (
@@ -168,6 +165,40 @@ function Secuencia({ s, i, total, onMover }) {
         ))}
       </div>
       <p className="dim aud-secuencia-pie">{s.piezas.length} {s.piezas.length === 1 ? 'pieza' : 'piezas'}. El número de cada una es cuántas respuestas tuvo.</p>
+    </section>
+  );
+}
+
+/** Todas las secuencias de historias del mes, para elegir una. */
+function SecuenciasDelMes({ secuencias, mesLabel, onElegir }) {
+  if (!secuencias.length) {
+    return (
+      <div className="card lab-vacio"><h3>No hay secuencias de historias en {mesLabel}</h3>
+        <p className="dim">Cambiá el mes arriba a la derecha, o usá "Analizar ahora" para traer las respuestas nuevas.</p></div>
+    );
+  }
+  return (
+    <section className="aud-secs">
+      <h2 className="aud-secs-tit">Secuencias de {mesLabel} <span className="dim num">· {secuencias.length}</span></h2>
+      <div className="aud-secs-grilla">
+        {secuencias.map((s) => {
+          const tapa = s.piezas.find((p) => p.thumbnail)?.thumbnail;
+          return (
+            <button key={s.id} type="button" className="card aud-sec" onClick={() => onElegir(s.id)}>
+              <span className="aud-sec-foto">
+                {tapa ? <img src={tapa} alt="" loading="lazy" /> : <span className="aud-reel-sin">Historias</span>}
+                <span className="aud-sec-n num">{s.piezas.length} {s.piezas.length === 1 ? 'pieza' : 'piezas'}</span>
+              </span>
+              <span className="aud-sec-txt">
+                <b>{fecha(`${s.fecha}T12:00:00`)}</b>
+                {s.cta && <span className="aud-sec-cta">con CTA</span>}
+                <span className="dim num">{s.respuestas ?? 0} respuestas · {s.calificado ?? 0} calificados</span>
+                <span className="num aud-sec-pct">{s.analizados ? pct(s.pctCalificados) : '—'} <span className="dim">calificados</span></span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -194,7 +225,9 @@ export default function Audiencia() {
   const [filtro, setFiltro] = useState('calificado');
   const [indice, setIndice] = useState(0);
   const [fuente, setFuente] = useState('reel');   // reel | historia
-  const [indiceH, setIndiceH] = useState(0);
+  // Historias: primero todas las secuencias del mes; recién al elegir una se ven sus leads.
+  const [secId, setSecId] = useState(null);
+  const { mes, opciones } = useMes();
   const [verDescartados, setVerDescartados] = useState(false);
   const [criterioAbierto, setCriterioAbierto] = useState(false);
   const [borrador, setBorrador] = useState(null);
@@ -207,7 +240,9 @@ export default function Audiencia() {
   const reels = data?.reels ?? [];
   const reelActual = reels[Math.min(indice, Math.max(reels.length - 1, 0))] ?? null;
   const secuencias = data?.historias ?? [];
-  const secActual = secuencias[Math.min(indiceH, Math.max(secuencias.length - 1, 0))] ?? null;
+  const secuenciasMes = secuencias.filter((s) => (s.fecha || '').startsWith(mes));
+  const secActual = secuencias.find((s) => s.id === secId) ?? null;
+  const mesLabel = (opciones ?? []).find((o) => o.id === mes)?.label?.toLowerCase() ?? 'este mes';
   const actual = fuente === 'historia' ? secActual : reelActual;
   const leads = useMemo(() => (data?.leads ?? []).filter((l) => (
     l.veredicto === filtro
@@ -256,7 +291,7 @@ export default function Audiencia() {
             Reels <span className="dim num">{reels.length}</span>
           </button>
           <button type="button" className={`chip${fuente === 'historia' ? ' active' : ''}`} aria-pressed={fuente === 'historia'} onClick={() => setFuente('historia')}>
-            Historias <span className="dim num">{secuencias.length}</span>
+            Historias <span className="dim num">{secuenciasMes.length}</span>
           </button>
         </div>
         <button type="button" className="btn" onClick={() => { setBorrador(criterio.texto ?? ''); setCriterioAbierto((v) => !v); }}>
@@ -271,13 +306,11 @@ export default function Audiencia() {
       {fuente === 'historia' ? (
         secActual ? (
           <div className="aud-hero">
-            <Secuencia s={secActual} i={Math.min(indiceH, secuencias.length - 1)} total={secuencias.length}
-              onMover={(d) => setIndiceH((n) => Math.max(0, Math.min(secuencias.length - 1, n + d)))} />
+            <Secuencia s={secActual} onVolver={() => setSecId(null)} />
             <Numeros r={secActual} etiqueta="Respuestas" total={secActual.respuestas} />
           </div>
         ) : (
-          <div className="card lab-vacio"><h3>Todavía no hay respuestas a historias analizadas</h3>
-            <p className="dim">Quien responde una historia le escribe a la cuenta por mensaje directo. Con "Analizar ahora" se leen esos mensajes de las historias guardadas en Ops.</p></div>
+          <SecuenciasDelMes secuencias={secuenciasMes} mesLabel={mesLabel} onElegir={setSecId} />
         )
       ) : reelActual ? (
         <div className="aud-hero">
@@ -308,6 +341,7 @@ export default function Audiencia() {
       )}
 
 
+      {(fuente !== 'historia' || secActual) && (<>
       <div className="aud-lista-cab">
         <h2>{filtro === 'calificado' ? 'Leads calificados' : FILTROS.find((f) => f.clave === filtro)?.label}
           <span className="dim"> · {leads.length}</span></h2>
@@ -334,6 +368,7 @@ export default function Audiencia() {
           ))}
         </div>
       )}
+      </>)}
 
       <details className="aud-mano" open={Boolean(aMano) || analizandoAMano || undefined}>
         <summary>Analizar usuarios a mano{manuales.length ? ` · ${manuales.length} analizados` : ''}</summary>
