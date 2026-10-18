@@ -16,22 +16,18 @@ import { useResource } from '../../lib/hooks.js';
 const VISTAS = {
   calendario: {
     titulo: 'Calendario',
-    desc: 'El mes entero de un vistazo: una miniatura por pieza publicada.',
     fuente: 'instagram_ops',
   },
   reels: {
     titulo: 'Reels',
-    desc: 'Lo que se publicó este mes, con lo que midió Instagram.',
     fuente: 'instagram_ops',
   },
   historias: {
     titulo: 'Historias',
-    desc: 'Cada secuencia, pieza por pieza. Instagram las borra a las 24 horas: acá quedan.',
     fuente: 'instagram_ops',
   },
   youtube: {
     titulo: 'YouTube',
-    desc: 'Los videos del canal, con vistas, likes y comentarios.',
     fuente: 'youtube_ops',
   },
 };
@@ -77,9 +73,7 @@ export default function ContenidoPage({ vista }) {
   return (
     <div className="page">
       <PageHeader
-        eyebrow={`Marketing · ${nombreMes}`}
         title={meta.titulo}
-        desc={meta.desc}
         actions={
           <>
             <SourceTag sourceId={meta.fuente} updatedAt={estado.ultimaAt} />
