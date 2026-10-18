@@ -425,19 +425,22 @@ def ver_semana(username: str, semana: date | None) -> dict:
         }
 
 
-def agregar_tarea(username: str, semana: date, texto: str, tipo: str) -> dict:
+def agregar_tarea(username: str, semana: date, texto: str, tipo: str, dia: int | None = None) -> dict:
+    """Una tarea propia para un día de la semana (o abierta en la semana si no lleva día)."""
     texto = (texto or "").strip()
     if not texto:
         raise HTTPException(status_code=400, detail="Escribí la tarea.")
     if tipo not in ("velocidad", "desplazamiento"):
         raise HTTPException(status_code=400, detail="La tarea es de velocidad o de desplazamiento.")
+    if dia is not None and dia not in range(5):
+        raise HTTPException(status_code=400, detail="El día va de lunes a viernes.")
     semana = lunes_de(semana)
     if semana + timedelta(days=4) < hoy():
         raise HTTPException(status_code=400, detail="Esa semana ya terminó.")
     with db_session:
         orden = TareaSemana.select(lambda t: t.usuario == username and t.semana == semana).count()
         t = TareaSemana(usuario=username, semana=semana, texto=texto, tipo=tipo, origen="propia",
-                        frecuencia="semanal", dia=None, orden=orden)
+                        frecuencia="semanal", dia=dia, orden=orden)
         t.flush()  # sin esto el id todavía es None
         return _tarea_dict(t)
 

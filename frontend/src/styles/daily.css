@@ -218,3 +218,4 @@
 .dl-day { padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
 .dl-day b { font-size: 15px; }
 .dl-day span { font-size: 12px; color: var(--text-2); }
+.dl-acc { display: flex; align-items: center; gap: 6px; }

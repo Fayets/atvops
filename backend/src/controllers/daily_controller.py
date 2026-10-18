@@ -14,6 +14,7 @@ class TareaNueva(BaseModel):
     semana: str
     texto: str
     tipo: str = "desplazamiento"
+    dia: int | None = None  # 0=lunes … 4=viernes; sin día = abierta en la semana
 
 
 class TareaEdicion(BaseModel):
@@ -71,7 +72,7 @@ def mi_semana(semana: str | None = None, user: dict = Depends(get_current_user))
 
 @router.post("/tareas")
 def agregar(body: TareaNueva, user: dict = Depends(get_current_user)):
-    return svc.agregar_tarea(user["username"], svc._parse_fecha(body.semana, "semana"), body.texto, body.tipo)
+    return svc.agregar_tarea(user["username"], svc._parse_fecha(body.semana, "semana"), body.texto, body.tipo, body.dia)
 
 
 @router.patch("/tareas/{tarea_id}")

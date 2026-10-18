@@ -3044,11 +3044,12 @@ export async function getDailySemana(semana) {
   return pedirDeVerdad(`/api/daily/semana${semana ? `?semana=${semana}` : ''}`);
 }
 
-export async function agregarTareaDaily(semana, texto, tipo) {
+/** `dia`: 0 (lunes) a 4 (viernes); sin día queda abierta en la semana. */
+export async function agregarTareaDaily(semana, texto, tipo, dia = null) {
   return pedirDeVerdad('/api/daily/tareas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ semana, texto, tipo }),
+    body: JSON.stringify({ semana, texto, tipo, dia }),
   });
 }
 

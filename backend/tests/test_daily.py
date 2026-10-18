@@ -409,3 +409,16 @@ def test_se_adelanta_una_tarea_de_un_dia_que_no_llego():
         d.guardar_dia("lucas", viernes, [{"tarea_id": reporte["id"], "estado": "no", "motivo": "x"}])
     with pytest.raises(HTTPException):
         d.guardar_dia("lucas", date(2026, 11, 6), [])  # más allá de la semana que viene
+
+
+def test_una_tarea_propia_de_un_dia_se_marca_ese_dia():
+    t = d.agregar_tarea("nick", LUNES, "Llamar a los no-shows del martes", "velocidad", dia=2)
+    assert t["dia"] == 2
+    s = d.ver_semana("nick", LUNES)
+    # El miércoles hay que marcarla para guardar la daily; los otros días no aparece.
+    miercoles = date(2026, 10, 21)
+    with pytest.raises(HTTPException):
+        d.guardar_dia("nick", miercoles, [m for m in _marcar_todo(s, miercoles) if m["tarea_id"] != t["id"]])
+    assert t["id"] not in [m["tarea_id"] for m in _marcar_todo(s, date(2026, 10, 20))]
+    with pytest.raises(HTTPException):
+        d.agregar_tarea("nick", LUNES, "x", "velocidad", dia=5)

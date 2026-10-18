@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import Pill from '../components/ui/Pill.jsx';
-import Tabs from '../components/ui/Tabs.jsx';
 import {
   agregarTareaDaily,
   borrarTareaDaily,
@@ -22,15 +21,14 @@ const LOCK = (
 );
 
 /**
- * La daily de cada uno. El domingo se arma la semana (las tareas del rol ya vienen
- * puestas y no se borran); de lunes a viernes se marca cada tarea del día, con motivo si
- * no se hizo. Theo a las 23:00 solo mira si se guardó.
+ * La daily de cada uno: cinco cajas, una por día. En cada día están las tareas del rol
+ * (no se borran) y se suman las propias, de velocidad o de desplazamiento. Se marca cada
+ * tarea con motivo si no se hizo. Theo a las 23:00 solo mira si se guardó.
  */
 export default function Daily() {
   const [semana, setSemana] = useState(null); // lunes ISO; null = la que corresponde hoy
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState(null);
   const [dia, setDia] = useState(null);
 
   const cargar = useCallback(async (s) => {
@@ -52,8 +50,6 @@ export default function Daily() {
       // Se queda en el día que estabas mirando; si no, hoy; si la semana no empezó, el lunes.
       setDia((prev) => (prev != null && r.dias[prev] ? prev
         : hoyIdx >= 0 ? hoyIdx : Math.max(0, r.dias.filter((d) => !d.futuro).length - 1)));
-      // Fin de semana (o semana que no empezó): se arma. Durante la semana: la daily.
-      setTab((prev) => prev ?? (r.dias.every((d) => d.futuro) ? 'semana' : 'hoy'));
     });
   }, [semana, cargar]);
 
@@ -61,7 +57,6 @@ export default function Daily() {
   if (!data) return <div className="page"><SkeletonBlock height={420} /></div>;
 
   const sinEmpezar = data.dias.every((d) => d.futuro);
-  const esActual = data.dias.some((d) => d.es_hoy) || (sinEmpezar && sumarDias(data.hoy, 7) > data.semana);
   const nav = (
     <div className="dl-weeknav">
       <button type="button" className="btn ghost sm" onClick={() => setSemana(sumarDias(data.semana, -7))}>←</button>
@@ -73,20 +68,8 @@ export default function Daily() {
 
   return (
     <div className="page">
-      <div className="dl-top">
-        <Tabs
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'hoy', label: 'Daily' },
-            { value: 'semana', label: 'Armar la semana' },
-          ]}
-        />
-        {nav}
-      </div>
-      {tab === 'semana'
-        ? <ArmarSemana data={data} onCambio={() => cargar(data.semana)} esActual={esActual} />
-        : <DiaDaily data={data} dia={dia} setDia={setDia} onGuardado={setData} />}
+      <div className="dl-top"><span />{nav}</div>
+      <DiaDaily data={data} dia={dia} setDia={setDia} onGuardado={setData} />
     </div>
   );
 }
@@ -116,7 +99,41 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
   const [draft, setDraft] = useState(inicial);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => { setDraft(inicial); setError(''); }, [inicial]);
+  const fechaDraft = useRef(fecha);
+  useEffect(() => {
+    // Mismo día: se conserva lo marcado sin guardar (agregar o borrar una tarea no lo pisa).
+    const mismoDia = fechaDraft.current === fecha;
+    fechaDraft.current = fecha;
+    setDraft((prev) => (mismoDia ? Object.fromEntries(Object.keys(inicial).map((id) => [id, prev[id] ?? inicial[id]])) : inicial));
+    if (!mismoDia) setError('');
+  }, [inicial, fecha]);
+
+  const terminada = sumarDias(data.semana, 4) < data.hoy;
+  const [nueva, setNueva] = useState('');
+  const [tipoNueva, setTipoNueva] = useState('velocidad');
+
+  async function agregar(e) {
+    e.preventDefault();
+    if (!nueva.trim()) return;
+    setError('');
+    try {
+      const t = await agregarTareaDaily(data.semana, nueva.trim(), tipoNueva, dia);
+      setNueva('');
+      onGuardado({ ...data, tareas: [...data.tareas, t] });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function quitar(t) {
+    setError('');
+    try {
+      await borrarTareaDaily(t.id);
+      onGuardado({ ...data, tareas: data.tareas.filter((x) => x.id !== t.id) });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   // Hoy y los días pasados se guardan completos; uno que no llegó solo pide motivo en lo marcado.
   const falta = d.futuro
@@ -152,7 +169,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     const v = draft[t.id] ?? { estado: null, motivo: '' };
     const etiquetas = (
       <small>
-        {t.origen === 'rol' && <span className="dl-lock">{LOCK}Rol</span>}
+        {t.origen === 'rol' ? <span className="dl-lock">{LOCK}Rol</span> : <span>Propia</span>}
         <span className={`dl-kind ${t.tipo}`}>{t.tipo === 'velocidad' ? 'Velocidad' : 'Desplazamiento'}</span>
         {t.frecuencia === 'mensual' && <span>Del mes</span>}
         {t.destinatario && <span>Entrega a {nombreDe(t.destinatario)}</span>}
@@ -170,12 +187,17 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     return (
       <div className="dl-task" key={t.id}>
         <div className="t"><b>{t.texto}</b>{etiquetas}</div>
+        <div className="dl-acc">
+        {t.origen !== 'rol' && !terminada && (
+          <button type="button" className="dl-x" onClick={() => quitar(t)} aria-label={`Quitar ${t.texto}`} title="Quitar tarea">✕</button>
+        )}
         <div className="dl-seg" role="group" aria-label={`Estado de ${t.texto}`}>
           {/* Un día que no llegó se adelanta: lo hiciste antes o no va a aplicar. */}
           {(d.futuro ? [['hecha', 'Hecha'], ['no_aplica', 'No aplica']]
             : [['hecha', 'Hecha'], ['no', 'No la hice'], ['no_aplica', 'No aplica']]).map(([k, l]) => (
             <button key={k} type="button" className={k} aria-pressed={v.estado === k} onClick={() => poner(t.id, k)}>{l}</button>
           ))}
+        </div>
         </div>
         {v.estado && v.estado !== 'hecha' && (
           <div className="dl-motivo">
@@ -215,12 +237,25 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
         <Card flush>
           <div className="dl-sec">
             <div className="dl-sech"><h3>{d.es_hoy ? 'Hoy' : `El ${DIAS[dia]}`}{d.futuro ? <span className="dim" style={{ fontWeight: 400 }}> · todavía no llegó: podés adelantar lo que ya hiciste</span> : null}</h3><span>{deHoy.length} tareas</span></div>
-            {deHoy.length ? deHoy.map(fila) : <p className="dl-vacio">No hay tareas fijas este día.</p>}
+            {deHoy.length ? deHoy.map(fila) : <p className="dl-vacio">No hay tareas este día.</p>}
+            {!terminada && (
+              <form className="dl-add" onSubmit={agregar}>
+                <input id="dl-nueva" value={nueva} onChange={(e) => setNueva(e.target.value)}
+                  placeholder={`Agregar una tarea al ${DIAS[dia]}`} aria-label={`Nueva tarea para el ${DIAS[dia]}`} />
+                <select id="dl-tipo" value={tipoNueva} onChange={(e) => setTipoNueva(e.target.value)} aria-label="Tipo de tarea">
+                  <option value="velocidad">Velocidad</option>
+                  <option value="desplazamiento">Desplazamiento</option>
+                </select>
+                <button type="submit" className="btn primary" disabled={!nueva.trim()}>Agregar</button>
+              </form>
+            )}
           </div>
+          {abiertas.length > 0 && (
           <div className="dl-sec">
             <div className="dl-sech"><h3>Abiertas en la semana</h3><span>se cierran cualquier día</span></div>
-            {abiertas.length ? abiertas.map(fila) : <p className="dl-vacio">Nada abierto. Sumá tareas en "Armar la semana".</p>}
+            {abiertas.map(fila)}
           </div>
+          )}
           {<div className="dl-save">
             <span>
               {error ? <span className="dl-error">{error}</span>
@@ -258,117 +293,4 @@ function hechaOtroDia(t, fecha) {
   if (t.hecha_mes && t.hecha_mes !== fecha) return fechaCorta(t.hecha_mes);
   const otra = Object.entries(t.marcas).find(([f, m]) => f !== fecha && m.estado === 'hecha');
   return otra ? fechaCorta(otra[0]) : null;
-}
-
-/* ------------------------------------------------------------------ armar la semana */
-
-function ArmarSemana({ data, onCambio, esActual }) {
-  const [texto, setTexto] = useState('');
-  const [tipo, setTipo] = useState('desplazamiento');
-  const [error, setError] = useState('');
-  const terminada = sumarDias(data.semana, 4) < data.hoy;
-
-  const rol = data.tareas.filter((t) => t.origen === 'rol');
-  const propias = data.tareas.filter((t) => t.origen !== 'rol');
-  const vel = propias.filter((t) => t.tipo === 'velocidad');
-  const des = propias.filter((t) => t.tipo === 'desplazamiento');
-  const grupos = [
-    ['Todos los días', (t) => t.frecuencia === 'diaria'],
-    ...DIAS.map((n, i) => [n, (t) => t.frecuencia === 'semanal' && t.dia === i]),
-    ['En la semana', (t) => t.frecuencia === 'semanal' && t.dia == null],
-    ['Este mes', (t) => t.frecuencia === 'mensual'],
-  ];
-
-  async function agregar(e) {
-    e.preventDefault();
-    if (!texto.trim()) return;
-    setError('');
-    try {
-      await agregarTareaDaily(data.semana, texto.trim(), tipo);
-      setTexto('');
-      onCambio();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function borrar(id) {
-    try {
-      await borrarTareaDaily(id);
-      onCambio();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  const filaPropia = (t) => (
-    <div className="dl-row" key={t.id}>
-      <span />
-      <div className="t"><b>{t.texto}</b><small>En la semana</small></div>
-      {!terminada && <button type="button" className="dl-x" onClick={() => borrar(t.id)} aria-label={`Quitar ${t.texto}`}>✕</button>}
-    </div>
-  );
-
-  return (
-    <div className="dl-grid">
-      <Card flush>
-        <div className="dl-sec">
-          <div className="dl-sech">
-            <h3><span className="dl-kind velocidad">Velocidad</span> Tareas de tu rol</h3>
-            <span>{rol.length} fijas · no se borran</span>
-          </div>
-          {rol.length === 0 && <p className="dl-vacio">Tu rol todavía no tiene tareas cargadas. Las carga Franco en Backbone → Equipo y roles.</p>}
-          {grupos.map(([nombre, f]) => {
-            const g = rol.filter(f);
-            if (!g.length) return null;
-            return (
-              <div key={nombre}>
-                <div className="dl-sub">{nombre}</div>
-                {g.map((t) => (
-                  <div className="dl-row" key={t.id}>
-                    <span className="icono" title="Viene de tu rol. Si no aplica, lo marcás en la daily con el motivo.">{LOCK}</span>
-                    <div className="t"><b>{t.texto}</b>{t.destinatario && <small>Entrega a {nombreDe(t.destinatario)}</small>}</div>
-                    <span />
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-        <div className="dl-sec">
-          <div className="dl-sech"><h3><span className="dl-kind velocidad">Velocidad</span> Agregadas esta semana</h3><span>{vel.length}</span></div>
-          {vel.length ? vel.map(filaPropia) : <p className="dl-vacio">Ninguna. Si esta semana hay algo rutinario extra, sumalo abajo.</p>}
-        </div>
-        <div className="dl-sec">
-          <div className="dl-sech"><h3><span className="dl-kind desplazamiento">Desplazamiento</span> Para avanzar</h3><span>{des.length}</span></div>
-          {des.length ? des.map(filaPropia) : <p className="dl-vacio">Sin tareas de desplazamiento todavía.</p>}
-          {!terminada && (
-            <form className="dl-add" onSubmit={agregar}>
-              <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Nueva tarea" aria-label="Nueva tarea" />
-              <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo de tarea">
-                <option value="desplazamiento">Desplazamiento</option>
-                <option value="velocidad">Velocidad</option>
-              </select>
-              <button type="submit" className="btn primary" disabled={!texto.trim()}>Agregar</button>
-            </form>
-          )}
-          {error && <p className="dl-error">{error}</p>}
-        </div>
-      </Card>
-      <div className="dl-side">
-        <Card title="Tu semana">
-          <div className="dl-count">
-            <div><b>{rol.length + vel.length}</b><span>velocidad</span></div>
-            <div><b>{des.length}</b><span>desplazamiento</span></div>
-          </div>
-        </Card>
-        <Card title="Cómo sigue">
-          <p>
-            {esActual ? 'El lunes la presentás en la weekly de tu área. ' : ''}
-            De lunes a viernes la vas marcando en la pestaña Daily. Lo que agregás acá queda abierto en la semana y se cierra cualquier día.
-          </p>
-        </Card>
-      </div>
-    </div>
-  );
 }
