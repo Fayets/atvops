@@ -11,7 +11,6 @@ const ORDEN_GRUPOS = ['Tablero', 'Áreas', 'Dirección', 'Sistema'];
 
 const NAV = [
   { to: '/', icon: 'home', label: 'Home', end: true, grupo: 'Tablero' },
-  { to: '/calendario', icon: 'calendario', label: 'Calendario', grupo: 'Tablero' },
   // La daily de cada uno: arma la semana el domingo y la marca de lunes a viernes.
   { to: '/daily', icon: 'check', label: 'Daily', grupo: 'Tablero' },
   {

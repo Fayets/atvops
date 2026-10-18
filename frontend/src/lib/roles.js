@@ -68,15 +68,15 @@ export const RUTAS_POR_ROL = {
   // Las dos pantallas suyas, no el área entera: con '/ventas' a secas podía abrir por
   // URL los laboratorios y el dashboard del área, que no están en su menú.
   closer: ['/daily', '/ventas/mi-dia', '/ventas/llamadas', '/ventas/caja', '/ventas/lab-closing', '/metas'],
-  setter: ['/daily', '/calendario', '/ventas', '/metas'],
-  csm: ['/daily', '/fulfillment', '/asistente', '/calendario', '/ideas'],
+  setter: ['/daily', '/ventas', '/metas'],
+  csm: ['/daily', '/fulfillment', '/asistente', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
   operaciones: ['/', '/daily', '/backbone', '/reporte', '/reporte-producto', '/reporte-closing',
-    '/reporte-setting', '/asistente', '/calendario', '/fulfillment', '/marketing',
+    '/reporte-setting', '/asistente', '/fulfillment', '/marketing',
                 '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
                 '/integraciones', '/claves'],
-  ventas: ['/', '/daily', '/calendario', '/ventas', '/reporte-closing',
+  ventas: ['/', '/daily', '/ventas', '/reporte-closing',
     '/reporte-setting', '/metas', '/ideas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
   marketing: ['/', '/daily', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
@@ -89,7 +89,6 @@ export const RUTAS_POR_ROL = {
     '/reporte-closing',
     '/reporte-setting',
     '/asistente',
-    '/calendario',
     '/fulfillment',
     '/marketing',
     '/ads',
@@ -112,7 +111,6 @@ export const RUTAS_POR_ROL = {
     '/reporte-closing',
     '/reporte-setting',
     '/asistente',
-    '/calendario',
     '/fulfillment',
     '/marketing',
     '/ads',

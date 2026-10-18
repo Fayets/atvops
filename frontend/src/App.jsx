@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import RequireAuth from './components/auth/RequireAuth.jsx';
 import RequireRole from './components/auth/RequireRole.jsx';
 import AppShell from './components/layout/AppShell.jsx';
-import Calendario from './pages/Calendario.jsx';
 import Asistente from './pages/Asistente.jsx';
 import Cobranza from './pages/Cobranza.jsx';
 import ProximosAVencer from './pages/ProximosAVencer.jsx';
@@ -156,7 +155,6 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route element={<RequireRole />}>
             <Route index element={<HomeIndex />} />
-            <Route path="calendario" element={<Calendario />} />
             <Route path="reporte" element={<Reporte />} />
             <Route path="reporte/semanal" element={<ReporteSemanal />} />
             <Route path="reporte/:id" element={<Reporte />} />

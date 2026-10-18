@@ -3,7 +3,6 @@ import { useMes } from '../../lib/MesContext.jsx';
 import Pill from '../ui/Pill.jsx';
 
 const TITULOS = {
-  '/calendario': 'Calendario',
   '/daily': 'Daily',
   '/theo': 'Theo',
   '/backbone': 'Backbone',
