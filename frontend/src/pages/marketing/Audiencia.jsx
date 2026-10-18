@@ -194,7 +194,9 @@ function ReelsDelMes({ reels, mesLabel, onElegir }) {
             <span className="aud-sec-txt">
               <b>{r.fecha ? fecha(r.fecha) : 'Sin fecha'}</b>
               <span className="dim aud-sec-cap">{(r.caption || 'Sin texto').split('\n')[0]}</span>
-              {r.chats > 0 && <span className="aud-sec-chats num"><b>{formatValue(r.chats, 'count')}</b> chats · comentaron «{r.palabra}»</span>}
+              {r.chats > 0
+                ? <span className="aud-sec-chats num"><b>{formatValue(r.chats, 'count')}</b> chats · comentaron «{r.palabra}»</span>
+                : <span className="aud-sec-chats dim">Sin CTA{r.cta?.origen === 'manual' ? ' (marcado)' : ''}</span>}
               {r.personas ? (
                 <>
                   <span className="dim num">{r.personas} personas · {r.calificado ?? 0} calificados</span>

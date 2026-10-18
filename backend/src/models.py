@@ -1012,3 +1012,16 @@ class ChatReel(db.Entity):
     palabra = Required(str)
     at = Required(datetime, index=True)
     composite_key(reel_id, usuario)
+
+
+class ReelCta(db.Entity):
+    """Lo que alguien corrigió a mano sobre si un reel tiene CTA. Sin fila, decide Ops solo
+    (chats_reels_services): esta fila manda sobre lo detectado."""
+
+    _table_ = _tabla("reels_cta", "ReelCta")
+
+    reel_id = PrimaryKey(str)
+    es_cta = Required(bool)
+    palabra = Optional(str, nullable=True)   # si tiene CTA: la palabra que cuenta
+    por = Optional(str, nullable=True)
+    at = Required(datetime, default=datetime.utcnow)

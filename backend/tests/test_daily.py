@@ -442,3 +442,21 @@ def test_cada_persona_que_comento_la_palabra_es_un_chat_una_vez():
     # Cada chat cae en el mes de su comentario: ana en octubre, beto en noviembre.
     octubre = cr.del_periodo(datetime(2026, 10, 1), datetime(2026, 11, 1))
     assert [x[0] for x in octubre] == ["reel-1"]
+
+
+def test_marcar_un_reel_sin_cta_borra_sus_chats_y_manda(monkeypatch):
+    from src.models import PublicacionIg
+    from src.services import chats_reels_services as cr
+
+    monkeypatch.setattr(cr, "sincronizar_reel", lambda reel_id, caption=None: {})  # sin red
+    with db_session:
+        PublicacionIg(ig_id="reel-cta", tipo="reel", publicado_at=datetime(2026, 10, 8), caption="un reel")
+    cr.guardar("reel-cta", "papa", [{"username": "x", "text": "papa", "timestamp": "2026-10-08T10:00:00+0000"}], "atv")
+    assert cr.estado()["reel-cta"]["esCta"] is True and cr.estado()["reel-cta"]["origen"] == "auto"
+
+    r = cr.corregir("reel-cta", False, None, "Franco")
+    assert r == {"origen": "manual", "esCta": False, "por": "Franco", "palabra": None, "chats": 0}
+    assert "reel-cta" not in cr.por_reel()  # sus chats ya no suman
+
+    cr.corregir("reel-cta", None, None, "Franco")  # vuelve a decidir Ops
+    assert "reel-cta" not in cr.estado() or cr.estado()["reel-cta"]["origen"] == "auto"

@@ -373,6 +373,24 @@ def instagram_marcar_reel_chats(user: dict = Depends(get_current_user), payload:
         raise HTTPException(status_code=500, detail=f"No se pudo marcar: {str(e)[:180]}")
 
 
+@router.put("/instagram/reels/cta")
+def instagram_corregir_cta(user: dict = Depends(get_current_user), payload: dict = Body(...)):
+    """Corrige si un reel tiene CTA: {mediaId, esCta: true|false|null, palabra}. null = automático."""
+    if user.get("rol") not in {"admin", "operaciones", "founder", "marketing", "ventas"}:
+        raise HTTPException(status_code=403, detail="Tu rol no puede corregir el CTA de un reel.")
+    from src.services import chats_reels_services
+
+    es_cta = (payload or {}).get("esCta")
+    if es_cta is not None and not isinstance(es_cta, bool):
+        raise HTTPException(status_code=400, detail="esCta es true, false o null.")
+    palabra = str((payload or {}).get("palabra") or "").strip() or None
+    if es_cta is True and palabra and len(palabra) > 60:
+        raise HTTPException(status_code=400, detail="La palabra es demasiado larga.")
+    return chats_reels_services.corregir(
+        str((payload or {}).get("mediaId") or ""), es_cta, palabra,
+        str(user.get("nombre") or user.get("username") or ""))
+
+
 @router.post("/youtube/videos/chats")
 def youtube_marcar_video_chats(user: dict = Depends(get_current_user), payload: dict = Body(...)):
     """Marca si un video de YouTube suma chats al contador manual, y cuántos."""

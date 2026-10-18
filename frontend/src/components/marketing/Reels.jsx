@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import Card from '../ui/Card.jsx';
+import CtaReel from './CtaReel.jsx';
 import { formatValue } from '../../lib/format.js';
 
 /**
@@ -27,7 +29,11 @@ const COLUMNAS = [
 ];
 
 export default function Reels({ items }) {
-  const filas = items;
+  const [filas, setFilas] = useState(items);
+  useEffect(() => { setFilas(items); }, [items]);
+  // Al corregir el CTA de un reel, la fila toma lo recontado sin recargar la página.
+  const actualizar = (id, cta) => setFilas((fs) => fs.map((r) => (r.id === id
+    ? { ...r, cta, chats: cta?.chats ?? 0, keyword: cta?.palabra ?? '' } : r)));
 
   if (!filas.length) {
     return (
@@ -54,7 +60,7 @@ export default function Reels({ items }) {
       title={`${filas.length} ${filas.length === 1 ? 'reel' : 'reels'}`}
       sub={sub}
       flush
-      foot="Vistas son reproducciones; alcance son cuentas distintas. Instagram las refresca cada tres horas. Chats: personas que comentaron la palabra del reel, contadas solas de los comentarios."
+      foot="Vistas son reproducciones; alcance son cuentas distintas. Instagram las refresca cada tres horas. Chats: personas que comentaron la palabra del reel, contadas solas de los comentarios. Si Ops se equivocó con el CTA de un reel, tocá su etiqueta para corregirlo."
     >
       <div className="reel-tabla" style={{ '--reel-cols': COLUMNAS.length + 1 }}>
         <div className="reel-fila cabecera">
@@ -71,13 +77,13 @@ export default function Reels({ items }) {
                 : <span className="reel-sinfoto dim">—</span>}
               <span className="reel-titulo">
                 {r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.titulo}</a> : r.titulo}
-                {r.keyword && <code className="reel-keyword">{r.keyword}</code>}
+                <CtaReel reelId={r.id} cta={r.cta} onCambio={(c) => actualizar(r.id, c)} />
               </span>
             </span>
             <span className="num dim">{dia(r.fecha)}</span>
             {COLUMNAS.map((c) => <span key={c.id} className="num">{n(r[c.id])}</span>)}
             <span className={`num${r.chats ? ' reel-chats' : ' dim'}`}
-              title={r.keyword ? `Comentaron "${r.keyword}"` : 'Este reel no pidió una palabra'}>
+              title={r.keyword ? `Personas que comentaron "${r.keyword}"` : 'Este reel no tiene CTA'}>
               {r.chats ? n(r.chats) : '—'}
             </span>
           </div>

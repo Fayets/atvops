@@ -279,15 +279,15 @@ def contenido(desde, hasta) -> dict:
     from src.services import chats_reels_services
 
     try:
-        chats = chats_reels_services.por_reel()
+        estado = chats_reels_services.estado()
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudieron leer los chats de reels: %s", str(e)[:160])
-        chats = {}
+        estado = {}
     for r in reels:
-        c = chats.get(r["id"]) or {}
+        c = estado.get(r["id"]) or {"origen": "auto", "esCta": False, "palabra": None, "chats": 0}
         r["chats"] = int(c.get("chats") or 0)
-        if c.get("palabra"):
-            r["keyword"] = c["palabra"]
+        r["cta"] = c
+        r["keyword"] = c.get("palabra") or ""
 
     return {"reels": sorted(reels, key=lambda r: r["fecha"], reverse=True),
             "secuencias": secuencias, "conectado": True}

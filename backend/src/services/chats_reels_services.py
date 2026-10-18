@@ -152,9 +152,17 @@ def _procesar(token: str, propia: str, reel_id: str, caption: str | None) -> tup
     por_persona: dict[str, str] = {}
     for c in comentarios:
         por_persona.setdefault((c.get("username") or "").lower(), normalizar(c.get("text")))
-    palabra = detectar_palabra(caption, list(por_persona.values()))
+    manual = _correccion(reel_id)
+    if manual is not None and not manual["esCta"]:
+        _borrar_chats(reel_id)          # lo marcaron sin CTA: no suma nada
+        return None, 0
+    if manual is not None and manual.get("palabra"):
+        palabra = normalizar(manual["palabra"])
+    else:
+        palabra = detectar_palabra(caption, list(por_persona.values()))
     if not palabra:
         return None, 0
+    _borrar_chats(reel_id, salvo_palabra=palabra)   # si cambió la palabra, se recuenta
     nuevos = guardar(reel_id, palabra, comentarios, propia)
     with db_session:
         p = PublicacionIg.get(ig_id=reel_id)
@@ -170,6 +178,78 @@ def sincronizar_reel(reel_id: str, caption: str | None = None) -> dict:
     token, uid = aud._credenciales()
     palabra, nuevos = _procesar(token, aud._cuenta_propia(token, uid), str(reel_id), caption)
     return {"reel": reel_id, "palabra": palabra, "nuevos": nuevos}
+
+
+def _correccion(reel_id: str) -> dict | None:
+    from pony.orm import db_session
+
+    from src.models import ReelCta
+
+    with db_session:
+        c = ReelCta.get(reel_id=reel_id)
+        return {"esCta": c.es_cta, "palabra": c.palabra, "por": c.por} if c else None
+
+
+def _borrar_chats(reel_id: str, salvo_palabra: str | None = None) -> None:
+    from pony.orm import db_session
+
+    from src.models import ChatReel
+
+    with db_session:
+        for c in list(ChatReel.select(lambda c: c.reel_id == reel_id)):
+            if salvo_palabra is None or c.palabra != salvo_palabra:
+                c.delete()
+
+
+def corregir(reel_id: str, es_cta: bool | None, palabra: str | None, quien: str) -> dict:
+    """Lo que dice la persona manda sobre lo detectado.
+
+    es_cta None: vuelve a decidir Ops solo. False: no es un reel con CTA, no suma. True:
+    tiene CTA; con `palabra` cuenta esa (si no, la que detecte Ops). Recuenta en el momento."""
+    from fastapi import HTTPException
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg, ReelCta
+
+    reel_id = str(reel_id or "").strip()
+    palabra = normalizar(palabra) if palabra else None
+    with db_session:
+        p = PublicacionIg.get(ig_id=reel_id)
+        if p is None or p.tipo != "reel":
+            raise HTTPException(status_code=404, detail="Ese reel no está en Ops.")
+        caption = p.caption
+        fila = ReelCta.get(reel_id=reel_id)
+        if es_cta is None:
+            if fila:
+                fila.delete()
+        elif fila:
+            fila.es_cta, fila.palabra, fila.por, fila.at = es_cta, palabra, quien, datetime.utcnow()
+        else:
+            ReelCta(reel_id=reel_id, es_cta=es_cta, palabra=palabra, por=quien)
+    if es_cta is False:
+        _borrar_chats(reel_id)
+    else:
+        sincronizar_reel(reel_id, caption)
+    return estado().get(reel_id) or {"origen": "auto", "esCta": False, "palabra": None, "chats": 0}
+
+
+def estado() -> dict[str, dict]:
+    """reel_id → si tiene CTA, con qué palabra, cuántos chats y si lo decidió Ops o una persona.
+    Un reel que no aparece no tiene CTA detectado."""
+    from pony.orm import db_session
+
+    from src.models import ReelCta
+
+    chats = por_reel()
+    out = {rid: {"origen": "auto", "esCta": True, "palabra": c["palabra"], "chats": c["chats"]}
+           for rid, c in chats.items()}
+    with db_session:
+        for f in list(ReelCta.select()):
+            c = chats.get(f.reel_id) or {}
+            out[f.reel_id] = {"origen": "manual", "esCta": f.es_cta, "por": f.por,
+                              "palabra": (f.palabra or c.get("palabra")) if f.es_cta else None,
+                              "chats": int(c.get("chats") or 0) if f.es_cta else 0}
+    return out
 
 
 def por_reel() -> dict[str, dict]:

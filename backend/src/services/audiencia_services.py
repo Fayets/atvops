@@ -871,7 +871,11 @@ def listar() -> dict:
     from src.models import LeadAudiencia
 
     with db_session:
-        filas = [_a_dict(x) for x in list(LeadAudiencia.select())]
+        # Los cuatro textos largos (LongStr) Pony los trae de a uno, al leerlos: con 300 leads
+        # eran 1.200 consultas a Neon y Audiencia tardaba hasta 7 s. `prefetch` los trae en
+        # la misma consulta.
+        filas = [_a_dict(x) for x in list(LeadAudiencia.select().prefetch(
+            LeadAudiencia.comentario, LeadAudiencia.perfil, LeadAudiencia.motivo, LeadAudiencia.analisis))]
     # Los que quedaron como "tibio" antes del cambio se leen como calificados: así no
     # hace falta reescribir la base para que cuenten.
     for f in filas:
@@ -932,12 +936,14 @@ def _reels(filas: list[dict]) -> list[dict]:
     from src.services import chats_reels_services
 
     try:
-        chats = chats_reels_services.por_reel()
+        estado = chats_reels_services.estado()
     except Exception:  # noqa: BLE001
-        chats = {}
+        estado = {}
     for rid, r in salida.items():
-        r["chats"] = int((chats.get(rid) or {}).get("chats") or 0)
-        r["palabra"] = (chats.get(rid) or {}).get("palabra")
+        c = estado.get(rid) or {"origen": "auto", "esCta": False, "palabra": None, "chats": 0}
+        r["chats"] = int(c.get("chats") or 0)
+        r["palabra"] = c.get("palabra")
+        r["cta"] = c
         analizados = r["calificado"] + r["tibio"] + r["no"]
         r["analizados"] = analizados
         r["pctCalificados"] = round(r["calificado"] / analizados * 100, 1) if analizados else None

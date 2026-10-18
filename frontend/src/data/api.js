@@ -3151,3 +3151,12 @@ export async function getAnunciosMeta(mes, { refrescar = false } = {}) {
 export async function getAnuncioMeta(id, mes) {
   return pedir(`/api/meta/anuncios/${id}${mes ? `?month=${mes}` : ''}`);
 }
+
+/** Corrige si un reel tiene CTA. `esCta`: true, false o null (que decida Ops solo). */
+export async function corregirCtaReel(mediaId, esCta, palabra = null) {
+  return pedir('/api/ventas/instagram/reels/cta', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mediaId, esCta, palabra }),
+  });
+}
