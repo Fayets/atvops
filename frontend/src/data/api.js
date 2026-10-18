@@ -2918,6 +2918,10 @@ export async function getAudiencia() {
 export async function audienciaCorrer() {
   return pedir('/api/audiencia/correr', { method: 'POST' });
 }
+/** A mano: analiza a todos los que comentaron un reel, también de meses anteriores. */
+export async function audienciaAnalizarReel(mediaId) {
+  return pedir(`/api/audiencia/reels/${mediaId}/analizar`, { method: 'POST' });
+}
 export async function audienciaCargar(texto) {
   return pedir('/api/audiencia/cargar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
 }

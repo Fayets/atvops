@@ -288,10 +288,6 @@ def _cuenta_propia(token: str, uid: str) -> str:
 
 def sincronizar_comentarios(dias: int = DIAS_REELS) -> dict:
     """Trae los comentarios de los reels recientes y crea un lead por persona nueva."""
-    from pony.orm import db_session
-
-    from src.models import LeadAudiencia
-
     token, uid = _credenciales()
     propia = _cuenta_propia(token, uid)
     desde = datetime.utcnow() - timedelta(days=dias)
@@ -300,42 +296,84 @@ def sincronizar_comentarios(dias: int = DIAS_REELS) -> dict:
     reels = [m for m in media if (m.get("timestamp") or "") >= desde.strftime("%Y-%m-%d")]
     nuevos = sin_usuario = 0
     for m in reels:
-        if not m.get("comments_count"):
-            continue
-        url = f"{m['id']}/comments"
-        params = {"fields": "id,text,username,timestamp", "limit": 50}
-        leidos = 0
-        while url and leidos < MAX_COMENTARIOS:
-            r = _pedir(token, url, **params)
-            filas = r.get("data") or []
-            for c in filas:
-                leidos += 1
-                usuario = _usuario_limpio(c.get("username") or "")
-                if not usuario:
-                    sin_usuario += 1
-                    continue
-                if usuario == propia:
-                    continue
-                with db_session:
-                    if LeadAudiencia.get(comentario_id=c["id"]):
-                        continue
-                    # Una persona que comentó varios reels es un solo lead: se suma el
-                    # comentario al que ya existe en vez de duplicarla.
-                    previo = next((x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario), None)
-                    if previo:
-                        continue
-                    LeadAudiencia(
-                        ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
-                        reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
-                        comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"], creado_por="instagram",
-                    )
-                    nuevos += 1
-            siguiente = (r.get("paging") or {}).get("next")
-            if not siguiente:
-                break
-            url, params = siguiente.replace(f"{API}/", "").split("?")[0], dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
-            params.pop("access_token", None)
+        n, s_u = _comentarios_de_reel(token, propia, m)
+        nuevos += n
+        sin_usuario += s_u
     return {"reels": len(reels), "nuevos": nuevos, "sinUsuario": sin_usuario}
+
+
+def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
+    """Crea un lead por cada persona nueva que comentó el reel `m`. Devuelve (nuevos, sin usuario)."""
+    from pony.orm import db_session
+
+    from src.models import LeadAudiencia
+
+    nuevos = sin_usuario = 0
+    if not m.get("comments_count"):
+        return 0, 0
+    url = f"{m['id']}/comments"
+    params = {"fields": "id,text,username,timestamp", "limit": 50}
+    leidos = 0
+    while url and leidos < MAX_COMENTARIOS:
+        r = _pedir(token, url, **params)
+        filas = r.get("data") or []
+        for c in filas:
+            leidos += 1
+            usuario = _usuario_limpio(c.get("username") or "")
+            if not usuario:
+                sin_usuario += 1
+                continue
+            if usuario == propia:
+                continue
+            with db_session:
+                if LeadAudiencia.get(comentario_id=c["id"]):
+                    continue
+                # Una persona que comentó varios reels es un solo lead: se suma el
+                # comentario al que ya existe en vez de duplicarla.
+                previo = next((x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario), None)
+                if previo:
+                    continue
+                LeadAudiencia(
+                    ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
+                    reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
+                    comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"], creado_por="instagram",
+                )
+                nuevos += 1
+        siguiente = (r.get("paging") or {}).get("next")
+        if not siguiente:
+            break
+        url, params = siguiente.replace(f"{API}/", "").split("?")[0], dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
+        params.pop("access_token", None)
+    return nuevos, sin_usuario
+
+
+def analizar_reel(media_id: str) -> dict:
+    """A mano, para un reel puntual (también de meses anteriores, que la corrida automática
+    no mira): trae a todos los que comentaron, lee sus perfiles y los analiza con la IA."""
+    if not str(media_id).isdigit():
+        raise HTTPException(status_code=400, detail="Id de reel inválido.")
+    if not _lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="Ya hay un análisis corriendo. Esperá a que termine.")
+    try:
+        token, uid = _credenciales()
+        propia = _cuenta_propia(token, uid)
+        m = _pedir(token, str(media_id), fields="id,caption,permalink,timestamp,comments_count")
+        nuevos, sin_usuario = _comentarios_de_reel(token, propia, m)
+        perfiles = ia = 0
+        # Hasta terminar con este reel (con tope, por si Instagram o la IA se traban).
+        for _ in range(5):
+            p = completar_perfiles(limite=60)
+            r = analizar(limite=60)
+            perfiles += p if isinstance(p, int) else 0
+            hechos = r.get("analizados", 0) if isinstance(r, dict) else 0
+            ia += hechos
+            if not hechos and not p:
+                break
+        resultado = {"reel": media_id, "nuevos": nuevos, "sinUsuario": sin_usuario, "perfiles": perfiles, "ia": ia}
+        logger.info("Audiencia, reel a mano: %s", resultado)
+        return resultado
+    finally:
+        _lock.release()
 
 
 # ------------------------------------------------------------------ respuestas a historias
@@ -841,10 +879,11 @@ def _reels(filas: list[dict]) -> list[dict]:
 
     from src.models import PublicacionIg
 
-    desde = datetime.utcnow() - timedelta(days=60)
+    # Todos los reels guardados, de cualquier mes: los de meses anteriores aparecen aunque
+    # nadie los haya analizado todavía, para poder analizarlos a mano.
     with db_session:
         publicados = {r.ig_id: r for r in list(PublicacionIg.select())
-                      if r.tipo == "reel" and r.publicado_at and r.publicado_at >= desde}
+                      if r.tipo == "reel" and r.publicado_at}
         base = {}
         for ig_id, r in publicados.items():
             try:
@@ -855,7 +894,8 @@ def _reels(filas: list[dict]) -> list[dict]:
                            "thumbnail": r.thumbnail or None,
                            "fecha": r.publicado_at.isoformat() if r.publicado_at else None,
                            "comentarios": int(metricas.get("comments") or 0)}
-    salida = {}
+    salida = {rid: {**b, "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0}
+              for rid, b in base.items()}
     for f in filas:
         rid = f["reelId"]
         if not rid:

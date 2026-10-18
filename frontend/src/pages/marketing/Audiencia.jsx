@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
-  audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
+  audienciaAnalizarReel, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
   getAudiencia, guardarCriterioAudiencia,
 } from '../../data/api.js';
 import { formatValue } from '../../lib/format.js';
@@ -126,7 +126,7 @@ const fecha = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: '
 const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
 
 /** El reel elegido: la miniatura y lo que dice, con flechas para pasar al anterior. */
-function Reel({ r, i, total, onMover }) {
+function Reel({ r, onVolver, onAnalizar, ocupado }) {
   return (
     <section className="card aud-reel">
       <div className="aud-reel-foto">
@@ -138,9 +138,13 @@ function Reel({ r, i, total, onMover }) {
         <div className="aud-reel-pie">
           {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
           <span className="aud-reel-nav">
-            <button type="button" className="btn ghost sm" onClick={() => onMover(1)} disabled={i >= total - 1} aria-label="Reel anterior">←</button>
-            <span className="dim num">{i + 1} / {total}</span>
-            <button type="button" className="btn ghost sm" onClick={() => onMover(-1)} disabled={i <= 0} aria-label="Reel siguiente">→</button>
+            {r.comentarios > 0 && (
+              <button type="button" className="btn sm" onClick={onAnalizar} disabled={ocupado}
+                title="Trae a todos los que comentaron, lee sus perfiles y los analiza">
+                {r.personas ? 'Volver a analizar' : 'Analizar la gente que comentó'}
+              </button>
+            )}
+            <button type="button" className="btn ghost sm" onClick={onVolver}>← Todos los reels</button>
           </span>
         </div>
       </div>
@@ -165,6 +169,43 @@ function Secuencia({ s, onVolver }) {
         ))}
       </div>
       <p className="dim aud-secuencia-pie">{s.piezas.length} {s.piezas.length === 1 ? 'pieza' : 'piezas'}. El número de cada una es cuántas respuestas tuvo.</p>
+    </section>
+  );
+}
+
+/** Los reels que se subieron en el mes, para elegir uno. */
+function ReelsDelMes({ reels, mesLabel, onElegir }) {
+  if (!reels.length) {
+    return (
+      <div className="card lab-vacio"><h3>No hay reels en {mesLabel}</h3>
+        <p className="dim">Cambiá el mes arriba a la derecha.</p></div>
+    );
+  }
+  return (
+    <section className="aud-secs">
+      <h2 className="aud-secs-tit">Reels de {mesLabel} <span className="dim num">· {reels.length}</span></h2>
+      <div className="aud-secs-grilla">
+        {reels.map((r) => (
+          <button key={r.id} type="button" className="card aud-sec" onClick={() => onElegir(r.id)}>
+            <span className="aud-sec-foto">
+              {r.thumbnail ? <img src={r.thumbnail} alt="" loading="lazy" /> : <span className="aud-reel-sin">Reel</span>}
+              <span className="aud-sec-n num">{formatValue(r.comentarios ?? 0, 'count')} comentarios</span>
+            </span>
+            <span className="aud-sec-txt">
+              <b>{r.fecha ? fecha(r.fecha) : 'Sin fecha'}</b>
+              <span className="dim aud-sec-cap">{(r.caption || 'Sin texto').split('\n')[0]}</span>
+              {r.personas ? (
+                <>
+                  <span className="dim num">{r.personas} personas · {r.calificado ?? 0} calificados</span>
+                  <span className="num aud-sec-pct">{r.analizados ? pct(r.pctCalificados) : '—'} <span className="dim">calificados</span></span>
+                </>
+              ) : (
+                <span className="aud-sec-pend">{r.comentarios ? 'Sin analizar' : 'Sin comentarios'}</span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
@@ -222,7 +263,7 @@ export default function Audiencia() {
   const [tick, setTick] = useState(0);
   const { data, error, loading } = useResource(() => getAudiencia(), [tick]);
   const [filtro, setFiltro] = useState('calificado');
-  const [indice, setIndice] = useState(0);
+  const [reelId, setReelId] = useState(null);
   const [fuente, setFuente] = useState('reel');   // reel | historia
   // Historias: primero todas las secuencias del mes; recién al elegir una se ven sus leads.
   const [secId, setSecId] = useState(null);
@@ -237,11 +278,13 @@ export default function Audiencia() {
   const [aviso, setAviso] = useState('');
 
   const reels = data?.reels ?? [];
-  const reelActual = reels[Math.min(indice, Math.max(reels.length - 1, 0))] ?? null;
   const secuencias = data?.historias ?? [];
   // Solo las secuencias con CTA: las demás no buscan respuestas y no dicen nada de leads.
   const secuenciasMes = secuencias.filter((s) => s.cta && (s.fecha || '').startsWith(mes));
   const secActual = secuencias.find((s) => s.id === secId) ?? null;
+  // Reels: igual que las historias, primero los del mes y después el análisis de uno.
+  const reelsMes = reels.filter((r) => (r.fecha || '').startsWith(mes));
+  const reelActual = reels.find((r) => r.id === reelId) ?? null;
   const mesLabel = (opciones ?? []).find((o) => o.id === mes)?.label?.toLowerCase() ?? 'este mes';
   const actual = fuente === 'historia' ? secActual : reelActual;
   const leads = useMemo(() => (data?.leads ?? []).filter((l) => (
@@ -288,7 +331,7 @@ export default function Audiencia() {
       <div className="aud-herramientas">
         <div className="aud-fuente" role="group" aria-label="Qué mirar">
           <button type="button" className={`chip${fuente === 'reel' ? ' active' : ''}`} aria-pressed={fuente === 'reel'} onClick={() => setFuente('reel')}>
-            Reels <span className="dim num">{reels.length}</span>
+            Reels <span className="dim num">{reelsMes.length}</span>
           </button>
           <button type="button" className={`chip${fuente === 'historia' ? ' active' : ''}`} aria-pressed={fuente === 'historia'} onClick={() => setFuente('historia')}>
             Historias <span className="dim num">{secuenciasMes.length}</span>
@@ -314,13 +357,13 @@ export default function Audiencia() {
         )
       ) : reelActual ? (
         <div className="aud-hero">
-          <Reel r={reelActual} i={Math.min(indice, reels.length - 1)} total={reels.length}
-            onMover={(d) => setIndice((n) => Math.max(0, Math.min(reels.length - 1, n + d)))} />
+          <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado}
+            onAnalizar={() => hacer(() => audienciaAnalizarReel(reelActual.id),
+              'Analizando a todos los que comentaron este reel. Con muchos comentarios tarda unos minutos: recargá en un rato.')} />
           <Numeros r={reelActual} />
         </div>
       ) : (
-        <div className="card lab-vacio"><h3>Todavía no hay reels analizados</h3>
-          <p className="dim">Con "Analizar ahora" se traen los comentarios de los reels de las últimas tres semanas.</p></div>
+        <ReelsDelMes reels={reelsMes} mesLabel={mesLabel} onElegir={setReelId} />
       )}
 
       {aviso && <p className="aud-aviso">{aviso}</p>}
@@ -341,7 +384,7 @@ export default function Audiencia() {
       )}
 
 
-      {(fuente !== 'historia' || secActual) && (<>
+      {(fuente === 'historia' ? secActual : reelActual) && (<>
       <div className="aud-lista-cab">
         <h2>{filtro === 'calificado' ? 'Leads calificados' : FILTROS.find((f) => f.clave === filtro)?.label}
           <span className="dim"> · {leads.length}</span></h2>
@@ -357,7 +400,9 @@ export default function Audiencia() {
       {leads.length === 0 ? (
         <div className="card lab-vacio">
           <h3>No hay leads {filtro === 'calificado' ? 'calificados' : `en "${FILTROS.find((f) => f.clave === filtro)?.label}"`} todavía</h3>
-          <p className="dim">{actual?.sin_analizar ? `Hay ${actual.sin_analizar} personas ${fuente === 'historia' ? 'de esta secuencia' : 'de este reel'} esperando análisis.` : 'Se analizan solos cada dos horas, o con "Analizar ahora".'}</p>
+          <p className="dim">{fuente === 'reel' && actual && !actual.personas && actual.comentarios
+            ? 'Este reel todavía no se analizó. Tocá "Analizar la gente que comentó" arriba.'
+            : actual?.sin_analizar ? `Hay ${actual.sin_analizar} personas ${fuente === 'historia' ? 'de esta secuencia' : 'de este reel'} esperando análisis.` : 'Se analizan solos cada dos horas, o con "Analizar ahora".'}</p>
         </div>
       ) : (
         <div className="aud-grilla">

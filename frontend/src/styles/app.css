@@ -8539,8 +8539,8 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .aud-sec { display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; cursor: pointer; font: inherit; color: inherit; border: 1px solid var(--border-soft); }
 .aud-sec:hover { border-color: var(--text-3); }
 .aud-sec:focus-visible { outline: 2px solid var(--brand-line); outline-offset: 2px; }
-.aud-sec-foto { position: relative; display: block; aspect-ratio: 9 / 12; background: var(--surface-3); }
-.aud-sec-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.aud-sec-foto { position: relative; display: block; width: 100%; aspect-ratio: 9 / 12; overflow: hidden; background: var(--surface-3); }
+.aud-sec-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .aud-sec-n { position: absolute; left: 8px; bottom: 8px; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 11.5px; font-weight: 600; }
 .aud-sec-txt { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 12px; }
 .aud-sec-txt b { font-size: 14px; }
@@ -8584,3 +8584,5 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .ads-dias i { display: block; width: 100%; background: var(--s1); border-radius: 2px 2px 0 0; }
 .ads-copy { margin: 0; white-space: pre-wrap; font-size: 13px; color: var(--text-2); }
 .ads-mas { margin-top: 10px; }
+.aud-sec-cap { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aud-sec-pend { align-self: flex-start; font-size: 11.5px; font-weight: 600; color: var(--warn); background: var(--warn-dim); border-radius: 6px; padding: 2px 7px; margin-top: 2px; }

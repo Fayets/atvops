@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from src.controllers.auth_controller import get_current_user
@@ -42,6 +44,23 @@ def cargar(fondo: BackgroundTasks, payload: dict = Body(...), user: dict = Depen
     if r.get("pendientes"):
         fondo.add_task(_correr_seguro)
     return r
+
+
+@router.post("/reels/{media_id}/analizar")
+def analizar_reel(media_id: str, fondo: BackgroundTasks, _user: dict = Depends(_puede)):
+    """A mano: todos los que comentaron un reel (también de meses anteriores) → perfiles → IA.
+    Corre en segundo plano: con muchos comentarios tarda minutos."""
+    if not media_id.isdigit():
+        raise HTTPException(status_code=400, detail="Id de reel inválido.")
+    fondo.add_task(_analizar_reel_seguro, media_id)
+    return {"ok": True, "reel": media_id}
+
+
+def _analizar_reel_seguro(media_id: str) -> None:
+    try:
+        audiencia.analizar_reel(media_id)
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger("atv_ops.audiencia").warning("Análisis a mano del reel %s: %s", media_id, str(e)[:200])
 
 
 @router.get("/criterio")
