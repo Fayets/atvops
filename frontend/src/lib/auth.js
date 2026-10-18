@@ -32,6 +32,34 @@ export function saveSession({ token, user }) {
 
 export function clearSession() {
   olvidarLiberacion();
+  localStorage.removeItem('atv-ops-sesion-original');
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+/* Franco entra a la cuenta de otra persona: se guarda su propia sesión aparte para volver. */
+const ORIGINAL_KEY = 'atv-ops-sesion-original';
+
+export function entrarComoSesion(session) {
+  if (!localStorage.getItem(ORIGINAL_KEY)) {
+    localStorage.setItem(ORIGINAL_KEY, JSON.stringify({ token: getToken(), user: getStoredUser() }));
+  }
+  saveSession(session);
+}
+
+export function sesionOriginal() {
+  try {
+    return JSON.parse(localStorage.getItem(ORIGINAL_KEY) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+/** Vuelve a la sesión del admin. Devuelve false si no había una guardada. */
+export function volverASesionOriginal() {
+  const original = sesionOriginal();
+  localStorage.removeItem(ORIGINAL_KEY);
+  if (!original?.token) return false;
+  saveSession(original);
+  return true;
 }

@@ -97,7 +97,44 @@ def _to_response(usuario: Usuario) -> dict:
         "username": usuario.username,
         "nombre": usuario.nombre,
         "rol": rol,
+        "foto_url": getattr(usuario, "foto_url", None),
     }
+
+
+def _emitir_token(usuario: Usuario, por: str | None = None) -> dict:
+    """`por`: si un admin entró como otra persona, quién es. La sesión es la de esa persona."""
+    claims = {
+        "sub": str(usuario.id),
+        "username": usuario.username,
+        "rol": getattr(usuario, "rol", None) or "operaciones",
+        "exp": datetime.now(timezone.utc) + timedelta(days=_TOKEN_DIAS),
+    }
+    if por:
+        claims["por"] = por
+    token = jwt.encode(claims, _secret(), algorithm="HS256")
+    return {"token": token, "user": {**_to_response(usuario), "por": por}}
+
+
+def google_client_id() -> str:
+    return (config("GOOGLE_CLIENT_ID", default="") or "").strip()
+
+
+def _verificar_google(credencial: str) -> dict:
+    """El navegador trae un ID token de Google Identity Services. Se valida firma, emisor,
+    audiencia (nuestro client id) y que el mail esté verificado. Igual que el classroom."""
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
+    cid = google_client_id()
+    if not cid:
+        raise HTTPException(status_code=503, detail="El ingreso con Google todavía no está configurado.")
+    try:
+        datos = id_token.verify_oauth2_token(credencial, google_requests.Request(), cid, clock_skew_in_seconds=10)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="No pudimos validar tu cuenta de Google. Probá de nuevo.")
+    if not datos.get("email_verified") or not datos.get("email"):
+        raise HTTPException(status_code=401, detail="Tu cuenta de Google no tiene el mail verificado.")
+    return {"sub": str(datos["sub"]), "email": str(datos["email"]).strip().lower(), "foto": datos.get("picture")}
 
 
 def ensure_usuario_rol_column() -> None:
@@ -475,22 +512,42 @@ class AuthServices:
             usuario = Usuario.get(username=username.strip())
             if usuario is None or not _verify_password(password, usuario.password_hash):
                 raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos.")
-            token = jwt.encode(
-                {
-                    "sub": str(usuario.id),
-                    "username": usuario.username,
-                    "rol": getattr(usuario, "rol", None) or "operaciones",
-                    "exp": datetime.now(timezone.utc) + timedelta(days=_TOKEN_DIAS),
-                },
-                _secret(),
-                algorithm="HS256",
-            )
-            return {"token": token, "user": _to_response(usuario)}
+            return _emitir_token(usuario)
+
+    def login_google(self, credencial: str) -> dict:
+        """Entra quien tenga ese mail cargado en el equipo. El primer ingreso ata la cuenta."""
+        from src.services.daily_services import usuario_por_email
+
+        datos = _verificar_google(credencial)
+        with db_session:
+            usuario = usuario_por_email(datos["email"])
+            if usuario is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"{datos['email']} no está en el equipo de ATV Ops. Pedile a Franco que lo agregue.")
+            if usuario.google_sub and usuario.google_sub != datos["sub"]:
+                raise HTTPException(status_code=403, detail="Esa cuenta de Google no coincide con la registrada.")
+            usuario.google_sub = datos["sub"]
+            if datos.get("foto"):
+                usuario.foto_url = datos["foto"]
+            _CACHE_SESION.pop(usuario.id, None)
+            return _emitir_token(usuario)
+
+    def entrar_como(self, admin: dict, username: str) -> dict:
+        """Franco entra a la cuenta de cualquiera para ver y cargar lo que esa persona ve."""
+        if admin.get("rol") != "admin" or admin.get("por"):
+            raise HTTPException(status_code=403, detail="Solo un admin puede entrar como otra persona.")
+        with db_session:
+            usuario = Usuario.get(username=username)
+            if usuario is None:
+                raise HTTPException(status_code=404, detail="No existe esa persona.")
+            return _emitir_token(usuario, por=admin["username"])
 
     def usuario_desde_token(self, token: str) -> dict:
         try:
             payload = jwt.decode(token, _secret(), algorithms=["HS256"])
             user_id = int(payload["sub"])
+            por = payload.get("por")
         except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
             raise HTTPException(status_code=401, detail="Sesión inválida o vencida.")
 
@@ -500,7 +557,7 @@ class AuthServices:
         ahora = time.monotonic()
         cacheado = _CACHE_SESION.get(user_id)
         if cacheado and ahora - cacheado[0] < _CACHE_SESION_SEGUNDOS:
-            return dict(cacheado[1])
+            return {**cacheado[1], "por": por}
 
         with db_session:
             usuario = Usuario.get(id=user_id)
@@ -509,7 +566,16 @@ class AuthServices:
                 raise HTTPException(status_code=401, detail="Sesión inválida o vencida.")
             datos = _to_response(usuario)
         _CACHE_SESION[user_id] = (ahora, datos)
-        return dict(datos)
+        return {**datos, "por": por}
+
+
+def ensure_usuario_equipo_columns() -> None:
+    """El equipo entra con Google y arma el organigrama de Backbone: columnas nuevas en usuarios."""
+    _agregar_columnas("usuarios", "Usuario", [
+        ("emails", "TEXT"), ("google_sub", "TEXT"), ("foto_url", "TEXT"), ("cargo", "TEXT"),
+        ("area", "TEXT"), ("jefe", "TEXT"), ("daily", "BOOLEAN DEFAULT FALSE NOT NULL"),
+        ("orden", "INTEGER DEFAULT 0 NOT NULL"),
+    ])
 
 
 def ensure_pitch_setting_columns() -> None:

@@ -27,6 +27,17 @@ class Usuario(db.Entity):
     creado_at = Required(datetime, default=datetime.utcnow)
     reuniones = Set("Reunion")
     ideas = Set("Idea")
+    # El equipo entra con Google: los mails con los que puede entrar (uno por línea; Mauri
+    # tiene dos) y el `sub` de Google que queda atado en el primer ingreso.
+    emails = Optional(str, nullable=True)
+    google_sub = Optional(str, nullable=True)
+    foto_url = Optional(str, nullable=True)
+    # El organigrama de Backbone: qué hace, en qué weekly presenta y a quién reporta.
+    cargo = Optional(str, nullable=True)
+    area = Optional(str, nullable=True)        # ventas | marketing | producto | sistemas | direccion
+    jefe = Optional(str, nullable=True)        # username
+    daily = Required(bool, default=False)      # si carga daily (Juan no)
+    orden = Required(int, default=0)
 
 
 class Integrante(db.Entity):
@@ -876,3 +887,67 @@ class ReporteClosing(db.Entity):
     creado_at = Required(datetime, default=lambda: datetime.utcnow())
     actualizado_por = Optional(str, nullable=True)
     actualizado_at = Optional(datetime, nullable=True)
+
+
+class TareaRol(db.Entity):
+    """Lo que el documento de rol dice que esa persona hace siempre. Es la plantilla: cada
+    semana se copia a la semana de cada uno y ahí no se puede borrar."""
+
+    _table_ = _tabla("daily_tareas_rol", "TareaRol")
+
+    id = PrimaryKey(int, auto=True)
+    usuario = Required(str, index=True)          # username
+    texto = Required(str)
+    frecuencia = Required(str)                   # diaria | semanal | mensual
+    dia = Optional(int, nullable=True)           # 0=lunes … 4=viernes; semanal sin día = en la semana
+    destinatario = Optional(str, nullable=True)  # username al que le entrega
+    orden = Required(int, default=0)
+    activa = Required(bool, default=True)
+
+
+class TareaSemana(db.Entity):
+    """Una tarea en la semana de alguien: las del rol (copiadas) más las que suma el domingo."""
+
+    _table_ = _tabla("daily_tareas_semana", "TareaSemana")
+
+    id = PrimaryKey(int, auto=True)
+    usuario = Required(str, index=True)
+    semana = Required(date, index=True)          # el lunes
+    texto = Required(str)
+    tipo = Required(str, default="velocidad")    # velocidad | desplazamiento
+    origen = Required(str, default="propia")     # rol | propia
+    frecuencia = Required(str, default="semanal")  # diaria | semanal | mensual
+    dia = Optional(int, nullable=True)
+    destinatario = Optional(str, nullable=True)
+    tarea_rol = Optional(int, nullable=True)     # id de TareaRol si vino del rol
+    orden = Required(int, default=0)
+    borrada = Required(bool, default=False)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    marcas = Set("MarcaDaily")
+
+
+class MarcaDaily(db.Entity):
+    """Cómo quedó una tarea un día: hecha, no la hice o no aplica (estas dos con motivo)."""
+
+    _table_ = _tabla("daily_marcas", "MarcaDaily")
+
+    id = PrimaryKey(int, auto=True)
+    tarea = Required(TareaSemana)
+    fecha = Required(date, index=True)
+    estado = Required(str)                       # hecha | no | no_aplica
+    motivo = Optional(str, nullable=True)
+    marcado_at = Required(datetime, default=datetime.utcnow)
+
+
+class CierreDaily(db.Entity):
+    """Que alguien guardó su daily de un día. `a_tiempo` es lo que mira Theo: se guardó el
+    mismo día. Corregir un día viejo después no lo vuelve a tiempo."""
+
+    _table_ = _tabla("daily_cierres", "CierreDaily")
+
+    id = PrimaryKey(int, auto=True)
+    usuario = Required(str, index=True)
+    fecha = Required(date, index=True)
+    guardado_at = Required(datetime)             # hora de Argentina, la primera vez
+    actualizado_at = Required(datetime)
+    a_tiempo = Required(bool, default=True)

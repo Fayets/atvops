@@ -8498,3 +8498,21 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .rc-kpi.clickable:hover { background: var(--surface-2); }
 .rc-ver { font-size: 10px; color: var(--brand); margin-top: 5px; opacity: 0; transition: opacity .12s ease; }
 .rc-kpi.clickable:hover .rc-ver, .rc-kpi.clickable:focus-visible .rc-ver { opacity: 1; }
+
+/* Ingreso con Google: el botón oficial arriba, usuario y contraseña debajo. */
+.login-google { display: flex; flex-direction: column; align-items: stretch; min-height: 44px; }
+.login-google > div { width: 100%; }
+.login-google p { margin: 0; font-size: 12px; text-align: center; }
+.login-o { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 11px; }
+.login-o::before, .login-o::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+
+/* Franco adentro de la cuenta de otra persona. */
+.sidebar-como {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin-bottom: 8px;
+  border-radius: 8px; background: var(--warn-dim); color: var(--warn); font-size: 12px;
+}
+.sidebar-como b { color: var(--text); }
+.sidebar-como button {
+  border: 1px solid var(--warn); background: var(--surface); color: var(--text); border-radius: 6px;
+  padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer;
+}

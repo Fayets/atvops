@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { clearSession } from '../../lib/auth.js';
+import { clearSession, entrarComoSesion, sesionOriginal, volverASesionOriginal } from '../../lib/auth.js';
+import { entrarComo, getEquipoDaily } from '../../data/api.js';
 import { useRol } from '../../lib/RolContext.jsx';
 import { filtrarNav, homeParaRol, puedeOcultarReuniones, ROL_LIST, ROLES } from '../../lib/roles.js';
 import Icon from '../ui/Icon.jsx';
@@ -11,6 +12,8 @@ const ORDEN_GRUPOS = ['Tablero', 'Áreas', 'Dirección', 'Sistema'];
 const NAV = [
   { to: '/', icon: 'home', label: 'Home', end: true, grupo: 'Tablero' },
   { to: '/calendario', icon: 'calendario', label: 'Calendario', grupo: 'Tablero' },
+  // La daily de cada uno: arma la semana el domingo y la marca de lunes a viernes.
+  { to: '/daily', icon: 'check', label: 'Daily', grupo: 'Tablero' },
   {
     to: '/fulfillment',
     icon: 'clientes',
@@ -95,6 +98,10 @@ const NAV = [
   { to: '/reporte-setting', icon: 'check', label: 'Reporte de setting', grupo: 'Dirección',
     roles: ['admin', 'founder', 'operaciones', 'ventas'] },
   { to: '/metas', icon: 'check', label: 'Metas', grupo: 'Dirección' },
+  // El organigrama con lo que cada uno marcó en su daily. Equipo: mails, cargos y las
+  // tareas fijas de cada rol, que edita Franco.
+  { to: '/backbone', icon: 'clientes', label: 'Backbone', grupo: 'Dirección', roles: ['admin', 'founder'],
+    sub: [{ to: '/backbone/equipo', label: 'Equipo y roles', roles: ['admin'] }] },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
   {
     to: '/integraciones',
@@ -126,6 +133,32 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { user, rol, rolReal, preview, puedePreview, setPreview } = useRol();
   const [verOcultas, setVerOcultas] = useState(false);
+  // Franco entra a la cuenta de cualquiera: ve y carga lo mismo que esa persona.
+  const comoOtro = Boolean(user?.por) || Boolean(sesionOriginal());
+  const puedeEntrarComo = rolReal === 'admin' && !comoOtro;
+  const [equipo, setEquipo] = useState([]);
+  useEffect(() => {
+    if (!puedeEntrarComo) return;
+    getEquipoDaily().then(setEquipo).catch(() => setEquipo([]));
+  }, [puedeEntrarComo]);
+
+  async function onEntrarComo(e) {
+    const username = e.target.value;
+    if (!username) return;
+    try {
+      entrarComoSesion(await entrarComo(username));
+      setPreview(null);
+      window.location.assign('/daily');
+    } catch (err) {
+      window.alert?.(err.message);
+    }
+  }
+
+  function volver() {
+    volverASesionOriginal();
+    setPreview(null);
+    window.location.assign('/backbone');
+  }
   const nav = filtrarNav(NAV, rol);
   // Agrupado para que la barra se lea de un vistazo: dónde estoy, las áreas del negocio,
   // lo que sirve para decidir y lo del sistema.
@@ -195,6 +228,12 @@ export default function Sidebar() {
           de preview y Salir se apilaban sin jerarquía y el bloque se leía como una lista
           de cosas sueltas. */}
       <div className="sidebar-foot">
+        {comoOtro && (
+          <div className="sidebar-como">
+            <span>Estás como <b>{user?.nombre ?? user?.username}</b></span>
+            <button type="button" onClick={volver}>Volver a {sesionOriginal()?.user?.nombre ?? user?.por ?? 'mi cuenta'}</button>
+          </div>
+        )}
         <div className="sidebar-quien">
           <span className="sidebar-account-name" title={user?.username}>
             {user?.username ?? '—'}
@@ -204,7 +243,19 @@ export default function Sidebar() {
           </span>
         </div>
 
-        {puedePreview && (
+        {puedeEntrarComo && equipo.length > 0 && (
+          <label className="sidebar-preview">
+            <span>Entrar como</span>
+            <select value="" onChange={onEntrarComo} aria-label="Entrar a la cuenta de">
+              <option value="">Elegí a alguien…</option>
+              {equipo.filter((p) => p.username !== user?.username).map((p) => (
+                <option key={p.username} value={p.username}>{p.nombre}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {puedePreview && !comoOtro && (
           <label className="sidebar-preview">
             <span>Ver como</span>
             <select value={rol} onChange={onPreview} aria-label="Ver como rol">

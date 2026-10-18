@@ -47,3 +47,21 @@ def me(current_user: dict = Depends(get_current_user)):
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al leer el usuario.")
+
+
+@router.get("/config")
+def config_login():
+    """Lo público que necesita la pantalla de login: el client id de Google no es secreto."""
+    from src.services.auth_services import google_client_id
+
+    return {"google_client_id": google_client_id() or None}
+
+
+@router.post("/google", response_model=schemas.LoginResponse)
+def login_google(body: schemas.GoogleLoginRequest):
+    return service.login_google(body.credencial)
+
+
+@router.post("/entrar-como", response_model=schemas.LoginResponse)
+def entrar_como(body: schemas.EntrarComoRequest, current_user: dict = Depends(get_current_user)):
+    return service.entrar_como(current_user, body.username)

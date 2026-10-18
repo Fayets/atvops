@@ -84,7 +84,8 @@ def init_db() -> None:
     from src.services.auth_services import (ensure_conversacion_columns, ensure_idea_usuario_column,
                                             ensure_integracion_columns,
                                             ensure_pitch_setting_columns, ensure_reunion_crm_columns,
-                                            ensure_reunion_usuario_column, ensure_usuario_rol_column,
+                                            ensure_reunion_usuario_column, ensure_usuario_equipo_columns,
+                                            ensure_usuario_rol_column,
                                             ensure_webinar_columns)
 
     if ES_POSTGRES:
@@ -93,6 +94,7 @@ def init_db() -> None:
         _bind_sqlite()
 
     ensure_usuario_rol_column()
+    ensure_usuario_equipo_columns()
     ensure_reunion_usuario_column()
     ensure_idea_usuario_column()
     ensure_reunion_crm_columns()

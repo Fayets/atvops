@@ -4,6 +4,9 @@ import Pill from '../ui/Pill.jsx';
 
 const TITULOS = {
   '/calendario': 'Calendario',
+  '/daily': 'Daily',
+  '/backbone': 'Backbone',
+  '/backbone/equipo': 'Backbone · Equipo y roles',
   '/fulfillment': 'Fulfillment',
   '/fulfillment/ops': 'Fulfillment · Salud de cartera',
   '/fulfillment/pendientes': 'Fulfillment · Updates',

@@ -67,21 +67,23 @@ export const ROL_LIST = Object.keys(ROLES);
 export const RUTAS_POR_ROL = {
   // Las dos pantallas suyas, no el área entera: con '/ventas' a secas podía abrir por
   // URL los laboratorios y el dashboard del área, que no están en su menú.
-  closer: ['/ventas/mi-dia', '/ventas/llamadas', '/ventas/caja', '/ventas/lab-closing', '/metas'],
-  setter: ['/calendario', '/ventas', '/metas'],
-  csm: ['/fulfillment', '/asistente', '/calendario', '/ideas'],
+  closer: ['/daily', '/ventas/mi-dia', '/ventas/llamadas', '/ventas/caja', '/ventas/lab-closing', '/metas'],
+  setter: ['/daily', '/calendario', '/ventas', '/metas'],
+  csm: ['/daily', '/fulfillment', '/asistente', '/calendario', '/ideas'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
-  operaciones: ['/', '/reporte', '/reporte-producto', '/reporte-closing',
+  operaciones: ['/', '/daily', '/backbone', '/reporte', '/reporte-producto', '/reporte-closing',
     '/reporte-setting', '/asistente', '/calendario', '/fulfillment', '/marketing',
                 '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
                 '/integraciones', '/claves'],
-  ventas: ['/', '/calendario', '/ventas', '/reporte-closing',
+  ventas: ['/', '/daily', '/calendario', '/ventas', '/reporte-closing',
     '/reporte-setting', '/metas', '/ideas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
-  marketing: ['/', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
+  marketing: ['/', '/daily', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
   founder: [
     '/',
+    '/daily',
+    '/backbone',
     '/reporte',
     '/reporte-producto',
     '/reporte-closing',
@@ -103,6 +105,8 @@ export const RUTAS_POR_ROL = {
   ],
   admin: [
     '/',
+    '/daily',
+    '/backbone',
     '/reporte',
     '/reporte-producto',
     '/reporte-closing',

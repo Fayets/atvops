@@ -3013,3 +3013,91 @@ export async function guardarReporteSetting(periodo, datos, { setter, cerrar = f
     body: JSON.stringify({ datos, setter, cerrar }),
   });
 }
+
+/* ------------------------------------------------------------ equipo y daily */
+
+/** Lo público del login: el client id de Google. */
+export async function getAuthConfig() {
+  return pedir('/api/auth/config');
+}
+
+/** Ingreso con la cuenta de Google: `credencial` es el ID token que da Google. */
+export async function loginGoogle(credencial) {
+  return pedir('/api/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credencial }),
+  });
+}
+
+/** Un admin entra a la cuenta de otra persona. Devuelve la sesión de esa persona. */
+export async function entrarComo(username) {
+  return pedir('/api/auth/entrar-como', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username }),
+  });
+}
+
+/** Mi semana: tareas del rol + propias, con lo marcado cada día. `semana` = lunes. */
+export async function getDailySemana(semana) {
+  return pedirDeVerdad(`/api/daily/semana${semana ? `?semana=${semana}` : ''}`);
+}
+
+export async function agregarTareaDaily(semana, texto, tipo) {
+  return pedirDeVerdad('/api/daily/tareas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ semana, texto, tipo }),
+  });
+}
+
+export async function editarTareaDaily(id, cambios) {
+  return pedirDeVerdad(`/api/daily/tareas/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cambios),
+  });
+}
+
+export async function borrarTareaDaily(id) {
+  return pedirDeVerdad(`/api/daily/tareas/${id}`, { method: 'DELETE' });
+}
+
+/** Guarda la daily de un día: `marcas` = [{ tarea_id, estado, motivo }]. */
+export async function guardarDiaDaily(fecha, marcas) {
+  return pedirDeVerdad('/api/daily/dia', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fecha, marcas }),
+  });
+}
+
+/** Backbone: el equipo de una semana, con cumplimiento, faltas y entregas. */
+export async function getBackbone(semana) {
+  return pedirDeVerdad(`/api/daily/backbone${semana ? `?semana=${semana}` : ''}`);
+}
+
+export async function getEquipoDaily() {
+  return pedirDeVerdad('/api/daily/equipo');
+}
+
+export async function editarPersonaDaily(username, cambios) {
+  return pedirDeVerdad(`/api/daily/equipo/${username}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cambios),
+  });
+}
+
+export async function getTareasRol(username) {
+  return pedirDeVerdad(`/api/daily/equipo/${username}/rol`);
+}
+
+export async function guardarTareasRol(username, tareas) {
+  return pedirDeVerdad(`/api/daily/equipo/${username}/rol`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(tareas),
+  });
+}

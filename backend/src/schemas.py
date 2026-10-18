@@ -20,6 +20,16 @@ class UsuarioResponse(BaseModel):
     username: str
     nombre: str | None = None
     rol: str = "operaciones"
+    foto_url: str | None = None
+    por: str | None = None  # el admin que entró como esta persona
+
+
+class GoogleLoginRequest(BaseModel):
+    credencial: str
+
+
+class EntrarComoRequest(BaseModel):
+    username: str
 
 
 class LoginResponse(BaseModel):
