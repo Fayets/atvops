@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
@@ -11,7 +10,7 @@ import {
   guardarDiaDaily,
 } from '../data/api.js';
 import {
-  abierta, BANDA_TEXTO, banda, cumplimiento, DIAS, DIAS_CORTOS, fechaCorta, nombreDe, sumarDias, vence,
+  abierta, BANDA_TEXTO, banda, cumplimiento, DIAS, fechaCorta, nombreDe, sumarDias, vence,
 } from '../lib/daily.js';
 import '../styles/daily.css';
 
@@ -21,10 +20,6 @@ const LOCK = (
     <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
   </svg>
 );
-
-const AREA_WEEKLY = {
-  ventas: 'Ventas', marketing: 'Marketing', producto: 'Producto', sistemas: 'Sistemas', direccion: 'Dirección',
-};
 
 /**
  * La daily de cada uno. El domingo se arma la semana (las tareas del rol ya vienen
@@ -54,8 +49,9 @@ export default function Daily() {
     cargar(semana).then((r) => {
       if (!r) return;
       const hoyIdx = r.dias.findIndex((d) => d.es_hoy);
-      setDia((prev) => (prev != null && r.dias[prev] && !r.dias[prev].futuro ? prev
-        : hoyIdx >= 0 ? hoyIdx : r.dias.filter((d) => !d.futuro).length - 1));
+      // Se queda en el día que estabas mirando; si no, hoy; si la semana no empezó, el lunes.
+      setDia((prev) => (prev != null && r.dias[prev] ? prev
+        : hoyIdx >= 0 ? hoyIdx : Math.max(0, r.dias.filter((d) => !d.futuro).length - 1)));
       // Fin de semana (o semana que no empezó): se arma. Durante la semana: la daily.
       setTab((prev) => prev ?? (r.dias.every((d) => d.futuro) ? 'semana' : 'hoy'));
     });
@@ -77,15 +73,7 @@ export default function Daily() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow={`Daily · ${data.persona.nombre}${data.persona.cargo ? ` · ${data.persona.cargo}` : ''}`}
-        title={tab === 'semana' ? 'Mi semana' : 'Mi daily'}
-        desc={tab === 'semana'
-          ? `Las tareas de tu rol ya están puestas. Sumá las de desplazamiento y lo que haga falta. Se presenta el lunes en la weekly de ${AREA_WEEKLY[data.persona.area] ?? 'tu área'}.`
-          : 'Marcá cada tarea del día. Si no la hiciste o no aplica, dejá el motivo.'}
-        actions={nav}
-      />
-      <div style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="dl-top">
         <Tabs
           value={tab}
           onChange={setTab}
@@ -94,6 +82,7 @@ export default function Daily() {
             { value: 'semana', label: 'Armar la semana' },
           ]}
         />
+        {nav}
       </div>
       {tab === 'semana'
         ? <ArmarSemana data={data} onCambio={() => cargar(data.semana)} esActual={esActual} />
@@ -128,10 +117,6 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { setDraft(inicial); setError(''); }, [inicial]);
-
-  if (d.futuro) {
-    return <Card><p className="dl-vacio">Este día todavía no llegó. Mientras tanto podés armar la semana.</p></Card>;
-  }
 
   const falta = deHoy.filter((t) => {
     const v = draft[t.id];
@@ -171,6 +156,14 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
         {otro && <span>· hecha el {otro}</span>}
       </small>
     );
+    if (d.futuro) {
+      return (
+        <div className="dl-task" key={t.id}>
+          <div className="t"><b>{t.texto}</b>{etiquetas}</div>
+          <span />
+        </div>
+      );
+    }
     if (otro) {
       return (
         <div className="dl-task" key={t.id}>
@@ -207,11 +200,12 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       <div className="dl-days" role="group" aria-label="Día de la semana">
         {data.dias.map((x, i) => {
           const e = estadoDia(x);
+          const n = data.tareas.filter((t) => vence(t, i)).length;
           return (
-            <button key={x.fecha} type="button" className={`dl-day ${e}`} aria-pressed={i === dia}
-              disabled={x.futuro} onClick={() => setDia(i)}>
-              <b>{DIAS_CORTOS[i]} {fechaCorta(x.fecha)}</b>
-              <i>{x.futuro ? 'Todavía no' : e === 'ok' ? `✓ ${x.guardado_at}` : e === 'tarde' ? `Cargada tarde` : '✕ Sin guardar'}</i>
+            <button key={x.fecha} type="button" className={`dl-day ${e}`} aria-pressed={i === dia} onClick={() => setDia(i)}>
+              <b>{DIAS[i]}</b>
+              <span>{fechaCorta(x.fecha)} · {n} {n === 1 ? 'tarea' : 'tareas'}</span>
+              <i>{x.futuro ? 'Todavía no llegó' : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : e === 'tarde' ? 'Cargada tarde' : '✕ Sin guardar'}</i>
               {x.es_hoy && <em>Hoy</em>}
             </button>
           );
@@ -220,14 +214,14 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       <div className="dl-grid">
         <Card flush>
           <div className="dl-sec">
-            <div className="dl-sech"><h3>{d.es_hoy ? 'Hoy' : `El ${DIAS[dia]}`}</h3><span>{deHoy.length} tareas</span></div>
+            <div className="dl-sech"><h3>{d.es_hoy ? 'Hoy' : `El ${DIAS[dia]}`}{d.futuro ? <span className="dim" style={{ fontWeight: 400 }}> · todavía no llegó, se marca ese día</span> : null}</h3><span>{deHoy.length} tareas</span></div>
             {deHoy.length ? deHoy.map(fila) : <p className="dl-vacio">No hay tareas fijas este día.</p>}
           </div>
           <div className="dl-sec">
             <div className="dl-sech"><h3>Abiertas en la semana</h3><span>se cierran cualquier día</span></div>
             {abiertas.length ? abiertas.map(fila) : <p className="dl-vacio">Nada abierto. Sumá tareas en "Armar la semana".</p>}
           </div>
-          <div className="dl-save">
+          {!d.futuro && <div className="dl-save">
             <span>
               {error ? <span className="dl-error">{error}</span>
                 : falta ? `Faltan ${falta} tareas del día por marcar o con motivo.`
@@ -237,7 +231,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             <button type="button" className="btn primary" disabled={guardando || falta > 0} onClick={guardar}>
               {guardando ? 'Guardando…' : 'Guardar daily'}
             </button>
-          </div>
+          </div>}
         </Card>
         <div className="dl-side">
           <Card title="Cumplimiento a hoy">

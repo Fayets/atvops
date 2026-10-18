@@ -211,3 +211,10 @@
 .bb-tabla td.off { color: var(--text-3); cursor: help; }
 .bb-tabla td.falta { color: var(--alert); }
 .bb-tabla td.vacio { background: var(--surface-2); }
+
+/* Arriba de la daily: pestañas a la izquierda, semana a la derecha. */
+.dl-top { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+/* Las cajas de los días: se puede entrar a cualquiera para ver qué toca. */
+.dl-day { padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.dl-day b { font-size: 15px; }
+.dl-day span { font-size: 12px; color: var(--text-2); }
