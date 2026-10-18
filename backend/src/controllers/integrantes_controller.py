@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from src import schemas
 from src.controllers.auth_controller import get_current_user
@@ -36,7 +37,7 @@ async def subir_foto(
 ):
     try:
         contenido = await archivo.read()
-        return service.guardar_foto(integrante_id, archivo.filename, archivo.content_type, contenido)
+        return await run_in_threadpool(service.guardar_foto, integrante_id, archivo.filename, archivo.content_type, contenido)
     except HTTPException as e:
         raise e
     except Exception:

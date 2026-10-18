@@ -3045,12 +3045,12 @@ export async function entrarComo(username) {
 
 /** Mi semana: tareas del rol + propias, con lo marcado cada día. `semana` = lunes. */
 export async function getDailySemana(semana) {
-  return pedirDeVerdad(`/api/daily/semana${semana ? `?semana=${semana}` : ''}`);
+  return pedir(`/api/daily/semana${semana ? `?semana=${semana}` : ''}`);
 }
 
 /** `dia`: 0 (lunes) a 4 (viernes); sin día queda abierta en la semana. */
 export async function agregarTareaDaily(semana, texto, tipo, dia = null) {
-  return pedirDeVerdad('/api/daily/tareas', {
+  return pedir('/api/daily/tareas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ semana, texto, tipo, dia }),
@@ -3058,7 +3058,7 @@ export async function agregarTareaDaily(semana, texto, tipo, dia = null) {
 }
 
 export async function editarTareaDaily(id, cambios) {
-  return pedirDeVerdad(`/api/daily/tareas/${id}`, {
+  return pedir(`/api/daily/tareas/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(cambios),
@@ -3066,12 +3066,12 @@ export async function editarTareaDaily(id, cambios) {
 }
 
 export async function borrarTareaDaily(id) {
-  return pedirDeVerdad(`/api/daily/tareas/${id}`, { method: 'DELETE' });
+  return pedir(`/api/daily/tareas/${id}`, { method: 'DELETE' });
 }
 
 /** Guarda la daily de un día: `marcas` = [{ tarea_id, estado, motivo }]. */
 export async function guardarDiaDaily(fecha, marcas) {
-  return pedirDeVerdad('/api/daily/dia', {
+  return pedir('/api/daily/dia', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fecha, marcas }),
@@ -3080,15 +3080,15 @@ export async function guardarDiaDaily(fecha, marcas) {
 
 /** Backbone: el equipo de una semana, con cumplimiento, faltas y entregas. */
 export async function getBackbone(semana) {
-  return pedirDeVerdad(`/api/daily/backbone${semana ? `?semana=${semana}` : ''}`);
+  return pedir(`/api/daily/backbone${semana ? `?semana=${semana}` : ''}`);
 }
 
 export async function getEquipoDaily() {
-  return pedirDeVerdad('/api/daily/equipo');
+  return pedir('/api/daily/equipo');
 }
 
 export async function editarPersonaDaily(username, cambios) {
-  return pedirDeVerdad(`/api/daily/equipo/${username}`, {
+  return pedir(`/api/daily/equipo/${username}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(cambios),
@@ -3096,11 +3096,11 @@ export async function editarPersonaDaily(username, cambios) {
 }
 
 export async function getTareasRol(username) {
-  return pedirDeVerdad(`/api/daily/equipo/${username}/rol`);
+  return pedir(`/api/daily/equipo/${username}/rol`);
 }
 
 export async function guardarTareasRol(username, tareas) {
-  return pedirDeVerdad(`/api/daily/equipo/${username}/rol`, {
+  return pedir(`/api/daily/equipo/${username}/rol`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(tareas),
@@ -3144,10 +3144,10 @@ export async function getAnunciosMeta(mes, { refrescar = false } = {}) {
   const p = new URLSearchParams();
   if (mes) p.set('month', mes);
   if (refrescar) p.set('refrescar', 'true');
-  return pedirDeVerdad(`/api/meta/anuncios?${p}`);
+  return pedir(`/api/meta/anuncios?${p}`);
 }
 
 /** El detalle de un anuncio: texto, números del mes, día por día y de toda su vida. */
 export async function getAnuncioMeta(id, mes) {
-  return pedirDeVerdad(`/api/meta/anuncios/${id}${mes ? `?month=${mes}` : ''}`);
+  return pedir(`/api/meta/anuncios/${id}${mes ? `?month=${mes}` : ''}`);
 }

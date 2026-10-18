@@ -8,6 +8,7 @@ import json
 import logging
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 
 from src.services.integraciones_services import IntegracionesServices
@@ -122,7 +123,8 @@ async def _registrar_desde_request(request: Request, tipo_default: str = "pagevi
         raw = {}
     tipo = str(raw.get("tipo") or raw.get("event") or tipo_default)
     try:
-        result = service.registrar_evento(
+        result = await run_in_threadpool(
+            service.registrar_evento,
             str(raw.get("token") or ""),
             tipo,
             url=raw.get("url"),
@@ -171,7 +173,7 @@ async def webinar_dia(request: Request):
     except Exception:  # noqa: BLE001
         raw = {}
     try:
-        result = service.registrar_dia_webinar(str(raw.get("token") or ""), raw)
+        result = await run_in_threadpool(service.registrar_dia_webinar, str(raw.get("token") or ""), raw)
         return _cors(JSONResponse(result))
     except HTTPException as e:
         return _cors(JSONResponse({"detail": e.detail}, status_code=e.status_code))
@@ -213,7 +215,7 @@ async def zoom_webhook(request: Request):
         return JSONResponse({"detail": "firma inválida"}, status_code=401)
 
     try:
-        return JSONResponse(zoom_services.registrar_evento(cuerpo))
+        return JSONResponse(await run_in_threadpool(zoom_services.registrar_evento, cuerpo))
     except Exception as e:  # noqa: BLE001 — un error acá haría que Zoom reintente en loop
         logger.info("Webhook de Zoom: %s", str(e)[:200])
         return JSONResponse({"ok": False})

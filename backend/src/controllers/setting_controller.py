@@ -8,6 +8,7 @@ dirección; marketing no entra.
 import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from src.controllers.auth_controller import solo_interno
@@ -146,8 +147,8 @@ async def subir_audio(sesion_id: int, request: Request, user: dict = Depends(sol
     """El audio va crudo en el cuerpo, como lo manda el grabador del navegador."""
     cuerpo = await request.body()
     try:
-        return notas.guardar_audio(sesion_id, cuerpo, request.headers.get("content-type", ""), user,
-                                   pista=pista, nombre=nombre)
+        return await run_in_threadpool(notas.guardar_audio, sesion_id, cuerpo, request.headers.get("content-type", ""),
+                                       user, pista=pista, nombre=nombre)
     except Exception as e:  # noqa: BLE001
         raise _error(e, "guardar el audio")
 

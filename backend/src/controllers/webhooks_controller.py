@@ -10,6 +10,7 @@ import logging
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse
 
 from decouple import config
@@ -43,7 +44,7 @@ async def manychat(request: Request):
     payload = cuerpo if isinstance(cuerpo, dict) else {}
     token = (request.query_params.get("token") or request.headers.get("X-Webhook-Token") or "").strip()
     try:
-        return conversaciones.registrar(payload, token)
+        return await run_in_threadpool(conversaciones.registrar, payload, token)
     except conversaciones.WebhookNoAutorizado as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:  # noqa: BLE001
@@ -82,7 +83,7 @@ async def instagram_mensaje(request: Request):
         raise HTTPException(status_code=400, detail="El cuerpo del aviso no es JSON.")
     try:
         # Meta reintenta si no contesta rápido: se procesa y se responde, nada más.
-        return ig_mensajes.procesar(cuerpo if isinstance(cuerpo, dict) else {})
+        return await run_in_threadpool(ig_mensajes.procesar, cuerpo if isinstance(cuerpo, dict) else {})
     except Exception as e:  # noqa: BLE001
         log.exception("Falló procesar un mensaje de Instagram")
         raise HTTPException(status_code=500, detail=f"No se pudo procesar: {str(e)[:180]}")
@@ -97,7 +98,8 @@ async def fathom(request: Request):
     """
     crudo = await request.body()
     try:
-        return fathom_services.recibir(crudo, request.headers)
+        # La IA lee la transcripción: tarda. En un hilo aparte, así no frena al resto.
+        return await run_in_threadpool(fathom_services.recibir, crudo, request.headers)
     except fathom_services.AvisoNoAutorizado as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:  # noqa: BLE001
@@ -134,5 +136,5 @@ async def fathom_enviados(request: Request):
     ident = [str(i) for i in ids]
     # `reencolar` es la marcha atrás: vuelve a dejar el reporte en la cola.
     if bool((cuerpo or {}).get("reencolar")):
-        return {"reencolados": fathom_services.reencolar(ident)}
-    return {"marcados": fathom_services.marcar_enviados(ident)}
+        return {"reencolados": await run_in_threadpool(fathom_services.reencolar, ident)}
+    return {"marcados": await run_in_threadpool(fathom_services.marcar_enviados, ident)}
