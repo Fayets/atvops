@@ -3132,3 +3132,18 @@ export async function editarTheoEnvio(clave, cambios) {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios),
   });
 }
+
+/* ------------------------------------------------------------ anuncios de Meta */
+
+/** Cada anuncio de la cuenta (primero los que corren) con lo que hizo en el mes. */
+export async function getAnunciosMeta(mes, { refrescar = false } = {}) {
+  const p = new URLSearchParams();
+  if (mes) p.set('month', mes);
+  if (refrescar) p.set('refrescar', 'true');
+  return pedirDeVerdad(`/api/meta/anuncios?${p}`);
+}
+
+/** El detalle de un anuncio: texto, números del mes, día por día y de toda su vida. */
+export async function getAnuncioMeta(id, mes) {
+  return pedirDeVerdad(`/api/meta/anuncios/${id}${mes ? `?month=${mes}` : ''}`);
+}

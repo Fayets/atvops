@@ -222,6 +222,114 @@ class MetaServices:
 
     # ------------------------------------------------------------------ ads
 
+    # Cómo está cada anuncio, en palabras del equipo. Meta tiene una docena de estados;
+    # para decidir alcanza con saber si corre, si se pausó, si lo rechazaron o si tiene un problema.
+    _ESTADO_ANUNCIO = {
+        "ACTIVE": "corriendo",
+        "PAUSED": "pausado", "CAMPAIGN_PAUSED": "pausado", "ADSET_PAUSED": "pausado", "ARCHIVED": "pausado",
+        "DISAPPROVED": "rechazado",
+        "WITH_ISSUES": "con problemas",
+        "PENDING_REVIEW": "en revisión", "IN_PROCESS": "en revisión", "PREAPPROVED": "en revisión",
+    }
+
+    def anuncios(self, month: str | None = None, refrescar: bool = False) -> dict:
+        """Todos los anuncios de la cuenta con lo que hicieron en el mes. Primero los que corren."""
+        clave = f"anuncios:{month or _mes_label()}"
+        return _recordado(clave, refrescar, lambda: self._anuncios_crudo(month))
+
+    def _anuncios_crudo(self, month: str | None) -> dict:
+        token, account, ver = self._ads_token(), self._ad_account(), self._ads_ver()
+        if not token or not account:
+            raise HTTPException(status_code=503, detail="Falta META_ADS_ACCESS_TOKEN o META_AD_ACCOUNT_ID.")
+        mes = month or _mes_label()
+        since, until = _rango_mes(mes)
+        ads = self._graph_get_all(ver, f"/{account}/ads", token, {
+            "fields": "id,name,effective_status,created_time,campaign{id,name},adset{name},"
+                      "creative{thumbnail_url,image_url,title,body}",
+            "limit": "100",
+        })
+        ins = {str(r.get("ad_id")): r for r in self._graph_get_all(ver, f"/{account}/insights", token, {
+            "fields": "ad_id,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,cost_per_action_type",
+            "level": "ad",
+            "time_range": json.dumps({"since": since, "until": until}),
+            "limit": "200",
+        })}
+        out = []
+        for a in ads:
+            cr = a.get("creative") or {}
+            out.append({
+                "id": str(a.get("id")),
+                "nombre": a.get("name") or "",
+                "estado": self._ESTADO_ANUNCIO.get(a.get("effective_status") or "", "pausado"),
+                "estadoMeta": a.get("effective_status"),
+                "campania": (a.get("campaign") or {}).get("name"),
+                "conjunto": (a.get("adset") or {}).get("name"),
+                "creadoAt": a.get("created_time"),
+                "imagen": cr.get("thumbnail_url") or cr.get("image_url"),
+                **self._numeros_anuncio(ins.get(str(a.get("id")))),
+            })
+        orden = {"corriendo": 0, "con problemas": 1, "en revisión": 2, "pausado": 3, "rechazado": 4}
+        out.sort(key=lambda x: (orden.get(x["estado"], 9), -x["gastoUsd"], x["creadoAt"] or ""))
+        return {"mes": mes, "anuncios": out, "cuenta": account, "ultimaSyncAt": _iso_ahora()}
+
+    @staticmethod
+    def _numeros_anuncio(row: dict | None) -> dict:
+        row = row or {}
+        spend = float(row.get("spend") or 0)
+        leads = _leads_de_actions(row.get("actions"))
+        return {
+            "gastoUsd": round(spend, 2),
+            "impresiones": int(row.get("impressions") or 0),
+            "alcance": int(row.get("reach") or 0),
+            "frecuencia": round(float(row.get("frequency") or 0), 2),
+            "clicks": int(row.get("clicks") or 0),
+            "ctr": round(float(row.get("ctr") or 0), 2),
+            "cpcUsd": round(float(row.get("cpc") or 0), 2),
+            "leads": leads,
+            "cplUsd": round(_costo_lead(row.get("cost_per_action_type"), leads, spend), 2),
+        }
+
+    def anuncio(self, ad_id: str, month: str | None = None) -> dict:
+        """El detalle de un anuncio: el texto, los números del mes, día por día, y los de toda su vida."""
+        token, ver = self._ads_token(), self._ads_ver()
+        if not ad_id.isdigit():
+            raise HTTPException(status_code=400, detail="Id de anuncio inválido.")
+        mes = month or _mes_label()
+        since, until = _rango_mes(mes)
+        a = self._graph_get(ver, f"/{ad_id}", token, {
+            "fields": "id,name,effective_status,created_time,campaign{name,objective},adset{name},"
+                      "creative{thumbnail_url,image_url,title,body}",
+        })
+        campos = "spend,impressions,reach,frequency,clicks,ctr,cpc,actions,cost_per_action_type"
+        mes_rows = self._graph_get_all(ver, f"/{ad_id}/insights", token, {
+            "fields": campos, "time_range": json.dumps({"since": since, "until": until})})
+        vida_rows = self._graph_get_all(ver, f"/{ad_id}/insights", token, {"fields": campos, "date_preset": "maximum"})
+        dias = self._graph_get_all(ver, f"/{ad_id}/insights", token, {
+            "fields": "spend,impressions,clicks,actions,date_start", "time_increment": "1",
+            "time_range": json.dumps({"since": since, "until": until}), "limit": "40"})
+        cr = a.get("creative") or {}
+        cuenta = self._ad_account().replace("act_", "")
+        return {
+            "id": ad_id,
+            "nombre": a.get("name"),
+            "estado": self._ESTADO_ANUNCIO.get(a.get("effective_status") or "", "pausado"),
+            "estadoMeta": a.get("effective_status"),
+            "campania": (a.get("campaign") or {}).get("name"),
+            "objetivo": _objetivo_campania((a.get("campaign") or {}).get("objective")),
+            "conjunto": (a.get("adset") or {}).get("name"),
+            "creadoAt": a.get("created_time"),
+            "imagen": cr.get("image_url") or cr.get("thumbnail_url"),
+            "titulo": cr.get("title"),
+            "texto": cr.get("body"),
+            "mes": {"mes": mes, **self._numeros_anuncio(mes_rows[0] if mes_rows else None)},
+            "vida": self._numeros_anuncio(vida_rows[0] if vida_rows else None),
+            "dias": [{"fecha": d.get("date_start"), "gastoUsd": round(float(d.get("spend") or 0), 2),
+                      "impresiones": int(d.get("impressions") or 0), "clicks": int(d.get("clicks") or 0),
+                      "leads": _leads_de_actions(d.get("actions"))} for d in dias],
+            "link": f"https://adsmanager.facebook.com/adsmanager/manage/ads?act={cuenta}&selected_ad_ids={ad_id}",
+        }
+
+
     def ads_resumen(self, month: str | None = None, incluir_sin_gasto: bool = False,
                     refrescar: bool = False) -> dict:
         """Campañas del mes con sus números, con caché de `CACHE_SEGUNDOS`."""

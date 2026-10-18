@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Bars from '../components/charts/Bars.jsx';
 import HBars from '../components/charts/HBars.jsx';
+import Anuncios from '../components/ads/Anuncios.jsx';
 import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
 import MetaMesModal from '../components/metas/MetaMesModal.jsx';
 import Card from '../components/ui/Card.jsx';
@@ -26,7 +27,9 @@ function tonoFrecuencia(f, umbrales) {
 }
 
 export default function Ads() {
-  const { mes } = useMes();
+  const { mes, opciones } = useMes();
+  // El nombre sale del selector: '2026-10' leído como fecha cae el 30/9 en Argentina.
+  const mesLabel = (opciones ?? []).find((o) => o.id === mes)?.label ?? mes;
   const { rol } = useRol();
   const puedeEditar = puedeEditarMetas(rol);
   const { data, loading, error } = useResource(() => getMarketing(mes), [mes]);
@@ -109,6 +112,9 @@ export default function Ads() {
           </>
         }
       />
+
+      {/* Primero los anuncios: qué corre y, al tocar uno, cómo le va. */}
+      <Anuncios mes={mes} mesLabel={mesLabel} />
 
       {loading || !data ? (
         <>
