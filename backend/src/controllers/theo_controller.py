@@ -79,6 +79,11 @@ def ahora(ident: str, user: dict = Depends(_sistemas)):
     return svc.mandar_ahora(ident)
 
 
+@router.post("/empezar-de-cero")
+def empezar_de_cero(user: dict = Depends(_sistemas)):
+    return svc.empezar_de_cero(user["username"])
+
+
 @router.post("/vaciar")
 def vaciar(user: dict = Depends(_sistemas)):
     return svc.vaciar_cola(user["username"])

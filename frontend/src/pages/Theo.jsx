@@ -6,7 +6,7 @@ import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
   accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, enviarTheoAhora, getTheoEnvios, getTheoMensaje,
-  getTheoMensajes, getTheoSemana, guardarJidGrupoTheo, vaciarColaTheo,
+  getTheoMensajes, getTheoSemana, guardarJidGrupoTheo, vaciarColaTheo, empezarTheoDeCero,
 } from '../data/api.js';
 import '../styles/theo.css';
 
@@ -37,6 +37,7 @@ export default function Theo() {
         title="Lo que manda Theo"
         desc="Todo lo que Theo manda por WhatsApp pasa por acá. Lo que todavía no salió se puede editar o frenar. Lo que ya salió queda como registro."
       />
+      <EmpezarDeCero />
       <Tabs
         value={tab}
         onChange={setTab}
@@ -48,6 +49,27 @@ export default function Theo() {
         ]}
       />
       {tab === 'semana' ? <Semana /> : tab === 'envios' ? <Envios /> : <Mensajes key={tab} vista={tab} />}
+    </div>
+  );
+}
+
+/** Borra el historial de Theo: desde este momento se cuenta de nuevo. */
+function EmpezarDeCero() {
+  const [estado, setEstado] = useState('');
+  async function hacer() {
+    if (!window.confirm('¿Borrar todo el historial de Theo y empezar a contar desde ahora?\n\nSe borran los mensajes de Theo (por salir y enviados). Los resúmenes de llamadas de antes no se borran de la llamada, pero dejan de mostrarse y no salen al grupo.')) return;
+    try {
+      const r = await empezarTheoDeCero();
+      setEstado(`Listo: ${r.borrados} mensajes borrados. Se cuenta desde ahora.`);
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      setEstado(e.message);
+    }
+  }
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      {estado && <span className="dim">{estado}</span>}
+      <button type="button" className="btn ghost sm" onClick={hacer}>Borrar historial y empezar de cero</button>
     </div>
   );
 }
@@ -97,7 +119,7 @@ function Mensajes({ vista }) {
   return (
     <>
       <Kpis r={data.resumen} />
-      <div className="th-grid" style={{ marginTop: 0 }}>
+      <div className={vista === 'enviados' ? 'th-grid sola' : 'th-grid'} style={{ marginTop: 0 }}>
         <Card flush>
           {vista === 'enviados' && (
             <div className="th-filtros">
@@ -129,11 +151,11 @@ function Mensajes({ vista }) {
               {lista.filter((m) => dia(vista === 'pendientes' ? m.sale_at : (m.enviado_at ?? m.sale_at)) === d).map((m) => {
                 const [tono, label] = ESTADO[m.estado];
                 return (
-                  <button key={m.id} type="button" className="th-item" aria-pressed={actual?.id === m.id} onClick={() => setSel(m.id)}>
+                  <button key={m.id} type="button" className="th-item" aria-pressed={vista !== 'enviados' && actual?.id === m.id} onClick={() => setSel(m.id)}>
                     <time>{m.ia && m.estado === 'pendiente' ? 'en cola' : hora(vista === 'pendientes' ? m.sale_at : (m.enviado_at ?? m.sale_at))}</time>
                     <div className="t">
                       <b>{m.envio_nombre}</b>
-                      <span>{(m.texto || '').split('\n')[0]}</span>
+                      <span>{vista === 'enviados' ? (m.vista || m.texto || '') : (m.texto || '').split('\n')[0]}</span>
                       <small>→ {m.grupo ?? 'sin grupo'}{m.editado_por ? ` · editado por ${m.editado_por}` : ''}</small>
                     </div>
                     <Pill tone={m.sin_grupo && m.estado === 'pendiente' ? 'alert' : tono}>{m.sin_grupo && m.estado === 'pendiente' ? 'Sin grupo' : label}</Pill>
@@ -143,7 +165,8 @@ function Mensajes({ vista }) {
             </div>
           ))}
         </Card>
-        {actual ? <Detalle key={actual.id + actual.estado} m={actual} onCambio={cargar} /> : <span />}
+        {vista === 'enviados' ? null
+          : actual ? <Detalle key={actual.id + actual.estado} m={actual} onCambio={cargar} /> : <span />}
       </div>
     </>
   );

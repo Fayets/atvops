@@ -1001,6 +1001,15 @@ class TheoMensaje(db.Entity):
     creado_at = Required(datetime, default=datetime.utcnow)
 
 
+class TheoAjuste(db.Entity):
+    """Ajustes sueltos de la vista Theo. `desde`: lo de antes no cuenta (se empezó de cero)."""
+
+    _table_ = _tabla("theo_ajustes", "TheoAjuste")
+
+    clave = PrimaryKey(str)
+    valor = Optional(str, nullable=True)
+
+
 class ChatReel(db.Entity):
     """Una persona que comentó la palabra de un reel: es un chat que abrió el reel.
 

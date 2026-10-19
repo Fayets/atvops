@@ -801,9 +801,10 @@ def pendientes() -> list[dict]:
     # Desde la vista Theo se puede apagar el aviso o frenar un reporte puntual.
     if not theo_services.envio_activo("llamadas"):
         return []
+    corte = theo_services.corte()
     filas = [r for r in list(ReunionCrm.select())
              if (r.reporte_mensaje or "").strip() and r.reporte_enviado_at is None
-             and not r.reporte_frenado_por]
+             and not r.reporte_frenado_por and (r.reporte_at or datetime.min) >= corte]
     filas.sort(key=lambda r: r.reporte_at or datetime.min)
     return [{"eventoId": r.evento_id,
              "prospecto": r.prospecto,

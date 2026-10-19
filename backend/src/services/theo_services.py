@@ -23,7 +23,7 @@ from fastapi import HTTPException
 from pony.orm import db_session
 
 from src.db import db
-from src.models import ReunionCrm, TheoEnvio, TheoMensaje, Usuario
+from src.models import ReunionCrm, TheoAjuste, TheoEnvio, TheoMensaje, Usuario
 from src.services import daily_services
 
 ROLES = ("admin", "operaciones")
@@ -244,15 +244,41 @@ _CON_REPORTE = "reporte_mensaje IS NOT NULL AND TRIM(reporte_mensaje) <> ''"
 _SIN_FRENAR = "COALESCE(reporte_frenado_por, '') = ''"
 
 
+def corte() -> datetime:
+    """Desde cuándo cuenta Theo: lo de antes se borró o no se muestra (ver `empezar_de_cero`)."""
+    with db_session:
+        a = TheoAjuste.get(clave="desde")
+        try:
+            return datetime.fromisoformat(a.valor) if a and a.valor else datetime(2000, 1, 1)
+        except ValueError:
+            return datetime(2000, 1, 1)
+
+
+def empezar_de_cero(quien: str) -> dict:
+    """Borra el historial de Theo y empieza a contar desde ahora. Los mensajes de Theo son de
+    esta vista y se borran; los reportes de llamadas viven en la reunión y no se tocan: los
+    de antes de ahora dejan de mostrarse y de salir."""
+    ahora = daily_services.ahora()
+    with db_session:
+        ms = list(TheoMensaje.select())
+        for m in ms:
+            m.delete()
+        a = TheoAjuste.get(clave="desde") or TheoAjuste(clave="desde")
+        a.valor = ahora.isoformat(timespec="seconds")
+    return {"borrados": len(ms), "desde": _iso(ahora), "por": quien}
+
+
 def _reuniones_con_reporte(enviadas: bool, desde: datetime | None = None) -> list:
     """Las reuniones con reporte para el grupo: las que esperan salir o las que ya salieron (o
-    se frenaron) desde `desde`. Va dentro de un db_session."""
+    se frenaron) desde `desde`. Nada de antes del corte. Va dentro de un db_session."""
+    c = corte()
     if enviadas:
         sql = (f"SELECT * FROM {_tabla_sql(ReunionCrm)} WHERE {_CON_REPORTE} "
-               f"AND (reporte_enviado_at IS NOT NULL OR NOT ({_SIN_FRENAR})) AND reporte_at >= $desde")
+               f"AND (reporte_enviado_at IS NOT NULL OR NOT ({_SIN_FRENAR})) AND reporte_at >= $desde AND reporte_at >= $c")
     else:
-        sql = f"SELECT * FROM {_tabla_sql(ReunionCrm)} WHERE {_CON_REPORTE} AND reporte_enviado_at IS NULL AND {_SIN_FRENAR}"
-    return list(ReunionCrm.select_by_sql(sql, globals={"desde": desde}))
+        sql = (f"SELECT * FROM {_tabla_sql(ReunionCrm)} WHERE {_CON_REPORTE} AND reporte_enviado_at IS NULL "
+               f"AND {_SIN_FRENAR} AND reporte_at >= $c")
+    return list(ReunionCrm.select_by_sql(sql, globals={"desde": desde, "c": c}))
 
 
 def listar(vista: str, envio: str | None = None, q: str | None = None) -> dict:
@@ -289,13 +315,13 @@ def resumen() -> dict:
         fila = db.select(
             f"""SELECT
                 (SELECT COUNT(*) FROM {m} WHERE estado = 'pendiente'),
-                (SELECT COUNT(*) FROM {r} WHERE {_CON_REPORTE} AND reporte_enviado_at IS NULL AND {_SIN_FRENAR}),
+                (SELECT COUNT(*) FROM {r} WHERE {_CON_REPORTE} AND reporte_enviado_at IS NULL AND {_SIN_FRENAR} AND reporte_at >= $c),
                 (SELECT COUNT(*) FROM {m} WHERE estado = 'enviado' AND enviado_at >= $inicio),
-                (SELECT COUNT(*) FROM {r} WHERE reporte_enviado_at >= $inicio),
+                (SELECT COUNT(*) FROM {r} WHERE reporte_enviado_at >= $inicio AND reporte_enviado_at >= $c),
                 (SELECT COUNT(*) FROM {m} WHERE estado = 'fallido' AND sale_at >= $hace7),
                 (SELECT COUNT(*) FROM {e}),
                 (SELECT COALESCE(SUM(CASE WHEN activo THEN 1 ELSE 0 END), 0) FROM {e})""",
-            {"inicio": inicio, "hace7": hace7},
+            {"inicio": inicio, "hace7": hace7, "c": corte()},
         )[0]
     pend_m, pend_r, env_m, env_r, fallidos, envios, activos = (int(x or 0) for x in fila)
     return {"pendientes": pend_m + pend_r, "enviados_hoy": env_m + env_r, "fallidos": fallidos,
@@ -502,6 +528,7 @@ def semana(desde: date | None = None) -> dict:
     inicio_dt, fin_dt = datetime.combine(domingo, datetime.min.time()), datetime.combine(fin, datetime.min.time())
     with db_session:
         _al_dia()
+    desde_corte = corte()
     with db_session:
         msgs = [m for m in TheoMensaje.select(lambda m: m.sale_at >= inicio_dt - timedelta(days=1) and m.sale_at < fin_dt)]
         alguna_vez = {m.envio for m in TheoMensaje.select()}
@@ -512,7 +539,7 @@ def semana(desde: date | None = None) -> dict:
         # Cada llamada de venta del día espera su Fathom y su resumen: 3 llamadas, 3 resúmenes.
         llamadas_dia: dict[date, list[dict]] = {}
         for r in list(ReunionCrm.select()):
-            if not (r.es_venta and r.inicio_at and inicio_dt <= r.inicio_at < fin_dt) or not _espera_resumen(r):
+            if not (r.es_venta and r.inicio_at and max(inicio_dt, desde_corte) <= r.inicio_at < fin_dt) or not _espera_resumen(r):
                 continue
             llamadas_dia.setdefault(r.inicio_at.date(), []).append({
                 "hora": r.inicio_at.strftime("%H:%M"),
@@ -532,6 +559,10 @@ def semana(desde: date | None = None) -> dict:
                 dia = []
                 for it in items:
                     if i not in it["dias"]:
+                        continue
+                    if d < desde_corte.date():   # antes de empezar de cero: no se cuenta
+                        dia.append({"clave": it["clave"], "nombre": it["nombre"], "hora": it["hora"],
+                                    "estado": "sin_registro", "detalle": "antes de empezar a contar"})
                         continue
                     dia.append(_celda(it, d, ahora, por_envio_dia, llamadas_dia, alguna_vez))
                 celdas.append({"fecha": d.isoformat(), "items": dia})

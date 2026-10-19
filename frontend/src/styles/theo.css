@@ -103,3 +103,6 @@ button.th-g-item:hover { border-color: var(--text-3); }
 .th-etiquetar span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .th-etiquetar b { font-weight: 600; }
 .th-etiquetar small { color: var(--text-3); font-size: 12px; line-height: 1.4; }
+.th-grid.sola { grid-template-columns: minmax(0, 1fr); }
+.th-grid.sola .th-item { cursor: default; }
+.th-grid.sola .th-item .t span { white-space: pre-wrap; }

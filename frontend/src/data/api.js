@@ -3131,6 +3131,10 @@ export async function vaciarColaTheo() {
   return pedirDeVerdad('/api/theo/vaciar', { method: 'POST' });
 }
 
+export async function empezarTheoDeCero() {
+  return pedirDeVerdad('/api/theo/empezar-de-cero', { method: 'POST' });
+}
+
 export async function getTheoEnvios() {
   return pedirDeVerdad('/api/theo/envios');
 }

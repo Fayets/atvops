@@ -545,3 +545,17 @@ def test_vaciar_la_cola_frena_todo_sin_borrar(theo_listo, monkeypatch):
     assert th.cola() == [] and th.listar("pendientes")["mensajes"] == []
     frenado = next(m for m in th.listar("enviados")["mensajes"] if m["texto"] == "uno que no tiene que salir")
     assert frenado["estado"] == "frenado" and frenado["frenado_por"] == "franco"
+
+
+def test_empezar_de_cero_borra_y_cuenta_desde_ahora(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 19, 0)
+    th.guardar_jid_grupo("ATV 500K", "120363999@g.us", "franco")
+    th.enviar_ahora("recordatorio_semana", "viejo", "franco")
+    r = th.empezar_de_cero("franco")
+    assert r["borrados"] >= 1
+    # Solo queda la daily de esta noche, que se programa sola.
+    assert [m["envio"] for m in th.listar("pendientes")["mensajes"]] == ["daily"]
+    assert th.listar("enviados")["mensajes"] == []
+    from src.models import TheoAjuste
+    with db_session:
+        TheoAjuste.get(clave="desde").delete()   # el resto de los tests cuenta todo
