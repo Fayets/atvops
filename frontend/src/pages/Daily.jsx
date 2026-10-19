@@ -135,7 +135,14 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       const v = draft[t.id];
       return !v?.estado || (v.estado !== 'hecha' && !v.motivo.trim());
     }).length;
-  const pct = cumplimiento(data);
+  // El porcentaje se mueve a medida que marcás, antes de guardar: lo marcado pisa lo guardado de ese día.
+  const pct = cumplimiento({
+    ...data,
+    tareas: data.tareas.map((t) => {
+      const v = draft[t.id];
+      return v?.estado ? { ...t, marcas: { ...t.marcas, [fecha]: { ...(t.marcas[fecha] ?? {}), estado: v.estado } } } : t;
+    }),
+  });
   const b = banda(pct);
 
   function poner(id, estado) {
