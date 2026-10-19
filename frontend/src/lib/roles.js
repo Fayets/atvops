@@ -79,8 +79,8 @@ export const RUTAS_POR_ROL = {
   ventas: ['/', '/daily', '/ventas', '/reporte-closing',
     '/reporte-setting', '/metas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
-  // Webinars y Metas tampoco: no son del equipo de marketing (Franco, 19-10-2026).
-  marketing: ['/', '/daily', '/marketing', '/integraciones'],
+  // Webinars, Metas e Integraciones tampoco: no son del equipo de marketing (Franco, 19-10-2026).
+  marketing: ['/', '/daily', '/marketing'],
   founder: [
     '/',
     '/daily',

@@ -54,7 +54,7 @@ const NAV = [
     icon: 'webinars',
     label: 'Webinars',
     grupo: 'Áreas',
-    roles: ['admin', 'founder', 'operaciones', 'marketing', 'ventas'],
+    roles: ['admin', 'founder', 'operaciones', 'ventas'],
     sub: [
       // El CTA del webinar es un Typeform: el que lo completa es el que agendó. Va como
       // subpantalla del área y no adentro de un webinar, porque el formulario es uno
@@ -110,7 +110,7 @@ const NAV = [
     icon: 'integraciones',
     label: 'Integraciones',
     grupo: 'Sistema',
-    roles: ['admin', 'founder', 'operaciones', 'marketing'],
+    roles: ['admin', 'founder', 'operaciones'],
     raiz: '/integraciones',
     sub: [
       { to: '/integraciones', label: 'Integraciones', end: true },

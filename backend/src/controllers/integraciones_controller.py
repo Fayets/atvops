@@ -9,7 +9,8 @@ from src.services.integraciones_services import IntegracionesServices
 router = APIRouter()
 service = IntegracionesServices()
 
-ROLES = frozenset({"admin", "founder", "operaciones", "marketing"})
+# Marketing no: es configuración técnica (Franco, 19-10-2026).
+ROLES = frozenset({"admin", "founder", "operaciones"})
 
 
 def _puede(user: dict = Depends(get_current_user)) -> dict:
