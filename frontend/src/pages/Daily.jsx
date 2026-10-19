@@ -16,7 +16,7 @@ import '../styles/daily.css';
 /**
  * La daily de cada uno: cinco cajas, una por día. En cada día están las tareas del rol
  * (no se borran) y se suman las propias, de velocidad o de desplazamiento. Se marca cada
- * tarea con motivo si no se hizo. Theo a las 23:30 solo mira si se guardó.
+ * tarea con motivo si no se hizo.
  */
 export default function Daily() {
   const [semana, setSemana] = useState(null); // lunes ISO; null = la que corresponde hoy
@@ -253,7 +253,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
               {error ? <span className="dl-error">{error}</span>
                 : d.futuro ? (falta ? 'Falta el motivo en lo que marcaste como "no aplica".'
                   : `Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`)
-                : falta ? `Faltan ${falta} tareas del día por marcar o con motivo.`
+                : falta ? null
                   : d.guardado_at ? 'Ya está guardada. Si cambiaste algo, guardá de nuevo.'
                     : 'Todo marcado. Guardá para que cuente.'}
             </span>
@@ -269,9 +269,6 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
               <Pill tone={b}>{BANDA_TEXTO[b]}</Pill>
             </div>
             <p>Cuenta lo que vencía hasta hoy. "No aplica" con motivo no te baja.</p>
-          </Card>
-          <Card title="Theo a las 23:30">
-            <p>Revisa si guardaste tu daily del día. Un día cargado después queda como "cargado tarde".</p>
           </Card>
         </div>
       </div>
