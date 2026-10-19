@@ -5,7 +5,8 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
-  accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, getTheoEnvios, getTheoMensajes, getTheoSemana,
+  accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, enviarTheoAhora, getTheoEnvios, getTheoMensaje,
+  getTheoMensajes, getTheoSemana, guardarJidGrupoTheo,
 } from '../data/api.js';
 import '../styles/theo.css';
 
@@ -329,11 +330,13 @@ function Semana() {
   const [desde, setDesde] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [tick, setTick] = useState(0);
+  const [abierto, setAbierto] = useState(null); // { item, grupo, jid, fecha }
   useEffect(() => {
     let vivo = true;
     getTheoSemana(desde).then((r) => vivo && (setData(r), setError(null))).catch((e) => vivo && setError(e));
     return () => { vivo = false; };
-  }, [desde]);
+  }, [desde, tick]);
 
   if (error && !data) return <div style={{ marginTop: 16 }}><ErrorState error={error} /></div>;
   if (!data) return <div style={{ marginTop: 16 }}><SkeletonBlock height={320} /></div>;
@@ -362,33 +365,37 @@ function Semana() {
             <div key={f} className={`th-g-cab${f === data.hoy ? ' hoy' : ''}`}>{DIAS_SEMANA[i]}<small>{fechaCorta(f)}</small></div>
           ))}
           {data.filas.map((fila) => (
-            <Fila key={fila.grupo} fila={fila} hoy={data.hoy} />
+            <Fila key={fila.grupo} fila={fila} hoy={data.hoy}
+              onAbrir={(item, fecha) => setAbierto({ item, fecha, grupo: fila.grupo, jid: fila.jid })} />
           ))}
         </div>
       </div>
+      {abierto && <Evento ev={abierto} onCerrar={() => setAbierto(null)} onCambio={() => setTick((n) => n + 1)} />}
     </section>
   );
 }
 
-function Fila({ fila, hoy }) {
+function Fila({ fila, hoy, onAbrir }) {
   return (
     <>
       <div className="th-g-grupo th-g-nombre">{fila.grupo}</div>
       {fila.dias.map((d) => (
         <div key={d.fecha} className={`th-g-celda${d.fecha === hoy ? ' hoy' : ''}`}>
           {d.items.map((it) => (
-            <div key={it.clave} className={`th-g-item ${it.estado}`} title={`${ESTADO_CELDA[it.estado]} · ${it.detalle ?? ''}`}>
+            <button type="button" key={it.clave} className={`th-g-item ${it.estado}`} title={`${ESTADO_CELDA[it.estado]} · ${it.detalle ?? ''}`}
+              onClick={() => onAbrir(it, d.fecha)}>
               <b>{it.nombre}</b>
               {it.clave === 'llamadas' ? (
                 <>
-                  <span>{it.esperadas ? `${it.enviados} de ${it.esperadas} resúmenes` : ESTADO_CELDA[it.estado]}</span>
+                  <span>{it.estado === 'programado' ? it.detalle
+                    : it.esperadas ? `${it.enviados} de ${it.esperadas} resúmenes` : ESTADO_CELDA[it.estado]}</span>
                   {it.llamadas?.length > 0 && (
                     <ul className="th-g-llamadas">
                       {it.llamadas.map((l) => (
-                        <li key={`${l.hora}-${l.quien}`} className={l.estado}
+                        <li key={`${l.hora}-${l.quien}`} className={it.estado === 'programado' ? 'agendada' : l.estado}
                           title={l.estado === 'enviado' ? 'El resumen salió' : l.estado === 'pendiente' ? 'El resumen está en cola'
                             : l.estado === 'frenado' ? 'El resumen se frenó' : 'Todavía no llegó el Fathom'}>
-                          <i>{l.estado === 'enviado' ? '✓' : l.estado === 'pendiente' ? '…' : l.estado === 'frenado' ? '–' : '✕'}</i>
+                          <i>{it.estado === 'programado' ? '·' : l.estado === 'enviado' ? '✓' : l.estado === 'pendiente' ? '…' : l.estado === 'frenado' ? '–' : '✕'}</i>
                           {l.hora} {l.quien}
                         </li>
                       ))}
@@ -398,7 +405,7 @@ function Fila({ fila, hoy }) {
               ) : (
                 <span>{it.hora ? `${it.hora} · ` : ''}{ESTADO_CELDA[it.estado]}</span>
               )}
-            </div>
+            </button>
           ))}
         </div>
       ))}
@@ -407,3 +414,114 @@ function Fila({ fila, hoy }) {
 }
 
 const fechaCorta = (iso) => { const [, m, d] = iso.split('-'); return `${Number(d)}/${Number(m)}`; };
+
+const BORRADOR = {
+  recordatorio_semana: 'Equipo 👋 recuerden preparar para mañana el documento con sus objetivos de la semana: las tareas del rol y las de desplazamiento. Lo presentamos en la weekly.',
+  daily: 'Recuerden actualizar su daily en ATV Ops antes de las 23:30.',
+};
+
+/** Un evento de la grilla: su mensaje de ese día (editar, frenar, mandar ya) y mandar uno a mano. */
+function Evento({ ev, onCerrar, onCambio }) {
+  const { item, grupo, fecha } = ev;
+  const [m, setM] = useState(null);
+  const [texto, setTexto] = useState('');
+  const [nuevo, setNuevo] = useState(BORRADOR[item.clave] ?? '');
+  const [jid, setJid] = useState(ev.jid ?? '');
+  const [tieneJid, setTieneJid] = useState(Boolean(ev.jid));
+  const [estado, setEstado] = useState('');
+
+  useEffect(() => {
+    if (!item.mensajeId) return;
+    getTheoMensaje(item.mensajeId).then((r) => { setM(r); setTexto(r.texto); }).catch(() => {});
+  }, [item.mensajeId]);
+  useEffect(() => {
+    const esc = (e) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onCerrar]);
+
+  async function hacer(fn, ok) {
+    setEstado('');
+    try {
+      const r = await fn();
+      setEstado(ok);
+      onCambio();
+      return r;
+    } catch (e) {
+      setEstado(e.message);
+      return null;
+    }
+  }
+
+  const editable = m && (m.estado === 'pendiente' || m.estado === 'fallido');
+  return (
+    <div className="th-velo" onClick={onCerrar} role="presentation">
+      <aside className="th-drawer" role="dialog" aria-label={item.nombre} onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="th-cerrar" onClick={onCerrar} aria-label="Cerrar">✕</button>
+        <div className="th-dh">
+          <span style={{ alignSelf: 'flex-start' }}><Pill tone={TONO_CELDA[item.estado] ?? 'off'}>{ESTADO_CELDA[item.estado]}</Pill></span>
+          <h2>{item.nombre}</h2>
+          <div className="th-meta"><span>Grupo <b>{grupo}</b></span><span><b>{fechaCorta(fecha)}</b>{item.hora ? ` · ${item.hora}` : ''}</span></div>
+        </div>
+
+        {item.clave === 'llamadas' && (
+          <div className="th-nota">
+            {item.llamadas?.length ? item.llamadas.map((l) => <div key={`${l.hora}${l.quien}`}>{l.hora} · {l.quien} — {l.estado.replace('_', ' ')}</div>)
+              : 'No hay llamadas de venta este día.'}
+            <div style={{ marginTop: 8 }}>Cada resumen se edita o se frena en "Por salir" antes de que salga.</div>
+          </div>
+        )}
+
+        {m && (
+          <>
+            {editable ? (
+              <div style={{ padding: '12px 18px' }}>
+                <textarea className="th-edit" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Texto del mensaje" />
+              </div>
+            ) : (
+              <div className="th-chat"><div className="th-burbuja">{m.texto}<time>{(m.enviado_at || '').slice(11, 16)}</time></div></div>
+            )}
+            {editable && (
+              <div className="th-acciones">
+                <button type="button" className="btn" onClick={() => hacer(() => editarTheoMensaje(m.id, texto), 'Guardado.')}>Guardar</button>
+                <button type="button" className="btn primary" onClick={async () => {
+                  await hacer(() => editarTheoMensaje(m.id, texto), '');
+                  await hacer(() => accionTheoMensaje(m.id, 'ahora'), 'Sale en el próximo minuto.');
+                }}>Mandar ahora</button>
+                <button type="button" className="btn ghost" onClick={() => hacer(() => accionTheoMensaje(m.id, 'frenar'), 'Frenado: no sale.')}>No mandar</button>
+              </div>
+            )}
+          </>
+        )}
+
+        {item.clave !== 'llamadas' && (
+          <div className="th-campos">
+            <b style={{ fontSize: 13 }}>Mandar un mensaje ahora a {grupo}</b>
+            {!tieneJid && (
+              <label>Falta el ID de WhatsApp del grupo (termina en @g.us)
+                <span style={{ display: 'flex', gap: 8 }}>
+                  <input value={jid} onChange={(e) => setJid(e.target.value)} placeholder="120363…@g.us" style={{ flex: 1 }} />
+                  <button type="button" className="btn" disabled={!jid.trim()} onClick={async () => {
+                    const r = await hacer(() => guardarJidGrupoTheo(grupo, jid.trim()), 'ID del grupo guardado.');
+                    if (r) setTieneJid(true);
+                  }}>Guardar ID</button>
+                </span>
+              </label>
+            )}
+            <textarea className="th-edit" style={{ minHeight: 120 }} value={nuevo} onChange={(e) => setNuevo(e.target.value)}
+              aria-label="Mensaje a mandar" placeholder="Escribí el mensaje" />
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button type="button" className="btn primary" disabled={!nuevo.trim() || !tieneJid}
+                onClick={() => hacer(() => enviarTheoAhora(item.clave, nuevo.trim()), 'Listo: sale en el próximo minuto. Lo ves en "Por salir" y después en "Enviados".')}>
+                Enviar ahora
+              </button>
+            </div>
+          </div>
+        )}
+        {estado && <div className="th-nota">{estado}</div>}
+      </aside>
+    </div>
+  );
+}
+
+const TONO_CELDA = { enviado: 'ok', fallido: 'alert', no_salio: 'alert', pendiente: 'warn', frenado: 'off', programado: 'off', sin_registro: 'off', sin_llamadas: 'off' };

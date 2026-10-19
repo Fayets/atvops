@@ -3165,3 +3165,21 @@ export async function corregirCtaReel(mediaId, esCta, palabra = null) {
 export async function getTheoSemana(desde) {
   return pedirDeVerdad(`/api/theo/semana${desde ? `?desde=${desde}` : ''}`);
 }
+
+/** Un mensaje escrito a mano a un grupo de Theo: sale en el próximo minuto. */
+export async function enviarTheoAhora(envio, texto) {
+  return pedirDeVerdad('/api/theo/enviar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ envio, texto }),
+  });
+}
+
+/** Carga el ID de WhatsApp (…@g.us) de un grupo en todos sus envíos. */
+export async function guardarJidGrupoTheo(grupo, jid) {
+  return pedirDeVerdad('/api/theo/grupos', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grupo, jid }),
+  });
+}
+
+export async function getTheoMensaje(id) {
+  return pedirDeVerdad(`/api/theo/mensajes/${encodeURIComponent(id)}`);
+}

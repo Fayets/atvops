@@ -84,8 +84,8 @@ def ensure_envios() -> None:
                 TheoEnvio(clave=clave, nombre=nombre, cuando=cuando, grupo_nombre=grupo, grupo_jid=jid,
                           plantilla=plantilla, activo=True)
             else:
-                # El nombre y el horario los define el código: si cambian acá, cambian allá.
-                e.nombre, e.cuando = nombre, cuando
+                # El nombre, el horario y el grupo los define el código; el ID del grupo, no.
+                e.nombre, e.cuando, e.grupo_nombre = nombre, cuando, grupo
 
 
 def envio_activo(clave: str) -> bool:
@@ -474,7 +474,7 @@ def semana(desde: date | None = None) -> dict:
                         continue
                     dia.append(_celda(it, d, ahora, por_envio_dia, llamadas_dia, alguna_vez))
                 celdas.append({"fecha": d.isoformat(), "items": dia})
-            filas.append({"grupo": grupo, "dias": celdas})
+            filas.append({"grupo": grupo, "dias": celdas, "jid": _jid_de_grupo(grupo)})
     return {"desde": domingo.isoformat(), "hoy": hoy.isoformat(), "filas": filas}
 
 
@@ -509,7 +509,8 @@ def _celda(it: dict, d: date, ahora: datetime, por_envio_dia: dict, llamadas_dia
         m = next((x for x in ms if x.estado == estado), None)
         if m is not None:
             hora = (m.enviado_at or m.sale_at).strftime("%H:%M")
-            return {**out, "estado": estado, "detalle": f"{hora}" if estado == "enviado" else (m.error or estado)}
+            return {**out, "estado": estado, "mensajeId": f"m-{m.id}",
+                    "detalle": f"{hora}" if estado == "enviado" else (m.error or estado)}
     momento = datetime.combine(d, datetime.min.time())
     if it["hora"]:
         h, mi = (int(x) for x in it["hora"].split(":"))
@@ -521,3 +522,61 @@ def _celda(it: dict, d: date, ahora: datetime, por_envio_dia: dict, llamadas_dia
     if it["rastreo"] == "registro" and it["clave"] not in alguna_vez:
         return {**out, "estado": "sin_registro", "detalle": "lo manda Theo por su cuenta y Ops no lo registra todavía"}
     return {**out, "estado": "no_salio", "detalle": "le tocaba y no salió"}
+
+
+# ------------------------------------------------------------------ mandar a mano
+
+
+def _jid_de_grupo(grupo: str) -> str | None:
+    """El ID de WhatsApp de un grupo: el que tenga cargado cualquier envío de ese grupo."""
+    with db_session:
+        for e in list(TheoEnvio.select()):
+            if (e.grupo_nombre or "").lower() == grupo.lower() and e.grupo_jid:
+                return e.grupo_jid
+    return None
+
+
+def guardar_jid_grupo(grupo: str, jid: str, quien: str) -> dict:
+    """Carga el ID de WhatsApp de un grupo en todos sus envíos (y en lo que esté por salir)."""
+    jid = (jid or "").strip()
+    if not jid.endswith("@g.us"):
+        raise HTTPException(status_code=400, detail="El ID de un grupo de WhatsApp termina en @g.us.")
+    with db_session:
+        envios = [e for e in list(TheoEnvio.select()) if (e.grupo_nombre or "").lower() == grupo.lower()]
+        if not envios:
+            raise HTTPException(status_code=404, detail="No hay envíos de ese grupo.")
+        for e in envios:
+            e.grupo_jid, e.actualizado_por, e.actualizado_at = jid, quien, daily_services.ahora()
+            for m in TheoMensaje.select(lambda m: m.envio == e.clave and m.estado == "pendiente"):
+                m.grupo_jid = jid
+    return {"grupo": grupo, "jid": jid}
+
+
+def enviar_ahora(envio: str, texto: str, quien: str) -> dict:
+    """Un mensaje escrito a mano que sale ya (en la próxima vuelta de theo-cola.py, ≤1 min)."""
+    texto = (texto or "").strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="Escribí el mensaje.")
+    with db_session:
+        e = TheoEnvio.get(clave=envio)
+        if e is None:
+            raise HTTPException(status_code=404, detail="Ese envío no existe.")
+        grupo = e.grupo_nombre
+    jid = _jid_de_grupo(grupo or "")
+    if not jid:
+        raise HTTPException(status_code=400, detail=f"Falta el ID de WhatsApp del grupo {grupo}: cargalo primero.")
+    ahora = daily_services.ahora()
+    with db_session:
+        m = TheoMensaje(envio=envio, grupo_nombre=grupo, grupo_jid=jid, texto=texto, sale_at=ahora,
+                        expira_at=ahora + timedelta(hours=1), editado_por=quien)
+        m.flush()
+        return _msg_dict(m, {x.clave: x for x in TheoEnvio.select()})
+
+
+def mensaje(ident: str) -> dict:
+    """Un mensaje puntual (para abrirlo desde la grilla)."""
+    with db_session:
+        tipo, x = _buscar(ident)
+        if tipo == "m":
+            return _msg_dict(x, {e.clave: e for e in TheoEnvio.select()})
+        return _llamada_dict(x, TheoEnvio.get(clave="llamadas"))

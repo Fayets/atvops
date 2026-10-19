@@ -21,6 +21,16 @@ class EnvioEdicion(BaseModel):
     grupo_jid: str | None = None
 
 
+class EnvioManual(BaseModel):
+    envio: str
+    texto: str
+
+
+class JidGrupo(BaseModel):
+    grupo: str
+    jid: str
+
+
 class Resultado(BaseModel):
     ok: bool
     texto: str | None = None
@@ -73,6 +83,23 @@ def semana(desde: str | None = None, user: dict = Depends(_sistemas)):
     from src.services.daily_services import _parse_fecha
 
     return svc.semana(_parse_fecha(desde))
+
+
+@router.post("/enviar")
+def enviar(body: EnvioManual, user: dict = Depends(_sistemas)):
+    """Un mensaje escrito a mano a un grupo: sale en el próximo minuto."""
+    return svc.enviar_ahora(body.envio, body.texto, user["username"])
+
+
+@router.put("/grupos")
+def grupo(body: JidGrupo, user: dict = Depends(_sistemas)):
+    """Carga el ID de WhatsApp de un grupo en todos sus envíos."""
+    return svc.guardar_jid_grupo(body.grupo, body.jid, user["username"])
+
+
+@router.get("/mensajes/{ident}")
+def ver_mensaje(ident: str, user: dict = Depends(_sistemas)):
+    return svc.mensaje(ident)
 
 
 @router.get("/envios")

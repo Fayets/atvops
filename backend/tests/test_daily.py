@@ -498,3 +498,14 @@ def test_resumenes_esperados_segun_las_llamadas_del_dia(theo_listo, monkeypatch)
     assert [x["quien"] for x in miercoles["llamadas"]] == ["Ana", "Beto"]
     viernes = next(x for x in sales["dias"][5]["items"] if x["clave"] == "llamadas")
     assert viernes["estado"] == "programado" and viernes["detalle"] == "1 llamada agendada"
+
+
+def test_mandar_un_mensaje_a_mano_a_un_grupo(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 18, 0)
+    with pytest.raises(HTTPException):
+        th.guardar_jid_grupo("ATV 500K", "atv500k", "franco")  # no es un ID de grupo
+    th.guardar_jid_grupo("ATV 500K", "120363999@g.us", "franco")
+    m = th.enviar_ahora("recordatorio_semana", "Mañana preparen sus documentos 💪", "franco")
+    assert m["estado"] == "pendiente" and m["grupo"] == "ATV 500K"
+    salen = [x for x in th.cola() if x["texto"].startswith("Mañana preparen")]
+    assert salen and salen[0]["jid"] == "120363999@g.us"
