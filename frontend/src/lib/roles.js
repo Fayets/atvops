@@ -205,6 +205,11 @@ export function puedeOcultarReuniones(rol) {
  * @param {string} pathname
  * @param {Rol} rol
  */
+/** ATV AI es solo del VA (Mauri). */
+export function esVa(user) {
+  return (user?.cargo ?? '').trim().toUpperCase() === 'VA';
+}
+
 export function puedeVerRuta(pathname, rol) {
   // La vista Theo es de sistemas y operaciones: acá operaciones NO hereda de founder,
   // así Juan no la ve aunque vea todo lo demás.

@@ -6,13 +6,15 @@ from src.services import asistente_services as service
 
 router = APIRouter()
 
-ROLES_PERMITIDOS = {"admin", "founder", "csm", "operaciones"}
+def es_va(user: dict) -> bool:
+    """ATV AI es del VA (Mauri), nadie más (Franco, 19-10-2026)."""
+    return (user.get("cargo") or "").strip().upper() == "VA"
 
 
 @router.post("/preguntar", response_model=schemas.AsistenteRespuesta)
 def preguntar(body: schemas.AsistentePregunta, user: dict = Depends(get_current_user)):
-    if user.get("rol") not in ROLES_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="Tu rol no tiene acceso al asistente de fulfillment.")
+    if not es_va(user):
+        raise HTTPException(status_code=403, detail="ATV AI es del VA.")
     try:
         return service.preguntar(body.pregunta, [t.model_dump() for t in body.historial], user)
     except HTTPException as e:

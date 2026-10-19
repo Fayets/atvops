@@ -1,15 +1,16 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useRol } from '../../lib/RolContext.jsx';
-import { homeParaRol, puedeVerRuta } from '../../lib/roles.js';
+import { esVa, homeParaRol, puedeVerRuta } from '../../lib/roles.js';
 
 /**
  * Bloquea rutas que el rol efectivo no puede ver.
  */
 export default function RequireRole() {
   const location = useLocation();
-  const { rol } = useRol();
+  const { rol, user } = useRol();
 
-  if (!puedeVerRuta(location.pathname, rol)) {
+  const asistente = location.pathname === '/asistente' || location.pathname.startsWith('/asistente/');
+  if (asistente ? !esVa(user) : !puedeVerRuta(location.pathname, rol)) {
     return <Navigate to={homeParaRol(rol)} replace />;
   }
   return <Outlet />;

@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { useRol } from '../../lib/RolContext.jsx';
+import { esVa } from '../../lib/roles.js';
 
 /**
  * ATV AI, siempre a mano y fuera de la barra.
@@ -7,6 +9,8 @@ import { NavLink } from 'react-router-dom';
  * ocupando un renglón de la barra competía con las áreas del negocio.
  */
 export default function BotonAtvAi() {
+  const { user } = useRol();
+  if (!esVa(user)) return null;
   return (
     <NavLink
       to="/asistente"

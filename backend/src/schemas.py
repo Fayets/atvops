@@ -21,6 +21,7 @@ class UsuarioResponse(BaseModel):
     nombre: str | None = None
     rol: str = "operaciones"
     foto_url: str | None = None
+    cargo: str | None = None  # "VA" es el único que usa ATV AI
     por: str | None = None  # el admin que entró como esta persona
 
 

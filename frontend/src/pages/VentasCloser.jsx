@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import MiDiaCloser from '../components/ventas/MiDiaCloser.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
-import SourceTag from '../components/ui/SourceTag.jsx';
 import { getMisLlamadas } from '../data/api.js';
 import { mesId } from '../lib/format.js';
 import { useResource } from '../lib/hooks.js';
@@ -31,19 +29,11 @@ export default function VentasCloser() {
 
   return (
     <div className="page ventas-page">
-      <PageHeader
-        eyebrow={vista?.closer ? `Closer · ${vista.closer}` : 'Closer'}
-        title="Mi día"
-        desc="Tus números del mes y el calendario del equipo."
-        actions={
-          <>
-            <SourceTag sourceId="ventas_ops" updatedAt={vista?.generadoAt} />
-            <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }} disabled={loading}>
-              <span className={`recargar-icono${loading ? ' girando' : ''}`}>⟳</span> Actualizar
-            </button>
-          </>
-        }
-      />
+      <div className="pag-acciones">
+        <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }} disabled={loading}>
+          <span className={`recargar-icono${loading ? ' girando' : ''}`}>⟳</span> Actualizar
+        </button>
+      </div>
 
       {loading && !vista ? (
         <>

@@ -98,6 +98,7 @@ def _to_response(usuario: Usuario) -> dict:
         "nombre": usuario.nombre,
         "rol": rol,
         "foto_url": getattr(usuario, "foto_url", None),
+        "cargo": getattr(usuario, "cargo", None),
     }
 
 

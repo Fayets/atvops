@@ -298,12 +298,6 @@ export default function LabClosing() {
   return (
     <div className="page">
       <div className="lab-cab">
-        <div>
-          <div className="lab-titulo">Llamadas del mes</div>
-          <div className="dim">
-            {conteo.todas ?? 0} {conteo.todas === 1 ? 'llamada' : 'llamadas'} que pasaron · {conteo.analizadas ?? 0} con grabación analizada · cada una abre su ficha
-          </div>
-        </div>
         <div className="lab-filtros">
           {FILTROS.filter((f) => f.clave === 'todas' || conteo[f.clave]).map((f) => (
             <button key={f.clave} type="button" className={`chip${filtro === f.clave ? ' active' : ''}`}
@@ -332,11 +326,6 @@ export default function LabClosing() {
           {llamadas.map((l) => <Tarjeta key={l.id} l={l} onAbrir={() => setAbierta(l.id)} />)}
         </div>
       )}
-
-      <p className="dim" style={{ fontSize: 12 }}>
-        Cada tarjeta es una llamada del calendario que ya pasó. Las que tienen grabación analizada
-        llevan la marca de Fathom; las de borde punteado todavía no: abrilas y pegá el link.
-      </p>
 
       {seleccionada && (
         <Ficha key={`${seleccionada.id}-${seleccionada.analizada}`} l={seleccionada}

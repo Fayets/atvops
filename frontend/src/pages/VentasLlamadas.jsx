@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import ListaLlamadas from '../components/ventas/ListaLlamadas.jsx';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
-import SourceTag from '../components/ui/SourceTag.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import { formatValue } from '../lib/format.js';
 import { getMisLlamadas } from '../data/api.js';
@@ -45,19 +43,11 @@ export default function VentasLlamadas() {
 
   return (
     <div className="page ventas-page">
-      <PageHeader
-        eyebrow={vista?.closer ? `Closer · ${vista.closer}` : 'Closer'}
-        title="Llamadas"
-        desc="Todas tus reuniones del mes elegido, con el resultado que cargaste en cada una. Tocá una para corregirla."
-        actions={
-          <>
-            <SourceTag sourceId="ventas_ops" updatedAt={vista?.generadoAt} />
-            <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }} disabled={loading}>
-              <span className={`recargar-icono${loading ? ' girando' : ''}`}>⟳</span> Actualizar
-            </button>
-          </>
-        }
-      />
+      <div className="pag-acciones">
+        <button className="btn" onClick={() => { setLocal(null); setTick((t) => t + 1); }} disabled={loading}>
+          <span className={`recargar-icono${loading ? ' girando' : ''}`}>⟳</span> Actualizar
+        </button>
+      </div>
 
       {loading && !vista ? (
         <SkeletonBlock height={420} />

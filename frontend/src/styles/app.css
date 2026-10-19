@@ -8601,3 +8601,4 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .cta-reel-estado { font-size: 12px; }
 /* Home de marketing: cuatro columnas (sin reproducciones). */
 .mkt-top .conv-fila { grid-template-columns: 66px minmax(120px, 1fr) 150px 90px; }
+.pag-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: var(--space-3); }

@@ -207,13 +207,6 @@ export default function CajaUno() {
           vacio="Todavía no entró ninguna cuota de venta este mes." />
       </Card>
 
-      <p className="dim" style={{ fontSize: 12 }}>
-        Tocá un número para ver sus cuotas. Caja 1 son las cuotas de ventas nuevas y sus
-        señas, igual que en ATV Clients. El upsell y la recompra son Caja 2 y no entran acá.
-        Lo que entró son los pagos reales del mes; lo que vence y lo atrasado, lo que falta
-        pagar de cada cuota.
-      </p>
-
       {abierto && <Detalle {...DETALLES[abierto]} onCerrar={() => setAbierto(null)} />}
     </div>
   );
