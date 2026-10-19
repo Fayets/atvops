@@ -1,7 +1,6 @@
 import HomeMarketing from '../components/marketing/HomeMarketing.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
-import { getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getYouTubePropio } from '../data/api.js';
+import { getConversaciones, getInstagramPropio, getMetasMes } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
@@ -14,20 +13,17 @@ import { useResource } from '../lib/hooks.js';
  */
 export default function HomeMarketingPage() {
   const { mes, nombreMes } = useMes();
-  const mkt = useResource(() => getMarketing(mes), [mes]);
   const metas = useResource(() => getMetasMes(mes), [mes]);
   // El contenido sale de la base propia, no del CRM de marketing.
   const ig = useResource(() => getInstagramPropio(mes), [mes]);
-  const yt = useResource(() => getYouTubePropio(mes), [mes]);
   const chats = useResource(() => getConversaciones(mes), [mes]);
 
-  if (mkt.error) return <div className="page"><ErrorState error={mkt.error} /></div>;
+  if (chats.error && !chats.data) return <div className="page"><ErrorState error={chats.error} /></div>;
 
-  const cargando = (mkt.loading && !mkt.data) || (metas.loading && !metas.data);
+  const cargando = (chats.loading && !chats.data) || (metas.loading && !metas.data);
 
   return (
     <div className="page">
-      <PageHeader eyebrow="Marketing" title={`${nombreMes} · cómo viene el mes`} />
       {cargando ? (
         <>
           <SkeletonKpis n={4} />
@@ -36,12 +32,10 @@ export default function HomeMarketingPage() {
         </>
       ) : (
         <HomeMarketing
-          marketing={mkt.data}
           decreto={metas.data?.decreto ?? {}}
           contexto={metas.data?.contexto ?? {}}
           conversaciones={chats.data}
           instagram={ig.data}
-          youtube={yt.data}
           nombreMes={nombreMes}
         />
       )}

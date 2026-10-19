@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
-import SourceTag from '../ui/SourceTag.jsx';
 import { formatValue } from '../../lib/format.js';
 import { chatsDelMes } from '../../lib/chats.js';
 
@@ -14,7 +13,7 @@ import { chatsDelMes } from '../../lib/chats.js';
 const fecha = (iso) =>
   (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '—');
 
-function Numero({ label, valor, nota, format = 'count', tono, fuente }) {
+function Numero({ label, valor, nota, format = 'count', tono }) {
   return (
     <article className="kpi sm">
       <div className="kpi-label">{label}</div>
@@ -23,13 +22,12 @@ function Numero({ label, valor, nota, format = 'count', tono, fuente }) {
         {tono && <Pill tone={tono} dot>{tono === 'ok' ? 'en ritmo' : tono === 'warn' ? 'atención' : 'atrasado'}</Pill>}
       </div>
       {nota && <div className="kpi-nota">{nota}</div>}
-      {fuente && <div className="kpi-nota dim">{fuente}</div>}
     </article>
   );
 }
 
 /** Una fuente del embudo: cuánto contenido salió y cuántas conversaciones trajo. */
-function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota, sinFuente }) {
+function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota }) {
   return (
     <div className="mkt-fuente">
       <div className="mkt-fuente-cab">
@@ -37,7 +35,7 @@ function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota, sinFuente
         <span className="dim">{volumen} {volumenLabel}</span>
       </div>
       <div className="mkt-fuente-valor num">
-        {sinFuente ? <span className="dim">sin medir</span> : formatValue(conversaciones ?? 0, 'count')}
+        {formatValue(conversaciones ?? 0, 'count')}
       </div>
       <div className="dim mkt-fuente-nota">{nota}</div>
     </div>
@@ -45,27 +43,21 @@ function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota, sinFuente
 }
 
 /**
- * @param {{ marketing: object, decreto: object, contexto: {diaHoy: number, diasMes: number},
- *           instagram: object, youtube: object, conversaciones: object, nombreMes: string }} props
+ * @param {{ decreto: object, contexto: {diaHoy: number, diasMes: number},
+ *           instagram: object, conversaciones: object, nombreMes: string }} props
  */
-export default function HomeMarketing({ marketing, decreto, contexto, instagram, youtube,
-                                        conversaciones, nombreMes }) {
-  const conv = marketing?.conversaciones ?? {};
-  const c = marketing?.contenido ?? {};
-  const yt = youtube?.totales ?? {};
-
-  // El volumen y las métricas de Instagram salen de la base propia: es la misma cuenta
-  // que muestran las subvistas, así que el home no puede decir otro número.
+export default function HomeMarketing({ decreto, contexto, instagram, conversaciones, nombreMes }) {
+  // Todo sale de Ops: los chats de conversaciones_services (las mismas partes que ve Ventas)
+  // y el volumen de la cuenta de Instagram. La base de ATV Marketing ya no existe.
   const reels = instagram?.reels ?? [];
   const secuencias = instagram?.secuencias ?? [];
   const suma = (lista, campo) => lista.reduce((t, x) => t + (x[campo] ?? 0), 0);
+  const conCta = secuencias.filter((x) => x.cta);
   const propio = {
     reels: reels.length,
     reproducciones: suma(reels, 'views'),
-    alcance: suma(reels, 'reach') + secuencias.reduce((t, s) => t + (s.alcance ?? 0), 0),
+    alcance: suma(reels, 'reach') + secuencias.reduce((t, x) => t + (x.alcance ?? 0), 0),
     interacciones: suma(reels, 'total_interactions') + suma(secuencias, 'interacciones'),
-    secuencias: secuencias.length,
-    respuestas: suma(secuencias, 'respuestas'),
   };
 
   const diaHoy = contexto?.diaHoy ?? 1;
@@ -73,28 +65,23 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
   const transcurrido = Math.min(100, Math.round((diaHoy / diasMes) * 100));
 
   const metaConversaciones = decreto?.conversaciones ?? 0;
-  // Qué fuente manda vive en lib/chats.js, para que no se decida distinto en cada vista.
   const chats = chatsDelMes(conversaciones);
   const abiertas = chats.total;
-  const calendlys = conversaciones?.calendlys ?? 0;
+  const parte = (clave) => chats.partes.find((x) => x.clave === clave) ?? { cuantos: 0, filas: [] };
+  const pReels = parte('reels');
+  const pHistorias = parte('historias');
+  const otras = chats.partes.filter((x) => !['reels', 'historias'].includes(x.clave) && Number(x.cuantos) > 0);
   const pct = metaConversaciones ? Math.round((abiertas / metaConversaciones) * 100) : null;
   const tono = pct == null ? undefined : pct >= transcurrido ? 'ok' : pct >= transcurrido * 0.6 ? 'warn' : 'alert';
   const faltan = Math.max(metaConversaciones - abiertas, 0);
   const semanasRestantes = Math.max(Math.ceil((diasMes - diaHoy) / 7), 1);
 
-  // El contenido que más conversaciones trajo, sin importar cuándo se publicó.
-  const top = [...(c.publicaciones ?? [])]
-    .filter((p) => p.keyword)
-    .sort((a, b) => (b.conversaciones ?? 0) - (a.conversaciones ?? 0))
-    .slice(0, 5);
+  // Los reels que más chats abrieron este mes (por la fecha del comentario, no de publicación).
+  const top = (pReels.filas ?? []).slice(0, 5);
 
   return (
     <>
-      <Card
-        title={`Cómo viene ${nombreMes}`}
-        sub={`Día ${diaHoy} de ${diasMes} · ${transcurrido}% del mes transcurrido`}
-        actions={<SourceTag sourceId="mkt_crm" updatedAt={marketing?.syncAt} />}
-      >
+      <Card title={`Cómo viene ${nombreMes}`} sub={`Día ${diaHoy} de ${diasMes} · ${transcurrido}% del mes transcurrido`}>
         <div className="kpi-grid">
           <Numero
             label="Chats abiertos"
@@ -103,78 +90,46 @@ export default function HomeMarketing({ marketing, decreto, contexto, instagram,
             nota={metaConversaciones
               ? `${formatValue(metaConversaciones, 'count')} es la meta · faltan ${formatValue(faltan, 'count')}, ${formatValue(Math.ceil(faltan / semanasRestantes), 'count')} por semana`
               : 'Sin meta cargada en el decreto'}
-            fuente={chats.fuente}
-          />
-          <Numero
-            label="Calendly enviados"
-            valor={calendlys}
-            nota={conversaciones?.conectado
-              ? `${formatValue(conversaciones.personas ?? 0, 'count')} ${conversaciones.personas === 1 ? 'persona escribió' : 'personas escribieron'} este mes`
-              : 'todavía no llega ningún mensaje de Instagram'}
           />
           <Numero label="Reels publicados" valor={propio.reels} nota={`${formatValue(propio.reproducciones, 'count')} reproducciones`} />
+          <Numero label="Secuencias con CTA" valor={conCta.length}
+            nota={`de ${formatValue(secuencias.length, 'count')} ${secuencias.length === 1 ? 'secuencia' : 'secuencias'} del mes`} />
           <Numero label="Alcance" valor={propio.alcance} nota={`${formatValue(propio.interacciones, 'count')} interacciones`} />
         </div>
       </Card>
 
-      <Card
-        title="De dónde salen los chats"
-        sub="Cada formato, con el volumen que salió y lo que trajo"
-        flush
-        foot="Las de Instagram las abre el bot cuando alguien comenta la palabra de un reel: se cuentan solas."
-      >
+      <Card title="De dónde salen los chats" sub="Lo que trajo cada puerta este mes" flush
+        foot="Reels: personas distintas que comentaron la palabra. Historias: respuestas a las secuencias con CTA.">
         <div className="mkt-fuentes">
-          <Fuente
-            titulo="Reels"
-            volumen={propio.reels}
-            volumenLabel={propio.reels === 1 ? 'publicado' : 'publicados'}
-            conversaciones={abiertas}
-            nota={`${formatValue(propio.reproducciones, 'count')} reproducciones este mes`}
-          />
-          <Fuente
-            titulo="Historias"
-            volumen={propio.secuencias}
-            volumenLabel={propio.secuencias === 1 ? 'secuencia' : 'secuencias'}
-            conversaciones={propio.respuestas}
-            nota="respuestas directas a una historia"
-          />
-          <Fuente
-            titulo="YouTube"
-            volumen={yt.videos ?? 0}
-            volumenLabel={yt.videos === 1 ? 'video' : 'videos'}
-            conversaciones={yt.chats ?? null}
-            nota={`${formatValue(yt.vistas ?? 0, 'count')} vistas · ${formatValue(yt.vistasPromedio ?? 0, 'count')} de promedio`}
-            sinFuente={(yt.chats ?? 0) === 0}
-          />
+          <Fuente titulo="Reels" volumen={(pReels.filas ?? []).length}
+            volumenLabel={(pReels.filas ?? []).length === 1 ? 'reel con chats' : 'reels con chats'}
+            conversaciones={pReels.cuantos} nota="comentaron la palabra del reel" />
+          <Fuente titulo="Historias con CTA" volumen={conCta.length}
+            volumenLabel={conCta.length === 1 ? 'secuencia' : 'secuencias'}
+            conversaciones={pHistorias.cuantos} nota="respuestas a las secuencias con CTA" />
+          {otras.map((o) => (
+            <Fuente key={o.clave} titulo={o.fuente} volumen={(o.filas ?? []).length} volumenLabel=""
+              conversaciones={o.cuantos} nota={o.detalle ?? ''} />
+          ))}
         </div>
       </Card>
 
-      <Card
-        title="El contenido que más trajo"
-        sub={top.length ? 'Ordenado por conversaciones abiertas este mes' : 'Todavía sin contenido con palabra clave este mes'}
-        flush
-        foot={<Link to="/marketing/calendario">Ver el mes de contenido →</Link>}
-      >
-        {top.length === 0 ? (
-          <div className="empty">Un reel sin palabra clave cargada no se puede atribuir.</div>
-        ) : (
-          <div className="conv-tabla">
+      <Card title="Los reels que más chats trajeron" sub={top.length ? 'Este mes, ordenados por chats' : 'Ningún reel trajo chats este mes todavía'}
+        flush foot={<Link to="/marketing/reels">Ver todos los reels →</Link>}>
+        {top.length > 0 && (
+          <div className="conv-tabla mkt-top">
             <div className="conv-fila cabecera">
-              <span>Fecha</span>
+              <span>Publicado</span>
               <span>Reel</span>
               <span>Palabra</span>
-              <span>Reproducciones</span>
               <span>Chats</span>
             </div>
-            {top.map((p) => (
-              <div key={p.url ?? p.titulo} className="conv-fila">
-                <span className="num dim">{fecha(p.fecha)}</span>
-                <span className="conv-titulo">
-                  {p.url ? <a href={p.url} target="_blank" rel="noreferrer">{p.titulo}</a> : p.titulo}
-                </span>
-                <span className="conv-palabra"><code>{p.keyword}</code></span>
-                <span className="num dim">{formatValue(p.reproducciones, 'count')}</span>
-                <span className="num conv-valor">{formatValue(p.conversaciones ?? 0, 'count')}</span>
+            {top.map((f) => (
+              <div key={`${f.cuando}-${f.quien}`} className="conv-fila">
+                <span className="num dim">{fecha(f.cuando)}</span>
+                <span className="conv-titulo">{f.quien}</span>
+                <span className="conv-palabra"><code>{f.dato}</code></span>
+                <span className="num conv-valor">{formatValue(f.cuantos ?? 0, 'count')}</span>
               </div>
             ))}
           </div>
