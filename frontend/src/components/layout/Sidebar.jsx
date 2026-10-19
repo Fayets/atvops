@@ -99,7 +99,7 @@ const NAV = [
   // El organigrama con lo que cada uno marcó en su daily. Equipo: mails, cargos y las
   // tareas fijas de cada rol, que edita Franco.
   { to: '/backbone', icon: 'clientes', label: 'Backbone', grupo: 'Dirección', roles: ['admin', 'founder'],
-    sub: [{ to: '/backbone/equipo', label: 'Equipo y roles', roles: ['admin'] }] },
+    sub: [{ to: '/backbone/equipo', label: 'Equipo y roles', rolesReales: ['admin', 'operaciones'] }] },
   { to: '/sistemas', icon: 'sistemas', label: 'Sistemas', grupo: 'Sistema' },
   // Lo que manda Theo por WhatsApp: lo que va a salir se edita o se frena, lo que salió
   // queda de registro. Es de sistemas y operaciones, no de founder.

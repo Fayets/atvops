@@ -583,3 +583,15 @@ def test_daily_libre_saca_las_del_rol_sin_marcas_y_deja_borrar(monkeypatch):
     assert not [t for t in semana["tareas"] if t["origen"] == "rol"]
     t = d.agregar_tarea("nick", date(2026, 10, 26), "Llamar a los leads de ayer", "velocidad", 0)
     assert t["texto"] == "Llamar a los leads de ayer"
+
+
+def test_sistemas_ops_edita_el_equipo_y_marketing_no_ve_webinars():
+    from src.controllers.webinars_controller import ROLES_WEBINAR
+    from src.models import Usuario
+    with db_session:
+        if Usuario.get(username="ops-test") is None:
+            Usuario(username="ops-test", password_hash="x", nombre="Ops", rol="operaciones")
+    r = api.patch("/api/daily/equipo/janner", headers=_h("ops-test"), json={"cargo": "Head de Contenido"})
+    assert r.status_code == 200
+    assert api.patch("/api/daily/equipo/janner", headers=_h("juan"), json={"cargo": "x"}).status_code == 403
+    assert "marketing" not in ROLES_WEBINAR

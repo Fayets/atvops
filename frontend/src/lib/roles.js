@@ -79,7 +79,8 @@ export const RUTAS_POR_ROL = {
   ventas: ['/', '/daily', '/ventas', '/reporte-closing',
     '/reporte-setting', '/metas', '/ideas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
-  marketing: ['/', '/daily', '/marketing', '/metas', '/ideas', '/webinars', '/integraciones'],
+  // Webinars tampoco: es de ventas y dirección (Franco, 19-10-2026).
+  marketing: ['/', '/daily', '/marketing', '/metas', '/ideas', '/integraciones'],
   founder: [
     '/',
     '/daily',
@@ -212,6 +213,10 @@ export function puedeVerRuta(pathname, rol) {
   if (pathname === '/theo' || pathname.startsWith('/theo/')) {
     return ['admin', 'operaciones'].includes(normalizarRol(rol));
   }
+  // Equipo y roles (mails, cargos, tareas del rol) también: lo gestiona sistemas/ops, no Juan.
+  if (pathname === '/backbone/equipo' || pathname.startsWith('/backbone/equipo/')) {
+    return ['admin', 'operaciones'].includes(normalizarRol(rol));
+  }
   const permitidas = RUTAS_POR_ROL[rolDeVista(rol)] ?? RUTAS_POR_ROL.operaciones;
   return permitidas.some((p) => {
     if (p === '/') return pathname === '/';
@@ -242,6 +247,7 @@ export function filtrarNav(nav, rol) {
       if (item.roles && !item.roles.includes(rol)) return null;
       if (!item.sub) return item;
       const sub = item.sub.filter((s) => {
+        if (s.rolesReales) return s.rolesReales.includes(rolReal);
         if (s.roles && !s.roles.includes(rol)) return false;
         return puedeVerRuta(s.to, rol);
       });

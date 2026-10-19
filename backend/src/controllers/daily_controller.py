@@ -58,8 +58,9 @@ def _ve_backbone(user: dict) -> dict:
 
 
 def _admin(user: dict) -> dict:
-    if user.get("rol") != "admin":
-        raise HTTPException(status_code=403, detail="Solo un admin edita el equipo.")
+    """Editan el equipo (mails, cargos, tareas del rol) admin y sistemas/ops; founder no."""
+    if user.get("rol") not in ("admin", "operaciones"):
+        raise HTTPException(status_code=403, detail="El equipo lo editan sistemas y operaciones.")
     return user
 
 

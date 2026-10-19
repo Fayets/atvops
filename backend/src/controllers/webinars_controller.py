@@ -9,7 +9,8 @@ from src.services.webinars_services import WebinarsServices
 router = APIRouter()
 service = WebinarsServices()
 
-ROLES_WEBINAR = frozenset({"admin", "founder", "operaciones", "marketing", "ventas"})
+# Marketing no: no tiene nada que hacer en webinars (Franco, 19-10-2026).
+ROLES_WEBINAR = frozenset({"admin", "founder", "operaciones", "ventas"})
 
 
 def _puede_webinars(user: dict = Depends(get_current_user)) -> dict:
