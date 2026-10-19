@@ -78,8 +78,10 @@ function estadoDia(d) {
 function DiaDaily({ data, dia, setDia, onGuardado }) {
   const d = data.dias[dia] ?? data.dias[0];
   const fecha = d.fecha;
-  const deHoy = data.tareas.filter((t) => vence(t, dia));
-  const abiertas = data.tareas.filter(abierta);
+  // Las de desplazamiento siempre arriba: son las que mueven la semana.
+  const primero = (a, b) => (a.tipo === 'desplazamiento' ? 0 : 1) - (b.tipo === 'desplazamiento' ? 0 : 1);
+  const deHoy = data.tareas.filter((t) => vence(t, dia)).sort(primero);
+  const abiertas = data.tareas.filter(abierta).sort(primero);
 
   const inicial = useMemo(() => {
     const st = {};
@@ -192,8 +194,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
         )}
         <div className="dl-seg" role="group" aria-label={`Estado de ${t.texto}`}>
           {/* Un día que no llegó se adelanta: lo hiciste antes o no va a aplicar. */}
-          {(d.futuro ? [['hecha', 'Hecha'], ['no_aplica', 'No aplica']]
-            : [['hecha', 'Hecha'], ['no', 'No la hice'], ['no_aplica', 'No aplica']]).map(([k, l]) => (
+          {(d.futuro ? [['hecha', 'Hecha']] : [['hecha', 'Hecha'], ['no', 'No la hice']]).map(([k, l]) => (
             <button key={k} type="button" className={k} aria-pressed={v.estado === k} onClick={() => poner(t.id, k)}>{l}</button>
           ))}
         </div>
@@ -262,14 +263,13 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
               <b style={{ color: `var(--${b === 'off' ? 'text-3' : b})` }}>{pct == null ? '—' : `${pct}%`}</b>
               <Pill tone={b}>{BANDA_TEXTO[b]}</Pill>
             </div>
-            <p>Cuenta lo que vencía hasta hoy. "No aplica" con motivo no te baja.</p>
+            <p>Cuenta lo que vencía hasta hoy.</p>
           </Card>
           <button type="button" className="btn primary dl-guardar" disabled={guardando || falta > 0} onClick={guardar}>
             {guardando ? 'Guardando…' : d.futuro ? 'Guardar' : 'Guardar daily'}
           </button>
           {error ? <span className="dl-error">{error}</span>
-            : d.futuro ? <span className="dim">{falta ? 'Falta el motivo en lo que marcaste como "no aplica".'
-              : `Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`}</span>
+            : d.futuro ? <span className="dim">{`Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`}</span>
             : !falta && d.guardado_at ? <span className="dim">Ya está guardada. Si cambiaste algo, guardá de nuevo.</span> : null}
         </div>
       </div>
