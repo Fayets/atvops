@@ -47,11 +47,17 @@ EQUIPO = (
     ("nick", "Nick", "closer", "Closer", "ventas", "lucas", ["nicolasaliagachl@gmail.com"], 12),
     ("ignacio", "Ignacio", "marketing", "Director de Marketing", "marketing", "juan", [], 20),
     ("maite", "Maite", "marketing", "Directora Creativa", "marketing", "juan", ["maiteatv1@gmail.com"], 21),
-    ("janner", "Janner", "marketing", "Head de Contenido", "marketing", "juan", [], 22),
+    ("janner", "Janner", "marketing", "Head de Contenido", "marketing", "maite,ignacio", [], 22),
     ("juampi", "Juampi", "csm", "Director de Producto", "producto", "juan", ["juanpablotoledo2017.toledo@gmail.com"], 30),
-    ("ale", "Ale", "csm", "CSM", "producto", "juan", ["ramirezcalderonalejandro@gmail.com"], 31),
-    ("mauri", "Mauri", "csm", "VA", "producto", "juan", ["mauriw35@gmail.com", "s_35@live.com"], 32),
+    ("ale", "Ale", "csm", "CSM", "producto", "juampi", ["ramirezcalderonalejandro@gmail.com"], 31),
+    ("mauri", "Mauri", "csm", "VA", "producto", "juampi", ["mauriw35@gmail.com", "s_35@live.com"], 32),
 )
+# `jefe` puede ser más de uno, separados por coma: Janner responde a Maite y a Ignacio.
+
+# El organigrama de octubre (19-10-2026): Juampi encabeza producto y Maite con Ignacio,
+# marketing. Se corrige una sola vez y solo si sigue como se sembró al principio (todos
+# reportando a Juan): lo que se haya editado a mano no se pisa.
+_ORGANIGRAMA_OCT = {"ale": ("juan", "juampi"), "mauri": ("juan", "juampi"), "janner": ("juan", "maite,ignacio")}
 
 # Las tareas de cada rol, sacadas de los documentos de rol de Backbone. Cris hereda las del
 # setter (antes Andrés) e Ignacio las del director de marketing (antes Emi). Janner no
@@ -203,6 +209,10 @@ def ensure_equipo() -> None:
                 u.emails = "\n".join(mails)
             if not u.orden:
                 u.orden = orden
+        for username, (antes, ahora) in _ORGANIGRAMA_OCT.items():
+            u = Usuario.get(username=username)
+            if u is not None and u.jefe == antes:
+                u.jefe = ahora
         for username, tareas in TAREAS_ROL.items():
             if TareaRol.select(lambda t: t.usuario == username).count():
                 continue
@@ -249,10 +259,13 @@ def actualizar_persona(username: str, datos: dict) -> dict:
                 raise HTTPException(status_code=400, detail="Área inválida.")
             u.area = datos["area"]
         if "jefe" in datos:
-            jefe = datos["jefe"] or None
-            if jefe and (jefe == username or Usuario.get(username=jefe) is None):
-                raise HTTPException(status_code=400, detail="Ese jefe no existe.")
-            u.jefe = jefe
+            # Uno o varios (lista o "a,b"): un equipo puede tener dos cabezas.
+            crudo = datos["jefe"] or []
+            jefes = [j.strip() for j in (crudo if isinstance(crudo, list) else str(crudo).split(",")) if j and j.strip()]
+            for j in jefes:
+                if j == username or Usuario.get(username=j) is None:
+                    raise HTTPException(status_code=400, detail="Ese jefe no existe.")
+            u.jefe = ",".join(dict.fromkeys(jefes)) or None
         if "daily" in datos:
             u.daily = bool(datos["daily"])
         if "emails" in datos:

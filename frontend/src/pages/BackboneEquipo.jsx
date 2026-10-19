@@ -64,7 +64,7 @@ export default function BackboneEquipo() {
 function FichaPersona({ persona, equipo, onGuardado }) {
   const [f, setF] = useState({
     nombre: persona.nombre, cargo: persona.cargo ?? '', area: persona.area ?? 'ventas',
-    jefe: persona.jefe ?? '', daily: persona.daily, emails: persona.emails.join('\n'),
+    jefe: (persona.jefe ?? '').split(',')[0] ?? '', jefe2: (persona.jefe ?? '').split(',')[1] ?? '', daily: persona.daily, emails: persona.emails.join('\n'),
     whatsapp: persona.whatsapp ?? '',
   });
   const [estado, setEstado] = useState('');
@@ -75,7 +75,7 @@ function FichaPersona({ persona, equipo, onGuardado }) {
     setEstado('Guardando…');
     try {
       await editarPersonaDaily(persona.username, {
-        ...f, jefe: f.jefe || null,
+        ...f, jefe: [f.jefe, f.jefe2].filter(Boolean), jefe2: undefined,
         emails: f.emails.split(/[\n,]/).map((m) => m.trim()).filter(Boolean),
       });
       setEstado('Guardado');
@@ -101,6 +101,14 @@ function FichaPersona({ persona, equipo, onGuardado }) {
             {equipo.filter((p) => p.username !== persona.username).map((p) => <option key={p.username} value={p.username}>{p.nombre}</option>)}
           </select>
         </label>
+        {f.jefe && (
+          <label>Y también a (si son dos cabezas)
+            <select id="eq-jefe2" value={f.jefe2} onChange={set('jefe2')}>
+              <option value="">Nadie más</option>
+              {equipo.filter((p) => ![persona.username, f.jefe].includes(p.username)).map((p) => <option key={p.username} value={p.username}>{p.nombre}</option>)}
+            </select>
+          </label>
+        )}
         <label className="full">Mails de Google con los que entra (uno por línea)
           <textarea id="eq-emails" rows={2} value={f.emails} onChange={set('emails')} placeholder="nombre@gmail.com" />
         </label>

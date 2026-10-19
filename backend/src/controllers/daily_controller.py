@@ -45,7 +45,7 @@ class PersonaEdicion(BaseModel):
     nombre: str | None = None
     cargo: str | None = None
     area: str | None = None
-    jefe: str | None = None
+    jefe: str | list[str] | None = None
     daily: bool | None = None
     emails: list[str] | None = None
     whatsapp: str | None = None

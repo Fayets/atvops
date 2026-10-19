@@ -94,9 +94,13 @@ export default function Backbone() {
  * Juan arriba; Sistemas a su lado (es staff, cruza todas las áreas); debajo, sus
  * reportes directos agrupados por área, y debajo de cada uno, su equipo.
  */
+/** Una persona puede responder a dos (Janner a Maite y a Ignacio): `jefe` viene "a,b". */
+const jefesDe = (p) => (p.jefe ?? '').split(',').filter(Boolean);
+const reportaA = (p, u) => jefesDe(p).includes(u);
+
 function armarLayout(personas) {
   const raiz = personas.find((p) => !p.jefe) ?? personas[0];
-  const directos = personas.filter((p) => p.jefe === raiz.username);
+  const directos = personas.filter((p) => reportaA(p, raiz.username));
   const staff = directos.filter((p) => p.area === 'sistemas');
   const pos = {};
   const columnas = [];
@@ -105,13 +109,21 @@ function armarLayout(personas) {
     const l1 = directos.filter((p) => p.area === area && !staff.includes(p));
     if (!l1.length) continue;
     const inicio = slot;
+    const compartidos = [];
     for (const p of l1) {
-      const hijos = personas.filter((h) => h.jefe === p.username);
+      const todos = personas.filter((h) => reportaA(h, p.username));
+      const hijos = todos.filter((h) => jefesDe(h).length === 1);
+      todos.filter((h) => jefesDe(h).length > 1 && !compartidos.includes(h)).forEach((h) => compartidos.push(h));
       const ancho = Math.max(1, hijos.length);
       pos[p.username] = { x: 40 + (slot + ancho / 2) * SLOT, y: 260 };
       hijos.forEach((h, i) => { pos[h.username] = { x: 40 + (slot + i + 0.5) * SLOT, y: 450 }; });
       slot += ancho;
     }
+    // Quien responde a dos va centrado debajo de ambos.
+    compartidos.forEach((h, i) => {
+      const xs = jefesDe(h).map((j) => pos[j]?.x).filter((x) => x != null);
+      if (xs.length) pos[h.username] = { x: xs.reduce((a, b) => a + b, 0) / xs.length + i * SLOT, y: 450 };
+    });
     columnas.push({ label, desde: inicio, hasta: slot });
   }
   // Los que no entraron en ninguna área conocida van al final.
@@ -164,7 +176,7 @@ function Organigrama({ data, layout, modo, sel, selEdge, onSel, onEdge, onFondo 
   else if (modo === 'todas') vis = entregas;
   const unidas = new Set(vis.flatMap((e) => [e.de, e.a]));
   const foco = sel || selEdge != null;
-  const nivel1 = data.personas.filter((p) => p.jefe === raiz && !staff.includes(p.username));
+  const nivel1 = data.personas.filter((p) => reportaA(p, raiz) && !staff.includes(p.username));
 
   return (
     <div className="bb-chart">
@@ -191,9 +203,9 @@ function Organigrama({ data, layout, modo, sel, selEdge, onSel, onEdge, onFondo 
           {nivel1.map((p) => (
             <path key={p.username} className="tree" d={`M${pos[raiz].x},${pos[raiz].y + HH} V165 H${pos[p.username].x} V${pos[p.username].y - HH}`} />
           ))}
-          {data.personas.filter((p) => p.jefe && p.jefe !== raiz && pos[p.jefe] && pos[p.username]).map((p) => (
-            <path key={p.username} className="tree" d={`M${pos[p.jefe].x},${pos[p.jefe].y + HH} V${(pos[p.jefe].y + pos[p.username].y) / 2} H${pos[p.username].x} V${pos[p.username].y - HH}`} />
-          ))}
+          {data.personas.flatMap((p) => jefesDe(p).filter((j) => j !== raiz && pos[j] && pos[p.username]).map((j) => (
+            <path key={`${j}-${p.username}`} className="tree" d={`M${pos[j].x},${pos[j].y + HH} V${(pos[j].y + pos[p.username].y) / 2} H${pos[p.username].x} V${pos[p.username].y - HH}`} />
+          )))}
           {staff.map((u) => (
             <path key={u} className="tree" d={`M${pos[raiz].x + HW},${pos[raiz].y} H${pos[u].x - HW}`} />
           ))}

@@ -595,3 +595,14 @@ def test_sistemas_ops_edita_el_equipo_y_marketing_no_ve_webinars():
     assert r.status_code == 200
     assert api.patch("/api/daily/equipo/janner", headers=_h("juan"), json={"cargo": "x"}).status_code == 403
     assert "marketing" not in ROLES_WEBINAR
+
+
+def test_un_equipo_puede_tener_dos_cabezas():
+    d.ensure_equipo()
+    equipo = {p["username"]: p for p in d.listar_equipo()}
+    assert equipo["ale"]["jefe"] == "juampi" and equipo["mauri"]["jefe"] == "juampi"
+    assert equipo["janner"]["jefe"] == "maite,ignacio"
+    r = api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"jefe": ["ignacio", "maite"]})
+    assert r.status_code == 200 and r.json()["jefe"] == "ignacio,maite"
+    assert api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"jefe": ["nadie"]}).status_code == 400
+    d.actualizar_persona("janner", {"jefe": "maite,ignacio"})
