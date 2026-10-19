@@ -106,3 +106,5 @@ button.th-g-item:hover { border-color: var(--text-3); }
 .th-grid.sola { grid-template-columns: minmax(0, 1fr); }
 .th-grid.sola .th-item { cursor: default; }
 .th-grid.sola .th-item .t span { white-space: pre-wrap; }
+/* `.pendiente` también es una fila de grilla en app.css: la celda en cola no la hereda. */
+.th-g-item.pendiente { display: flex; flex-direction: column; gap: 2px; padding: 8px; font-size: inherit; border-bottom: 1px solid var(--warn); }
