@@ -478,3 +478,23 @@ def test_la_grilla_de_theo_pinta_lo_que_salio(theo_listo, monkeypatch):
     assert atv["dias"][0]["items"][0]["estado"] == "sin_registro"  # el domingo lo manda Theo solo
     health = next(f for f in g["filas"] if f["grupo"] == "Health")
     assert health["dias"][6]["items"][0]["clave"] == "caja"
+
+
+def test_resumenes_esperados_segun_las_llamadas_del_dia(theo_listo, monkeypatch):
+    """3 llamadas de Nick el miércoles, una no show: se esperan 2 resúmenes."""
+    from src.models import ReunionCrm
+
+    with db_session:
+        ReunionCrm(evento_id="m1", prospecto="Ana", es_venta=True, inicio_at=datetime(2026, 10, 21, 10, 0),
+                   reporte_mensaje="📞 Ana", reporte_enviado_at=datetime(2026, 10, 21, 10, 50))
+        ReunionCrm(evento_id="m2", prospecto="Beto", es_venta=True, inicio_at=datetime(2026, 10, 21, 15, 0))
+        ReunionCrm(evento_id="m3", prospecto="Caro", es_venta=True, inicio_at=datetime(2026, 10, 21, 17, 0),
+                   resultado="no show")
+        ReunionCrm(evento_id="v1", prospecto="Dani", es_venta=True, inicio_at=datetime(2026, 10, 23, 11, 0))
+    _a_las(monkeypatch, 23, 50)  # jueves
+    sales = next(f for f in th.semana(JUEVES)["filas"] if f["grupo"] == "Sales")
+    miercoles = next(x for x in sales["dias"][3]["items"] if x["clave"] == "llamadas")
+    assert (miercoles["esperadas"], miercoles["enviados"], miercoles["estado"]) == (2, 1, "no_salio")
+    assert [x["quien"] for x in miercoles["llamadas"]] == ["Ana", "Beto"]
+    viernes = next(x for x in sales["dias"][5]["items"] if x["clave"] == "llamadas")
+    assert viernes["estado"] == "programado" and viernes["detalle"] == "1 llamada agendada"

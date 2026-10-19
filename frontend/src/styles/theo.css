@@ -84,3 +84,9 @@
 .th-g-item.pendiente { background: var(--warn-dim); border-color: var(--warn); }
 .th-g-item.programado, .th-leyenda i.programado { background: var(--surface); border-style: dashed; }
 .th-g-item.sin_registro, .th-g-item.sin_llamadas, .th-g-item.frenado, .th-leyenda i.sin_registro { background: var(--surface-2); color: var(--text-3); border-color: var(--border-soft); }
+.th-g-llamadas { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.th-g-llamadas li { font-size: 11px; color: var(--text-2); display: flex; gap: 5px; align-items: baseline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-g-llamadas i { font-style: normal; font-weight: 700; width: 10px; flex: none; text-align: center; }
+.th-g-llamadas li.enviado i { color: var(--ok); }
+.th-g-llamadas li.sin_resumen i { color: var(--alert); }
+.th-g-llamadas li.pendiente i { color: var(--warn); }

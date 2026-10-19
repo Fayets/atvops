@@ -379,7 +379,25 @@ function Fila({ fila, hoy }) {
           {d.items.map((it) => (
             <div key={it.clave} className={`th-g-item ${it.estado}`} title={`${ESTADO_CELDA[it.estado]} · ${it.detalle ?? ''}`}>
               <b>{it.nombre}</b>
-              <span>{it.hora ? `${it.hora} · ` : ''}{ESTADO_CELDA[it.estado]}{it.estado === 'enviado' && it.detalle && !it.hora ? ` · ${it.detalle}` : ''}</span>
+              {it.clave === 'llamadas' ? (
+                <>
+                  <span>{it.esperadas ? `${it.enviados} de ${it.esperadas} resúmenes` : ESTADO_CELDA[it.estado]}</span>
+                  {it.llamadas?.length > 0 && (
+                    <ul className="th-g-llamadas">
+                      {it.llamadas.map((l) => (
+                        <li key={`${l.hora}-${l.quien}`} className={l.estado}
+                          title={l.estado === 'enviado' ? 'El resumen salió' : l.estado === 'pendiente' ? 'El resumen está en cola'
+                            : l.estado === 'frenado' ? 'El resumen se frenó' : 'Todavía no llegó el Fathom'}>
+                          <i>{l.estado === 'enviado' ? '✓' : l.estado === 'pendiente' ? '…' : l.estado === 'frenado' ? '–' : '✕'}</i>
+                          {l.hora} {l.quien}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <span>{it.hora ? `${it.hora} · ` : ''}{ESTADO_CELDA[it.estado]}</span>
+              )}
             </div>
           ))}
         </div>

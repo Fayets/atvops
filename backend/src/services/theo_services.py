@@ -448,10 +448,20 @@ def semana(desde: date | None = None) -> dict:
         for m in msgs:
             cuando = m.enviado_at or m.sale_at
             por_envio_dia.setdefault((m.envio, cuando.date()), []).append(m)
-        llamadas_dia: dict[date, int] = {}
+        # Cada llamada de venta del día espera su Fathom y su resumen: 3 llamadas, 3 resúmenes.
+        llamadas_dia: dict[date, list[dict]] = {}
         for r in list(ReunionCrm.select()):
-            if r.reporte_enviado_at and inicio_dt <= r.reporte_enviado_at < fin_dt:
-                llamadas_dia[r.reporte_enviado_at.date()] = llamadas_dia.get(r.reporte_enviado_at.date(), 0) + 1
+            if not (r.es_venta and r.inicio_at and inicio_dt <= r.inicio_at < fin_dt) or not _espera_resumen(r):
+                continue
+            llamadas_dia.setdefault(r.inicio_at.date(), []).append({
+                "hora": r.inicio_at.strftime("%H:%M"),
+                "quien": (r.prospecto or "Sin nombre")[:40],
+                "closer": r.closer or "",
+                "estado": ("enviado" if r.reporte_enviado_at else "frenado" if r.reporte_frenado_por
+                           else "pendiente" if (r.reporte_mensaje or "").strip() else "sin_resumen"),
+            })
+        for lista in llamadas_dia.values():
+            lista.sort(key=lambda x: x["hora"])
 
         filas = []
         for grupo, items in PROGRAMA:
@@ -468,13 +478,32 @@ def semana(desde: date | None = None) -> dict:
     return {"desde": domingo.isoformat(), "hoy": hoy.isoformat(), "filas": filas}
 
 
+_SIN_RESUMEN = {"no show", "cancelada", "re-agenda", "reagenda", "descartada"}
+
+
+def _espera_resumen(r: ReunionCrm) -> bool:
+    """Una llamada que no se dio (no show, cancelada, re-agendada o descartada) no tiene Fathom."""
+    return not r.descartada and (r.resultado or "").strip().lower() not in _SIN_RESUMEN
+
+
 def _celda(it: dict, d: date, ahora: datetime, por_envio_dia: dict, llamadas_dia: dict, alguna_vez: set) -> dict:
     out = {"clave": it["clave"], "nombre": it["nombre"], "hora": it["hora"]}
     if it["rastreo"] == "llamadas":
-        n = llamadas_dia.get(d, 0)
-        if n:
-            return {**out, "estado": "enviado", "detalle": f"{n} {'reporte' if n == 1 else 'reportes'}"}
-        return {**out, "estado": "programado" if d >= ahora.date() else "sin_llamadas", "detalle": "sin llamadas reportadas"}
+        lista = llamadas_dia.get(d, [])
+        esperadas = len(lista)
+        enviados = sum(1 for x in lista if x["estado"] == "enviado")
+        out = {**out, "llamadas": lista, "esperadas": esperadas, "enviados": enviados}
+        if not esperadas:
+            return {**out, "estado": "programado" if d > ahora.date() else "sin_llamadas", "detalle": "sin llamadas agendadas"}
+        if d > ahora.date():
+            return {**out, "estado": "programado", "detalle": f"{esperadas} {'llamada agendada' if esperadas == 1 else 'llamadas agendadas'}"}
+        detalle = f"{enviados} de {esperadas}"
+        if enviados == esperadas:
+            return {**out, "estado": "enviado", "detalle": detalle}
+        # Hoy todavía pueden estar por tomarse o esperando a Fathom; un día que pasó, falta.
+        return {**out, "estado": "pendiente" if d == ahora.date() else "no_salio", "detalle": detalle}
+    if it["clave"] == "daily" and d < daily_services.INICIO:
+        return {**out, "estado": "sin_registro", "detalle": "la daily arrancó el 19/10"}
     ms = por_envio_dia.get((it["clave"], d), [])
     for estado in ("enviado", "fallido", "frenado", "pendiente"):
         m = next((x for x in ms if x.estado == estado), None)
