@@ -6,7 +6,7 @@ import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
   accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, enviarTheoAhora, getTheoEnvios, getTheoMensaje,
-  getTheoMensajes, getTheoSemana, guardarJidGrupoTheo,
+  getTheoMensajes, getTheoSemana, guardarJidGrupoTheo, vaciarColaTheo,
 } from '../data/api.js';
 import '../styles/theo.css';
 
@@ -109,6 +109,15 @@ function Mensajes({ vista }) {
                 <option value="capacidad">Capacidad Operativa</option>
               </select>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en el texto" aria-label="Buscar en el texto" />
+            </div>
+          )}
+          {vista === 'pendientes' && lista.length > 0 && (
+            <div className="th-filtros" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="dim">{lista.length} por salir</span>
+              <button type="button" className="btn ghost sm" onClick={async () => {
+                if (!window.confirm(`¿Sacar de la cola los ${lista.length} mensajes? No sale ninguno. Quedan en Enviados como "No se mandó" y se pueden volver a la cola de a uno.`)) return;
+                try { await vaciarColaTheo(); setSel(null); cargar(); } catch (e) { setError(e); }
+              }}>Vaciar la cola</button>
             </div>
           )}
           {lista.length === 0 && (

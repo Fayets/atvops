@@ -3127,6 +3127,10 @@ export async function accionTheoMensaje(id, accion) {
   return pedirDeVerdad(`/api/theo/mensajes/${encodeURIComponent(id)}/${accion}`, { method: 'POST' });
 }
 
+export async function vaciarColaTheo() {
+  return pedirDeVerdad('/api/theo/vaciar', { method: 'POST' });
+}
+
 export async function getTheoEnvios() {
   return pedirDeVerdad('/api/theo/envios');
 }

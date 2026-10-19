@@ -345,6 +345,19 @@ def frenar(ident: str, quien: str) -> dict:
         return _llamada_dict(x, TheoEnvio.get(clave="llamadas"))
 
 
+def vaciar_cola(quien: str) -> dict:
+    """Saca de la cola todo lo que está por salir. No borra: cada uno queda como "No se
+    mandó" en Enviados y se puede volver a la cola de a uno."""
+    with db_session:
+        ms = list(TheoMensaje.select(lambda m: m.estado == "pendiente"))
+        for m in ms:
+            m.estado, m.frenado_por = "frenado", quien
+        ll = _reuniones_con_reporte(enviadas=False)
+        for r in ll:
+            r.reporte_frenado_por = quien
+    return {"mensajes": len(ms), "llamadas": len(ll)}
+
+
 def volver_a_la_cola(ident: str) -> dict:
     """Deshace un "no mandar"."""
     with db_session:

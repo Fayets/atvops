@@ -79,6 +79,11 @@ def ahora(ident: str, user: dict = Depends(_sistemas)):
     return svc.mandar_ahora(ident)
 
 
+@router.post("/vaciar")
+def vaciar(user: dict = Depends(_sistemas)):
+    return svc.vaciar_cola(user["username"])
+
+
 @router.get("/semana")
 def semana(desde: str | None = None, user: dict = Depends(_sistemas)):
     """La grilla de domingo a sábado: qué automatización salió cada día."""

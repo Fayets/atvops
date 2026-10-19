@@ -534,3 +534,14 @@ def test_etiquetar_al_equipo(theo_listo, monkeypatch):
     th.actualizar_envio("daily", {"etiquetar": False}, "franco")
     d.actualizar_persona("nick", {"whatsapp": ""})
     d.actualizar_persona("lucas", {"whatsapp": None})
+
+
+def test_vaciar_la_cola_frena_todo_sin_borrar(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 18, 10)
+    th.guardar_jid_grupo("ATV 500K", "120363999@g.us", "franco")
+    th.enviar_ahora("recordatorio_semana", "uno que no tiene que salir", "franco")
+    r = th.vaciar_cola("franco")
+    assert r["mensajes"] >= 1
+    assert th.cola() == [] and th.listar("pendientes")["mensajes"] == []
+    frenado = next(m for m in th.listar("enviados")["mensajes"] if m["texto"] == "uno que no tiene que salir")
+    assert frenado["estado"] == "frenado" and frenado["frenado_por"] == "franco"
