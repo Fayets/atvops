@@ -69,6 +69,48 @@ export default function Daily() {
 
 /* ------------------------------------------------------------------ daily */
 
+const SEMANA = 5; // la sexta caja: la semana entera, como el documento del domingo
+const primeroDesplazamiento = (a, b) => (a.tipo === 'desplazamiento' ? 0 : 1) - (b.tipo === 'desplazamiento' ? 0 : 1);
+
+/** La semana como el documento: cada día con sus tareas y cómo quedó cada una. */
+function SemanaCompleta({ data }) {
+  const marca = (t, fecha) => {
+    const m = t.marcas[fecha];
+    if (!m) return null;
+    return m.estado === 'hecha' ? <i className="ok">✓</i> : <i className="no" title={m.motivo || ''}>✕</i>;
+  };
+  const tarea = (t, fecha) => (
+    <li key={t.id}>
+      {fecha ? marca(t, fecha) ?? <i /> : <i>{Object.values(t.marcas).some((m) => m.estado === 'hecha') ? '✓' : ''}</i>}
+      <span>
+        {t.texto}
+        {fecha && t.marcas[fecha]?.estado === 'no' && t.marcas[fecha].motivo && <small> — {t.marcas[fecha].motivo}</small>}
+      </span>
+      <em className={`dl-kind ${t.tipo}`}>{t.tipo === 'velocidad' ? 'Velocidad' : 'Desplazamiento'}</em>
+    </li>
+  );
+  const abiertas = data.tareas.filter(abierta).sort(primeroDesplazamiento);
+  return (
+    <Card flush className="dl-doc">
+      {data.dias.map((x, i) => {
+        const ts = data.tareas.filter((t) => vence(t, i)).sort(primeroDesplazamiento);
+        return (
+          <section key={x.fecha}>
+            <h3>{DIAS[i]} {fechaCorta(x.fecha)}{x.es_hoy && <span className="dim"> · hoy</span>}</h3>
+            {ts.length ? <ul>{ts.map((t) => tarea(t, x.fecha))}</ul> : <p className="dl-vacio">Sin tareas.</p>}
+          </section>
+        );
+      })}
+      {abiertas.length > 0 && (
+        <section>
+          <h3>Abiertas en la semana</h3>
+          <ul>{abiertas.map((t) => tarea(t, null))}</ul>
+        </section>
+      )}
+    </Card>
+  );
+}
+
 function estadoDia(d) {
   if (d.futuro) return '';
   if (!d.guardado_at) return 'falta';
@@ -79,9 +121,8 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
   const d = data.dias[dia] ?? data.dias[0];
   const fecha = d.fecha;
   // Las de desplazamiento siempre arriba: son las que mueven la semana.
-  const primero = (a, b) => (a.tipo === 'desplazamiento' ? 0 : 1) - (b.tipo === 'desplazamiento' ? 0 : 1);
-  const deHoy = data.tareas.filter((t) => vence(t, dia)).sort(primero);
-  const abiertas = data.tareas.filter(abierta).sort(primero);
+  const deHoy = data.tareas.filter((t) => vence(t, dia)).sort(primeroDesplazamiento);
+  const abiertas = data.tareas.filter(abierta).sort(primeroDesplazamiento);
 
   const inicial = useMemo(() => {
     const st = {};
@@ -232,7 +273,13 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             </button>
           );
         })}
+        <button type="button" className="dl-day dl-day-semana" aria-pressed={dia === SEMANA} onClick={() => setDia(SEMANA)}>
+          <b>Semana completa</b>
+          <span>{fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 4))} · {data.tareas.length} tareas</span>
+          <i>Todo el documento</i>
+        </button>
       </div>
+      {dia === SEMANA ? <SemanaCompleta data={data} /> : (
       <div className="dl-grid">
         <Card flush>
           <div className="dl-sec">
@@ -273,6 +320,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             : !falta && d.guardado_at ? <span className="dim">Ya está guardada. Si cambiaste algo, guardá de nuevo.</span> : null}
         </div>
       </div>
+      )}
     </>
   );
 }
