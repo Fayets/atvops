@@ -19,11 +19,13 @@ class EnvioEdicion(BaseModel):
     plantilla: str | None = None
     grupo: str | None = None
     grupo_jid: str | None = None
+    etiquetar: bool | None = None
 
 
 class EnvioManual(BaseModel):
     envio: str
     texto: str
+    etiquetar: bool = False
 
 
 class JidGrupo(BaseModel):
@@ -88,7 +90,7 @@ def semana(desde: str | None = None, user: dict = Depends(_sistemas)):
 @router.post("/enviar")
 def enviar(body: EnvioManual, user: dict = Depends(_sistemas)):
     """Un mensaje escrito a mano a un grupo: sale en el próximo minuto."""
-    return svc.enviar_ahora(body.envio, body.texto, user["username"])
+    return svc.enviar_ahora(body.envio, body.texto, user["username"], body.etiquetar)
 
 
 @router.put("/grupos")

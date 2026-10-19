@@ -98,3 +98,8 @@ button.th-g-item:hover { border-color: var(--text-3); }
 .th-drawer { position: relative; width: min(520px, 100vw); height: 100%; overflow-y: auto; background: var(--surface); box-shadow: -12px 0 32px rgba(28, 25, 23, .14); padding-bottom: 24px; }
 .th-cerrar { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--surface); cursor: pointer; color: var(--text-2); }
 .th-drawer .th-dh { padding-right: 56px; }
+.th-etiquetar { display: flex; gap: 10px; align-items: flex-start; }
+.th-etiquetar .th-switch { margin-top: 1px; }
+.th-etiquetar span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.th-etiquetar b { font-weight: 600; }
+.th-etiquetar small { color: var(--text-3); font-size: 12px; line-height: 1.4; }

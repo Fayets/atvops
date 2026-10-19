@@ -16,13 +16,14 @@ Dos colas conviven:
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException
 from pony.orm import db_session
 
 from src.db import db
-from src.models import ReunionCrm, TheoEnvio, TheoMensaje
+from src.models import ReunionCrm, TheoEnvio, TheoMensaje, Usuario
 from src.services import daily_services
 
 ROLES = ("admin", "operaciones")
@@ -97,11 +98,13 @@ def envio_activo(clave: str) -> bool:
 # ------------------------------------------------------------------ la daily
 
 
-def _texto_daily(m: TheoMensaje) -> str:
-    """La lista de quién guardó su daily, armada en este momento con la plantilla."""
+def _texto_daily(m: TheoMensaje, etiquetar: bool = False) -> str:
+    """La lista de quién guardó su daily, armada en este momento con la plantilla. Si
+    etiqueta, cada uno va como mención: en WhatsApp se ve su nombre y le llega el aviso."""
     fecha = m.sale_at.date()
     datos = daily_services.theo(fecha)
-    lista = "\n".join(f"{p['nombre']} {'✅' if p['completada'] else '❌'}" for p in datos["personas"])
+    lista = "\n".join(f"{'@' + p['whatsapp'] if etiquetar and p.get('whatsapp') else p['nombre']} "
+                      f"{'✅' if p['completada'] else '❌'}" for p in datos["personas"])
     e = TheoEnvio.get(clave="daily")
     plantilla = (e.plantilla if e and e.plantilla else ENVIOS[0][5])
     return (plantilla.replace("{dia}", daily_services.DIAS[fecha.weekday()])
@@ -114,6 +117,48 @@ def _texto(m: TheoMensaje) -> str:
     if m.envio == "daily":
         return _texto_daily(m)
     return ""
+
+
+# ------------------------------------------------------------------ etiquetar al equipo
+#
+# OpenClaw convierte "@5493511234567" en una mención de verdad si ese número está en el
+# grupo: el texto lleva el número y WhatsApp muestra el nombre. Un número que no está en el
+# grupo queda como texto, por eso se etiqueta solo a quien tiene su WhatsApp cargado.
+
+
+def equipo_etiquetable() -> dict:
+    """Quién se etiqueta (tiene WhatsApp en Backbone → Equipo y roles) y a quién le falta."""
+    with db_session:
+        gente = sorted(Usuario.select(lambda u: u.area is not None), key=lambda u: (u.orden, u.username))
+        return {"con": [{"nombre": u.nombre or u.username, "whatsapp": u.whatsapp} for u in gente if u.whatsapp],
+                "sin": [u.nombre or u.username for u in gente if not u.whatsapp]}
+
+
+def _etiqueta(m: TheoMensaje, e: TheoEnvio | None) -> bool:
+    return bool(m.etiquetar or (e is not None and e.etiquetar))
+
+
+def _texto_final(m: TheoMensaje, e: TheoEnvio | None) -> str:
+    """Lo que sale de verdad: el texto y, si etiqueta, una mención por cada uno del equipo
+    que todavía no esté nombrado (la daily ya los nombra en la lista)."""
+    etiquetar = _etiqueta(m, e)
+    if m.texto:
+        texto = m.texto
+    elif m.envio == "daily":
+        texto = _texto_daily(m, etiquetar)
+    else:
+        texto = ""
+    if not etiquetar or not texto:
+        return texto
+    faltan = [f"@{p['whatsapp']}" for p in equipo_etiquetable()["con"]
+              if not re.search(rf"@\+?{p['whatsapp']}(?!\d)", texto)]
+    return f"{texto}\n\n{' '.join(faltan)}" if faltan else texto
+
+
+def _a_la_vista(texto: str) -> str:
+    """Como lo ve el grupo: "@5493511234567" → "@Franco"."""
+    nombres = {p["whatsapp"]: p["nombre"] for p in equipo_etiquetable()["con"]}
+    return re.sub(r"@\+?(\d{10,15})", lambda x: f"@{nombres[x.group(1)]}" if x.group(1) in nombres else x.group(0), texto)
 
 
 def _asegurar_daily() -> None:
@@ -161,7 +206,8 @@ def _msg_dict(m: TheoMensaje, envios: dict) -> dict:
     return {
         "id": f"m-{m.id}", "envio": m.envio, "envio_nombre": e.nombre if e else m.envio,
         "grupo": m.grupo_nombre or (e.grupo_nombre if e else None), "sin_grupo": not jid,
-        "texto": _texto(m), "se_arma_al_salir": m.estado == "pendiente" and not m.texto and m.envio == "daily",
+        "texto": _texto(m), "vista": _a_la_vista(_texto_final(m, e)), "etiquetar": _etiqueta(m, e),
+        "se_arma_al_salir": m.estado == "pendiente" and not m.texto and m.envio == "daily",
         "estado": m.estado, "sale_at": _iso(m.sale_at), "enviado_at": _iso(m.enviado_at),
         "error": m.error, "editado_por": m.editado_por, "frenado_por": m.frenado_por,
         "ia": False, "mandar_ahora": m.estado in ("pendiente", "fallido"),
@@ -333,7 +379,7 @@ def mandar_ahora(ident: str) -> dict:
 
 def _envio_dict(e: TheoEnvio) -> dict:
     return {"clave": e.clave, "nombre": e.nombre, "cuando": e.cuando, "grupo": e.grupo_nombre,
-            "grupo_jid": e.grupo_jid, "plantilla": e.plantilla, "activo": e.activo,
+            "grupo_jid": e.grupo_jid, "plantilla": e.plantilla, "activo": e.activo, "etiquetar": e.etiquetar,
             "actualizado_por": e.actualizado_por, **DETALLE.get(e.clave, {})}
 
 
@@ -351,6 +397,8 @@ def actualizar_envio(clave: str, datos: dict, quien: str) -> dict:
             raise HTTPException(status_code=404, detail="Ese envío no existe.")
         if "activo" in datos and datos["activo"] is not None:
             e.activo = bool(datos["activo"])
+        if datos.get("etiquetar") is not None:
+            e.etiquetar = bool(datos["etiquetar"])
         if datos.get("plantilla") is not None:
             if e.clave != "daily":
                 raise HTTPException(status_code=400, detail="Este envío no tiene plantilla: el texto lo arma otro sistema.")
@@ -391,7 +439,7 @@ def cola() -> list[dict]:
             jid = m.grupo_jid or (e.grupo_jid if e else None)
             if not jid:
                 continue
-            out.append({"id": m.id, "jid": jid, "texto": _texto(m), "envio": m.envio})
+            out.append({"id": m.id, "jid": jid, "texto": _texto_final(m, e), "envio": m.envio})
         return out
 
 
@@ -475,7 +523,7 @@ def semana(desde: date | None = None) -> dict:
                     dia.append(_celda(it, d, ahora, por_envio_dia, llamadas_dia, alguna_vez))
                 celdas.append({"fecha": d.isoformat(), "items": dia})
             filas.append({"grupo": grupo, "dias": celdas, "jid": _jid_de_grupo(grupo)})
-    return {"desde": domingo.isoformat(), "hoy": hoy.isoformat(), "filas": filas}
+    return {"desde": domingo.isoformat(), "hoy": hoy.isoformat(), "filas": filas, "etiquetas": equipo_etiquetable()}
 
 
 _SIN_RESUMEN = {"no show", "cancelada", "re-agenda", "reagenda", "descartada"}
@@ -552,7 +600,7 @@ def guardar_jid_grupo(grupo: str, jid: str, quien: str) -> dict:
     return {"grupo": grupo, "jid": jid}
 
 
-def enviar_ahora(envio: str, texto: str, quien: str) -> dict:
+def enviar_ahora(envio: str, texto: str, quien: str, etiquetar: bool = False) -> dict:
     """Un mensaje escrito a mano que sale ya (en la próxima vuelta de theo-cola.py, ≤1 min)."""
     texto = (texto or "").strip()
     if not texto:
@@ -568,7 +616,7 @@ def enviar_ahora(envio: str, texto: str, quien: str) -> dict:
     ahora = daily_services.ahora()
     with db_session:
         m = TheoMensaje(envio=envio, grupo_nombre=grupo, grupo_jid=jid, texto=texto, sale_at=ahora,
-                        expira_at=ahora + timedelta(hours=1), editado_por=quien)
+                        expira_at=ahora + timedelta(hours=1), editado_por=quien, etiquetar=bool(etiquetar))
         m.flush()
         return _msg_dict(m, {x.clave: x for x in TheoEnvio.select()})
 

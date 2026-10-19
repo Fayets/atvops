@@ -48,6 +48,7 @@ class PersonaEdicion(BaseModel):
     jefe: str | None = None
     daily: bool | None = None
     emails: list[str] | None = None
+    whatsapp: str | None = None
 
 
 def _ve_backbone(user: dict) -> dict:

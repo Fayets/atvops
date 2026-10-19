@@ -38,6 +38,8 @@ class Usuario(db.Entity):
     jefe = Optional(str, nullable=True)        # username
     daily = Required(bool, default=False)      # si carga daily (Juan no)
     orden = Required(int, default=0)
+    # Su WhatsApp, solo dígitos con código de país (5493511234567): Theo lo etiqueta en los grupos.
+    whatsapp = Optional(str, nullable=True)
 
 
 class Integrante(db.Entity):
@@ -968,6 +970,7 @@ class TheoEnvio(db.Entity):
     grupo_jid = Optional(str, nullable=True)     # el id de WhatsApp del grupo (…@g.us)
     plantilla = Optional(LongStr, nullable=True)
     activo = Required(bool, default=True)
+    etiquetar = Required(bool, default=False)    # etiqueta al equipo en cada mensaje
     actualizado_por = Optional(str, nullable=True)
     actualizado_at = Optional(datetime, nullable=True)
 
@@ -994,6 +997,7 @@ class TheoMensaje(db.Entity):
     intentos = Required(int, default=0)
     editado_por = Optional(str, nullable=True)
     frenado_por = Optional(str, nullable=True)
+    etiquetar = Required(bool, default=False)          # uno a mano que etiqueta al equipo
     creado_at = Required(datetime, default=datetime.utcnow)
 
 

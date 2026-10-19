@@ -509,3 +509,28 @@ def test_mandar_un_mensaje_a_mano_a_un_grupo(theo_listo, monkeypatch):
     assert m["estado"] == "pendiente" and m["grupo"] == "ATV 500K"
     salen = [x for x in th.cola() if x["texto"].startswith("Mañana preparen")]
     assert salen and salen[0]["jid"] == "120363999@g.us"
+
+
+def test_etiquetar_al_equipo(theo_listo, monkeypatch):
+    with pytest.raises(HTTPException):
+        d.actualizar_persona("nick", {"whatsapp": "123"})  # sin código de país
+    d.actualizar_persona("nick", {"whatsapp": "+54 9 351 111-2222"})
+    d.actualizar_persona("lucas", {"whatsapp": "5493513334444"})
+    assert next(p for p in d.listar_equipo() if p["username"] == "nick")["whatsapp"] == "5493511112222"
+
+    # A mano: el texto y al final una mención por cada uno; no repite al que ya nombraste.
+    _a_las(monkeypatch, 18, 5)
+    m = th.enviar_ahora("recordatorio_semana", "Preparen sus documentos @5493513334444", "franco", etiquetar=True)
+    assert m["etiquetar"] and m["vista"].startswith("Preparen sus documentos @Lucas")
+    sale = next(x for x in th.cola() if x["texto"].startswith("Preparen sus"))
+    assert sale["texto"] == "Preparen sus documentos @5493513334444\n\n@5493511112222"
+
+    # La daily: cada uno en la lista va como mención en vez de su nombre.
+    th.actualizar_envio("daily", {"etiquetar": True}, "franco")
+    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 23, 23, 31))  # la del jueves ya salió
+    daily = next(x for x in th.cola() if x["envio"] == "daily")
+    assert "@5493511112222 " in daily["texto"] and "Nick " not in daily["texto"]
+    assert daily["texto"].count("@5493513334444") == 1
+    th.actualizar_envio("daily", {"etiquetar": False}, "franco")
+    d.actualizar_persona("nick", {"whatsapp": ""})
+    d.actualizar_persona("lucas", {"whatsapp": None})

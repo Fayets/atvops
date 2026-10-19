@@ -65,6 +65,7 @@ function FichaPersona({ persona, equipo, onGuardado }) {
   const [f, setF] = useState({
     nombre: persona.nombre, cargo: persona.cargo ?? '', area: persona.area ?? 'ventas',
     jefe: persona.jefe ?? '', daily: persona.daily, emails: persona.emails.join('\n'),
+    whatsapp: persona.whatsapp ?? '',
   });
   const [estado, setEstado] = useState('');
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -102,6 +103,9 @@ function FichaPersona({ persona, equipo, onGuardado }) {
         </label>
         <label className="full">Mails de Google con los que entra (uno por línea)
           <textarea id="eq-emails" rows={2} value={f.emails} onChange={set('emails')} placeholder="nombre@gmail.com" />
+        </label>
+        <label className="full">WhatsApp, con código de país (Theo lo etiqueta en los grupos)
+          <input id="eq-whatsapp" inputMode="tel" value={f.whatsapp} onChange={set('whatsapp')} placeholder="5493511234567" />
         </label>
         <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <input id="eq-daily" type="checkbox" checked={f.daily} onChange={set('daily')} />

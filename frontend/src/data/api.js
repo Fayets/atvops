@@ -3167,9 +3167,9 @@ export async function getTheoSemana(desde) {
 }
 
 /** Un mensaje escrito a mano a un grupo de Theo: sale en el próximo minuto. */
-export async function enviarTheoAhora(envio, texto) {
+export async function enviarTheoAhora(envio, texto, etiquetar = false) {
   return pedirDeVerdad('/api/theo/enviar', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ envio, texto }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ envio, texto, etiquetar }),
   });
 }
 

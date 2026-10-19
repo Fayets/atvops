@@ -225,6 +225,7 @@ def _persona(u: Usuario) -> dict:
         "orden": u.orden,
         "rol": u.rol,
         "emails": _emails(u),
+        "whatsapp": u.whatsapp,
     }
 
 
@@ -263,7 +264,19 @@ def actualizar_persona(username: str, datos: dict) -> dict:
                 if otro:
                     raise HTTPException(status_code=409, detail=f"{m} ya es de {otro.nombre or otro.username}.")
             u.emails = "\n".join(mails) or None
+        if "whatsapp" in datos:
+            u.whatsapp = normalizar_whatsapp(datos["whatsapp"])
         return _persona(u)
+
+
+def normalizar_whatsapp(numero: str | None) -> str | None:
+    """Solo dígitos, con código de país: "+54 9 351 123-4567" → "5493511234567"."""
+    digitos = "".join(c for c in str(numero or "") if c.isdigit())
+    if not digitos:
+        return None
+    if not 10 <= len(digitos) <= 15:
+        raise HTTPException(status_code=400, detail="El WhatsApp va con código de país: 5493511234567.")
+    return digitos
 
 
 def usuario_por_email(email: str) -> Usuario | None:
@@ -675,7 +688,8 @@ def theo(fecha: date | None) -> dict:
     with db_session:
         gente = sorted(Usuario.select(lambda u: u.daily), key=lambda u: (u.orden, u.username))
         hechos = {c.usuario for c in CierreDaily.select(lambda c: c.fecha == fecha)}
-        personas = [{"nombre": u.nombre or u.username, "completada": u.username in hechos} for u in gente]
+        personas = [{"nombre": u.nombre or u.username, "completada": u.username in hechos, "whatsapp": u.whatsapp}
+                    for u in gente]
     lineas = [f"{p['nombre']} {'✅' if p['completada'] else '❌'}" for p in personas]
     mensaje = f"Daily completada · {DIAS[fecha.weekday()]} {fecha.strftime('%d/%m')}\n\n" + "\n".join(lineas)
     return {"habil": True, "fecha": fecha.isoformat(), "personas": personas, "mensaje": mensaje}

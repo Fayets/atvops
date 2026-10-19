@@ -179,7 +179,7 @@ function Detalle({ m, onCambio }) {
         </div>
       ) : (
         <div className="th-chat">
-          <div className="th-burbuja">{m.texto || '(vacío)'}<time>{hora(m.enviado_at)}</time></div>
+          <div className="th-burbuja">{m.vista || m.texto || '(vacío)'}<time>{hora(m.enviado_at)}</time></div>
         </div>
       )}
       <div className="th-acciones">
@@ -270,6 +270,15 @@ function EnvioDetalle({ e, onGuardado }) {
   const [estado, setEstado] = useState('');
   const editable = e.clave === 'daily'; // las llamadas salen por avisar-llamadas.py, con su grupo fijo
 
+  async function etiquetar() {
+    try {
+      await editarTheoEnvio(e.clave, { etiquetar: !e.etiquetar });
+      onGuardado();
+    } catch (err) {
+      setEstado(err.message);
+    }
+  }
+
   async function guardar() {
     setEstado('Guardando…');
     try {
@@ -293,6 +302,11 @@ function EnvioDetalle({ e, onGuardado }) {
         <div className="th-campos">
           <label>Nombre del grupo<input value={grupo} onChange={(ev) => setGrupo(ev.target.value)} /></label>
           <label>ID del grupo de WhatsApp<input value={jid} onChange={(ev) => setJid(ev.target.value)} placeholder="120363…@g.us" /></label>
+          <div className="th-etiquetar">
+            <button type="button" className="th-switch" role="switch" aria-checked={e.etiquetar}
+              aria-label="Etiquetar a todos" onClick={etiquetar} />
+            <span><b>Etiquetar a todos</b><small>Cada uno de la lista va como mención: le llega el aviso aunque tenga el grupo silenciado.</small></span>
+          </div>
           {e.plantilla != null && (
             <label>Plantilla
               <textarea className="th-edit" style={{ minHeight: 130 }} value={plantilla} onChange={(ev) => setPlantilla(ev.target.value)} />
@@ -370,7 +384,7 @@ function Semana() {
           ))}
         </div>
       </div>
-      {abierto && <Evento ev={abierto} onCerrar={() => setAbierto(null)} onCambio={() => setTick((n) => n + 1)} />}
+      {abierto && <Evento ev={abierto} etiquetas={data.etiquetas} onCerrar={() => setAbierto(null)} onCambio={() => setTick((n) => n + 1)} />}
     </section>
   );
 }
@@ -421,13 +435,16 @@ const BORRADOR = {
 };
 
 /** Un evento de la grilla: su mensaje de ese día (editar, frenar, mandar ya) y mandar uno a mano. */
-function Evento({ ev, onCerrar, onCambio }) {
+function Evento({ ev, etiquetas, onCerrar, onCambio }) {
   const { item, grupo, fecha } = ev;
   const [m, setM] = useState(null);
   const [texto, setTexto] = useState('');
   const [nuevo, setNuevo] = useState(BORRADOR[item.clave] ?? '');
   const [jid, setJid] = useState(ev.jid ?? '');
   const [tieneJid, setTieneJid] = useState(Boolean(ev.jid));
+  const [etiquetar, setEtiquetar] = useState(grupo === 'ATV 500K');
+  const con = etiquetas?.con ?? [];
+  const sin = etiquetas?.sin ?? [];
   const [estado, setEstado] = useState('');
 
   useEffect(() => {
@@ -479,7 +496,7 @@ function Evento({ ev, onCerrar, onCambio }) {
                 <textarea className="th-edit" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Texto del mensaje" />
               </div>
             ) : (
-              <div className="th-chat"><div className="th-burbuja">{m.texto}<time>{(m.enviado_at || '').slice(11, 16)}</time></div></div>
+              <div className="th-chat"><div className="th-burbuja">{m.vista || m.texto}<time>{(m.enviado_at || '').slice(11, 16)}</time></div></div>
             )}
             {editable && (
               <div className="th-acciones">
@@ -510,9 +527,20 @@ function Evento({ ev, onCerrar, onCambio }) {
             )}
             <textarea className="th-edit" style={{ minHeight: 120 }} value={nuevo} onChange={(e) => setNuevo(e.target.value)}
               aria-label="Mensaje a mandar" placeholder="Escribí el mensaje" />
+            <div className="th-etiquetar">
+              <button type="button" className="th-switch" role="switch" aria-checked={etiquetar}
+                aria-label="Etiquetar a todos" onClick={() => setEtiquetar((v) => !v)} />
+              <span>
+                <b>Etiquetar a todos</b>
+                <small>
+                  {con.length ? `Menciona a ${con.map((p) => p.nombre).join(', ')}.` : 'Nadie tiene su WhatsApp cargado todavía.'}
+                  {sin.length > 0 && ` Falta el WhatsApp de ${sin.join(', ')} en Backbone → Equipo y roles.`}
+                </small>
+              </span>
+            </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <button type="button" className="btn primary" disabled={!nuevo.trim() || !tieneJid}
-                onClick={() => hacer(() => enviarTheoAhora(item.clave, nuevo.trim()), 'Listo: sale en el próximo minuto. Lo ves en "Por salir" y después en "Enviados".')}>
+                onClick={() => hacer(() => enviarTheoAhora(item.clave, nuevo.trim(), etiquetar), 'Listo: sale en el próximo minuto. Lo ves en "Por salir" y después en "Enviados".')}>
                 Enviar ahora
               </button>
             </div>

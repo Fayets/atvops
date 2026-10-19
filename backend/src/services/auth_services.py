@@ -576,8 +576,14 @@ def ensure_usuario_equipo_columns() -> None:
     _agregar_columnas("usuarios", "Usuario", [
         ("emails", "TEXT"), ("google_sub", "TEXT"), ("foto_url", "TEXT"), ("cargo", "TEXT"),
         ("area", "TEXT"), ("jefe", "TEXT"), ("daily", "BOOLEAN DEFAULT FALSE NOT NULL"),
-        ("orden", "INTEGER DEFAULT 0 NOT NULL"),
+        ("orden", "INTEGER DEFAULT 0 NOT NULL"), ("whatsapp", "TEXT"),
     ])
+
+
+def ensure_theo_columns() -> None:
+    """Etiquetar al equipo llegó después de crear las tablas de Theo."""
+    _agregar_columnas("theo_envios", "TheoEnvio", [("etiquetar", "BOOLEAN DEFAULT FALSE NOT NULL")])
+    _agregar_columnas("theo_mensajes", "TheoMensaje", [("etiquetar", "BOOLEAN DEFAULT FALSE NOT NULL")])
 
 
 def ensure_pitch_setting_columns() -> None:
