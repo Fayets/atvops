@@ -69,18 +69,18 @@ export const RUTAS_POR_ROL = {
   // URL los laboratorios y el dashboard del área, que no están en su menú.
   closer: ['/daily', '/ventas/mi-dia', '/ventas/llamadas', '/ventas/caja', '/ventas/lab-closing', '/metas'],
   setter: ['/daily', '/ventas', '/metas'],
-  csm: ['/daily', '/fulfillment', '/asistente', '/ideas'],
+  csm: ['/daily', '/fulfillment', '/asistente'],
   // Operaciones no tiene lista propia: `rolDeVista` la manda a la de founder. Queda acá
   // como respaldo si alguien resuelve el rol sin pasar por ahí.
   operaciones: ['/', '/daily', '/backbone', '/reporte', '/reporte-producto', '/reporte-closing',
     '/reporte-setting', '/asistente', '/fulfillment', '/marketing',
-                '/ads', '/ventas', '/metas', '/cobranza', '/ideas', '/sistemas', '/webinars',
+                '/ads', '/ventas', '/metas', '/cobranza', '/sistemas', '/webinars',
                 '/integraciones', '/claves'],
   ventas: ['/', '/daily', '/ventas', '/reporte-closing',
-    '/reporte-setting', '/metas', '/ideas', '/webinars'],
+    '/reporte-setting', '/metas', '/webinars'],
   // Ads es plata y el calendario es de ventas: ninguno es del director de marketing.
   // Webinars y Metas tampoco: no son del equipo de marketing (Franco, 19-10-2026).
-  marketing: ['/', '/daily', '/marketing', '/ideas', '/integraciones'],
+  marketing: ['/', '/daily', '/marketing', '/integraciones'],
   founder: [
     '/',
     '/daily',
@@ -96,7 +96,6 @@ export const RUTAS_POR_ROL = {
     '/ventas',
     '/metas',
     '/cobranza',
-    '/ideas',
     '/sistemas',
     '/webinars',
     '/integraciones',
@@ -118,7 +117,6 @@ export const RUTAS_POR_ROL = {
     '/ventas',
     '/metas',
     '/cobranza',
-    '/ideas',
     '/sistemas',
     '/webinars',
     '/integraciones',

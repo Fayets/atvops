@@ -124,7 +124,6 @@ const NAV = [
       { to: '/cobranza/proximos-a-vencer', label: 'Próximos a vencer',
         roles: ['admin', 'founder', 'operaciones'] },
     ] },
-  { to: '/ideas', icon: 'ideas', label: 'Ideas', grupo: 'Sistema' },
   { to: '/configuracion', icon: 'config', label: 'Configuración', grupo: 'Sistema' },
 ];
 

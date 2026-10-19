@@ -1,6 +1,5 @@
 import AccionesSemana from '../components/home/AccionesSemana.jsx';
 import Bloque from '../components/home/Bloque.jsx';
-import IdeasBloque from '../components/home/IdeasBloque.jsx';
 import ResumenArea from '../components/home/ResumenArea.jsx';
 import Bar from '../components/ui/Bar.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
@@ -169,10 +168,6 @@ export default function Home() {
               </span>
             </div>
           </div>
-        </Bloque>
-
-        <Bloque titulo="Ideas" href="/ideas">
-          <IdeasBloque limite={3} />
         </Bloque>
       </div>
     </div>

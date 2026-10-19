@@ -2479,12 +2479,6 @@ export async function borrarReunion(id) {
   return pedir(`/api/reuniones/${id}`, { method: 'DELETE' });
 }
 
-/* ------------------------------------------------------------------- ideas */
-
-export async function getIdeas() {
-  return pedir('/api/ideas');
-}
-
 /* --------------------------------------------------------------- webinars */
 
 export async function getWebinars() {
@@ -2618,27 +2612,6 @@ export async function getCampaniasMeta(mes) {
   const q = mes ? `?month=${encodeURIComponent(mes)}&todas=1` : '?todas=1';
   const d = await pedir(`/api/meta/ads${q}`);
   return d.campanias ?? [];
-}
-
-export async function crearIdea(texto, quien) {
-  return pedir('/api/ideas', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texto, quien }),
-  });
-}
-
-/** @param {number} id @param {{ asignada?: string | null, estado?: string }} patch */
-export async function actualizarIdea(id, patch) {
-  return pedir(`/api/ideas/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-}
-
-export async function borrarIdea(id) {
-  return pedir(`/api/ideas/${id}`, { method: 'DELETE' });
 }
 
 /** Estado del análisis de activación con Claude Code (corridas, costo del mes). */

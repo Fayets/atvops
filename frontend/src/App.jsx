@@ -7,7 +7,6 @@ import Cobranza from './pages/Cobranza.jsx';
 import ProximosAVencer from './pages/ProximosAVencer.jsx';
 import CajaUno from './pages/CajaUno.jsx';
 import Configuracion from './pages/Configuracion.jsx';
-import Ideas from './pages/Ideas.jsx';
 import Daily from './pages/Daily.jsx';
 import Theo from './pages/Theo.jsx';
 import Backbone from './pages/Backbone.jsx';
@@ -221,7 +220,6 @@ export default function App() {
             <Route path="cobranza" element={<Cobranza />} />
             <Route path="cobranza/proximos-a-vencer" element={<ProximosAVencer />} />
         <Route path="asistente" element={<Asistente />} />
-            <Route path="ideas" element={<Ideas />} />
             <Route path="daily" element={<Daily />} />
             <Route path="theo" element={<Theo />} />
             <Route path="backbone" element={<Backbone />} />

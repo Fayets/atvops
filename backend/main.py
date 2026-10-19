@@ -21,7 +21,6 @@ from src.controllers.gcal_controller import router as gcal_router
 from src.controllers.ventas_controller import router as ventas_router
 from src.controllers.webhooks_controller import router as webhooks_router
 from src.controllers.cobranza_controller import router as cobranza_router
-from src.controllers.ideas_controller import router as ideas_router
 from src.controllers.webinars_controller import router as webinars_router
 from src.controllers.reportes_producto_controller import router as reportes_producto_router
 from src.controllers.reportes_closing_controller import router as reportes_closing_router
@@ -186,7 +185,6 @@ app.include_router(transcripts_router, prefix="/api/transcripts", tags=["transcr
 app.include_router(clientes_router, prefix="/api/clientes", tags=["clientes"])
 app.include_router(cobranza_router, prefix="/api/cobranza", tags=["cobranza"])
 app.include_router(meta_router, prefix="/api/meta", tags=["meta"])
-app.include_router(ideas_router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(webinars_router, prefix="/api/webinars", tags=["webinars"])
 app.include_router(reportes_producto_router, prefix="/api/reportes-producto", tags=["reportes"])
 app.include_router(reportes_closing_router, prefix="/api/reportes-closing", tags=["reportes"])

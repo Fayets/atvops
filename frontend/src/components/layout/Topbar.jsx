@@ -38,7 +38,6 @@ const TITULOS = {
   '/sistemas': 'Sistemas · QA de datos',
   '/cobranza': 'Cobranza',
   '/asistente': 'ATV AI',
-  '/ideas': 'Ideas',
   '/claves': 'Claves API',
   '/configuracion': 'Configuración',
 };
