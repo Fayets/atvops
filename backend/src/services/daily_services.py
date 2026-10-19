@@ -698,7 +698,26 @@ def backbone(semana: date | None) -> dict:
             "inicio": INICIO.isoformat(),
             "personas": personas,
             "entregas": _entregas(conDaily, semana, corte),
+            "motivos": True,
         }
+
+
+def sin_motivos(datos: dict) -> dict:
+    """Backbone para quien no es Juan: el porqué de cada "no la hice" es solo de Juan
+    (Franco, 19-10-2026). Se ve qué faltó, no la explicación."""
+    for p in datos.get("personas", []):
+        for clave in ("faltas", "no_aplica"):
+            for f in p.get(clave) or []:
+                if not f.get("sin_daily") and f.get("fecha"):
+                    f["motivo"] = None
+        for t in p.get("tareas") or []:
+            for m in (t.get("marcas") or {}).values():
+                m["motivo"] = None
+    for e in datos.get("entregas", []):
+        if (e.get("nota") or "").startswith("No se hizo:"):
+            e["nota"] = "No se hizo"
+    datos["motivos"] = False
+    return datos
 
 
 # --------------------------------------------------------------- Theo

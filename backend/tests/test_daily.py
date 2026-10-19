@@ -606,3 +606,15 @@ def test_un_equipo_puede_tener_dos_cabezas():
     assert r.status_code == 200 and r.json()["jefe"] == "ignacio,maite"
     assert api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"jefe": ["nadie"]}).status_code == 400
     d.actualizar_persona("janner", {"jefe": "maite,ignacio"})
+
+
+def test_los_motivos_de_backbone_los_ve_solo_juan():
+    datos = {"personas": [{"faltas": [{"fecha": "2026-10-20", "texto": "x", "motivo": "estaba enfermo", "sin_daily": False}],
+                           "no_aplica": [], "tareas": [{"marcas": {"2026-10-20": {"estado": "no", "motivo": "estaba enfermo"}}}]}],
+             "entregas": [{"nota": "No se hizo: estaba enfermo"}], "motivos": True}
+    out = d.sin_motivos(datos)
+    assert out["personas"][0]["faltas"][0]["motivo"] is None
+    assert out["personas"][0]["tareas"][0]["marcas"]["2026-10-20"]["motivo"] is None
+    assert out["entregas"][0]["nota"] == "No se hizo" and out["motivos"] is False
+    assert api.get("/api/daily/backbone", headers=_h("juan")).json()["motivos"] is True
+    assert api.get("/api/daily/backbone", headers=_h("franco")).json()["motivos"] is False

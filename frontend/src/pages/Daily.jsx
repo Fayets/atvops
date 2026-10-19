@@ -11,6 +11,7 @@ import {
 import {
   abierta, BANDA_TEXTO, banda, cumplimiento, DIAS, fechaCorta, nombreDe, sumarDias, vence,
 } from '../lib/daily.js';
+import { getStoredUser } from '../lib/auth.js';
 import '../styles/daily.css';
 
 /**
@@ -117,6 +118,23 @@ function estadoDia(d) {
   return d.a_tiempo ? 'ok' : 'tarde';
 }
 
+// Lo marcado y no guardado sobrevive a un refresco: queda en este navegador hasta que se
+// toca "Guardar daily" (ahí lo guardado pasa a ser lo de la base y el borrador se borra).
+const claveBorrador = (fecha) => `atv-daily-borrador:${getStoredUser()?.username ?? ''}:${fecha}`;
+
+function leerBorrador(fecha) {
+  try {
+    return JSON.parse(localStorage.getItem(claveBorrador(fecha)) ?? 'null') ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function conBorrador(inicial, fecha) {
+  const b = leerBorrador(fecha);
+  return Object.fromEntries(Object.entries(inicial).map(([id, v]) => [id, b[id] ?? v]));
+}
+
 function DiaDaily({ data, dia, setDia, onGuardado }) {
   const d = data.dias[dia] ?? data.dias[0];
   const fecha = d.fecha;
@@ -132,7 +150,8 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     }
     return st;
   }, [data, fecha]);
-  const [draft, setDraft] = useState(inicial);
+  const [draft, setDraft] = useState(() => conBorrador(inicial, fecha));
+  const [draftFecha, setDraftFecha] = useState(fecha); // de qué día es el borrador en pantalla
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const fechaDraft = useRef(fecha);
@@ -140,9 +159,22 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     // Mismo día: se conserva lo marcado sin guardar (agregar o borrar una tarea no lo pisa).
     const mismoDia = fechaDraft.current === fecha;
     fechaDraft.current = fecha;
-    setDraft((prev) => (mismoDia ? Object.fromEntries(Object.keys(inicial).map((id) => [id, prev[id] ?? inicial[id]])) : inicial));
+    setDraft((prev) => (mismoDia ? Object.fromEntries(Object.keys(inicial).map((id) => [id, prev[id] ?? inicial[id]]))
+      : conBorrador(inicial, fecha)));
+    setDraftFecha(fecha);
     if (!mismoDia) setError('');
   }, [inicial, fecha]);
+  useEffect(() => {
+    if (draftFecha !== fecha) return;
+    const distinto = Object.fromEntries(Object.entries(draft).filter(([id, v]) => {
+      const i = inicial[id];
+      return i && (v.estado !== i.estado || (v.motivo || '') !== (i.motivo || ''));
+    }));
+    try {
+      if (Object.keys(distinto).length) localStorage.setItem(claveBorrador(fecha), JSON.stringify(distinto));
+      else localStorage.removeItem(claveBorrador(fecha));
+    } catch { /* sin almacenamiento: sigue andando, solo no sobrevive al refresco */ }
+  }, [draft, draftFecha, inicial, fecha]);
 
   const terminada = sumarDias(data.semana, 4) < data.hoy;
   const [nueva, setNueva] = useState('');
@@ -244,7 +276,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
           <div className="dl-motivo">
             <input
               className={v.motivo.trim() ? '' : 'falta'}
-              placeholder="Motivo (lo ve Juan en Backbone)"
+              placeholder="Escribí el motivo"
               value={v.motivo}
               onChange={(e) => setDraft((s) => ({ ...s, [t.id]: { ...s[t.id], motivo: e.target.value } }))}
               aria-label={`Motivo de ${t.texto}`}

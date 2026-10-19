@@ -370,7 +370,7 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
           </div>
         )) : <p className="dl-vacio">Nada. Cumplió todo lo que vencía hasta hoy.</p>}
       </div>
-      <SemanaCompleta p={p} />
+      <SemanaCompleta p={p} motivos={data.motivos} />
       {p.no_aplica.length > 0 && (
         <div className="bb-sec">
           <div className="bb-sech"><h3>Marcó "no aplica"</h3><span>{p.no_aplica.length}</span></div>
@@ -401,7 +401,7 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
 const CELDA = { hecha: ['✓', 'ok'], no: ['✕', 'alert'], no_aplica: ['–', 'off'] };
 
 /** La semana entera de una persona: cada tarea, día por día, con el motivo al pasar el mouse. */
-function SemanaCompleta({ p }) {
+function SemanaCompleta({ p, motivos }) {
   if (!p.tareas?.length) return null;
   const fechas = p.dias.map((d) => d.fecha);
   const fila = (t, i) => {
@@ -428,7 +428,7 @@ function SemanaCompleta({ p }) {
   };
   return (
     <div className="bb-sec">
-      <div className="bb-sech"><h3>Semana completa</h3><span>pasá el mouse para ver el motivo</span></div>
+      <div className="bb-sech"><h3>Semana completa</h3>{motivos && <span>pasá el mouse para ver el motivo</span>}</div>
       <div className="bb-tabla">
         <table>
           <thead>

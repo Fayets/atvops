@@ -99,7 +99,9 @@ def guardar_dia(body: DiaGuardado, user: dict = Depends(get_current_user)):
 @router.get("/backbone")
 def backbone(semana: str | None = None, user: dict = Depends(get_current_user)):
     _ve_backbone(user)
-    return svc.backbone(svc._parse_fecha(semana, "semana"))
+    datos = svc.backbone(svc._parse_fecha(semana, "semana"))
+    # Los motivos de lo que no se hizo los ve solo Juan.
+    return datos if user.get("rol") == "founder" else svc.sin_motivos(datos)
 
 
 @router.get("/equipo")
