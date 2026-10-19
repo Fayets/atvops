@@ -255,19 +255,6 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             {abiertas.map(fila)}
           </div>
           )}
-          {<div className="dl-save">
-            <span>
-              {error ? <span className="dl-error">{error}</span>
-                : d.futuro ? (falta ? 'Falta el motivo en lo que marcaste como "no aplica".'
-                  : `Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`)
-                : falta ? null
-                  : d.guardado_at ? 'Ya está guardada. Si cambiaste algo, guardá de nuevo.'
-                    : 'Todo marcado. Guardá para que cuente.'}
-            </span>
-            <button type="button" className="btn primary" disabled={guardando || falta > 0} onClick={guardar}>
-              {guardando ? 'Guardando…' : d.futuro ? 'Guardar' : 'Guardar daily'}
-            </button>
-          </div>}
         </Card>
         <div className="dl-side">
           <Card title="Cumplimiento a hoy">
@@ -277,6 +264,13 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             </div>
             <p>Cuenta lo que vencía hasta hoy. "No aplica" con motivo no te baja.</p>
           </Card>
+          <button type="button" className="btn primary dl-guardar" disabled={guardando || falta > 0} onClick={guardar}>
+            {guardando ? 'Guardando…' : d.futuro ? 'Guardar' : 'Guardar daily'}
+          </button>
+          {error ? <span className="dl-error">{error}</span>
+            : d.futuro ? <span className="dim">{falta ? 'Falta el motivo en lo que marcaste como "no aplica".'
+              : `Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`}</span>
+            : !falta && d.guardado_at ? <span className="dim">Ya está guardada. Si cambiaste algo, guardá de nuevo.</span> : null}
         </div>
       </div>
     </>

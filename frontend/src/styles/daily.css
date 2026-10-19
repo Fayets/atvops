@@ -219,3 +219,4 @@
 .dl-day b { font-size: 15px; }
 .dl-day span { font-size: 12px; color: var(--text-2); }
 .dl-acc { display: flex; align-items: center; gap: 6px; }
+.dl-guardar { width: 100%; justify-content: center; padding-top: 11px; padding-bottom: 11px; }
