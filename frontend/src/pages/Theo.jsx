@@ -5,7 +5,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
-  accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, getTheoEnvios, getTheoMensajes,
+  accionTheoMensaje, editarTheoEnvio, editarTheoMensaje, getTheoEnvios, getTheoMensajes, getTheoSemana,
 } from '../data/api.js';
 import '../styles/theo.css';
 
@@ -28,7 +28,7 @@ const dia = (iso) => {
  * ya; lo que salió queda como registro. La ven sistemas y operaciones.
  */
 export default function Theo() {
-  const [tab, setTab] = useState('pendientes');
+  const [tab, setTab] = useState('semana');
   return (
     <div className="page">
       <PageHeader
@@ -40,12 +40,13 @@ export default function Theo() {
         value={tab}
         onChange={setTab}
         options={[
+          { value: 'semana', label: 'Semana' },
           { value: 'pendientes', label: 'Por salir' },
           { value: 'enviados', label: 'Enviados' },
           { value: 'envios', label: 'Envíos automáticos' },
         ]}
       />
-      {tab === 'envios' ? <Envios /> : <Mensajes key={tab} vista={tab} />}
+      {tab === 'semana' ? <Semana /> : tab === 'envios' ? <Envios /> : <Mensajes key={tab} vista={tab} />}
     </div>
   );
 }
@@ -308,3 +309,83 @@ function EnvioDetalle({ e, onGuardado }) {
     </Card>
   );
 }
+
+/* ------------------------------------------------------------------ la semana en grilla */
+
+const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const ESTADO_CELDA = {
+  enviado: 'Salió', fallido: 'Falló', frenado: 'Frenado', pendiente: 'En cola', programado: 'Todavía no',
+  no_salio: 'No salió', sin_llamadas: 'Sin llamadas', sin_registro: 'Sin registro',
+};
+
+function sumar(iso, dias) {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Domingo a sábado, un grupo por fila: cada automatización pintada según si salió. */
+function Semana() {
+  const [desde, setDesde] = useState(null);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    getTheoSemana(desde).then((r) => vivo && (setData(r), setError(null))).catch((e) => vivo && setError(e));
+    return () => { vivo = false; };
+  }, [desde]);
+
+  if (error && !data) return <div style={{ marginTop: 16 }}><ErrorState error={error} /></div>;
+  if (!data) return <div style={{ marginTop: 16 }}><SkeletonBlock height={320} /></div>;
+  const dias = data.filas[0]?.dias.map((d) => d.fecha) ?? [];
+  const esActual = dias.includes(data.hoy);
+
+  return (
+    <section className="th-semana">
+      <div className="th-semana-cab">
+        <div className="dl-weeknav">
+          <button type="button" className="btn ghost sm" onClick={() => setDesde(sumar(data.desde, -7))} aria-label="Semana anterior">←</button>
+          <b>Semana del {fechaCorta(data.desde)} al {fechaCorta(sumar(data.desde, 6))}</b>
+          <button type="button" className="btn ghost sm" disabled={esActual} onClick={() => setDesde(sumar(data.desde, 7))} aria-label="Semana siguiente">→</button>
+        </div>
+        <div className="th-leyenda">
+          <span><i className="enviado" />Salió</span>
+          <span><i className="no_salio" />No salió o falló</span>
+          <span><i className="programado" />Todavía no le toca</span>
+          <span><i className="sin_registro" />Ops no lo registra</span>
+        </div>
+      </div>
+      <div className="th-grilla-scroll">
+        <div className="th-grilla">
+          <div className="th-g-cab th-g-grupo">Grupo</div>
+          {dias.map((f, i) => (
+            <div key={f} className={`th-g-cab${f === data.hoy ? ' hoy' : ''}`}>{DIAS_SEMANA[i]}<small>{fechaCorta(f)}</small></div>
+          ))}
+          {data.filas.map((fila) => (
+            <Fila key={fila.grupo} fila={fila} hoy={data.hoy} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Fila({ fila, hoy }) {
+  return (
+    <>
+      <div className="th-g-grupo th-g-nombre">{fila.grupo}</div>
+      {fila.dias.map((d) => (
+        <div key={d.fecha} className={`th-g-celda${d.fecha === hoy ? ' hoy' : ''}`}>
+          {d.items.map((it) => (
+            <div key={it.clave} className={`th-g-item ${it.estado}`} title={`${ESTADO_CELDA[it.estado]} · ${it.detalle ?? ''}`}>
+              <b>{it.nombre}</b>
+              <span>{it.hora ? `${it.hora} · ` : ''}{ESTADO_CELDA[it.estado]}{it.estado === 'enviado' && it.detalle && !it.hora ? ` · ${it.detalle}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
+const fechaCorta = (iso) => { const [, m, d] = iso.split('-'); return `${Number(d)}/${Number(m)}`; };

@@ -3160,3 +3160,8 @@ export async function corregirCtaReel(mediaId, esCta, palabra = null) {
     body: JSON.stringify({ mediaId, esCta, palabra }),
   });
 }
+
+/** La semana de Theo (domingo a sábado): qué automatización salió cada día. */
+export async function getTheoSemana(desde) {
+  return pedirDeVerdad(`/api/theo/semana${desde ? `?desde=${desde}` : ''}`);
+}

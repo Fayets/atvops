@@ -16,7 +16,7 @@ Dos colas conviven:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException
 from pony.orm import db_session
@@ -28,15 +28,41 @@ from src.services import daily_services
 ROLES = ("admin", "operaciones")
 GRUPO_VENTAS = "120363405702147911@g.us"
 REINTENTOS = 3
+HORA_DAILY = (23, 30)
+
+# La semana de Theo, como la planificó Franco: grupo → qué sale cada día y a qué hora.
+# Días 0=domingo … 6=sábado. "rastreo": "ops" = sale por la cola de Ops (se sabe si salió);
+# "registro" = lo manda Theo por su cuenta y Ops solo sabe lo que el script anota.
+PROGRAMA = (
+    ("ATV 500K", [
+        {"clave": "recordatorio_semana", "nombre": "Recordatorio de preparar objetivos semanales",
+         "dias": [0], "hora": None, "rastreo": "registro"},
+        {"clave": "daily", "nombre": "Checkeo de daily", "dias": [1, 2, 3, 4, 5], "hora": "23:30", "rastreo": "ops"},
+    ]),
+    ("Sales", [
+        {"clave": "recordatorio_llamadas", "nombre": "Recordatorio de llamadas", "dias": [0, 1, 2, 3, 4, 5, 6],
+         "hora": "08:00", "rastreo": "registro"},
+        {"clave": "llamadas", "nombre": "Resumen de llamada", "dias": [0, 1, 2, 3, 4, 5, 6], "hora": None,
+         "rastreo": "llamadas"},
+    ]),
+    ("Health", [
+        {"clave": "caja", "nombre": "Cierre de caja", "dias": [0, 1, 2, 3, 4, 5, 6], "hora": "23:00",
+         "rastreo": "registro"},
+    ]),
+)
 
 # (clave, nombre, cuándo, grupo, jid, plantilla, la arma Ops)
 ENVIOS = (
-    ("daily", "Daily completada", "Lunes a viernes · 23:00", "Equipo ATV", None,
+    ("daily", "Checkeo de daily", "Lunes a viernes · 23:30", "ATV 500K", None,
      "Daily completada · {dia} {fecha}\n\n{lista}"),
     ("llamadas", "Resultado de cada llamada", "Apenas llega el reporte de Fathom (cada 10 min)",
      "Ventas ATV", GRUPO_VENTAS, None),
     ("landing", "Landing del webinar sin registros", "Cada 15 min, solo si falla", "Ventas ATV", GRUPO_VENTAS, None),
     ("capacidad", "Capacidad Operativa", "Todos los días · 8:00", "Capacidad Operativa ATV", None, None),
+    # Los que manda Theo por su cuenta (skills del VPS): acá solo queda lo que registran.
+    ("recordatorio_semana", "Recordatorio de preparar objetivos semanales", "Domingos", "ATV 500K", None, None),
+    ("recordatorio_llamadas", "Recordatorio de llamadas", "Todos los días · 8:00", "Sales", GRUPO_VENTAS, None),
+    ("caja", "Cierre de caja", "Todos los días · 23:00", "Health", None, None),
 )
 # Lo que muestra la pantalla de cada envío.
 DETALLE = {
@@ -53,9 +79,13 @@ DETALLE = {
 def ensure_envios() -> None:
     with db_session:
         for clave, nombre, cuando, grupo, jid, plantilla in ENVIOS:
-            if TheoEnvio.get(clave=clave) is None:
+            e = TheoEnvio.get(clave=clave)
+            if e is None:
                 TheoEnvio(clave=clave, nombre=nombre, cuando=cuando, grupo_nombre=grupo, grupo_jid=jid,
                           plantilla=plantilla, activo=True)
+            else:
+                # El nombre y el horario los define el código: si cambian acá, cambian allá.
+                e.nombre, e.cuando = nombre, cuando
 
 
 def envio_activo(clave: str) -> bool:
@@ -97,7 +127,7 @@ def _asegurar_daily() -> None:
         return
     clave = f"daily:{hoy.isoformat()}"
     if TheoMensaje.get(clave=clave) is None:
-        sale = datetime.combine(hoy, datetime.min.time()).replace(hour=23)
+        sale = datetime.combine(hoy, datetime.min.time()).replace(hour=HORA_DAILY[0], minute=HORA_DAILY[1])
         TheoMensaje(clave=clave, envio="daily", grupo_nombre=e.grupo_nombre, grupo_jid=e.grupo_jid,
                     sale_at=sale, expira_at=sale + timedelta(minutes=59))
 
@@ -392,3 +422,73 @@ def registrar(envio: str, texto: str, ok: bool, error: str | None) -> dict:
                         intentos=REINTENTOS)  # lo registrado no se reintenta desde acá
         m.flush()
         return {"id": m.id}
+
+
+# ------------------------------------------------------------------ la semana en grilla
+
+
+def semana(desde: date | None = None) -> dict:
+    """La semana de domingo a sábado: cada automatización del programa y si salió ese día.
+
+    estado: enviado | fallido | frenado | pendiente (en cola) | programado (todavía no le
+    toca) | no_salio (le tocaba y no hay nada) | sin_llamadas | sin_registro (Ops nunca
+    supo de este envío: lo manda Theo por su cuenta y no lo anota)."""
+    ahora = daily_services.ahora()
+    hoy = ahora.date()
+    base = desde or hoy
+    domingo = base - timedelta(days=(base.weekday() + 1) % 7)
+    fin = domingo + timedelta(days=7)
+    inicio_dt, fin_dt = datetime.combine(domingo, datetime.min.time()), datetime.combine(fin, datetime.min.time())
+    with db_session:
+        _al_dia()
+    with db_session:
+        msgs = [m for m in TheoMensaje.select(lambda m: m.sale_at >= inicio_dt - timedelta(days=1) and m.sale_at < fin_dt)]
+        alguna_vez = {m.envio for m in TheoMensaje.select()}
+        por_envio_dia: dict[tuple, list] = {}
+        for m in msgs:
+            cuando = m.enviado_at or m.sale_at
+            por_envio_dia.setdefault((m.envio, cuando.date()), []).append(m)
+        llamadas_dia: dict[date, int] = {}
+        for r in list(ReunionCrm.select()):
+            if r.reporte_enviado_at and inicio_dt <= r.reporte_enviado_at < fin_dt:
+                llamadas_dia[r.reporte_enviado_at.date()] = llamadas_dia.get(r.reporte_enviado_at.date(), 0) + 1
+
+        filas = []
+        for grupo, items in PROGRAMA:
+            celdas = []
+            for i in range(7):
+                d = domingo + timedelta(days=i)
+                dia = []
+                for it in items:
+                    if i not in it["dias"]:
+                        continue
+                    dia.append(_celda(it, d, ahora, por_envio_dia, llamadas_dia, alguna_vez))
+                celdas.append({"fecha": d.isoformat(), "items": dia})
+            filas.append({"grupo": grupo, "dias": celdas})
+    return {"desde": domingo.isoformat(), "hoy": hoy.isoformat(), "filas": filas}
+
+
+def _celda(it: dict, d: date, ahora: datetime, por_envio_dia: dict, llamadas_dia: dict, alguna_vez: set) -> dict:
+    out = {"clave": it["clave"], "nombre": it["nombre"], "hora": it["hora"]}
+    if it["rastreo"] == "llamadas":
+        n = llamadas_dia.get(d, 0)
+        if n:
+            return {**out, "estado": "enviado", "detalle": f"{n} {'reporte' if n == 1 else 'reportes'}"}
+        return {**out, "estado": "programado" if d >= ahora.date() else "sin_llamadas", "detalle": "sin llamadas reportadas"}
+    ms = por_envio_dia.get((it["clave"], d), [])
+    for estado in ("enviado", "fallido", "frenado", "pendiente"):
+        m = next((x for x in ms if x.estado == estado), None)
+        if m is not None:
+            hora = (m.enviado_at or m.sale_at).strftime("%H:%M")
+            return {**out, "estado": estado, "detalle": f"{hora}" if estado == "enviado" else (m.error or estado)}
+    momento = datetime.combine(d, datetime.min.time())
+    if it["hora"]:
+        h, mi = (int(x) for x in it["hora"].split(":"))
+        momento = momento.replace(hour=h, minute=mi)
+    else:
+        momento = momento.replace(hour=23, minute=59)
+    if momento > ahora:
+        return {**out, "estado": "programado", "detalle": "todavía no le toca"}
+    if it["rastreo"] == "registro" and it["clave"] not in alguna_vez:
+        return {**out, "estado": "sin_registro", "detalle": "lo manda Theo por su cuenta y Ops no lo registra todavía"}
+    return {**out, "estado": "no_salio", "detalle": "le tocaba y no salió"}

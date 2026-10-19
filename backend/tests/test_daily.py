@@ -283,13 +283,13 @@ def test_la_daily_de_hoy_espera_a_las_23(theo_listo, monkeypatch):
     _a_las(monkeypatch, 21)
     p = th.listar("pendientes")["mensajes"]
     daily = next(m for m in p if m["envio"] == "daily")
-    assert daily["sale_at"] == "2026-10-22T23:00" and daily["se_arma_al_salir"]
+    assert daily["sale_at"] == "2026-10-22T23:30" and daily["se_arma_al_salir"]
     assert daily["texto"].startswith("Daily completada · jueves 22/10")
     assert not [m for m in th.cola() if m["envio"] == "daily"]  # todavía no
 
 
-def test_a_las_23_sale_con_la_lista_de_ese_momento(theo_listo, monkeypatch):
-    _a_las(monkeypatch, 23, 1)
+def test_a_las_2330_sale_con_la_lista_de_ese_momento(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 23, 31)
     c = [m for m in th.cola() if m["envio"] == "daily"]
     assert len(c) == 1 and c[0]["jid"] == GRUPO_EQUIPO and "Nick ✅" in c[0]["texto"]
     th.resultado(c[0]["id"], True, c[0]["texto"], None)
@@ -307,13 +307,13 @@ def test_sin_grupo_no_sale(monkeypatch):
         for m in TheoMensaje.select():
             m.delete()
     th.actualizar_envio("daily", {"grupo_jid": ""}, "franco")
-    _a_las(monkeypatch, 23, 5)
+    _a_las(monkeypatch, 23, 35)
     assert th.cola() == []
     assert next(m for m in th.listar("pendientes")["mensajes"] if m["envio"] == "daily")["sin_grupo"]
 
 
 def test_editar_frenar_y_volver(theo_listo, monkeypatch):
-    _a_las(monkeypatch, 23, 10)
+    _a_las(monkeypatch, 23, 40)
     m = next(x for x in th.listar("pendientes")["mensajes"] if x["envio"] == "daily")
     th.editar(m["id"], "Hoy no hay daily: feriado", "franco")
     c = [x for x in th.cola() if x["envio"] == "daily"]
@@ -325,12 +325,12 @@ def test_editar_frenar_y_volver(theo_listo, monkeypatch):
 
 
 def test_si_falla_se_reintenta_y_despues_se_vence(theo_listo, monkeypatch):
-    _a_las(monkeypatch, 23, 15)
+    _a_las(monkeypatch, 23, 45)
     c = next(x for x in th.cola() if x["envio"] == "daily")
     th.resultado(c["id"], False, None, "openclaw devolvió 1")
     assert [x for x in th.cola() if x["id"] == c["id"]]  # vuelve a intentar
     _a_las(monkeypatch, 23, 59)
-    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 23, 0, 30))
+    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 23, 1, 0))
     assert not [x for x in th.cola() if x["id"] == c["id"]]  # la de ayer ya no sale
 
 
@@ -460,3 +460,21 @@ def test_marcar_un_reel_sin_cta_borra_sus_chats_y_manda(monkeypatch):
 
     cr.corregir("reel-cta", None, None, "Franco")  # vuelve a decidir Ops
     assert "reel-cta" not in cr.estado() or cr.estado()["reel-cta"]["origen"] == "auto"
+
+
+def test_la_grilla_de_theo_pinta_lo_que_salio(theo_listo, monkeypatch):
+    _a_las(monkeypatch, 23, 50)
+    th.listar("pendientes")  # deja la daily del jueves en la cola si no estaba
+    from src.models import TheoMensaje
+    with db_session:  # los tests de arriba la dejaron en otro estado: acá salió
+        m = TheoMensaje.get(clave="daily:2026-10-22")
+        m.estado, m.enviado_at, m.expira_at = "enviado", datetime(2026, 10, 22, 23, 30), None
+    g = th.semana(JUEVES)
+    assert g["desde"] == "2026-10-18"  # arranca el domingo
+    atv = next(f for f in g["filas"] if f["grupo"] == "ATV 500K")
+    jueves = atv["dias"][4]["items"]
+    assert [(x["clave"], x["estado"]) for x in jueves] == [("daily", "enviado")]
+    assert atv["dias"][5]["items"][0]["estado"] in ("programado", "pendiente")  # el viernes todavía no salió
+    assert atv["dias"][0]["items"][0]["estado"] == "sin_registro"  # el domingo lo manda Theo solo
+    health = next(f for f in g["filas"] if f["grupo"] == "Health")
+    assert health["dias"][6]["items"][0]["clave"] == "caja"
