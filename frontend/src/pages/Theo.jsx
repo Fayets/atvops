@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import Tabs from '../components/ui/Tabs.jsx';
 import {
@@ -32,11 +31,6 @@ export default function Theo() {
   const [tab, setTab] = useState('semana');
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Sistema · Theo"
-        title="Lo que manda Theo"
-        desc="Todo lo que Theo manda por WhatsApp pasa por acá. Lo que todavía no salió se puede editar o frenar. Lo que ya salió queda como registro."
-      />
       <EmpezarDeCero />
       <Tabs
         value={tab}
