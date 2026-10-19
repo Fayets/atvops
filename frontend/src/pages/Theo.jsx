@@ -515,6 +515,16 @@ function Evento({ ev, etiquetas, onCerrar, onCambio }) {
           </div>
         )}
 
+        {!m && item.formato && (
+          <>
+            <div className="th-chat"><div className="th-burbuja">{item.formato}</div></div>
+            <div className="th-nota">
+              <b>Así lo arma Theo</b> con su tarea <code>{item.tarea}</code> de OpenClaw{item.hora ? ` a las ${item.hora}` : ''}.
+              Cuando sale, acá aparece el mensaje tal cual llegó al grupo.
+            </div>
+          </>
+        )}
+
         {m && (
           <>
             {editable ? (

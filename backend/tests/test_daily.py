@@ -477,7 +477,8 @@ def test_la_grilla_de_theo_pinta_lo_que_salio(theo_listo, monkeypatch):
     assert atv["dias"][5]["items"][0]["estado"] in ("programado", "pendiente")  # el viernes todavía no salió
     assert atv["dias"][0]["items"][0]["estado"] == "sin_registro"  # el domingo lo manda Theo solo
     health = next(f for f in g["filas"] if f["grupo"] == "Health")
-    assert health["dias"][6]["items"][0]["clave"] == "caja"
+    assert [x["clave"] for x in health["dias"][6]["items"]] == ["caja_manana", "caja"]
+    assert health["dias"][6]["items"][1]["hora"] == "22:56" and "CIERRE DE CAJA" in health["dias"][6]["items"][1]["formato"]
 
 
 def test_resumenes_esperados_segun_las_llamadas_del_dia(theo_listo, monkeypatch):
@@ -559,3 +560,13 @@ def test_empezar_de_cero_borra_y_cuenta_desde_ahora(theo_listo, monkeypatch):
     from src.models import TheoAjuste
     with db_session:
         TheoAjuste.get(clave="desde").delete()   # el resto de los tests cuenta todo
+
+
+def test_lo_que_registra_una_tarea_de_openclaw_pinta_la_celda(theo_listo, monkeypatch):
+    th.ensure_envios()
+    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 21, 22, 57))
+    th.registrar("caja", "@5493804206496 - *CIERRE DE CAJA — 21/10/2026*", True, None)
+    health = next(f for f in th.semana(date(2026, 10, 21))["filas"] if f["grupo"] == "Health")
+    caja = next(x for x in health["dias"][3]["items"] if x["clave"] == "caja")
+    assert caja["estado"] == "enviado" and caja["mensajeId"]
+    assert th.mensaje(caja["mensajeId"])["texto"].startswith("@5493804206496 - *CIERRE")

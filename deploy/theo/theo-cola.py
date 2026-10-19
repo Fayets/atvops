@@ -8,6 +8,10 @@ Manda por WhatsApp lo que ATV Ops tenga en la cola de Theo y avisa cómo le fue.
 Cron (cada minuto):
     * * * * * /usr/bin/python3 /opt/atv-ops/deploy/theo/theo-cola.py >> /var/log/theo-cola.log 2>&1
 
+También anota en Ops lo que mandan las tareas programadas de OpenClaw (caja y recordatorio
+de llamadas): cada una escribe su mensaje en /tmp/theo_<tarea>.txt justo antes de mandarlo,
+y acá se lee el archivo cuando cambia. Así la grilla de Theo sabe que salió y qué dijo.
+
 Igual que avisar-llamadas.py: no usa ningún modelo. Ops arma el texto (la daily se arma
 a las 23:00 con lo que haya, salvo que alguien lo haya editado en la vista Theo) y acá
 solo se mueve. Lo que no se entrega queda como fallido y Ops lo vuelve a ofrecer en la
@@ -22,6 +26,13 @@ import urllib.request
 from pathlib import Path
 
 OPS = "http://127.0.0.1:8012"
+# tarea de OpenClaw → envío de Ops
+TAREAS = {
+    "caja-buenos-dias": "caja_manana",
+    "caja-cierre-noche": "caja",
+    "closer-llamadas-diarias": "recordatorio_llamadas",
+}
+ESTADO = Path("/root/.theo-cola-tareas.json")  # la última versión de cada archivo ya anotada
 ENV_OPS = Path("/opt/atv-ops/backend/.env")
 
 
@@ -69,9 +80,45 @@ def mandar(jid: str, texto: str) -> str | None:
     return None
 
 
+def anotar_tareas(clave: str, simulacro: bool) -> None:
+    """Lo que escribió cada tarea de OpenClaw desde la última vuelta, anotado una sola vez."""
+    import time
+
+    try:
+        visto = json.loads(ESTADO.read_text())
+    except (OSError, ValueError):
+        visto = {}
+    cambios = False
+    for tarea, envio in TAREAS.items():
+        archivo = Path(f"/tmp/theo_{tarea}.txt")
+        try:
+            marca = archivo.stat().st_mtime
+        except OSError:
+            continue
+        if marca <= visto.get(tarea, 0):
+            continue
+        if not visto.get(tarea) and time.time() - marca > 3600:
+            visto[tarea], cambios = marca, True  # la primera vez no se anota uno viejo
+            continue
+        texto = archivo.read_text(errors="replace").strip()
+        if simulacro:
+            print(f"Simulacro tarea {tarea} → {envio}\n{texto}\n")
+            continue
+        if texto:
+            try:
+                pedir("/api/theo/registro", clave, {"envio": envio, "texto": texto, "ok": True})
+            except SystemExit:
+                continue  # no frena la cola: se reintenta en la próxima vuelta
+            print(f"Tarea {tarea}: anotada")
+        visto[tarea], cambios = marca, True
+    if cambios:
+        ESTADO.write_text(json.dumps(visto))
+
+
 def main() -> None:
     simulacro = "--simulacro" in sys.argv
     clave = agent_key()
+    anotar_tareas(clave, simulacro)
     mensajes = pedir("/api/theo/cola", clave).get("mensajes") or []
     for m in mensajes:
         if simulacro:

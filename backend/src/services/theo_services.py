@@ -28,6 +28,21 @@ from src.services import daily_services
 
 ROLES = ("admin", "operaciones")
 GRUPO_VENTAS = "120363405702147911@g.us"
+GRUPO_CAJA = "120363428902012337@g.us"
+
+# Los que arma Theo con sus tareas programadas de OpenClaw (`openclaw cron list`): así salen.
+# Ops no los redacta; theo-cola.py lee el texto que cada tarea deja en /tmp/theo_<tarea>.txt
+# justo antes de mandarlo y lo anota acá.
+FORMATO_CAJA_MANANA = """Saludo corto + las llamadas agendadas para hoy (hora, lead, closer)
+
+💰 Caja 1: $X (N cuotas)
+📦 Caja 2: $X (N cuotas)"""
+FORMATO_CAJA_NOCHE = """@Juan - *CIERRE DE CAJA — DD/MM/AAAA*
+
+💵 *PLATA DEL DIA: $total*
+Caja 1: $caja_1
+Caja 2: $caja_2"""
+FORMATO_LLAMADAS = "Las llamadas de hoy de cada closer, con el comando de la skill atv-closer."
 REINTENTOS = 3
 HORA_DAILY = (23, 30)
 
@@ -42,13 +57,15 @@ PROGRAMA = (
     ]),
     ("Sales", [
         {"clave": "recordatorio_llamadas", "nombre": "Recordatorio de llamadas", "dias": [0, 1, 2, 3, 4, 5, 6],
-         "hora": "08:00", "rastreo": "registro"},
+         "hora": "08:00", "rastreo": "registro", "tarea": "closer-llamadas-diarias", "formato": FORMATO_LLAMADAS},
         {"clave": "llamadas", "nombre": "Resumen de llamada", "dias": [0, 1, 2, 3, 4, 5, 6], "hora": None,
          "rastreo": "llamadas"},
     ]),
     ("Health", [
-        {"clave": "caja", "nombre": "Cierre de caja", "dias": [0, 1, 2, 3, 4, 5, 6], "hora": "23:00",
-         "rastreo": "registro"},
+        {"clave": "caja_manana", "nombre": "Buenos días de caja", "dias": [0, 1, 2, 3, 4, 5, 6], "hora": "07:58",
+         "rastreo": "registro", "tarea": "caja-buenos-dias", "formato": FORMATO_CAJA_MANANA},
+        {"clave": "caja", "nombre": "Cierre de caja", "dias": [0, 1, 2, 3, 4, 5, 6], "hora": "22:56",
+         "rastreo": "registro", "tarea": "caja-cierre-noche", "formato": FORMATO_CAJA_NOCHE},
     ]),
 )
 
@@ -63,7 +80,8 @@ ENVIOS = (
     # Los que manda Theo por su cuenta (skills del VPS): acá solo queda lo que registran.
     ("recordatorio_semana", "Recordatorio de preparar objetivos semanales", "Domingos", "ATV 500K", None, None),
     ("recordatorio_llamadas", "Recordatorio de llamadas", "Todos los días · 8:00", "Sales", GRUPO_VENTAS, None),
-    ("caja", "Cierre de caja", "Todos los días · 23:00", "Health", None, None),
+    ("caja_manana", "Buenos días de caja", "Todos los días · 7:58", "Health", GRUPO_CAJA, None),
+    ("caja", "Cierre de caja", "Todos los días · 22:56", "Health", GRUPO_CAJA, None),
 )
 # Lo que muestra la pantalla de cada envío.
 DETALLE = {
@@ -87,6 +105,8 @@ def ensure_envios() -> None:
             else:
                 # El nombre, el horario y el grupo los define el código; el ID del grupo, no.
                 e.nombre, e.cuando, e.grupo_nombre = nombre, cuando, grupo
+                if not e.grupo_jid and jid:
+                    e.grupo_jid = jid
 
 
 def envio_activo(clave: str) -> bool:
@@ -579,7 +599,8 @@ def _espera_resumen(r: ReunionCrm) -> bool:
 
 
 def _celda(it: dict, d: date, ahora: datetime, por_envio_dia: dict, llamadas_dia: dict, alguna_vez: set) -> dict:
-    out = {"clave": it["clave"], "nombre": it["nombre"], "hora": it["hora"]}
+    out = {"clave": it["clave"], "nombre": it["nombre"], "hora": it["hora"],
+           "tarea": it.get("tarea"), "formato": it.get("formato")}
     if it["rastreo"] == "llamadas":
         lista = llamadas_dia.get(d, [])
         esperadas = len(lista)
