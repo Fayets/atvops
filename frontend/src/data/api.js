@@ -3043,11 +3043,11 @@ export async function borrarTareaDaily(id) {
 }
 
 /** Guarda la daily de un día: `marcas` = [{ tarea_id, estado, motivo }]. */
-export async function guardarDiaDaily(fecha, marcas) {
+export async function guardarDiaDaily(fecha, marcas, parcial = false) {
   return pedir('/api/daily/dia', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fecha, marcas }),
+    body: JSON.stringify({ fecha, marcas, parcial }),
   });
 }
 

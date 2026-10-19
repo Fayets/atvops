@@ -618,3 +618,19 @@ def test_los_motivos_de_backbone_los_ve_solo_juan():
     assert out["entregas"][0]["nota"] == "No se hizo" and out["motivos"] is False
     assert api.get("/api/daily/backbone", headers=_h("juan")).json()["motivos"] is True
     assert api.get("/api/daily/backbone", headers=_h("franco")).json()["motivos"] is False
+
+
+def test_guardado_parcial_no_cierra_el_dia(monkeypatch):
+    from src.models import CierreDaily
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 21))
+    t = d.agregar_tarea("cris", LUNES, "Tarea parcial de prueba", "velocidad", 2)
+    # Marcar a medias y un "no la hice" todavía sin motivo: se guarda igual.
+    s = d.guardar_dia("cris", date(2026, 10, 21), [{"tarea_id": t["id"], "estado": "no", "motivo": None}], parcial=True)
+    marca = next(x for x in s["tareas"] if x["id"] == t["id"])["marcas"]["2026-10-21"]
+    assert marca["estado"] == "no"
+    with db_session:
+        assert CierreDaily.get(usuario="cris", fecha=date(2026, 10, 21)) is None  # no cuenta como guardada
+    # Destildar también se guarda.
+    s = d.guardar_dia("cris", date(2026, 10, 21), [{"tarea_id": t["id"], "estado": None}], parcial=True)
+    assert "2026-10-21" not in next(x for x in s["tareas"] if x["id"] == t["id"])["marcas"]
+    d.borrar_tarea("cris", t["id"])

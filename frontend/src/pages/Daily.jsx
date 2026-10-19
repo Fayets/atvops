@@ -11,7 +11,6 @@ import {
 import {
   abierta, BANDA_TEXTO, banda, cumplimiento, DIAS, fechaCorta, nombreDe, sumarDias, vence,
 } from '../lib/daily.js';
-import { getStoredUser } from '../lib/auth.js';
 import '../styles/daily.css';
 
 /**
@@ -118,23 +117,6 @@ function estadoDia(d) {
   return d.a_tiempo ? 'ok' : 'tarde';
 }
 
-// Lo marcado y no guardado sobrevive a un refresco: queda en este navegador hasta que se
-// toca "Guardar daily" (ahí lo guardado pasa a ser lo de la base y el borrador se borra).
-const claveBorrador = (fecha) => `atv-daily-borrador:${getStoredUser()?.username ?? ''}:${fecha}`;
-
-function leerBorrador(fecha) {
-  try {
-    return JSON.parse(localStorage.getItem(claveBorrador(fecha)) ?? 'null') ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function conBorrador(inicial, fecha) {
-  const b = leerBorrador(fecha);
-  return Object.fromEntries(Object.entries(inicial).map(([id, v]) => [id, b[id] ?? v]));
-}
-
 function DiaDaily({ data, dia, setDia, onGuardado }) {
   const d = data.dias[dia] ?? data.dias[0];
   const fecha = d.fecha;
@@ -150,8 +132,8 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     }
     return st;
   }, [data, fecha]);
-  const [draft, setDraft] = useState(() => conBorrador(inicial, fecha));
-  const [draftFecha, setDraftFecha] = useState(fecha); // de qué día es el borrador en pantalla
+  const [draft, setDraft] = useState(inicial);
+  const [draftFecha, setDraftFecha] = useState(fecha); // de qué día es lo marcado en pantalla
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const fechaDraft = useRef(fecha);
@@ -160,21 +142,32 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     const mismoDia = fechaDraft.current === fecha;
     fechaDraft.current = fecha;
     setDraft((prev) => (mismoDia ? Object.fromEntries(Object.keys(inicial).map((id) => [id, prev[id] ?? inicial[id]]))
-      : conBorrador(inicial, fecha)));
+      : inicial));
     setDraftFecha(fecha);
     if (!mismoDia) setError('');
   }, [inicial, fecha]);
+  // Guardado parcial: lo que se marca va a la base al toque (un refresco no lo pierde),
+  // sin cerrar el día. La daily cuenta como guardada recién con "Guardar daily".
+  const [parcialError, setParcialError] = useState('');
+  const enBase = useRef(inicial); // lo que la base ya tiene de este día
+  useEffect(() => { enBase.current = inicial; }, [inicial]);
   useEffect(() => {
-    if (draftFecha !== fecha) return;
-    const distinto = Object.fromEntries(Object.entries(draft).filter(([id, v]) => {
-      const i = inicial[id];
+    if (draftFecha !== fecha) return undefined;
+    const cambiadas = Object.entries(draft).filter(([id, v]) => {
+      const i = enBase.current[id];
       return i && (v.estado !== i.estado || (v.motivo || '') !== (i.motivo || ''));
-    }));
-    try {
-      if (Object.keys(distinto).length) localStorage.setItem(claveBorrador(fecha), JSON.stringify(distinto));
-      else localStorage.removeItem(claveBorrador(fecha));
-    } catch { /* sin almacenamiento: sigue andando, solo no sobrevive al refresco */ }
-  }, [draft, draftFecha, inicial, fecha]);
+    });
+    if (!cambiadas.length) return undefined;
+    const t = setTimeout(() => {
+      guardarDiaDaily(fecha, cambiadas.map(([id, v]) => ({ tarea_id: Number(id), estado: v.estado, motivo: v.motivo || null })), true)
+        .then(() => {
+          enBase.current = { ...enBase.current, ...Object.fromEntries(cambiadas) };
+          setParcialError('');
+        })
+        .catch((e) => setParcialError(e.message));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [draft, draftFecha, fecha]);
 
   const terminada = sumarDias(data.semana, 4) < data.hoy;
   const [nueva, setNueva] = useState('');
@@ -347,7 +340,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
           <button type="button" className="btn primary dl-guardar" disabled={guardando || falta > 0} onClick={guardar}>
             {guardando ? 'Guardando…' : d.futuro ? 'Guardar' : 'Guardar daily'}
           </button>
-          {error ? <span className="dl-error">{error}</span>
+          {error || parcialError ? <span className="dl-error">{error || parcialError}</span>
             : d.futuro ? <span className="dim">{`Guardá lo que ya hiciste. La daily del ${DIAS[dia]} se completa cuando llegue.`}</span>
             : !falta && d.guardado_at ? <span className="dim">Ya está guardada. Si cambiaste algo, guardá de nuevo.</span> : null}
         </div>

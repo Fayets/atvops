@@ -31,6 +31,7 @@ class Marca(BaseModel):
 class DiaGuardado(BaseModel):
     fecha: str
     marcas: list[Marca]
+    parcial: bool = False
 
 
 class TareaRolIn(BaseModel):
@@ -90,7 +91,8 @@ def borrar(tarea_id: int, user: dict = Depends(get_current_user)):
 
 @router.put("/dia")
 def guardar_dia(body: DiaGuardado, user: dict = Depends(get_current_user)):
-    return svc.guardar_dia(user["username"], svc._parse_fecha(body.fecha), [m.model_dump() for m in body.marcas])
+    return svc.guardar_dia(user["username"], svc._parse_fecha(body.fecha), [m.model_dump() for m in body.marcas],
+                           parcial=body.parcial)
 
 
 # ---------------------------------------------------------------- Backbone

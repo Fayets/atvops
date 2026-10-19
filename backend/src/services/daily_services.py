@@ -511,9 +511,13 @@ def borrar_tarea(username: str, tarea_id: int) -> None:
         _tarea_propia(username, tarea_id).borrada = True
 
 
-def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
+def guardar_dia(username: str, fecha: date, marcas: list[dict], parcial: bool = False) -> dict:
     """Guarda la daily de un día. Todas las tareas que vencían ese día tienen que venir con
     estado, y las que no se hicieron (o no aplican) con motivo.
+
+    `parcial`: lo que se va marcando, guardado a medida que se toca (un refresco no lo
+    pierde). No pide que esté todo ni el motivo, y no cierra el día: la daily cuenta como
+    guardada recién con "Guardar daily".
 
     Un día que todavía no llegó también se puede marcar, para adelantar: la tarea del
     viernes que se hizo el lunes. Ahí vale solo "hecha" o "no aplica", no hace falta
@@ -547,13 +551,13 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
                     faltan.append(t.texto)
             elif estado != "hecha" and not motivo:
                 faltan.append(f"{t.texto} (falta el motivo)")
-        if faltan:
+        if faltan and not parcial:
             raise HTTPException(status_code=400, detail="Falta marcar: " + "; ".join(faltan[:4]) + (" …" if len(faltan) > 4 else ""))
         for tid, (estado, motivo) in por_id.items():
             t = tareas.get(tid)
             if t is None:
                 raise HTTPException(status_code=400, detail="Una de las tareas no es de esta semana.")
-            if estado and estado != "hecha" and not motivo:
+            if estado and estado != "hecha" and not motivo and not parcial:
                 raise HTTPException(status_code=400, detail=f"«{t.texto}»: falta el motivo.")
             previa = MarcaDaily.get(tarea=t, fecha=fecha)
             if estado is None:
@@ -566,8 +570,8 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict]) -> dict:
                 MarcaDaily(tarea=t, fecha=fecha, estado=estado, motivo=motivo if estado != "hecha" else None,
                            marcado_at=ahora())
         c = CierreDaily.get(usuario=username, fecha=fecha)
-        if adelanto:
-            pass  # lo adelantado no es la daily de ese día
+        if adelanto or parcial:
+            pass  # lo adelantado o a medio marcar no es la daily de ese día
         elif c is None:
             CierreDaily(usuario=username, fecha=fecha, guardado_at=ahora(), actualizado_at=ahora(), a_tiempo=fecha == h)
         else:
