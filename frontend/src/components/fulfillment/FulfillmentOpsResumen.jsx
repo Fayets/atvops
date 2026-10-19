@@ -18,9 +18,10 @@ export default function FulfillmentOpsResumen({ resumen: r, contexto }) {
           <div className="k">Clientes activos</div>
           <div className="n num">{formatValue(r.activos, 'count')}</div>
           <div className="ff-ops-breakdown">
-            {r.programas.map((p) => (
+            {/* Los activos de cada programa: suman lo mismo que "Clientes activos". */}
+            {r.programas.filter((p) => p.activos > 0).sort((x, y) => y.activos - x.activos).map((p) => (
               <span key={p.id}>
-                {p.label} {p.clientes}
+                {p.label} {p.activos}
               </span>
             ))}
           </div>
