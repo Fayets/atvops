@@ -54,8 +54,9 @@ export default function PanelMarketing({ data, chats }) {
           onVer: chats?.partes?.length ? () => setVerChats(true) : undefined },
         { label: 'Reels publicados', valor: n(contenido.reels),
           nota: 'lo que salió en el mes, sin contar historias' },
-        { label: 'Reproducciones', valor: n(vistas),
-          nota: 'veces que se reprodujo un reel, no personas' },
+        // Las secuencias marcadas con CTA en Marketing → Historias: las que suman chats.
+        { label: 'Historias con CTA', valor: n(chats?.secuenciasConCta ?? 0),
+          nota: `de ${n(chats?.secuenciasDelPeriodo ?? historias.secuencias ?? 0)} secuencias publicadas` },
         { label: 'Alcance', valor: n(alcance),
           nota: 'cuentas distintas que lo vieron' },
         { label: 'Interacciones', valor: n(interacciones),
