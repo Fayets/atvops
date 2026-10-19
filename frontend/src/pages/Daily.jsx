@@ -13,17 +13,10 @@ import {
 } from '../lib/daily.js';
 import '../styles/daily.css';
 
-const LOCK = (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-    <rect x="3" y="7" width="10" height="7" rx="1.5" />
-    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
-  </svg>
-);
-
 /**
  * La daily de cada uno: cinco cajas, una por día. En cada día están las tareas del rol
  * (no se borran) y se suman las propias, de velocidad o de desplazamiento. Se marca cada
- * tarea con motivo si no se hizo. Theo a las 23:00 solo mira si se guardó.
+ * tarea con motivo si no se hizo. Theo a las 23:30 solo mira si se guardó.
  */
 export default function Daily() {
   const [semana, setSemana] = useState(null); // lunes ISO; null = la que corresponde hoy
@@ -169,7 +162,6 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     const v = draft[t.id] ?? { estado: null, motivo: '' };
     const etiquetas = (
       <small>
-        {t.origen === 'rol' ? <span className="dl-lock">{LOCK}Rol</span> : <span>Propia</span>}
         <span className={`dl-kind ${t.tipo}`}>{t.tipo === 'velocidad' ? 'Velocidad' : 'Desplazamiento'}</span>
         {t.frecuencia === 'mensual' && <span>Del mes</span>}
         {t.destinatario && <span>Entrega a {nombreDe(t.destinatario)}</span>}
@@ -188,7 +180,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       <div className="dl-task" key={t.id}>
         <div className="t"><b>{t.texto}</b>{etiquetas}</div>
         <div className="dl-acc">
-        {t.origen !== 'rol' && !terminada && (
+        {!terminada && (
           <button type="button" className="dl-x" onClick={() => quitar(t)} aria-label={`Quitar ${t.texto}`} title="Quitar tarea">✕</button>
         )}
         <div className="dl-seg" role="group" aria-label={`Estado de ${t.texto}`}>
@@ -278,7 +270,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
             </div>
             <p>Cuenta lo que vencía hasta hoy. "No aplica" con motivo no te baja.</p>
           </Card>
-          <Card title="Theo a las 23:00">
+          <Card title="Theo a las 23:30">
             <p>Revisa si guardaste tu daily del día. Un día cargado después queda como "cargado tarde".</p>
           </Card>
         </div>

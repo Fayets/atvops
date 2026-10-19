@@ -340,14 +340,25 @@ def guardar_tareas_rol(username: str, tareas: list[dict]) -> list[dict]:
 # --------------------------------------------------------------- la semana
 
 
+# Daily libre (19-10-2026): cada uno arma su semana entera. Las tareas fijas de cada rol
+# vuelven cuando Franco defina cuáles son de verdad; hasta entonces no se copian y las que
+# se habían copiado sin marcas se sacan.
+ROL_EN_LA_DAILY = False
+
+
 def _sincronizar_semana(username: str, semana: date) -> None:
     """Copia a la semana las tareas del rol que falten. En semanas que no pasaron, también
     acomoda lo que cambió en la plantilla, siempre que la tarea no tenga marcas."""
-    rol = {t.id: t for t in TareaRol.select(lambda t: t.usuario == username)}
     ya = {t.tarea_rol: t for t in TareaSemana.select(
         lambda t: t.usuario == username and t.semana == semana and t.origen == "rol")}
     # Una semana que ya terminó no se toca, y antes del inicio no hay nada que copiar.
     editable = semana >= INICIO and semana + timedelta(days=4) >= hoy()
+    if not ROL_EN_LA_DAILY:
+        for t in ya.values():
+            if editable and not t.borrada and not t.marcas.count():
+                t.borrada = True
+        return
+    rol = {t.id: t for t in TareaRol.select(lambda t: t.usuario == username)}
     for id_, r in rol.items():
         t = ya.get(id_)
         if t is None:
@@ -462,7 +473,7 @@ def _tarea_propia(username: str, tarea_id: int) -> TareaSemana:
     t = TareaSemana.get(id=tarea_id)
     if t is None or t.usuario != username or t.borrada:
         raise HTTPException(status_code=404, detail="Esa tarea no existe.")
-    if t.origen == "rol":
+    if t.origen == "rol" and ROL_EN_LA_DAILY:
         raise HTTPException(status_code=400,
                             detail="Las tareas del rol no se borran. Si no aplica, marcalo en la daily con el motivo.")
     return t

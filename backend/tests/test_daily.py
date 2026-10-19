@@ -18,6 +18,10 @@ import src.models  # noqa: F401 — registra las entidades
 from src.db import db
 from src.services import daily_services as d
 
+# La mayoría de estas reglas son de las tareas fijas del rol, apagadas mientras la Daily es
+# libre: se prueban prendidas para que sigan andando el día que vuelvan.
+d.ROL_EN_LA_DAILY = True
+
 JUEVES = date(2026, 10, 22)
 LUNES = date(2026, 10, 19)
 
@@ -570,3 +574,12 @@ def test_lo_que_registra_una_tarea_de_openclaw_pinta_la_celda(theo_listo, monkey
     caja = next(x for x in health["dias"][3]["items"] if x["clave"] == "caja")
     assert caja["estado"] == "enviado" and caja["mensajeId"]
     assert th.mensaje(caja["mensajeId"])["texto"].startswith("@5493804206496 - *CIERRE")
+
+
+def test_daily_libre_saca_las_del_rol_sin_marcas_y_deja_borrar(monkeypatch):
+    monkeypatch.setattr(d, "ROL_EN_LA_DAILY", False)
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 26))
+    semana = d.ver_semana("nick", date(2026, 10, 26))
+    assert not [t for t in semana["tareas"] if t["origen"] == "rol"]
+    t = d.agregar_tarea("nick", date(2026, 10, 26), "Llamar a los leads de ayer", "velocidad", 0)
+    assert t["texto"] == "Llamar a los leads de ayer"
