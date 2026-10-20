@@ -7854,6 +7854,10 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .clave-editor { display: flex; flex-direction: column; gap: 16px; }
 .clave-editor-cab { display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .clave-editor-cab .logo-plataforma { border-radius: 9px; }
+/* Un campo cargado muestra su valor enmascarado como si estuviera escrito, no como una pista. */
+.clave-editor .claves-campo input.cargado::placeholder,
+.clave-editor .claves-campo textarea.cargado::placeholder { color: var(--text-2); opacity: 1; letter-spacing: 0.04em; }
+.claves-largo { margin-left: auto; font-size: 11.5px; font-weight: 400; }
 
 /* ── Arrastrar una llamada a otro día ───────────────────────────────────────
    El día que va a recibir se marca con la marca, que acá es una acción y no un

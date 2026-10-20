@@ -16,6 +16,16 @@ function hace(iso) {
 }
 
 /**
+ * El valor actual como se ve dentro del campo: los últimos cuatro caracteres tras puntos.
+ * El servidor manda "…3ZAv · 215 caracteres" (o el valor entero si es corto, como "info").
+ */
+function actual(valor) {
+  if (!valor) return null;
+  const m = String(valor).match(/^…(\S+) · (\d+) caracteres$/);
+  return m ? { texto: `${'•'.repeat(12)}${m[1]}`, largo: Number(m[2]) } : { texto: String(valor), largo: null };
+}
+
+/**
  * Las claves de las plataformas que ATV Ops consulta: una tarjeta por plataforma, con su logo,
  * y los campos se editan en una ventana aparte.
  *
@@ -120,25 +130,29 @@ export default function ClavesApi() {
               <LogoPlataforma plataforma={editando.plataforma} size={36} />
               <span className="dim">Lo que dejes vacío queda como está. Para vaciar un campo, escribí BORRAR.</span>
             </div>
-            {editando.campos.map((c) => (
-              <label key={c.clave} className="claves-campo">
-                <span className="claves-label">
-                  {c.label}
-                  {c.secreto ? <span className="claves-secreto" title="Nunca se muestra entero">secreto</span> : null}
-                </span>
-                <span className="claves-actual dim">{c.valor ? `actual: ${c.valor}` : 'sin cargar'}</span>
-                {c.largo ? (
-                  <textarea rows={4} value={(borrador[editando.plataforma] || {})[c.clave] || ''}
-                    onChange={(e) => escribir(editando.plataforma, c.clave, e.target.value)}
-                    placeholder="Pegá el valor nuevo" />
-                ) : (
-                  <input type="text" value={(borrador[editando.plataforma] || {})[c.clave] || ''}
-                    onChange={(e) => escribir(editando.plataforma, c.clave, e.target.value)}
-                    placeholder="Pegá el valor nuevo" autoComplete="off" spellCheck={false} />
-                )}
-                {c.ayuda ? <span className="claves-ayuda dim">{c.ayuda}</span> : null}
-              </label>
-            ))}
+            {editando.campos.map((c) => {
+              const hoy = actual(c.valor);
+              // Cargado: el campo muestra lo que hay (enmascarado); escribir encima lo reemplaza.
+              const muestra = hoy ? hoy.texto : 'Pegá el valor nuevo';
+              return (
+                <label key={c.clave} className="claves-campo">
+                  <span className="claves-label">
+                    {c.label}
+                    {c.secreto ? <span className="claves-secreto" title="Nunca se muestra entero">secreto</span> : null}
+                    {hoy?.largo ? <span className="claves-largo dim">{hoy.largo} caracteres</span> : null}
+                  </span>
+                  {c.largo ? (
+                    <textarea rows={4} className={hoy ? 'cargado' : ''} value={(borrador[editando.plataforma] || {})[c.clave] || ''}
+                      onChange={(e) => escribir(editando.plataforma, c.clave, e.target.value)} placeholder={muestra} />
+                  ) : (
+                    <input type="text" className={hoy ? 'cargado' : ''} value={(borrador[editando.plataforma] || {})[c.clave] || ''}
+                      onChange={(e) => escribir(editando.plataforma, c.clave, e.target.value)}
+                      placeholder={muestra} autoComplete="off" spellCheck={false} />
+                  )}
+                  {c.ayuda ? <span className="claves-ayuda dim">{c.ayuda}</span> : null}
+                </label>
+              );
+            })}
             <div className="claves-pie">
               <button type="button" className="btn primary sm" onClick={() => guardar(editando.plataforma)}
                 disabled={ocupado === editando.plataforma}>
