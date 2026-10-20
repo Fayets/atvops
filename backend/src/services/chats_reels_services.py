@@ -87,7 +87,31 @@ def _comentarios(token: str, reel_id: str) -> list[dict]:
         url = aud._ruta_siguiente(siguiente).split("?")[0]
         params = dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
         params.pop("access_token", None)
-    return out
+    return out + _de_apify(reel_id, out)
+
+
+def _de_apify(reel_id: str, de_la_api: list[dict]) -> list[dict]:
+    """Los comentarios que la API no devolvió, leídos con Apify (ver apify_services)."""
+    import json
+
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+    from src.services import apify_services
+
+    with db_session:
+        p = PublicacionIg.get(ig_id=str(reel_id))
+        if p is None:
+            return []
+        permalink = p.permalink
+        try:
+            total = int(json.loads(p.metricas or "{}").get("comments") or 0)
+        except (ValueError, TypeError):
+            total = 0
+    if not apify_services.hace_falta(len(de_la_api), total):
+        return []
+    ya = {c.get("id") for c in de_la_api}
+    return [c for c in apify_services.comentarios(str(reel_id), permalink, total) if c["id"] not in ya]
 
 
 def _momento(iso: str | None) -> datetime:

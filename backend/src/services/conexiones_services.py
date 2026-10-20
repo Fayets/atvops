@@ -65,6 +65,12 @@ CAMPOS = {
         {"clave": "api_key", "label": "API key", "secreto": True,
          "ayuda": "De fathom.video → Settings → API keys. Con eso se lee la transcripción de un link."},
     ],
+    # Respaldo para leer los comentarios de un reel que la API de Instagram no devuelve
+    # (ver apify_services). Lee la página con cuentas de Apify, no con la de ATV.
+    "apify": [
+        {"clave": "api_token", "label": "API token", "secreto": True,
+         "ayuda": "De console.apify.com → Settings → API & Integrations. Cuesta unos US$2 cada 1.000 comentarios."},
+    ],
     "zoom": [
         {"clave": "account_id", "label": "Account ID", "secreto": False,
          "ayuda": "De la app Server-to-Server OAuth, no el número de cuenta de la factura."},
@@ -84,6 +90,7 @@ ETIQUETAS = {
     "typeform": "Typeform · agendas",
     "zoom": "Zoom Webinars",
     "fathom": "Fathom · grabaciones",
+    "apify": "Apify · comentarios de reels",
 }
 
 _cache: dict = {}

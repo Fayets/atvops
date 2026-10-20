@@ -326,36 +326,48 @@ def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
     url = f"{m['id']}/comments"
     params = {"fields": "id,text,username,timestamp", "limit": 50}
     leidos = 0
+
+    def anotar(c: dict) -> None:
+        nonlocal nuevos, sin_usuario
+        usuario = _usuario_limpio(c.get("username") or "")
+        if not usuario:
+            sin_usuario += 1
+            return
+        if usuario == propia:
+            return
+        with db_session:
+            if LeadAudiencia.get(comentario_id=c["id"]):
+                return
+            # Una persona que comentó varios reels es un solo lead: se suma el
+            # comentario al que ya existe en vez de duplicarla.
+            previo = next((x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario), None)
+            if previo:
+                return
+            LeadAudiencia(
+                ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
+                reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
+                comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"], creado_por="instagram",
+            )
+            nuevos += 1
+
     while url and leidos < MAX_COMENTARIOS:
         r = _pedir(token, url, **params)
         filas = r.get("data") or []
         for c in filas:
             leidos += 1
-            usuario = _usuario_limpio(c.get("username") or "")
-            if not usuario:
-                sin_usuario += 1
-                continue
-            if usuario == propia:
-                continue
-            with db_session:
-                if LeadAudiencia.get(comentario_id=c["id"]):
-                    continue
-                # Una persona que comentó varios reels es un solo lead: se suma el
-                # comentario al que ya existe en vez de duplicarla.
-                previo = next((x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario), None)
-                if previo:
-                    continue
-                LeadAudiencia(
-                    ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
-                    reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
-                    comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"], creado_por="instagram",
-                )
-                nuevos += 1
+            anotar(c)
         siguiente = (r.get("paging") or {}).get("next")
         if not siguiente:
             break
         url, params = _ruta_siguiente(siguiente).split("?")[0], dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
         params.pop("access_token", None)
+    # La API de Instagram entrega una parte de los comentarios (en algunos reels, ninguno).
+    # Si se quedó corta, el resto se lee con Apify.
+    from src.services import apify_services
+
+    if apify_services.hace_falta(leidos, m.get("comments_count")):
+        for c in apify_services.comentarios(str(m["id"]), m.get("permalink"), m.get("comments_count")):
+            anotar(c)
     return nuevos, sin_usuario
 
 
