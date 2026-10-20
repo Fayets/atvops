@@ -1029,6 +1029,7 @@ def _reels(filas: list[dict]) -> list[dict]:
                                                       "thumbnail": None, "fecha": None, "comentarios": 0}),
                                     "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0})
         r["personas"] += 1
+        r["perfilesLeidos"] = r.get("perfilesLeidos", 0) + (1 if f.get("perfilLeido") else 0)
         r[f["veredicto"]] = r.get(f["veredicto"], 0) + 1
     from src.services import chats_reels_services
 

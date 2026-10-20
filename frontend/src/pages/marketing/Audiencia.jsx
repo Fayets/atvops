@@ -127,6 +127,7 @@ const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
 
 /** El reel elegido: la miniatura y lo que dice, con flechas para pasar al anterior. */
 function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto, enCurso }) {
+  const leidos = Math.max(r.perfilesLeidos ?? 0, r.analizados ?? 0);
   return (
     <section className="card aud-reel">
       <div className="aud-reel-foto">
@@ -140,12 +141,15 @@ function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto, enCurso }) {
             title="Cada persona nueva que comente este reel se analiza sola, aunque sea meses después">
             <span className="aud-siguiendo">
               <i aria-hidden="true" />
-              {enCurso
-                ? (r.personas ? <span className="num">{r.analizados} de {r.personas} perfiles analizados</span> : 'Leyendo comentarios…')
-                : <span className="num">{r.analizados} {r.analizados === 1 ? 'perfil analizado' : 'perfiles analizados'} · sigue cada comentario nuevo</span>}
+              {!enCurso
+                ? <span className="num">{r.analizados} {r.analizados === 1 ? 'perfil analizado' : 'perfiles analizados'} · sigue cada comentario nuevo</span>
+                : !r.personas ? 'Leyendo comentarios…'
+                  : leidos < r.personas ? <span className="num">Leyendo perfiles · {leidos} de {r.personas}</span>
+                    : <span className="num">Analizando con IA · {r.analizados} de {r.personas}</span>}
             </span>
             <span className="aud-progreso-barra" aria-hidden="true">
-              <i style={{ transform: `scaleX(${r.personas ? r.analizados / r.personas : 0})` }} />
+              {/* Dos etapas en una barra: leer el perfil es la primera mitad, el análisis la segunda. */}
+              <i style={{ transform: `scaleX(${r.personas ? (leidos + r.analizados) / (2 * r.personas) : 0})` }} />
             </span>
           </div>
         )}
@@ -326,7 +330,7 @@ export default function Audiencia() {
   const enCurso = Boolean(reelActual?.seguido && (data?.corriendo || reelActual.sin_analizar > 0 || recien));
   useEffect(() => {
     if (!enCurso) return undefined;
-    const t = setTimeout(() => setTick((n) => n + 1), 8000);
+    const t = setTimeout(() => setTick((n) => n + 1), 3000);
     return () => clearTimeout(t);
   }, [enCurso, data]);
 
