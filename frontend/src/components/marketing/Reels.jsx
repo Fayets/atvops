@@ -44,7 +44,9 @@ export default function Reels({ items }) {
   }
 
   const total = (campo) => filas.reduce((t, r) => t + (r[campo] ?? 0), 0);
-  const conPalabra = filas.filter((r) => r.chats > 0).length;
+  // Los que pidieron una palabra, tengan o no chats contados: un reel con CTA del que
+  // Instagram no devuelve comentarios igual pidió que le escriban.
+  const conPalabra = filas.filter((r) => r.cta?.esCta).length;
 
   const sub = [
     `${n(total('views'))} vistas`,
@@ -83,8 +85,11 @@ export default function Reels({ items }) {
             <span className="num dim">{dia(r.fecha)}</span>
             {COLUMNAS.map((c) => <span key={c.id} className="num">{n(r[c.id])}</span>)}
             <span className={`num${r.chats ? ' reel-chats' : ' dim'}`}
-              title={r.keyword ? `Personas que comentaron "${r.keyword}"` : 'Este reel no tiene CTA'}>
-              {r.chats ? n(r.chats) : '—'}
+              title={r.cta?.esCta
+                ? `Personas que comentaron "${r.keyword}"${r.chats ? '' : '. Instagram no devolvió comentarios de este reel.'}`
+                : 'Este reel no tiene CTA'}>
+              {/* 0 es "pidió la palabra y no contamos a nadie"; — es "no pidió nada". */}
+              {r.chats ? n(r.chats) : (r.cta?.esCta ? '0' : '—')}
             </span>
           </div>
         ))}

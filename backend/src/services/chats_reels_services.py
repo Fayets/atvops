@@ -244,12 +244,23 @@ def estado() -> dict[str, dict]:
     Un reel que no aparece no tiene CTA detectado."""
     from pony.orm import db_session
 
-    from src.models import ReelCta
+    from src.models import PublicacionIg, ReelCta
+    from src.services.instagram_services import palabra_citada
 
     chats = por_reel()
     out = {rid: {"origen": "auto", "esCta": True, "palabra": c["palabra"], "chats": c["chats"]}
            for rid, c in chats.items()}
     with db_session:
+        # Tener CTA y tener chats son dos cosas distintas, y antes estaban pegadas: el estado
+        # salía solo de contar gente que comentó la palabra, así que un reel que la pedía pero
+        # del que Instagram no devuelve comentarios —oculta por spam justo los que la escriben—
+        # figuraba "Sin CTA". Si el texto la pide entre comillas, tiene CTA con 0 chats.
+        for p in list(PublicacionIg.select()):
+            if p.tipo != "reel" or p.ig_id in out:
+                continue
+            palabra = normalizar(palabra_citada(p.caption or ""))
+            if palabra:
+                out[p.ig_id] = {"origen": "auto", "esCta": True, "palabra": palabra, "chats": 0}
         for f in list(ReelCta.select()):
             c = chats.get(f.reel_id) or {}
             out[f.reel_id] = {"origen": "manual", "esCta": f.es_cta, "por": f.por,

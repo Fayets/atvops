@@ -58,6 +58,39 @@ def test_pocos_comentarios_iguales_no_alcanzan():
     assert detectar_palabra("sin cta", _n(["hola", "hola", "genio"])) is None
 
 
+def test_un_reel_con_la_palabra_en_el_texto_tiene_cta_aunque_no_haya_chats():
+    """Instagram oculta por spam justo los comentarios que escriben la palabra: el reel del
+    19-10 pedía \u201cinfo\u201d y devolvió 0 de 45 comentarios. Tiene CTA igual."""
+    from datetime import datetime
+
+    from pony.orm import db_session
+
+    from src.db import db, init_db
+    from src.services.chats_reels_services import estado
+
+    if db.provider is None:
+        init_db()
+    from src.models import PublicacionIg
+
+    with db_session:
+        for x in list(PublicacionIg.select()):
+            if x.ig_id.startswith("reel_prueba_"):
+                x.delete()
+        PublicacionIg(ig_id="reel_prueba_cta", tipo="reel", publicado_at=datetime.utcnow(),
+                      caption='tu tiempo es un problema.\n\ncomenta \u201cinfo\u201d y te paso el prompt')
+        PublicacionIg(ig_id="reel_prueba_sin", tipo="reel", publicado_at=datetime.utcnow(),
+                      caption="un reel que no pide nada, solo cuenta algo")
+    try:
+        e = estado()
+        assert e["reel_prueba_cta"] == {"origen": "auto", "esCta": True, "palabra": "info", "chats": 0}
+        assert "reel_prueba_sin" not in e
+    finally:
+        with db_session:
+            for x in list(PublicacionIg.select()):
+                if x.ig_id.startswith("reel_prueba_"):
+                    x.delete()
+
+
 def test_la_pagina_siguiente_sirve_aunque_venga_con_otra_version():
     """Instagram devuelve la página siguiente con su versión (v25.0), no con la de Ops."""
     from src.services.audiencia_services import _ruta_siguiente
