@@ -183,6 +183,11 @@ def comentarios(media_id: str, permalink: str | None, total: int | None) -> list
         return []   # ya se leyó con estos comentarios: lo que trajo quedó en leads y chats
     try:
         items = normalizar(_pedir(permalink, token))
+        if not items and _cookies():
+            # El de sesión no trajo nada (Instagram rechaza el login de la cuenta descartable desde
+            # Apify, "Login failed"): el oficial sin sesión al menos trae la primera tanda.
+            logger.info("Apify: con sesión no trajo nada en %s; pruebo sin sesión", media_id)
+            items = normalizar(_pedir(permalink, token, ACTOR))
     except urllib.error.HTTPError as e:
         logger.warning("Apify %s: %s %s", media_id, e.code, (e.read() or b"")[:200])
         return []

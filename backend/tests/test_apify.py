@@ -95,6 +95,14 @@ def test_con_cookies_usa_el_scraper_con_sesion(monkeypatch):
     assert "apify~instagram-comment-scraper" in pedidos[1].full_url
 
 
+def test_si_el_de_sesion_no_trae_nada_usa_el_oficial(apify, monkeypatch):
+    actores = []
+    monkeypatch.setattr(ap, "_cookies", lambda: [{"name": "sessionid", "value": "x"}])
+    monkeypatch.setattr(ap, "_pedir", lambda url, tok, actor=None: actores.append(actor) or ([] if actor is None else ITEMS))
+    assert len(ap.comentarios("prueba4", "https://www.instagram.com/reel/z/", 45)) == 3
+    assert actores == [None, ap.ACTOR]
+
+
 def test_no_paga_dos_veces_el_mismo_reel_sin_comentarios_nuevos(apify):
     url = "https://www.instagram.com/reel/prueba/"
     assert len(ap.comentarios("prueba1", url, 45)) == 3 and len(apify) == 1
