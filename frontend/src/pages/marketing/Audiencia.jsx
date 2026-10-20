@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
-  audienciaAnalizarReel, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
+  audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
   getAudiencia, guardarCriterioAudiencia,
 } from '../../data/api.js';
 import { formatValue } from '../../lib/format.js';
@@ -126,7 +126,7 @@ const fecha = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: '
 const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
 
 /** El reel elegido: la miniatura y lo que dice, con flechas para pasar al anterior. */
-function Reel({ r, onVolver, onAnalizar, ocupado }) {
+function Reel({ r, onVolver, onAnalizar, ocupado, abierto }) {
   return (
     <section className="card aud-reel">
       <div className="aud-reel-foto">
@@ -138,19 +138,15 @@ function Reel({ r, onVolver, onAnalizar, ocupado }) {
         <div className="aud-reel-pie">
           {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
           <span className="aud-reel-nav">
-            {r.seguido ? (
-              <>
-                <span className="aud-siguiendo" title="Cada persona nueva que comente este reel se analiza sola, aunque sea meses después">
-                  <i aria-hidden="true" /> Analizando cada comentario nuevo
-                </span>
-                <button type="button" className="btn ghost sm" onClick={onAnalizar} disabled={ocupado}>Revisar ahora</button>
-              </>
-            ) : (
-              <button type="button" className="btn primary sm" onClick={onAnalizar} disabled={ocupado}
-                title="Analiza a todos los que comentaron y, desde ahí, a cada persona nueva que comente">
-                Analizar audiencia
-              </button>
+            {r.seguido && (
+              <span className="aud-siguiendo" title="Cada persona nueva que comente este reel se analiza sola, aunque sea meses después">
+                <i aria-hidden="true" /> Analizando cada comentario nuevo
+              </span>
             )}
+            <button type="button" className={`btn sm${abierto ? ' ghost' : ' primary'}`} onClick={onAnalizar} disabled={ocupado}
+              title="Pegá los usuarios que comentaron y se analizan en el momento">
+              {abierto ? 'Cerrar' : r.seguido ? 'Agregar usuarios' : 'Analizar audiencia'}
+            </button>
             <button type="button" className="btn ghost sm" onClick={onVolver}>← Todos los reels</button>
           </span>
         </div>
@@ -283,6 +279,7 @@ export default function Audiencia() {
   const [criterioAbierto, setCriterioAbierto] = useState(false);
   const [borrador, setBorrador] = useState(null);
   const [pegado, setPegado] = useState('');
+  const [cuadroReel, setCuadroReel] = useState(null);   // id del reel con el cuadro de pegar abierto
   const [aMano, setAMano] = useState(null);   // el resultado del último análisis a mano
   const [analizandoAMano, setAnalizandoAMano] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -305,9 +302,6 @@ export default function Audiencia() {
       : l.fuente !== 'historia' && (reelActual ? l.reelId === reelActual.id : !l.reelId))
     && (verDescartados || l.estado !== 'descartado')
   )), [data, filtro, fuente, reelActual, secActual, verDescartados]);
-  // Lo cargado a mano se muestra entero, con cualquier veredicto: es una consulta puntual.
-  const manuales = (data?.leads ?? []).filter((l) => !l.reelId && (verDescartados || l.estado !== 'descartado'))
-    .sort((a, b) => (b.creadoAt || '').localeCompare(a.creadoAt || ''));
 
   if (loading && !data) return <div className="page"><SkeletonBlock height={420} /></div>;
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
@@ -366,14 +360,44 @@ export default function Audiencia() {
         ) : (
           <SecuenciasDelMes secuencias={secuenciasMes} mesLabel={mesLabel} onElegir={setSecId} />
         )
-      ) : reelActual ? (
+      ) : reelActual ? (<>
         <div className="aud-hero">
-          <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado}
-            onAnalizar={() => hacer(() => audienciaAnalizarReel(reelActual.id),
-              'Analizando a todos los que comentaron. Desde ahora cada persona nueva que comente este reel se analiza sola. Recargá en unos minutos.')} />
+          <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado} abierto={cuadroReel === reelActual.id}
+            onAnalizar={() => { setAMano(null); setCuadroReel((c) => (c === reelActual.id ? null : reelActual.id)); }} />
           <Numeros r={reelActual} />
         </div>
-      ) : (
+      {cuadroReel === reelActual.id && (
+        <section className="card aud-pegar">
+          <label htmlFor="aud-pegar" className="lab-k">Quiénes comentaron este reel</label>
+          <div className="aud-pegar-fila">
+            <textarea id="aud-pegar" rows={3} value={pegado} onChange={(e) => setPegado(e.target.value)}
+              placeholder="@usuario, links de perfil o una lista, uno por línea" />
+            <button type="button" className="btn primary" disabled={analizandoAMano || !pegado.trim()}
+              onClick={async () => {
+                setAnalizandoAMano(true); setAviso(''); setAMano(null);
+                try {
+                  const r = await audienciaCargar(pegado, reelActual.id);
+                  setAMano(r); setPegado(''); setTick((n) => n + 1);
+                } catch (e) {
+                  setAviso(e?.message || 'No se pudo analizar.');
+                } finally {
+                  setAnalizandoAMano(false);
+                }
+              }}>
+              {analizandoAMano ? 'Analizando…' : 'Analizar'}
+            </button>
+          </div>
+          {analizandoAMano && <p className="dim aud-aviso">Leyendo los perfiles y analizándolos con la IA. Tarda entre 20 segundos y un minuto.</p>}
+          {aMano && (
+            <p className="aud-aviso">
+              {aMano.leads?.length ? `Listo: ${aMano.leads.length} ${aMano.leads.length === 1 ? 'perfil analizado' : 'perfiles analizados'}.` : 'No se pudo analizar ninguno.'}
+              {aMano.pendientes ? ` Los otros ${aMano.pendientes} se analizan en la próxima corrida.` : ''}
+              {aMano.aviso ? ` ${aMano.aviso}` : ''}
+            </p>
+          )}
+        </section>
+      )}
+      </>) : (
         <ReelsDelMes reels={reelsMes} mesLabel={mesLabel} onElegir={setReelId} />
       )}
 
@@ -425,48 +449,6 @@ export default function Audiencia() {
         </div>
       )}
       </>)}
-
-      <details className="aud-mano" open={Boolean(aMano) || analizandoAMano || undefined}>
-        <summary>Analizar usuarios a mano{manuales.length ? ` · ${manuales.length} analizados` : ''}</summary>
-      <section className="card aud-pegar">
-        <label htmlFor="aud-pegar" className="lab-k">Analizar usuarios a mano</label>
-        <div className="aud-pegar-fila">
-          <textarea id="aud-pegar" rows={2} value={pegado} onChange={(e) => setPegado(e.target.value)}
-            placeholder="@usuario, links de perfil o una lista, uno por línea" />
-          <button type="button" className="btn primary" disabled={analizandoAMano || !pegado.trim()}
-            onClick={async () => {
-              setAnalizandoAMano(true); setAviso(''); setAMano(null);
-              try {
-                const r = await audienciaCargar(pegado);
-                setAMano(r); setPegado(''); setTick((n) => n + 1);
-              } catch (e) {
-                setAviso(e?.message || 'No se pudo analizar.');
-              } finally {
-                setAnalizandoAMano(false);
-              }
-            }}>
-            {analizandoAMano ? 'Analizando…' : 'Analizar'}
-          </button>
-        </div>
-      </section>
-        {analizandoAMano && <p className="dim aud-aviso">Leyendo los perfiles y analizándolos con la IA. Tarda entre 20 segundos y un minuto.</p>}
-        {aMano && (
-          <p className="aud-aviso">
-            {aMano.leads?.length ? `Listo: ${aMano.leads.length} ${aMano.leads.length === 1 ? 'perfil analizado' : 'perfiles analizados'}.` : 'No se pudo analizar ninguno.'}
-            {aMano.pendientes ? ` Los otros ${aMano.pendientes} se analizan en la próxima corrida.` : ''}
-            {aMano.aviso ? ` ${aMano.aviso}` : ''}
-          </p>
-        )}
-        {manuales.length > 0 && (
-          <div className="aud-grilla">
-            {manuales.map((l) => (
-              <Lead key={l.id} l={l} ocupado={ocupado}
-                  onDescartar={(x, estado) => hacer(() => audienciaMarcar(x.id, estado))}
-                onReanalizar={(x) => hacer(() => audienciaReanalizar(x.id), `@${x.usuario} analizado de nuevo.`)} />
-            ))}
-          </div>
-        )}
-      </details>
 
       <label className="aud-check dim">
         <input type="checkbox" checked={verDescartados} onChange={(e) => setVerDescartados(e.target.checked)} /> Mostrar descartados

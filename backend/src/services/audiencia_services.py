@@ -660,8 +660,9 @@ def _fecha(iso: str | None) -> datetime | None:
         return None
 
 
-def cargar_a_mano(texto: str, usuario: dict) -> dict:
-    """Usuarios pegados a mano (uno por línea, con o sin @, o links de perfil)."""
+def cargar_a_mano(texto: str, usuario: dict, reel: dict | None = None) -> dict:
+    """Usuarios pegados a mano (uno por línea, con o sin @, o links de perfil). Con `reel`
+    (id, caption, permalink) quedan atados a ese reel, como si los hubiera traído la API."""
     from pony.orm import db_session
 
     from src.models import LeadAudiencia
@@ -679,7 +680,12 @@ def cargar_a_mano(texto: str, usuario: dict) -> dict:
         for u in usuarios[:200]:
             if u in existentes:
                 continue
-            LeadAudiencia(ig_usuario=u, creado_por=usuario.get("username"))
+            if reel:
+                LeadAudiencia(ig_usuario=u, creado_por="instagram", media_id=str(reel["id"]),
+                              reel_caption=(reel.get("caption") or "")[:300], reel_url=reel.get("permalink"),
+                              comentario_id=f"mano:{reel['id']}:{u}")
+            else:
+                LeadAudiencia(ig_usuario=u, creado_por=usuario.get("username"))
             nuevos += 1
     return {"recibidos": len(usuarios), "nuevos": nuevos, "usuarios": usuarios[:200]}
 
@@ -687,7 +693,7 @@ def cargar_a_mano(texto: str, usuario: dict) -> dict:
 MAX_A_MANO = 12   # cuántos se analizan en el momento; el resto queda para la corrida automática
 
 
-def analizar_a_mano(texto: str, usuario: dict) -> dict:
+def analizar_a_mano(texto: str, usuario: dict, media_id: str | None = None) -> dict:
     """Pegar usuarios y ver el análisis enseguida: se lee el perfil de cada uno y se pasa
     por la IA en el momento, sin esperar la corrida automática (que además arranca por
     los más viejos y podía no llegar a estos)."""
@@ -695,9 +701,17 @@ def analizar_a_mano(texto: str, usuario: dict) -> dict:
 
     from src.models import LeadAudiencia
 
-    r = cargar_a_mano(texto, usuario)
-    ahora = r["usuarios"][:MAX_A_MANO]
     token, uid = _credenciales()
+    reel = None
+    if media_id:
+        # Los pegados quedan atados al reel, y el reel queda seguido: lo que la API sí devuelva
+        # después (comentarios nuevos) entra solo.
+        reel = _pedir(token, str(media_id), fields="id,caption,permalink")
+        if reel.get("_error") or not reel.get("id"):
+            raise HTTPException(status_code=404, detail="Ese reel no está en Instagram.")
+        seguir_reel(str(media_id), por=usuario.get("username"))
+    r = cargar_a_mano(texto, usuario, reel)
+    ahora = r["usuarios"][:MAX_A_MANO]
     with db_session:
         ids = [x.id for x in list(LeadAudiencia.select()) if x.ig_usuario in set(ahora)]
         sin_perfil = [(x.id, x.ig_usuario) for x in list(LeadAudiencia.select()) if x.id in set(ids) and x.perfil_at is None]

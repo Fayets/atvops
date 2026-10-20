@@ -2895,8 +2895,9 @@ export async function audienciaCorrer() {
 export async function audienciaAnalizarReel(mediaId) {
   return pedir(`/api/audiencia/reels/${mediaId}/analizar`, { method: 'POST' });
 }
-export async function audienciaCargar(texto) {
-  return pedir('/api/audiencia/cargar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+/** Usuarios pegados a mano; con `reel` quedan atados a ese reel y el reel queda seguido. */
+export async function audienciaCargar(texto, reel = null) {
+  return pedir('/api/audiencia/cargar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto, reel }) });
 }
 export async function guardarCriterioAudiencia(texto) {
   return pedir('/api/audiencia/criterio', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });

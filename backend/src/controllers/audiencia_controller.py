@@ -40,7 +40,10 @@ def _correr_seguro():
 def cargar(fondo: BackgroundTasks, payload: dict = Body(...), user: dict = Depends(_puede)):
     """Usuarios pegados a mano: los primeros 12 se analizan en el momento y vuelven con su
     resultado; si se pegaron más, el resto queda para la corrida automática."""
-    r = audiencia.analizar_a_mano(str((payload or {}).get("texto") or ""), user)
+    media_id = str((payload or {}).get("reel") or "").strip() or None
+    if media_id and not media_id.isdigit():
+        raise HTTPException(status_code=400, detail="Id de reel inválido.")
+    r = audiencia.analizar_a_mano(str((payload or {}).get("texto") or ""), user, media_id)
     if r.get("pendientes"):
         fondo.add_task(_correr_seguro)
     return r
