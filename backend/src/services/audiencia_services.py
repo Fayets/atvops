@@ -987,8 +987,10 @@ def listar() -> dict:
         estado_permisos = permisos()
     except HTTPException as e:
         estado_permisos = {"comentarios": False, "perfiles": False, "error": e.detail}
+    # "corriendo": hay un análisis en marcha (el de un reel recién activado o la corrida de cada
+    # 2 h); la pantalla lo usa para mostrar el avance y refrescarse sola hasta que termine.
     return {"leads": filas, "conteo": conteo, "reels": reels, "historias": historias, "permisos": estado_permisos,
-            "criterio": criterio()}
+            "criterio": criterio(), "corriendo": _lock.locked()}
 
 
 def _reels(filas: list[dict]) -> list[dict]:

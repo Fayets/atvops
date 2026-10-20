@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   audienciaAnalizarReel, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
@@ -126,7 +126,7 @@ const fecha = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: '
 const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
 
 /** El reel elegido: la miniatura y lo que dice, con flechas para pasar al anterior. */
-function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto }) {
+function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto, enCurso }) {
   return (
     <section className="card aud-reel">
       <div className="aud-reel-foto">
@@ -135,14 +135,23 @@ function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto }) {
       <div className="aud-reel-texto">
         <span className="lab-k">Reel{r.fecha ? ` · ${fecha(r.fecha)}` : ''}{r.chats ? ` · ${r.chats} chats con «${r.palabra}»` : ''}</span>
         <p className="aud-reel-caption">{r.caption || 'Sin texto'}</p>
+        {r.seguido && (
+          <div className={`aud-progreso${enCurso ? ' en-curso' : ''}`}
+            title="Cada persona nueva que comente este reel se analiza sola, aunque sea meses después">
+            <span className="aud-siguiendo">
+              <i aria-hidden="true" />
+              {enCurso
+                ? (r.personas ? <span className="num">{r.analizados} de {r.personas} perfiles analizados</span> : 'Leyendo comentarios…')
+                : <span className="num">{r.analizados} {r.analizados === 1 ? 'perfil analizado' : 'perfiles analizados'} · sigue cada comentario nuevo</span>}
+            </span>
+            <span className="aud-progreso-barra" aria-hidden="true">
+              <i style={{ transform: `scaleX(${r.personas ? r.analizados / r.personas : 0})` }} />
+            </span>
+          </div>
+        )}
         <div className="aud-reel-pie">
           {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
           <span className="aud-reel-nav">
-            {r.seguido && (
-              <span className="aud-siguiendo" title="Cada persona nueva que comente este reel se analiza sola, aunque sea meses después">
-                <i aria-hidden="true" /> Analizando cada comentario nuevo
-              </span>
-            )}
             {!r.seguido && (
               <button type="button" className="btn primary sm" onClick={onAnalizar} disabled={ocupado}
                 title="Trae a todos los que comentaron (API, avisos de Meta y respaldo), lee sus perfiles y los analiza. Desde ahí, cada comentario nuevo entra solo.">
@@ -290,6 +299,7 @@ export default function Audiencia() {
   const [analizandoAMano, setAnalizandoAMano] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [activado, setActivado] = useState(null);   // { id, at } del reel recién mandado a analizar
 
   const reels = data?.reels ?? [];
   const secuencias = data?.historias ?? [];
@@ -308,6 +318,17 @@ export default function Audiencia() {
       : l.fuente !== 'historia' && (reelActual ? l.reelId === reelActual.id : !l.reelId))
     && (verDescartados || l.estado !== 'descartado')
   )), [data, filtro, fuente, reelActual, secActual, verDescartados]);
+
+  // Mientras un reel seguido tiene perfiles en análisis, la pantalla se refresca sola para
+  // mostrar el avance; corta cuando no queda nadie pendiente y el análisis terminó. El minuto
+  // después de apretar cubre el arranque: el análisis corre de fondo y tarda en tomar el turno.
+  const recien = activado && activado.id === reelActual?.id && Date.now() - activado.at < 60000;
+  const enCurso = Boolean(reelActual?.seguido && (data?.corriendo || reelActual.sin_analizar > 0 || recien));
+  useEffect(() => {
+    if (!enCurso) return undefined;
+    const t = setTimeout(() => setTick((n) => n + 1), 8000);
+    return () => clearTimeout(t);
+  }, [enCurso, data]);
 
   if (loading && !data) return <div className="page"><SkeletonBlock height={420} /></div>;
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
@@ -369,8 +390,9 @@ export default function Audiencia() {
       ) : reelActual ? (<>
         <div className="aud-hero">
           <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado} abierto={cuadroReel === reelActual.id}
-            onAnalizar={() => hacer(() => audienciaAnalizarReel(reelActual.id),
-              'Analizando a todos los que comentaron. Desde ahora cada comentario nuevo de este reel entra solo. Recargá en unos minutos.')}
+            enCurso={enCurso}
+            onAnalizar={() => { setActivado({ id: reelActual.id, at: Date.now() }); hacer(() => audienciaAnalizarReel(reelActual.id),
+              'Analizando a todos los que comentaron. Desde ahora cada comentario nuevo de este reel entra solo.'); }}
             onPegar={() => { setAMano(null); setCuadroReel((c) => (c === reelActual.id ? null : reelActual.id)); }} />
           <Numeros r={reelActual} />
         </div>
