@@ -35,6 +35,9 @@ logger = logging.getLogger("atv_ops.apify")
 from decouple import config  # noqa: E402
 
 ACTOR = config("APIFY_ACTOR", default="apify~instagram-comment-scraper")
+# Sin sesión ningún scraper ve la lista entera (19-10: oficial 15, apidojo 10, memo23 0 de ~26).
+# Con las cookies de una cuenta descartable cargadas en Claves API se usa este, que lee todo.
+ACTOR_CON_SESION = "dead00~instagram-comment-scraper"
 # El contador de Instagram suma las respuestas: como el bot le responde a cada uno, en un reel
 # con CTA cerca de la mitad del número son respuestas nuestras (19-10: 45 = 23 personas + 22
 # respuestas), y la API solo devuelve los de primer nivel. Por eso el corte va en 40 % y no más
@@ -51,6 +54,25 @@ def _token() -> str:
     from src.services import conexiones_services
 
     return str((conexiones_services.obtener("apify") or {}).get("api_token") or "").strip()
+
+
+def _cookies() -> list[dict]:
+    """Las cookies de la cuenta descartable, como las exporta Cookie-Editor. [] si no hay."""
+    from src.services import conexiones_services
+
+    crudo = str((conexiones_services.obtener("apify") or {}).get("instagram_cookies") or "").strip()
+    if not crudo:
+        return []
+    try:
+        datos = json.loads(crudo)
+    except ValueError:
+        logger.warning("Apify: las cookies cargadas no son un JSON válido")
+        return []
+    cookies = [c for c in (datos if isinstance(datos, list) else []) if isinstance(c, dict) and c.get("name") and c.get("value")]
+    if not any(c["name"] == "sessionid" for c in cookies):
+        logger.warning("Apify: a las cookies cargadas les falta sessionid")
+        return []
+    return [{"name": c["name"], "value": c["value"], "domain": c.get("domain") or ".instagram.com"} for c in cookies]
 
 
 def configurado() -> bool:
@@ -109,8 +131,10 @@ def normalizar(items: list[dict]) -> list[dict]:
                    or (it.get("user") or {}).get("username") or it.get("username"))
         if not usuario:
             continue
+        if it.get("is_reply"):
+            continue   # las respuestas del reel son del bot de Juan
         cuando = it.get("timestamp") or it.get("createdAt") or it.get("created_at")
-        ident = str(it.get("id") or it.get("pk") or f"ap:{usuario}:{cuando or ''}")
+        ident = str(it.get("id") or it.get("pk") or it.get("comment_id") or f"ap:{usuario}:{cuando or ''}")
         if ident in vistos:
             continue
         vistos.add(ident)
@@ -120,8 +144,12 @@ def normalizar(items: list[dict]) -> list[dict]:
 
 
 def _pedir(permalink: str, token: str, actor: str | None = None) -> list[dict]:
-    actor = actor or ACTOR
-    if "memo23" in actor:
+    cookies = _cookies() if not actor or "dead00" in actor else []
+    actor = actor or (ACTOR_CON_SESION if cookies else ACTOR)
+    if "dead00" in actor:
+        entrada = {"cookies": cookies, "post_urls": [permalink], "comment_limit": MAX_COMENTARIOS,
+                   "include_replies": False}
+    elif "memo23" in actor:
         # Recorre todas las páginas sin sesión. Sin respuestas: las del reel son del bot de Juan.
         entrada = {"startUrls": [permalink], "maxItems": MAX_COMENTARIOS, "includeReplies": False,
                    "commentsSortOrder": "recent"}

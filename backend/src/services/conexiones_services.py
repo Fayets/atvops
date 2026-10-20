@@ -70,6 +70,9 @@ CAMPOS = {
     "apify": [
         {"clave": "api_token", "label": "API token", "secreto": True,
          "ayuda": "De console.apify.com → Settings → API & Integrations. Cuesta unos US$2 cada 1.000 comentarios."},
+        {"clave": "instagram_cookies", "label": "Cookies de la cuenta descartable", "secreto": True, "largo": True,
+         "ayuda": "Con la extensión Cookie-Editor, en instagram.com logueado con una cuenta creada solo para esto "
+                  "(nunca la de Juan ni la de ATV): Export → JSON y pegar acá. Vencen: renovarlas si deja de traer."},
     ],
     "zoom": [
         {"clave": "account_id", "label": "Account ID", "secreto": False,

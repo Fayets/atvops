@@ -63,6 +63,37 @@ def test_entiende_la_salida_de_memo23():
     assert c[0]["id"] == "77" and c[0]["username"] == "drsebas.fit" and c[0]["timestamp"].endswith("+0000")
 
 
+def test_entiende_la_salida_de_dead00_y_descarta_respuestas():
+    c = ap.normalizar([{"comment_id": "5", "username": "drsebas.fit", "text": "Info", "timestamp": 1792432931},
+                       {"comment_id": "6", "username": "juanxcarrizo", "text": "te mandé", "is_reply": True}])
+    assert [(x["id"], x["username"]) for x in c] == [("5", "drsebas.fit")]
+
+
+def test_con_cookies_usa_el_scraper_con_sesion(monkeypatch):
+    import json as js
+    from src.services import conexiones_services as cx
+
+    pedidos = []
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b"[]"
+
+    monkeypatch.setattr(ap.urllib.request, "urlopen", lambda req, timeout=0: pedidos.append(req) or Resp())
+    cookies = [{"name": "sessionid", "value": "abc", "domain": ".instagram.com", "httpOnly": True}, {"name": "csrftoken", "value": "x"}]
+    monkeypatch.setattr(cx, "obtener", lambda p: {"api_token": "tok", "instagram_cookies": js.dumps(cookies)})
+    ap._pedir("https://www.instagram.com/reel/abc/", "tok")
+    assert "dead00" in pedidos[0].full_url
+    cuerpo = js.loads(pedidos[0].data)
+    assert cuerpo["post_urls"] == ["https://www.instagram.com/reel/abc/"] and cuerpo["include_replies"] is False
+    assert {c["name"] for c in cuerpo["cookies"]} == {"sessionid", "csrftoken"}
+    # Sin sessionid no se usan: vuelve al oficial.
+    monkeypatch.setattr(cx, "obtener", lambda p: {"api_token": "tok", "instagram_cookies": js.dumps([{"name": "csrftoken", "value": "x"}])})
+    ap._pedir("https://www.instagram.com/reel/abc/", "tok")
+    assert "apify~instagram-comment-scraper" in pedidos[1].full_url
+
+
 def test_no_paga_dos_veces_el_mismo_reel_sin_comentarios_nuevos(apify):
     url = "https://www.instagram.com/reel/prueba/"
     assert len(ap.comentarios("prueba1", url, 45)) == 3 and len(apify) == 1
