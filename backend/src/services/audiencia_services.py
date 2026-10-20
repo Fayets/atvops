@@ -374,8 +374,9 @@ def sincronizar_comentarios() -> dict:
     return {"reels": len(ids), "leidos": leidos, "nuevos": nuevos, "sinUsuario": sin_usuario}
 
 
-def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
-    """Crea un lead por cada persona nueva que comentó el reel `m`. Devuelve (nuevos, sin usuario)."""
+def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False) -> tuple[int, int]:
+    """Crea un lead por cada persona nueva que comentó el reel `m`. Devuelve (nuevos, sin usuario).
+    `forzar`: viene del botón, el respaldo de Apify se pide aunque ya se haya leído."""
     from pony.orm import db_session
 
     from src.models import LeadAudiencia
@@ -430,7 +431,7 @@ def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
     # La API de Instagram entrega una parte de los comentarios (en algunos reels, ninguno).
     # Si se quedó corta y el webhook tampoco cubre, el resto se lee con Apify.
     if apify_services.hace_falta(leidos + len(recibidos), m.get("comments_count")):
-        for c in apify_services.comentarios(str(m["id"]), m.get("permalink"), m.get("comments_count")):
+        for c in apify_services.comentarios(str(m["id"]), m.get("permalink"), m.get("comments_count"), forzar=forzar):
             anotar(c)
     return nuevos, sin_usuario
 
@@ -448,7 +449,7 @@ def analizar_reel(media_id: str, por: str | None = None) -> dict:
         token, uid = _credenciales()
         propia = _cuenta_propia(token, uid)
         m = _pedir(token, str(media_id), fields="id,caption,permalink,timestamp,comments_count")
-        nuevos, sin_usuario = _comentarios_de_reel(token, propia, m)
+        nuevos, sin_usuario = _comentarios_de_reel(token, propia, m, forzar=True)
         seguir_reel(str(media_id), visto=int(m.get("comments_count") or 0))
         try:
             from src.services import chats_reels_services

@@ -167,19 +167,20 @@ def _pedir(permalink: str, token: str, actor: str | None = None) -> list[dict]:
         return json.loads(r.read() or b"[]")
 
 
-def comentarios(media_id: str, permalink: str | None, total: int | None) -> list[dict]:
+def comentarios(media_id: str, permalink: str | None, total: int | None, forzar: bool = False) -> list[dict]:
     """Los comentarios del reel según Apify. Lista vacía si no hace falta, no está configurado
-    o falla: el respaldo nunca corta la corrida."""
+    o falla: el respaldo nunca corta la corrida. `forzar`: alguien apretó "Analizar audiencia",
+    se lee aunque ya se haya leído con estos comentarios."""
     if not permalink:
         return []
     guardado = _memoria.get(permalink)
-    if guardado and time.time() - guardado[0] < GUARDADO_SEGUNDOS:
+    if guardado and guardado[1] and time.time() - guardado[0] < GUARDADO_SEGUNDOS:
         return guardado[1]
     token = _token()
     if not token:
         return []
     previo = _marca(media_id)
-    if previo is not None and int(total or 0) < previo + NUEVOS_PARA_REPETIR:
+    if not forzar and previo is not None and int(total or 0) < previo + NUEVOS_PARA_REPETIR:
         return []   # ya se leyó con estos comentarios: lo que trajo quedó en leads y chats
     try:
         items = normalizar(_pedir(permalink, token))
@@ -193,6 +194,11 @@ def comentarios(media_id: str, permalink: str | None, total: int | None) -> list
         return []
     except Exception as e:  # noqa: BLE001
         logger.warning("Apify %s: %s", media_id, str(e)[:200])
+        return []
+    if not items:
+        # Una lectura vacía no cuenta como leída: el 19-10 una así dejó la marca y el reel quedó
+        # en 0 personas, sin volver a pedirse hasta sumar comentarios.
+        logger.warning("Apify: reel %s sin comentarios (la API marcaba %s); se reintenta en la próxima", media_id, total)
         return []
     _memoria[permalink] = (time.time(), items)
     _marcar(media_id, int(total or 0))

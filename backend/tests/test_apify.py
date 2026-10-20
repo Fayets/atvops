@@ -119,3 +119,20 @@ def test_si_falla_o_no_esta_configurado_no_corta(apify, monkeypatch):
     assert ap.comentarios("prueba2", "https://www.instagram.com/reel/x/", 45) == []
     monkeypatch.setattr(ap, "_token", lambda: "")
     assert ap.comentarios("prueba3", "https://www.instagram.com/reel/y/", 45) == []
+
+
+def test_una_lectura_vacia_no_cuenta_como_leida(apify, monkeypatch):
+    # El 19-10 una lectura sin nada dejó la marca y el reel quedó en 0 personas para siempre.
+    url = "https://www.instagram.com/reel/vacio/"
+    monkeypatch.setattr(ap, "_pedir", lambda u, tok, actor=None: apify.append(u) or [])
+    assert ap.comentarios("prueba5", url, 53) == [] and len(apify) == 1
+    monkeypatch.setattr(ap, "_pedir", lambda u, tok, actor=None: apify.append(u) or ITEMS)
+    assert len(ap.comentarios("prueba5", url, 53)) == 3 and len(apify) == 2
+
+
+def test_el_boton_vuelve_a_leer_aunque_ya_se_haya_leido(apify):
+    url = "https://www.instagram.com/reel/boton/"
+    assert len(ap.comentarios("prueba6", url, 45)) == 3 and len(apify) == 1
+    ap._memoria.clear()
+    assert ap.comentarios("prueba6", url, 45) == [] and len(apify) == 1
+    assert len(ap.comentarios("prueba6", url, 45, forzar=True)) == 3 and len(apify) == 2
