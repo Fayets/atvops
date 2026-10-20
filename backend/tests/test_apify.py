@@ -88,6 +88,7 @@ def test_con_cookies_usa_el_scraper_con_sesion(monkeypatch):
     cuerpo = js.loads(pedidos[0].data)
     assert cuerpo["post_urls"] == ["https://www.instagram.com/reel/abc/"] and cuerpo["include_replies"] is False
     assert {c["name"] for c in cuerpo["cookies"]} == {"sessionid", "csrftoken"}
+    assert cuerpo["cookies"][0]["httpOnly"] is True     # se pasan completas, como las exporta Cookie-Editor
     # Sin sessionid no se usan: vuelve al oficial.
     monkeypatch.setattr(cx, "obtener", lambda p: {"api_token": "tok", "instagram_cookies": js.dumps([{"name": "csrftoken", "value": "x"}])})
     ap._pedir("https://www.instagram.com/reel/abc/", "tok")

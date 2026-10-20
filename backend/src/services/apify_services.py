@@ -72,7 +72,9 @@ def _cookies() -> list[dict]:
     if not any(c["name"] == "sessionid" for c in cookies):
         logger.warning("Apify: a las cookies cargadas les falta sessionid")
         return []
-    return [{"name": c["name"], "value": c["value"], "domain": c.get("domain") or ".instagram.com"} for c in cookies]
+    # Tal como las exporta Cookie-Editor (path, secure, httpOnly, vencimiento…): recortarlas a
+    # nombre/valor/dominio dio "Login failed" en el scraper.
+    return [{**c, "domain": c.get("domain") or ".instagram.com"} for c in cookies]
 
 
 def configurado() -> bool:
