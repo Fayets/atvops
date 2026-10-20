@@ -1010,6 +1010,25 @@ class TheoAjuste(db.Entity):
     valor = Optional(str, nullable=True)
 
 
+class ComentarioIg(db.Entity):
+    """Un comentario de Instagram que Meta avisó por webhook en el momento en que se escribió.
+
+    Es la única fuente completa: la API de comentarios de un reel no devuelve los que Instagram
+    filtra después (en algunos reels, ninguno), y los scrapers tampoco llegan. Lo que entra acá
+    queda para siempre, de cualquier reel; Audiencia y el conteo de chats lo suman a lo que la
+    API sí devuelve."""
+
+    _table_ = _tabla("comentarios_ig", "ComentarioIg")
+
+    id = PrimaryKey(int, auto=True)
+    comentario_id = Required(str, unique=True)
+    media_id = Required(str, index=True)
+    usuario = Required(str)
+    texto = Optional(LongStr, nullable=True)
+    at = Required(datetime)
+    recibido_at = Required(datetime, default=lambda: datetime.utcnow())
+
+
 class ChatReel(db.Entity):
     """Una persona que comentó la palabra de un reel: es un chat que abrió el reel.
 

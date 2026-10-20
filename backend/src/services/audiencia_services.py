@@ -421,11 +421,15 @@ def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
             break
         url, params = _ruta_siguiente(siguiente).split("?")[0], dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
         params.pop("access_token", None)
-    # La API de Instagram entrega una parte de los comentarios (en algunos reels, ninguno).
-    # Si se quedó corta, el resto se lee con Apify.
-    from src.services import apify_services
+    # Lo que Meta avisó por webhook en el momento: la única fuente completa.
+    from src.services import apify_services, comentarios_ig_services
 
-    if apify_services.hace_falta(leidos, m.get("comments_count")):
+    recibidos = comentarios_ig_services.del_reel(str(m["id"]))
+    for c in recibidos:
+        anotar(c)
+    # La API de Instagram entrega una parte de los comentarios (en algunos reels, ninguno).
+    # Si se quedó corta y el webhook tampoco cubre, el resto se lee con Apify.
+    if apify_services.hace_falta(leidos + len(recibidos), m.get("comments_count")):
         for c in apify_services.comentarios(str(m["id"]), m.get("permalink"), m.get("comments_count")):
             anotar(c)
     return nuevos, sin_usuario

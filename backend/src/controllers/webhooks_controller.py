@@ -83,7 +83,14 @@ async def instagram_mensaje(request: Request):
         raise HTTPException(status_code=400, detail="El cuerpo del aviso no es JSON.")
     try:
         # Meta reintenta si no contesta rápido: se procesa y se responde, nada más.
-        return await run_in_threadpool(ig_mensajes.procesar, cuerpo if isinstance(cuerpo, dict) else {})
+        cuerpo = cuerpo if isinstance(cuerpo, dict) else {}
+        r = await run_in_threadpool(ig_mensajes.procesar, cuerpo)
+        # El mismo aviso trae los comentarios (campo "comments"): llegan en el momento, antes
+        # de que Instagram los filtre de la API. Es la única forma de tenerlos a todos.
+        from src.services import comentarios_ig_services
+
+        r["comentarios"] = await run_in_threadpool(comentarios_ig_services.guardar, cuerpo)
+        return r
     except Exception as e:  # noqa: BLE001
         log.exception("Falló procesar un mensaje de Instagram")
         raise HTTPException(status_code=500, detail=f"No se pudo procesar: {str(e)[:180]}")

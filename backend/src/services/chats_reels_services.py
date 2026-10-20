@@ -87,6 +87,10 @@ def _comentarios(token: str, reel_id: str) -> list[dict]:
         url = aud._ruta_siguiente(siguiente).split("?")[0]
         params = dict(urllib.parse.parse_qsl(siguiente.split("?", 1)[1]))
         params.pop("access_token", None)
+    from src.services import comentarios_ig_services
+
+    ya = {c.get("id") for c in out}
+    out += [c for c in comentarios_ig_services.del_reel(reel_id) if c["id"] not in ya]
     return out + _de_apify(reel_id, out)
 
 

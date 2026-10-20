@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
-  audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
+  audienciaAnalizarReel, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
   getAudiencia, guardarCriterioAudiencia,
 } from '../../data/api.js';
 import { formatValue } from '../../lib/format.js';
@@ -126,7 +126,7 @@ const fecha = (iso) => (iso ? new Date(iso).toLocaleDateString('es-AR', { day: '
 const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
 
 /** El reel elegido: la miniatura y lo que dice, con flechas para pasar al anterior. */
-function Reel({ r, onVolver, onAnalizar, ocupado, abierto }) {
+function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto }) {
   return (
     <section className="card aud-reel">
       <div className="aud-reel-foto">
@@ -143,9 +143,15 @@ function Reel({ r, onVolver, onAnalizar, ocupado, abierto }) {
                 <i aria-hidden="true" /> Analizando cada comentario nuevo
               </span>
             )}
-            <button type="button" className={`btn sm${abierto ? ' ghost' : ' primary'}`} onClick={onAnalizar} disabled={ocupado}
-              title="Pegá los usuarios que comentaron y se analizan en el momento">
-              {abierto ? 'Cerrar' : r.seguido ? 'Agregar usuarios' : 'Analizar audiencia'}
+            {!r.seguido && (
+              <button type="button" className="btn primary sm" onClick={onAnalizar} disabled={ocupado}
+                title="Trae a todos los que comentaron (API, avisos de Meta y respaldo), lee sus perfiles y los analiza. Desde ahí, cada comentario nuevo entra solo.">
+                Analizar audiencia
+              </button>
+            )}
+            <button type="button" className="btn ghost sm" onClick={onPegar} disabled={ocupado}
+              title="Si falta alguien, pegá los usuarios y se analizan en el momento">
+              {abierto ? 'Cerrar' : 'Agregar usuarios'}
             </button>
             <button type="button" className="btn ghost sm" onClick={onVolver}>← Todos los reels</button>
           </span>
@@ -363,7 +369,9 @@ export default function Audiencia() {
       ) : reelActual ? (<>
         <div className="aud-hero">
           <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado} abierto={cuadroReel === reelActual.id}
-            onAnalizar={() => { setAMano(null); setCuadroReel((c) => (c === reelActual.id ? null : reelActual.id)); }} />
+            onAnalizar={() => hacer(() => audienciaAnalizarReel(reelActual.id),
+              'Analizando a todos los que comentaron. Desde ahora cada comentario nuevo de este reel entra solo. Recargá en unos minutos.')}
+            onPegar={() => { setAMano(null); setCuadroReel((c) => (c === reelActual.id ? null : reelActual.id)); }} />
           <Numeros r={reelActual} />
         </div>
       {cuadroReel === reelActual.id && (
