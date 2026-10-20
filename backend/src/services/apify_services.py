@@ -29,8 +29,12 @@ from datetime import datetime
 
 logger = logging.getLogger("atv_ops.apify")
 
-ACTOR = "apify~instagram-comment-scraper"
-URL = f"https://api.apify.com/v2/acts/{ACTOR}/run-sync-get-dataset-items"
+# Cuál de los scrapers de Apify se usa. El oficial (apify~instagram-comment-scraper) sin sesión
+# ve solo la primera tanda: en el reel del 19-10 trajo 15 de 27 personas. apidojo dice recorrer
+# la lista entera y cuesta un cuarto. Se elige con APIFY_ACTOR hasta confirmar cuál conviene.
+from decouple import config  # noqa: E402
+
+ACTOR = config("APIFY_ACTOR", default="apify~instagram-comment-scraper")
 # El contador de Instagram suma las respuestas: como el bot le responde a cada uno, en un reel
 # con CTA cerca de la mitad del número son respuestas nuestras (19-10: 45 = 23 personas + 22
 # respuestas), y la API solo devuelve los de primer nivel. Por eso el corte va en 40 % y no más
@@ -83,10 +87,14 @@ def _marcar(media_id: str, total: int) -> None:
         fila.actualizado_at = datetime.utcnow()
 
 
-def _hora(iso: str | None) -> str | None:
-    """Apify da "2026-10-19T14:02:11.000Z"; la API de Instagram, "2026-10-19T14:02:11+0000"."""
+def _hora(iso) -> str | None:
+    """Apify da "2026-10-19T14:02:11.000Z" (o segundos desde 1970, según el scraper); la API de
+    Instagram, "2026-10-19T14:02:11+0000"."""
     if not iso:
         return None
+    if isinstance(iso, (int, float)) or str(iso).isdigit():
+        n = float(iso)
+        return datetime.utcfromtimestamp(n / 1000 if n > 1e11 else n).strftime("%Y-%m-%dT%H:%M:%S+0000")
     try:
         return datetime.strptime(str(iso)[:19], "%Y-%m-%dT%H:%M:%S").strftime("%Y-%m-%dT%H:%M:%S+0000")
     except ValueError:
@@ -97,21 +105,29 @@ def normalizar(items: list[dict]) -> list[dict]:
     """Los ítems de Apify con la forma de un comentario de la API de Instagram."""
     salida, vistos = [], set()
     for it in items or []:
-        usuario = it.get("ownerUsername") or (it.get("owner") or {}).get("username") or it.get("username")
+        usuario = (it.get("ownerUsername") or (it.get("owner") or {}).get("username")
+                   or (it.get("user") or {}).get("username") or it.get("username"))
         if not usuario:
             continue
-        ident = str(it.get("id") or f"ap:{usuario}:{it.get('timestamp') or ''}")
+        cuando = it.get("timestamp") or it.get("createdAt")
+        ident = str(it.get("id") or f"ap:{usuario}:{cuando or ''}")
         if ident in vistos:
             continue
         vistos.add(ident)
-        salida.append({"id": ident, "username": str(usuario), "text": it.get("text") or "",
-                       "timestamp": _hora(it.get("timestamp"))})
+        salida.append({"id": ident, "username": str(usuario), "text": it.get("text") or it.get("message") or "",
+                       "timestamp": _hora(cuando)})
     return salida
 
 
-def _pedir(permalink: str, token: str) -> list[dict]:
-    cuerpo = json.dumps({"directUrls": [permalink], "resultsLimit": MAX_COMENTARIOS}).encode()
-    pedido = urllib.request.Request(URL, data=cuerpo, method="POST", headers={
+def _pedir(permalink: str, token: str, actor: str | None = None) -> list[dict]:
+    actor = actor or ACTOR
+    if "apidojo" in actor:
+        entrada = {"startUrls": [permalink], "maxItems": MAX_COMENTARIOS}
+    else:
+        entrada = {"directUrls": [permalink], "resultsLimit": MAX_COMENTARIOS}
+    url = f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
+    cuerpo = json.dumps(entrada).encode()
+    pedido = urllib.request.Request(url, data=cuerpo, method="POST", headers={
         "Content-Type": "application/json", "Authorization": f"Bearer {token}"})
     with urllib.request.urlopen(pedido, timeout=240) as r:
         return json.loads(r.read() or b"[]")

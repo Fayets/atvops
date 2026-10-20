@@ -51,6 +51,13 @@ def test_normaliza_a_la_forma_de_la_api_de_instagram():
     assert c[0] == {"id": "1801", "username": "_abelxflores", "text": "Info", "timestamp": "2026-10-19T14:02:11+0000"}
 
 
+def test_entiende_la_salida_de_apidojo():
+    c = ap.normalizar([{"id": "9", "user": {"username": "drsebas.fit"}, "message": "Info", "createdAt": 1792432931},
+                       {"id": "10", "user": {"username": "yamisilva.cm"}, "message": "Info", "createdAt": "2026-10-19T14:02:11Z"}])
+    assert [(x["username"], x["text"]) for x in c] == [("drsebas.fit", "Info"), ("yamisilva.cm", "Info")]
+    assert c[0]["timestamp"].endswith("+0000") and c[1]["timestamp"] == "2026-10-19T14:02:11+0000"
+
+
 def test_no_paga_dos_veces_el_mismo_reel_sin_comentarios_nuevos(apify):
     url = "https://www.instagram.com/reel/prueba/"
     assert len(ap.comentarios("prueba1", url, 45)) == 3 and len(apify) == 1
