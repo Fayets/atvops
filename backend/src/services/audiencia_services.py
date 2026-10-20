@@ -96,8 +96,8 @@ CÁLCULO DEL PUNTAJE FINAL
 puntaje_final = (negocio × 0.45) + (financiero × 0.40) + (avatar × 0.15)
 
 VEREDICTOS
-- CALIFICADO: puntaje_final ≥ 5.0 y sin descarte automático
-- DESCARTADO: puntaje_final < 5.0 o descarte automático
+- CALIFICADO: puntaje_final ≥ 7.0 y sin descarte automático
+- DESCARTADO: puntaje_final < 7.0 o descarte automático
 
 REGLAS FINALES
 - Si falta información del perfil (bio vacía, sin posts), bajá las dimensiones de negocio y financiero, no inventes datos.
@@ -641,9 +641,6 @@ def analizar_a_mano(texto: str, usuario: dict) -> dict:
     ia = analizar(reanalizar_ids=listos) if listos else {"analizados": 0, "errores": 0}
     with db_session:
         leads = [_a_dict(x) for x in list(LeadAudiencia.select()) if x.id in set(ids)]
-    for f in leads:
-        if f["veredicto"] == "tibio":
-            f["veredicto"] = "calificado"
     orden = {u: i for i, u in enumerate(ahora)}
     leads.sort(key=lambda f: orden.get(f["usuario"], 99))
     return {**{k: v for k, v in r.items() if k != "usuarios"}, "leads": leads, "ia": ia,
@@ -710,8 +707,9 @@ SYSTEM = (
 # dispara el bot, así que la intención no separa a nadie y la IA la puntuaba distinto
 # para el mismo comentario. Decide el perfil; el comentario solo sirve para el descarte.
 PESOS = {"negocio": 0.45, "financiero": 0.40, "avatar": 0.15}
-# Franco: los tibios (5 a 6,9) se toman como calificados. El corte queda en 5.
-CORTE_TIBIO = 5.0
+# Calificado = puntaje 7 o más (Franco, 20-10-2026; antes 5). Se aplica también a lo ya analizado
+# al leerlo (ver _veredicto_vigente): el puntaje está guardado, no hace falta reanalizar.
+CORTE_CALIFICADO = 7.0
 
 
 def _veredicto(dimensiones: dict, descarte: bool) -> tuple[str, float]:
@@ -722,9 +720,17 @@ def _veredicto(dimensiones: dict, descarte: bool) -> tuple[str, float]:
         except (TypeError, ValueError):
             pass
     total = round(total, 1)
-    if descarte or total < CORTE_TIBIO:
+    if descarte or total < CORTE_CALIFICADO:
         return "no", total
     return "calificado", total
+
+
+def _veredicto_vigente(veredicto: str, puntaje: float | None) -> str:
+    """El veredicto con el corte de hoy. "tibio" era el nombre viejo de calificado; y lo que se
+    calificó con un corte más bajo baja a descartado si su puntaje no llega al actual."""
+    if veredicto in ("calificado", "tibio"):
+        return "calificado" if puntaje is None or puntaje >= CORTE_CALIFICADO else "no"
+    return veredicto
 
 
 def _bloque(x) -> dict:
@@ -795,7 +801,7 @@ def analizar(limite: int = 60, reanalizar_ids: list[int] | None = None) -> dict:
                 dims = r.get("dimensiones") or {}
                 descarte = bool(r.get("descarte_automatico")) or (
                     str(r.get("veredicto") or "").upper() == "DESCARTADO"
-                    and float(r.get("puntaje_final") or 0) >= CORTE_TIBIO)
+                    and float(r.get("puntaje_final") or 0) >= CORTE_CALIFICADO)
                 x.veredicto, x.puntaje = _veredicto(dims, descarte)
                 x.motivo = str(r.get("razon") or r.get("motivo") or "")[:500]
                 x.analisis = json.dumps({
@@ -855,7 +861,7 @@ def _a_dict(x) -> dict:
         "comentario": x.comentario, "comentadoAt": x.comentado_at.isoformat() if x.comentado_at else None,
         "reelId": x.media_id, "reelCaption": x.reel_caption, "reelUrl": x.reel_url,
         "cuenta": x.tipo_cuenta, "perfil": perfil or None, "perfilLeido": x.perfil_at is not None,
-        "veredicto": x.veredicto, "puntaje": x.puntaje, "motivo": x.motivo,
+        "veredicto": _veredicto_vigente(x.veredicto, x.puntaje), "puntaje": x.puntaje, "motivo": x.motivo,
         "analisis": json.loads(x.analisis) if x.analisis else None,
         "analizadoAt": x.analizado_at.isoformat() if x.analizado_at else None,
         "estado": x.estado, "pitchId": x.pitch_id,
@@ -876,11 +882,6 @@ def listar() -> dict:
         # la misma consulta.
         filas = [_a_dict(x) for x in list(LeadAudiencia.select().prefetch(
             LeadAudiencia.comentario, LeadAudiencia.perfil, LeadAudiencia.motivo, LeadAudiencia.analisis))]
-    # Los que quedaron como "tibio" antes del cambio se leen como calificados: así no
-    # hace falta reescribir la base para que cuenten.
-    for f in filas:
-        if f["veredicto"] == "tibio":
-            f["veredicto"] = "calificado"
     orden = {"calificado": 0, "tibio": 1, "sin_analizar": 2, "no": 3}
     filas.sort(key=lambda f: (orden.get(f["veredicto"], 9), -(f["puntaje"] or -1), f["comentadoAt"] or f["creadoAt"] or ""))
     conteo: dict[str, int] = {}
