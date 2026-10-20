@@ -8,10 +8,11 @@ dependían de que alguien se acordara.
 Quien comenta la palabra de un reel es justamente quien dispara la automatización. Ops ya
 lee los comentarios de cada reel con el token de Instagram, así que alcanza con:
 
-1. **Saber cuál es la palabra.** Primero la que pide el texto del reel ("comentá
-   FORMULARIO"). Si el texto no la dice, el comentario que más se repite, siempre que sea
-   una palabra corta y la haya escrito una buena parte de la gente: así se encontró "clase"
-   o "papa" en reels cuyo texto no las nombraba.
+1. **Saber cuál es la palabra.** Primero la que el texto pide entre comillas (`comenta
+   "info"`), que es la forma habitual y vale sola. Si no, una palabra gritada después del
+   verbo ("comentá FORMULARIO"), que necesita que alguien la haya comentado. Y si el texto
+   no la dice, el comentario que más se repite, siempre que sea una palabra corta y la haya
+   escrito una buena parte de la gente: así se encontró "clase" o "papa".
 2. **Contar personas distintas** que comentaron esa palabra. Una persona es un chat por
    reel, con la fecha de su comentario: el chat cae en el mes en que se abrió.
 
@@ -52,9 +53,14 @@ def coincide(comentario: str, palabra: str) -> bool:
 
 def detectar_palabra(caption: str | None, comentarios: list[str]) -> str | None:
     """La palabra del reel, o None si el reel no pidió ninguna. `comentarios` ya normalizados."""
-    from src.services.instagram_services import palabra_clave
+    from src.services.instagram_services import palabra_citada, palabra_clave
 
     comentarios = [c for c in comentarios if c]
+    # Entre comillas el texto no deja dudas: es la palabra, aunque Instagram no devuelva
+    # ningún comentario (de los que piden una palabra, oculta buena parte por spam).
+    citada = normalizar(palabra_citada(caption or ""))
+    if citada:
+        return citada
     pedida = normalizar(palabra_clave(caption or ""))
     if pedida and any(coincide(c, pedida) for c in comentarios):
         return pedida

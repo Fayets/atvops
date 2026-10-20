@@ -28,6 +28,21 @@ def test_usa_la_palabra_que_pide_el_texto():
     assert detectar_palabra(caption, _n(["FORMULARIO"] * 43)) == "formulario"
 
 
+def test_la_palabra_entre_comillas_vale_sola():
+    """Como la escribe Juan: entre comillas tipográficas y muchas veces en minúscula.
+    Vale aunque Instagram no devuelva ningún comentario, que es lo que pasa seguido."""
+    assert detectar_palabra('comenta \u201cinfo\u201d y te paso el prompt + mi IA', []) == "info"
+    assert detectar_palabra('Comenta \u201cDOC\u201d y te mando el análisis completo', []) == "doc"
+    assert detectar_palabra("comenta 'clase' y te mando +40min de video", []) == "clase"
+    assert detectar_palabra('comenta la palabra \u201cFORMULARIO\u201d y te lo mando', []) == "formulario"
+
+
+def test_entre_comillas_no_cuenta_si_no_es_una_llamada_a_la_accion():
+    assert detectar_palabra('me dijeron \u201cgracias\u201d toda la semana', []) is None
+    assert detectar_palabra('comenta \u201cabajo\u201d lo que pensas', []) is None
+    assert detectar_palabra('mandame un \u201cDM\u201d', []) is None
+
+
 def test_si_el_texto_no_la_dice_usa_el_comentario_mas_repetido():
     # 21/09: el texto no nombraba la palabra; 46 de 50 comentaron "clase".
     comentarios = ["clase"] * 46 + ["clase🔥"] * 2 + ["genio", "jaja"]

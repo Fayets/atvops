@@ -132,14 +132,40 @@ _PIDE_PALABRA = re.compile(
     r"\b([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9_-]{2,24})\b")
 
 
+# La otra forma de pedirla, que es la que más se usa: entrecomillada. Acá no hace falta que
+# esté gritada —`comenta "info"` es tan explícito como `comentá INFO`—, así que se acepta en
+# minúscula. Las comillas pueden ser las tipográficas del teléfono (“ ” ‘ ’) o las rectas.
+_COMILLAS = "\"'«»“”‘’"
+_PIDE_CITADA = re.compile(
+    r"(?i:coment[aá]\w*|escrib[ií]\w*|mand[aá]\w*|pon[ée]\w*|dej[aá]\w*)"
+    r"[^\n" + _COMILLAS + r"]{0,30}?"
+    r"[" + _COMILLAS + r"]\s*([A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9_-]{2,24})\s*[" + _COMILLAS + r"]")
+
+_NO_SON_PALABRA = {"dm", "mp", "link", "aca", "acá", "abajo", "comenta", "comentá", "palabra"}
+
+
+def palabra_citada(caption: str) -> str:
+    """La palabra que el texto pide entre comillas. Vacío si no la pide así.
+
+    Vale por sí sola: el texto dice cuál es, no hace falta que nadie la haya comentado."""
+    m = _PIDE_CITADA.search(str(caption or ""))
+    if not m:
+        return ""
+    palabra = m.group(1).strip().lower()
+    return "" if palabra in _NO_SON_PALABRA else palabra
+
+
 def palabra_clave(caption: str) -> str:
     """La palabra que el reel le pide comentar a la gente. Vacío si no se reconoce."""
+    citada = palabra_citada(caption)
+    if citada:
+        return citada
     m = _PIDE_PALABRA.search(str(caption or ""))
     if not m:
         return ""
     palabra = m.group(1).strip()
     # Una palabra en mayúsculas que es parte de la frase no es una llamada a la acción.
-    return "" if palabra.lower() in {"dm", "mp", "link", "aca", "acá", "abajo"} else palabra.lower()
+    return "" if palabra.lower() in _NO_SON_PALABRA else palabra.lower()
 
 
 def _fecha(iso: str | None) -> datetime | None:
