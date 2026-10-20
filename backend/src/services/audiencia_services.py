@@ -35,7 +35,6 @@ logger = logging.getLogger("atv_ops.audiencia")
 _lock = threading.Lock()
 
 API = "https://graph.facebook.com/v21.0"
-DIAS_REELS = 21          # cuántos días hacia atrás se miran los reels
 MAX_COMENTARIOS = 300    # por reel, para no recorrer miles en una corrida
 LOTE_IA = 12             # perfiles por llamada a la IA
 CADA_HORAS = 2
@@ -298,20 +297,81 @@ def _cuenta_propia(token: str, uid: str) -> str:
     return (_pedir(token, uid, fields="username").get("username") or "").lower()
 
 
-def sincronizar_comentarios(dias: int = DIAS_REELS) -> dict:
-    """Trae los comentarios de los reels recientes y crea un lead por persona nueva."""
+# ------------------------------------------------------------------ reels seguidos
+#
+# Analizar la audiencia de un reel es una decisión de marketing, no algo automático: se toca
+# "Analizar audiencia" en un reel y desde ese momento queda seguido para siempre. La corrida de
+# cada dos horas recorre los reels seguidos, de cualquier fecha (un lead que comenta en
+# diciembre un reel de octubre también entra), y solo relee los que sumaron comentarios.
+# Se guarda en ajustes_audiencia, una fila por reel: clave "seguir:<id>", valor JSON
+# {desde, por, visto} (visto = cuántos comentarios marcaba la última vez que se leyó).
+
+SEGUIR = "seguir:"
+
+
+def reels_seguidos() -> dict[str, dict]:
+    from pony.orm import db_session
+
+    from src.models import AjusteAudiencia
+
+    with db_session:
+        filas = [(a.clave, a.valor) for a in list(AjusteAudiencia.select()) if a.clave.startswith(SEGUIR)]
+    salida = {}
+    for clave, valor in filas:
+        try:
+            datos = json.loads(valor or "{}")
+        except ValueError:
+            datos = {}
+        salida[clave[len(SEGUIR):]] = datos
+    return salida
+
+
+def seguir_reel(media_id: str, por: str | None = None, visto: int | None = None) -> None:
+    from pony.orm import db_session
+
+    from src.models import AjusteAudiencia
+
+    with db_session:
+        fila = AjusteAudiencia.get(clave=f"{SEGUIR}{media_id}") or AjusteAudiencia(clave=f"{SEGUIR}{media_id}")
+        try:
+            datos = json.loads(fila.valor or "{}")
+        except ValueError:
+            datos = {}
+        datos.setdefault("desde", datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"))
+        if por and not datos.get("por"):
+            datos["por"] = por
+        if visto is not None:
+            datos["visto"] = int(visto)
+        fila.valor = json.dumps(datos)
+        fila.actualizado_at = datetime.utcnow()
+        fila.actualizado_por = por or fila.actualizado_por
+
+
+def sincronizar_comentarios() -> dict:
+    """Los comentarios nuevos de los reels seguidos: un lead por persona nueva."""
+    seguidos = reels_seguidos()
+    if not seguidos:
+        return {"reels": 0, "leidos": 0, "nuevos": 0, "sinUsuario": 0}
     token, uid = _credenciales()
     propia = _cuenta_propia(token, uid)
-    desde = datetime.utcnow() - timedelta(days=dias)
-    media = _pedir(token, f"{uid}/media", fields="id,caption,permalink,media_product_type,timestamp,comments_count",
-                   limit=50).get("data") or []
-    reels = [m for m in media if (m.get("timestamp") or "") >= desde.strftime("%Y-%m-%d")]
-    nuevos = sin_usuario = 0
-    for m in reels:
-        n, s_u = _comentarios_de_reel(token, propia, m)
-        nuevos += n
-        sin_usuario += s_u
-    return {"reels": len(reels), "nuevos": nuevos, "sinUsuario": sin_usuario}
+    ids = list(seguidos)
+    nuevos = sin_usuario = leidos = 0
+    # Un pedido por cada 50 reels (?ids=): saber cuántos comentarios tiene cada uno cuesta poco.
+    for i in range(0, len(ids), 50):
+        r = _pedir(token, "", ids=",".join(ids[i:i + 50]),
+                   fields="id,caption,permalink,timestamp,comments_count")
+        for mid, m in (r or {}).items():
+            if not isinstance(m, dict) or mid.startswith("_"):
+                continue
+            total = int(m.get("comments_count") or 0)
+            if total == int(seguidos.get(mid, {}).get("visto", -1)):
+                continue   # sin comentarios nuevos desde la última lectura
+            n, s_u = _comentarios_de_reel(token, propia, m)
+            nuevos += n
+            sin_usuario += s_u
+            leidos += 1
+            seguir_reel(mid, visto=total)
+    return {"reels": len(ids), "leidos": leidos, "nuevos": nuevos, "sinUsuario": sin_usuario}
 
 
 def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
@@ -371,11 +431,13 @@ def _comentarios_de_reel(token: str, propia: str, m: dict) -> tuple[int, int]:
     return nuevos, sin_usuario
 
 
-def analizar_reel(media_id: str) -> dict:
-    """A mano, para un reel puntual (también de meses anteriores, que la corrida automática
-    no mira): trae a todos los que comentaron, lee sus perfiles y los analiza con la IA."""
+def analizar_reel(media_id: str, por: str | None = None) -> dict:
+    """Empieza a seguir un reel (de cualquier fecha) y lo analiza en el momento: trae a todos los
+    que comentaron, lee sus perfiles y los pasa por la IA. Desde ahí lo sigue la corrida de
+    cada dos horas con cada comentario nuevo."""
     if not str(media_id).isdigit():
         raise HTTPException(status_code=400, detail="Id de reel inválido.")
+    seguir_reel(str(media_id), por=por)
     if not _lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="Ya hay un análisis corriendo. Esperá a que termine.")
     try:
@@ -383,6 +445,7 @@ def analizar_reel(media_id: str) -> dict:
         propia = _cuenta_propia(token, uid)
         m = _pedir(token, str(media_id), fields="id,caption,permalink,timestamp,comments_count")
         nuevos, sin_usuario = _comentarios_de_reel(token, propia, m)
+        seguir_reel(str(media_id), visto=int(m.get("comments_count") or 0))
         try:
             from src.services import chats_reels_services
 
@@ -952,7 +1015,9 @@ def _reels(filas: list[dict]) -> list[dict]:
         estado = chats_reels_services.estado()
     except Exception:  # noqa: BLE001
         estado = {}
+    seguidos = reels_seguidos()
     for rid, r in salida.items():
+        r["seguido"] = rid in seguidos
         c = estado.get(rid) or {"origen": "auto", "esCta": False, "palabra": None, "chats": 0}
         r["chats"] = int(c.get("chats") or 0)
         r["palabra"] = c.get("palabra")

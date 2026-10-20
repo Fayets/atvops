@@ -8401,6 +8401,9 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .aud-pieza img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .aud-pieza-n { position: absolute; left: 6px; bottom: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 11.5px; font-weight: 600; }
 .aud-secuencia-pie { margin: 0; font-size: 12px; }
+.aud-siguiendo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ok); }
+.aud-siguiendo i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); display: block; }
+.aud-siguiendo.chico { font-size: 11.5px; }
 .aud-verificado { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; background: #3897f0; color: #fff; font-size: 9.5px; font-weight: 700; vertical-align: 1px; }
 /* Arriba, mitad y mitad: el reel a la izquierda, sus números a la derecha. */
 .aud-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: var(--space-5); }

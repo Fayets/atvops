@@ -47,18 +47,19 @@ def cargar(fondo: BackgroundTasks, payload: dict = Body(...), user: dict = Depen
 
 
 @router.post("/reels/{media_id}/analizar")
-def analizar_reel(media_id: str, fondo: BackgroundTasks, _user: dict = Depends(_puede)):
-    """A mano: todos los que comentaron un reel (también de meses anteriores) → perfiles → IA.
-    Corre en segundo plano: con muchos comentarios tarda minutos."""
+def analizar_reel(media_id: str, fondo: BackgroundTasks, user: dict = Depends(_puede)):
+    """Empieza a seguir el reel y analiza ya a todos los que comentaron; desde ahí, cada persona
+    nueva que comente entra sola. Corre en segundo plano: con muchos comentarios tarda minutos."""
     if not media_id.isdigit():
         raise HTTPException(status_code=400, detail="Id de reel inválido.")
-    fondo.add_task(_analizar_reel_seguro, media_id)
-    return {"ok": True, "reel": media_id}
+    audiencia.seguir_reel(media_id, por=user.get("username"))
+    fondo.add_task(_analizar_reel_seguro, media_id, user.get("username"))
+    return {"ok": True, "reel": media_id, "seguido": True}
 
 
-def _analizar_reel_seguro(media_id: str) -> None:
+def _analizar_reel_seguro(media_id: str, por: str | None = None) -> None:
     try:
-        audiencia.analizar_reel(media_id)
+        audiencia.analizar_reel(media_id, por=por)
     except Exception as e:  # noqa: BLE001
         logging.getLogger("atv_ops.audiencia").warning("Análisis a mano del reel %s: %s", media_id, str(e)[:200])
 

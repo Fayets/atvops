@@ -138,10 +138,17 @@ function Reel({ r, onVolver, onAnalizar, ocupado }) {
         <div className="aud-reel-pie">
           {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
           <span className="aud-reel-nav">
-            {r.comentarios > 0 && (
-              <button type="button" className="btn sm" onClick={onAnalizar} disabled={ocupado}
-                title="Trae a todos los que comentaron, lee sus perfiles y los analiza">
-                {r.personas ? 'Volver a analizar' : 'Analizar la gente que comentó'}
+            {r.seguido ? (
+              <>
+                <span className="aud-siguiendo" title="Cada persona nueva que comente este reel se analiza sola, aunque sea meses después">
+                  <i aria-hidden="true" /> Analizando cada comentario nuevo
+                </span>
+                <button type="button" className="btn ghost sm" onClick={onAnalizar} disabled={ocupado}>Revisar ahora</button>
+              </>
+            ) : (
+              <button type="button" className="btn primary sm" onClick={onAnalizar} disabled={ocupado}
+                title="Analiza a todos los que comentaron y, desde ahí, a cada persona nueva que comente">
+                Analizar audiencia
               </button>
             )}
             <button type="button" className="btn ghost sm" onClick={onVolver}>← Todos los reels</button>
@@ -203,8 +210,9 @@ function ReelsDelMes({ reels, mesLabel, onElegir }) {
                   <span className="num aud-sec-pct">{r.analizados ? pct(r.pctCalificados) : '—'} <span className="dim">calificados</span></span>
                 </>
               ) : (
-                <span className="aud-sec-pend">{r.comentarios ? 'Sin analizar' : 'Sin comentarios'}</span>
+                <span className="aud-sec-pend">{r.seguido ? 'Analizando…' : 'Sin analizar'}</span>
               )}
+              {r.seguido && r.personas ? <span className="aud-siguiendo chico"><i aria-hidden="true" /> Analizando</span> : null}
             </span>
           </button>
         ))}
@@ -362,7 +370,7 @@ export default function Audiencia() {
         <div className="aud-hero">
           <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado}
             onAnalizar={() => hacer(() => audienciaAnalizarReel(reelActual.id),
-              'Analizando a todos los que comentaron este reel. Con muchos comentarios tarda unos minutos: recargá en un rato.')} />
+              'Analizando a todos los que comentaron. Desde ahora cada persona nueva que comente este reel se analiza sola. Recargá en unos minutos.')} />
           <Numeros r={reelActual} />
         </div>
       ) : (
@@ -404,7 +412,7 @@ export default function Audiencia() {
         <div className="card lab-vacio">
           <h3>No hay leads {filtro === 'calificado' ? 'calificados' : `en "${FILTROS.find((f) => f.clave === filtro)?.label}"`} todavía</h3>
           <p className="dim">{fuente === 'reel' && actual && !actual.personas && actual.comentarios
-            ? 'Este reel todavía no se analizó. Tocá "Analizar la gente que comentó" arriba.'
+            ? 'Este reel todavía no se analiza. Tocá "Analizar audiencia" arriba.'
             : actual?.sin_analizar ? `Hay ${actual.sin_analizar} personas ${fuente === 'historia' ? 'de esta secuencia' : 'de este reel'} esperando análisis.` : 'Se analizan solos cada dos horas, o con "Analizar ahora".'}</p>
         </div>
       ) : (
