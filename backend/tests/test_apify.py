@@ -58,6 +58,11 @@ def test_entiende_la_salida_de_apidojo():
     assert c[0]["timestamp"].endswith("+0000") and c[1]["timestamp"] == "2026-10-19T14:02:11+0000"
 
 
+def test_entiende_la_salida_de_memo23():
+    c = ap.normalizar([{"pk": "77", "user": {"username": "drsebas.fit"}, "text": "Info", "created_at": 1792432931}])
+    assert c[0]["id"] == "77" and c[0]["username"] == "drsebas.fit" and c[0]["timestamp"].endswith("+0000")
+
+
 def test_no_paga_dos_veces_el_mismo_reel_sin_comentarios_nuevos(apify):
     url = "https://www.instagram.com/reel/prueba/"
     assert len(ap.comentarios("prueba1", url, 45)) == 3 and len(apify) == 1

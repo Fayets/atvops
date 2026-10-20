@@ -109,8 +109,8 @@ def normalizar(items: list[dict]) -> list[dict]:
                    or (it.get("user") or {}).get("username") or it.get("username"))
         if not usuario:
             continue
-        cuando = it.get("timestamp") or it.get("createdAt")
-        ident = str(it.get("id") or f"ap:{usuario}:{cuando or ''}")
+        cuando = it.get("timestamp") or it.get("createdAt") or it.get("created_at")
+        ident = str(it.get("id") or it.get("pk") or f"ap:{usuario}:{cuando or ''}")
         if ident in vistos:
             continue
         vistos.add(ident)
@@ -121,7 +121,11 @@ def normalizar(items: list[dict]) -> list[dict]:
 
 def _pedir(permalink: str, token: str, actor: str | None = None) -> list[dict]:
     actor = actor or ACTOR
-    if "apidojo" in actor:
+    if "memo23" in actor:
+        # Recorre todas las páginas sin sesión. Sin respuestas: las del reel son del bot de Juan.
+        entrada = {"startUrls": [permalink], "maxItems": MAX_COMENTARIOS, "includeReplies": False,
+                   "commentsSortOrder": "recent"}
+    elif "apidojo" in actor:
         entrada = {"startUrls": [permalink], "maxItems": MAX_COMENTARIOS}
     else:
         entrada = {"directUrls": [permalink], "resultsLimit": MAX_COMENTARIOS}
