@@ -147,13 +147,15 @@ CAMPOS = {"lead": "Ana", "estado": "Cerrado", "plan": "Boost", "cashUsd": 2000.0
           "saldoUsd": None, "proximoPaso": "manda el pago el lunes", "objecion": None}
 
 
-def test_completa_la_llamada_que_estaba_vacia():
+def test_no_completa_el_formulario_aunque_este_vacio():
+    """Desde el 21-10-2026 el formulario es solo del closer: la IA marcaba como Cerrado
+    llamadas descalificadas y escribía notas que nadie dictó."""
     r = ReunionFalsa()
-    f._guardar(r, {"url": "https://fathom.video/x"}, CAMPOS)
-    assert r.resultado == "Cerrado"
-    assert r.programa == "Boost"
-    assert r.cash_usd == 2000.0
-    assert r.actualizado_por == "fathom"
+    resultado = f._guardar(r, {"url": "https://fathom.video/x"}, CAMPOS)
+    assert (r.resultado, r.programa, r.cash_usd, r.nota) == ("", "", None, "")
+    assert r.actualizado_por is None
+    assert resultado["completados"] == []
+    assert json.loads(r.reporte_ia)["estado"] == "Cerrado"
 
 
 def test_no_pisa_lo_que_cargo_el_closer():

@@ -651,28 +651,17 @@ def buscar_reunion(datos: dict, campos: dict):
 
 
 def _guardar(reunion, datos: dict, campos: dict) -> dict:
-    """Escribe el reporte al lado y completa SOLO los campos que estén vacíos."""
+    """Guarda el reporte de la IA al lado de la llamada, sin tocar el formulario.
+
+    Hasta el 21-10-2026 completaba resultado, programa, cash y nota si estaban vacíos.
+    Franco lo sacó: ponía como Cerrado llamadas descalificadas y escribía notas que nadie
+    dictó. El formulario lo carga solo el closer; el reporte queda para el aviso al grupo
+    y para Lab Closing.
+    """
     reunion.reporte_ia = json.dumps(campos, ensure_ascii=False)
     reunion.reporte_at = datetime.utcnow()
     reunion.fathom_url = (datos.get("url") or "")[:500] or None
-
-    completados = []
-    if not (reunion.resultado or "").strip() and campos["estado"]:
-        reunion.resultado = campos["estado"]
-        completados.append("resultado")
-    if not (reunion.programa or "").strip() and campos["plan"]:
-        reunion.programa = campos["plan"]
-        completados.append("programa")
-    if reunion.cash_usd in (None, 0) and campos["cashUsd"]:
-        reunion.cash_usd = campos["cashUsd"]
-        completados.append("cash")
-    if not (reunion.nota or "").strip() and campos["nota"]:
-        reunion.nota = campos["nota"]
-        completados.append("nota")
-    if completados:
-        reunion.actualizado_por = "fathom"
-        reunion.actualizado_at = datetime.utcnow()
-    return {"completados": completados}
+    return {"completados": []}
 
 
 def _norm_estado(v) -> str:
