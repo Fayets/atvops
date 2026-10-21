@@ -145,7 +145,12 @@ def sincronizar(desde: date | None = None, hasta: date | None = None) -> dict:
             # del CRM esto daba igual —cada corrida traía todo de nuevo—, pero el
             # calendario no sabe el origen ni la facturación: pisar con vacío borraba lo
             # que el CRM había dejado y las agendas de Ads aparecían como orgánicas.
+            # El nombre que corrigió una persona en el editor no lo pisa el título de Google
+            # (Fathom también escribe actualizado_por, pero no toca el nombre).
+            nombre_propio = bool((fila.actualizado_por or "").strip()) and fila.actualizado_por != "fathom"
             for campo, valor in ficha.items():
+                if campo == "prospecto" and nombre_propio and (fila.prospecto or "").strip():
+                    continue
                 if campo in SIEMPRE_DEL_CALENDARIO or valor not in (None, "", 0, False):
                     setattr(fila, campo, valor)
             if not fila.lead_id and lead:

@@ -114,6 +114,9 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
   // cargado, roja la descartada (no cuenta para las agendas), punteada la que todavía
   // no está en el CRM.
   const estadoDe = (l) => estados?.[l.id];
+  // El nombre que cargó el equipo le gana al título de Google: si lo corrigieron en el
+  // editor, el calendario tiene que mostrar el corregido.
+  const nombreDe = (l) => estadoDe(l)?.prospecto || l.prospecto;
   const clasesDe = (l) => {
     const e = estadoDe(l);
     if (!e) return '';
@@ -188,7 +191,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
     cancelarClick();
     clickPendiente.current = setTimeout(() => {
       clickPendiente.current = null;
-      onSelect(l);
+      onSelect({ ...l, prospecto: nombreDe(l) });
     }, 230);
   };
   const abrirEditor = (l) => {
@@ -355,7 +358,7 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                           {n != null && (
                             <span className="num-agenda" aria-label={`Agenda ${n} del mes`}>{n}</span>
                           )}
-                          <span className="who">{l.prospecto}</span>
+                          <span className="who">{nombreDe(l)}</span>
                           <span className="meta">
                             {estadoDe(l)?.estado === 'descartada'
                               ? 'descartada · no cuenta'
@@ -403,10 +406,10 @@ export default function CalendarioEquipo({ llamados, onSelect, sub, actualizando
                       {...propsDeLaTarjeta(l)}
                       onClick={() => alClick(l)}
                       onDoubleClick={() => abrirEditor(l)}
-                      title={`${n != null ? `#${n} · ` : ''}${l.prospecto} · ${estadoDe(l)?.resultado || l.oferta}`}
+                      title={`${n != null ? `#${n} · ` : ''}${nombreDe(l)} · ${estadoDe(l)?.resultado || l.oferta}`}
                     >
                       {n != null && <span className="num-agenda">{n}</span>}
-                      {l.prospecto.split(' ')[0]}
+                      {nombreDe(l).split(' ')[0]}
                     </button>
                     );
                   })}
