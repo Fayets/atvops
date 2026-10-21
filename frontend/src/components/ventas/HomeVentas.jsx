@@ -51,8 +51,14 @@ function CajaUno({ caja, error, onVer }) {
   if (!caja) return null;
   const filas = caja.entro?.filas ?? [];
   const suma = (xs) => xs.reduce((n, x) => n + (x.montoUsd || 0), 0);
-  const nuevas = filas.filter((x) => x.tipo === 'cuota_venta' && Number(x.cuota) === 1);
-  const cuotas = filas.filter((x) => x.tipo === 'cuota_venta' && Number(x.cuota) !== 1);
+  // Venta nueva es la cuota 1 que vence este mes (o después, si pagó por adelantado). Si
+  // vencía antes, es una venta de otro mes que se terminó de cobrar ahora: Laura Graseller
+  // vendió en septiembre, su cuota 1 vencía el 17-09 y la pagó en octubre (Franco, 21-10).
+  const inicioMes = `${String(caja.mes || '').slice(0, 7)}-01`;
+  const esNueva = (x) => x.tipo === 'cuota_venta' && Number(x.cuota) === 1
+    && (!x.venceAt || x.venceAt >= inicioMes);
+  const nuevas = filas.filter(esNueva);
+  const cuotas = filas.filter((x) => x.tipo === 'cuota_venta' && !esNueva(x));
   const senas = filas.filter((x) => x.tipo === 'sena');
   const clientes = (xs) => new Set(xs.map((x) => x.cliente)).size;
   const total = caja.entro?.usd ?? suma(filas);
@@ -75,9 +81,9 @@ function CajaUno({ caja, error, onVer }) {
       fuente: { explicacion: 'Cada pago del mes imputado a una venta nueva o a una seña.',
         secciones: [seccion('Ventas nuevas', nuevas), seccion('Cuotas de ventas', cuotas), seccion('Señas', senas)] } },
     { id: 'nuevas', label: 'Ventas nuevas', value: suma(nuevas), detalle: `${clientes(nuevas)} ventas${pct(suma(nuevas))}`,
-      fuente: { explicacion: 'La primera cuota de cada venta, cobrada este mes.', secciones: [seccion('Pagos', nuevas)] } },
+      fuente: { explicacion: 'La cuota 1 de las ventas de este mes.', secciones: [seccion('Pagos', nuevas)] } },
     { id: 'cuotas', label: 'Cuotas de ventas', value: suma(cuotas), detalle: `${cuotas.length} cuotas${pct(suma(cuotas))}`,
-      fuente: { explicacion: 'De la cuota 2 en adelante: ventas de antes que siguen pagando.', secciones: [seccion('Pagos', cuotas)] } },
+      fuente: { explicacion: 'Cuotas de ventas de meses anteriores, incluida una cuota 1 que vencía antes y se pagó ahora.', secciones: [seccion('Pagos', cuotas)] } },
     { id: 'senas', label: 'Señas', value: suma(senas), detalle: `${clientes(senas)} señas${pct(suma(senas))}`,
       fuente: { explicacion: 'Lo que entró como seña de una venta a medio hacer.', secciones: [seccion('Pagos', senas)] } },
     { id: 'vence', label: 'Falta cobrar del mes', value: caja.vence?.usd ?? 0, detalle: `${caja.vence?.cuotas ?? 0} cuotas`,
