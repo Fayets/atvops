@@ -158,6 +158,9 @@ class CobranzaServices:
                 "tipo": tipo,
                 "estado": (f.get("estado") or "").strip(),
                 "responsable": (f.get("responsable") or "").strip(),
+                # Si es el primer pago que se le imputó a esa cuota. La cuota 1 se paga a
+                # veces en partes: el primer pago es la venta nueva, el resto es cobranza.
+                "primerPago": bool(f["primer_pago"]) if "primer_pago" in f else None,
             }
 
         # Entró: cada pago del mes imputado a una cuota de venta o a una seña, por lo que
@@ -165,7 +168,11 @@ class CobranzaServices:
         entro = [_fila(f, f.get("imputado")) for f in clients_db.consultar(
             "SELECT c.nombre, pi.monto_usd AS imputado, p.fecha AS fecha_pago, q.fecha_vence, "
             "       q.numero_cuota, coalesce(q.estado, '') AS estado, "
-            f"       {TIPO} AS tipo, coalesce(c.responsable, '') AS responsable "
+            f"       {TIPO} AS tipo, coalesce(c.responsable, '') AS responsable, "
+            "       NOT EXISTS (SELECT 1 FROM {esquema}.pago_imputaciones pi2 "
+            "                   JOIN {esquema}.pagos p2 ON p2.id = pi2.pago_id "
+            "                   WHERE pi2.cuota_id = q.id "
+            "                     AND (p2.fecha < p.fecha OR (p2.fecha = p.fecha AND p2.id < p.id))) AS primer_pago "
             "FROM {esquema}.pagos p "
             "JOIN {esquema}.clientes c ON c.id = p.cliente_id "
             "JOIN {esquema}.pago_imputaciones pi ON pi.pago_id = p.id "
