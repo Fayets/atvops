@@ -90,6 +90,18 @@ export function segmentoGeneralDesdeBloque(b) {
   const cierreTotal = agendas ? (cierres / agendas) * 100 : null;
   const porCall = agendas ? cash / agendas : null;
 
+  // De dónde sale cada número: las llamadas detrás, para abrirlas al tocar la métrica.
+  // Solo los resultados que tienen llamadas: cinco "nadie en este número" seguidos tapaban
+  // lo que sí hay. Las que todavía no pasaron o no se cargaron no tienen resultado.
+  const conLlamadas = (b.disposiciones?.tajadas ?? []).filter((t) => t.n > 0);
+  const porResultado = conLlamadas.length
+    ? conLlamadas.map((t) => ({ titulo: t.disposicion, nota: `${t.n}`, leads: t.leads ?? [], columnas: ['cash'] }))
+    : [{ titulo: 'Con resultado cargado', leads: [], columnas: [] }];
+  const shows_ = { titulo: 'Shows', leads: b.showsDetalle ?? [], columnas: ['estado'] };
+  const noShows_ = { titulo: 'No shows', leads: b.noShowsDetalle ?? [], columnas: [] };
+  const cierres_ = { titulo: 'Cierres', leads: b.cierresDetalle ?? [], columnas: ['cash'] };
+  const ventas_ = { titulo: 'Ventas (cierres y señas)', leads: b.ventasDetalle ?? [], columnas: ['estado', 'cash'] };
+
   return {
     id: 'general',
     titulo: 'General',
@@ -101,6 +113,7 @@ export function segmentoGeneralDesdeBloque(b) {
         value: agendas,
         format: 'count',
         detalle: `${proximas} próximas · ${pasadas} ya ocurrieron`,
+        fuente: { explicacion: 'Cada reunión del mes, por cómo terminó.', secciones: porResultado },
       },
       {
         id: 'show_up',
@@ -110,6 +123,7 @@ export function segmentoGeneralDesdeBloque(b) {
         detalle: pasadas
           ? `${shows} de ${pasadas} pasadas`
           : 'Sin llamadas evaluables',
+        fuente: { explicacion: 'Shows sobre las llamadas que ya pasaron.', secciones: [shows_, noShows_] },
       },
       {
         id: 'cierre_total',
@@ -117,6 +131,7 @@ export function segmentoGeneralDesdeBloque(b) {
         value: cierreTotal,
         format: 'pct',
         detalle: `${cierres} de ${agendas} agendas`,
+        fuente: { explicacion: `Cierres sobre las ${agendas} agendas del mes. Las señas no cuentan.`, secciones: [cierres_] },
       },
       {
         id: 'cierre_present',
@@ -126,6 +141,7 @@ export function segmentoGeneralDesdeBloque(b) {
         detalle: shows
           ? `${cierres} de ${shows} presentadas`
           : 'Sin presentaciones',
+        fuente: { explicacion: 'Cierres sobre los que se presentaron.', secciones: [cierres_, shows_] },
       },
       {
         id: 'por_call',
@@ -135,6 +151,7 @@ export function segmentoGeneralDesdeBloque(b) {
         detalle: agendas
           ? `$${Math.round(cash).toLocaleString('es-AR')} ÷ ${agendas}`
           : 'Sin agendas',
+        fuente: { explicacion: `El cash del mes dividido por las ${agendas} agendas.`, secciones: [ventas_] },
       },
       {
         id: 'aov',
@@ -144,6 +161,7 @@ export function segmentoGeneralDesdeBloque(b) {
         detalle: ventas
           ? `$${Math.round(cash).toLocaleString('es-AR')} cobrado · ${ventas} ventas`
           : 'Sin ventas',
+        fuente: { explicacion: 'El cash cobrado dividido por los cierres.', secciones: [ventas_] },
       },
     ],
   };

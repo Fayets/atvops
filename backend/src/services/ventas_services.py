@@ -1240,7 +1240,9 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         grupos: dict[str, list[dict]] = {}
         for l in del_mes:
             grupos.setdefault(_persona(l[campo], campo), []).append(l)
-        salida = [{"nombre": k, **_bloque(v, ahora)} for k, v in grupos.items()]
+        # Con detalle: en el home del director cada número de un closer se abre y muestra
+        # las llamadas que lo arman, igual que el total del equipo.
+        salida = [{"nombre": k, **_bloque(v, ahora, detalle=(campo == "closer"))} for k, v in grupos.items()]
         return sorted(salida, key=lambda x: (-x["cashUsd"], -x["cierres"]))
 
     # Reportes diarios cargados por el equipo

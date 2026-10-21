@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatValue } from '../../lib/format.js';
+import { DetalleMetrica } from './BloqueClosing.jsx';
 
 const PERIODO_LABEL = {
   hoy: 'Hoy',
@@ -16,13 +17,100 @@ function mostrar(value, format) {
 }
 
 /**
- * Home del Director de Ventas: cash + métricas por segmento.
- * @param {{ data: object }} props
+ * Caja 1 del mes: lo que entró de ventas y de qué. La cuota 1 de una venta es la venta
+ * nueva; de la 2 en adelante, cuotas de ventas anteriores; la seña va aparte. Lo que vence
+ * y lo atrasado es lo que todavía falta cobrar.
  */
-export default function HomeVentas({ data }) {
+/** Una métrica que se abre: muestra de dónde sale el número. */
+function Metrica({ m, valor, onVer }) {
+  const abre = Boolean(m.fuente);
+  return (
+    <article
+      className={`home-ventas-metric${abre ? ' clickable' : ''}`}
+      onClick={abre ? () => onVer(m) : undefined}
+      role={abre ? 'button' : undefined}
+      tabIndex={abre ? 0 : undefined}
+      onKeyDown={abre ? (e) => (e.key === 'Enter' || e.key === ' ') && onVer(m) : undefined}
+    >
+      <div className="home-ventas-metric-label">{m.label}</div>
+      <div className="home-ventas-metric-value num">{valor}</div>
+      {m.detalle && <div className="home-ventas-metric-detalle">{m.detalle}</div>}
+    </article>
+  );
+}
+
+function CajaUno({ caja, error, onVer }) {
+  if (error) {
+    return (
+      <section className="home-ventas-seg">
+        <div className="home-ventas-seg-head"><div><h3>Caja 1</h3></div></div>
+        <p className="dim" style={{ margin: 0 }}>{error.message}</p>
+      </section>
+    );
+  }
+  if (!caja) return null;
+  const filas = caja.entro?.filas ?? [];
+  const suma = (xs) => xs.reduce((n, x) => n + (x.montoUsd || 0), 0);
+  const nuevas = filas.filter((x) => x.tipo === 'cuota_venta' && Number(x.cuota) === 1);
+  const cuotas = filas.filter((x) => x.tipo === 'cuota_venta' && Number(x.cuota) !== 1);
+  const senas = filas.filter((x) => x.tipo === 'sena');
+  const clientes = (xs) => new Set(xs.map((x) => x.cliente)).size;
+  const total = caja.entro?.usd ?? suma(filas);
+  const pct = (v) => (total ? ` · ${Math.round((v / total) * 100)}%` : '');
+  // Los pagos con la forma de la lista de detalle: fecha, cliente, responsable, qué fue y monto.
+  const NOMBRES = { nombre: 'Cliente', closer: 'Responsable', estado: 'Qué fue', cash: 'Monto' };
+  const comoFila = (x, i, fechaDe) => ({
+    id: `${x.cliente}-${x[fechaDe] ?? ''}-${x.cuota ?? ''}-${i}`, nombre: x.cliente, fecha: x[fechaDe],
+    closer: x.responsable, pagoUsd: x.montoUsd,
+    estado: x.tipo === 'sena' ? 'Seña' : `Cuota ${x.cuota ?? ''}`,
+  });
+  const seccion = (titulo, xs, fechaDe = 'pagoAt') => ({
+    titulo, nota: formatValue(suma(xs), 'usd'), nombres: { ...NOMBRES, fecha: fechaDe === 'pagoAt' ? 'Pagó' : 'Vence' },
+    columnas: ['estado', 'cash'], leads: xs.map((x, i) => comoFila(x, i, fechaDe)),
+  });
+  const vence = caja.vence?.filas ?? [];
+  const atrasado = caja.atrasado?.filas ?? [];
+  const metricas = [
+    { id: 'total', label: 'Cash total', value: total, detalle: `${filas.length} pagos`,
+      fuente: { explicacion: 'Cada pago del mes imputado a una venta nueva o a una seña.',
+        secciones: [seccion('Ventas nuevas', nuevas), seccion('Cuotas de ventas', cuotas), seccion('Señas', senas)] } },
+    { id: 'nuevas', label: 'Ventas nuevas', value: suma(nuevas), detalle: `${clientes(nuevas)} ventas${pct(suma(nuevas))}`,
+      fuente: { explicacion: 'La primera cuota de cada venta, cobrada este mes.', secciones: [seccion('Pagos', nuevas)] } },
+    { id: 'cuotas', label: 'Cuotas de ventas', value: suma(cuotas), detalle: `${cuotas.length} cuotas${pct(suma(cuotas))}`,
+      fuente: { explicacion: 'De la cuota 2 en adelante: ventas de antes que siguen pagando.', secciones: [seccion('Pagos', cuotas)] } },
+    { id: 'senas', label: 'Señas', value: suma(senas), detalle: `${clientes(senas)} señas${pct(suma(senas))}`,
+      fuente: { explicacion: 'Lo que entró como seña de una venta a medio hacer.', secciones: [seccion('Pagos', senas)] } },
+    { id: 'vence', label: 'Falta cobrar del mes', value: caja.vence?.usd ?? 0, detalle: `${caja.vence?.cuotas ?? 0} cuotas`,
+      fuente: { explicacion: 'Cuotas que vencen este mes y todavía no se pagaron, por lo que les falta.',
+        secciones: [seccion('Cuotas', vence, 'venceAt')] } },
+    { id: 'atrasado', label: 'Atrasado', value: caja.atrasado?.usd ?? 0, detalle: `${caja.atrasado?.cuotas ?? 0} cuotas`,
+      fuente: { explicacion: 'Cuotas de meses anteriores que siguen sin pagarse.',
+        secciones: [seccion('Cuotas', atrasado, 'venceAt')] } },
+  ];
+  return (
+    <section className="home-ventas-seg">
+      <div className="home-ventas-seg-head">
+        <div><h3>Caja 1</h3></div>
+        <div className="home-ventas-seg-badge"><span>{formatValue(total, 'usd')} entró</span></div>
+      </div>
+      <div className="home-ventas-metrics">
+        {metricas.map((m) => (
+          <Metrica key={m.id} m={m} valor={mostrar(m.value, 'usd')} onVer={(x) => onVer({ ...x, format: 'usd' })} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Home del Director de Ventas: cash, las métricas generales y Caja 1.
+ * @param {{ data: object, caja?: object, cajaError?: Error }} props
+ */
+export default function HomeVentas({ data, caja, cajaError }) {
   const [periodo, setPeriodo] = useState('mes');
   const [programa, setPrograma] = useState('todos');
   const [closer, setCloser] = useState('todos');
+  const [abierta, setAbierta] = useState(null);   // la métrica cuyo detalle se está mirando
 
   const filtros = data.filtros;
   const segmentos = useMemo(() => {
@@ -89,7 +177,8 @@ export default function HomeVentas({ data }) {
       </header>
 
       <div className="home-ventas-segmentos">
-        {segmentos.map((seg) => (
+        {/* Calificadas / descalificadas no tienen fuente: se sacaron (Franco, 21-10-2026). */}
+        {segmentos.filter((seg) => !['calificadas', 'descalificadas'].includes(seg.id)).map((seg) => (
           <section key={seg.id} className="home-ventas-seg">
             <div className="home-ventas-seg-head">
               <div>
@@ -103,18 +192,23 @@ export default function HomeVentas({ data }) {
             </div>
             <div className="home-ventas-metrics">
               {seg.metricas.map((m) => (
-                <article key={m.id} className="home-ventas-metric">
-                  <div className="home-ventas-metric-label">{m.label}</div>
-                  <div className="home-ventas-metric-value num">
-                    {mostrar(m.value, m.format)}
-                  </div>
-                  {m.detalle && <div className="home-ventas-metric-detalle">{m.detalle}</div>}
-                </article>
+                <Metrica key={m.id} m={m} valor={mostrar(m.value, m.format)} onVer={setAbierta} />
               ))}
             </div>
           </section>
         ))}
+        <CajaUno caja={caja} error={cajaError} onVer={setAbierta} />
       </div>
+      {abierta && (
+        <DetalleMetrica
+          titulo={abierta.label}
+          explicacion={abierta.fuente.explicacion}
+          valor={mostrar(abierta.value, abierta.format)}
+          pie={abierta.detalle}
+          secciones={abierta.fuente.secciones}
+          onCerrar={() => setAbierta(null)}
+        />
+      )}
     </div>
   );
 }

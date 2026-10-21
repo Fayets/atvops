@@ -41,7 +41,7 @@ function Kpi({ titulo, valor, pie, tono, onVer, verLabel }) {
 }
 
 /** Lista de leads detrás de una métrica. Columnas opcionales según el caso. */
-function ListaLeads({ leads, columnas = ['cash'] }) {
+function ListaLeads({ leads, columnas = ['cash'], nombres = {} }) {
   if (!leads?.length) return <div className="empty">Nadie en este número este mes.</div>;
   const conCash = columnas.includes('cash');
   const conDeuda = columnas.includes('deuda');
@@ -51,11 +51,11 @@ function ListaLeads({ leads, columnas = ['cash'] }) {
   return (
     <div className="close-proyeccion-lista" style={{ '--disp-cols': cols }}>
       <div className="close-proyeccion-fila cabecera disp-metric-fila">
-        <span>Fecha</span>
-        <span>Prospecto</span>
-        <span>Closer</span>
-        {conEstado && <span>Estado</span>}
-        {conCash && <span>Cash</span>}
+        <span>{nombres.fecha ?? 'Fecha'}</span>
+        <span>{nombres.nombre ?? 'Prospecto'}</span>
+        <span>{nombres.closer ?? 'Closer'}</span>
+        {conEstado && <span>{nombres.estado ?? 'Estado'}</span>}
+        {conCash && <span>{nombres.cash ?? 'Cash'}</span>}
         {conDeuda && <span>Deuda</span>}
       </div>
       {leads.map((l) => (
@@ -73,7 +73,7 @@ function ListaLeads({ leads, columnas = ['cash'] }) {
 }
 
 /** Modal genérico: título, explicación, número y la lista de leads. */
-function DetalleMetrica({ titulo, explicacion, valor, pie, secciones, onCerrar }) {
+export function DetalleMetrica({ titulo, explicacion, valor, pie, secciones, onCerrar }) {
   return (
     <div className="modal-backdrop" onClick={onCerrar} role="presentation">
       <div
@@ -103,7 +103,7 @@ function DetalleMetrica({ titulo, explicacion, valor, pie, secciones, onCerrar }
                 <strong>{s.titulo}</strong>
                 {s.nota && <span className="dim">{s.nota}</span>}
               </div>
-              <ListaLeads leads={s.leads} columnas={s.columnas} />
+              <ListaLeads leads={s.leads} columnas={s.columnas} nombres={s.nombres} />
             </div>
           ))}
         </div>

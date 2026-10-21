@@ -8663,3 +8663,9 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .eqv-roles .chip.active { background: var(--text); border-color: var(--text); color: var(--surface); }
 /* El rol principal de la cuenta: marcado pero sin poder sacarse. */
 .eqv-roles .chip.active:disabled { cursor: default; opacity: 0.55; }
+/* Las métricas del home del director se abren: muestran de dónde sale el número. */
+.home-ventas-metric.clickable { cursor: pointer; transition: box-shadow 0.15s; }
+.home-ventas-metric.clickable:hover { box-shadow: inset 0 0 0 1px var(--border); }
+/* El número se achica con su tarjeta: "US$ 100.400" se salía en pantallas medianas. */
+.home-ventas-metric { container-type: inline-size; }
+.home-ventas-metric-value { font-size: clamp(18px, 15cqi, 28px); white-space: nowrap; }
