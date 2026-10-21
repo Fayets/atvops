@@ -131,14 +131,19 @@ export default function HomeVentas({ data, caja, cajaError }) {
     return porPeriodo;
   }, [data, periodo, programa, closer]);
 
+  // El número grande es lo que entró a Caja 1, igual que en ATV Clients: ventas nuevas,
+  // cuotas y señas. El cash de las llamadas (cierres y señas cargados por el closer) es más
+  // chico porque no cuenta las cuotas de ventas anteriores; queda para un closer elegido,
+  // porque los pagos de Clients no dicen quién vendió.
+  const deCaja = periodo === 'mes' && closer === 'todos' && caja?.entro?.usd != null;
   const cash = useMemo(() => {
     if (periodo !== 'mes') return null;
     if (closer !== 'todos') {
       const c = data.cashPorCloser?.[closer];
       return c === undefined ? null : c;
     }
-    return data.cashPorPeriodo?.mes ?? null;
-  }, [data, periodo, closer]);
+    return caja?.entro?.usd ?? data.cashPorPeriodo?.mes ?? null;
+  }, [data, periodo, closer, caja]);
 
   return (
     <div className="home-ventas">
@@ -146,7 +151,7 @@ export default function HomeVentas({ data, caja, cajaError }) {
         <div className="home-ventas-hero">
           <div className="home-ventas-periodo-label">{PERIODO_LABEL[periodo] ?? 'Este mes'}</div>
           <div className="home-ventas-cash num">{mostrar(cash, 'usd')}</div>
-          <div className="home-ventas-cash-sub">Cash collected</div>
+          <div className="home-ventas-cash-sub">{deCaja ? 'Cash collected · Caja 1' : `Cash de las llamadas${closer !== 'todos' ? ` de ${closer}` : ''}`}</div>
         </div>
 
         <div className="home-ventas-filters">
