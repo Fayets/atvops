@@ -30,8 +30,15 @@ function Kpi({ label, valor, nota, tono, onVer }) {
   );
 }
 
-/** El mismo calendario de Google que ve el director de ventas. */
-function CalendarioReal({ onCambio, syncKey = 0 }) {
+// El nombre de pila sin acentos: así se reconoce a "Nick", "Nick Xanderz" y "Nick Xanders".
+const pila = (n) => (n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().split(/\s+/)[0] || '';
+
+/**
+ * El calendario de Google, recortado al closer de Mi día: desde que hay dos closers
+ * (oct-2026), Nick veía las llamadas de Cris y las reuniones internas. Quedan las suyas y
+ * las que todavía no tienen closer —las agendas nuevas entran así—, para poder tomarlas.
+ */
+function CalendarioReal({ onCambio, syncKey = 0, nombres = [] }) {
   const [detalle, setDetalle] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
   const [tick, setTick] = useState(0);
@@ -67,6 +74,18 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
     })),
   ];
 
+  const mios = new Set(nombres.map(pila).filter(Boolean));
+  const esMia = (closer) => !(closer || '').trim() || mios.has(pila(closer));
+  const visibles = mios.size
+    ? llamadosConManuales.filter((l) => {
+      const e = reuniones?.porEvento?.[l.id];
+      if (e) return esMia(e.closer);
+      // Las cargadas a mano traen su closer; lo demás sin estado no es una llamada de venta.
+      return l.origen === 'atv-ops' && esMia(l.closer);
+    })
+    : llamadosConManuales;
+  const cierresDeOtroMes = (reuniones?.cierresDeOtroMes ?? []).filter((c) => !mios.size || esMia(c.closer));
+
   if (error) {
     return <Card title="Calendario" sub="Google Calendar de ATV"><div className="empty">{error.message}</div></Card>;
   }
@@ -76,9 +95,9 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
   return (
     <>
       <CalendarioEquipo
-        llamados={llamadosConManuales}
+        llamados={visibles}
         onSelect={setDetalle}
-        sub={`${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
+        sub={mios.size ? `Tus llamadas entre ${data.desde} y ${data.hasta}` : `${data.calendarId} · ${(data.llamados ?? []).length} eventos entre ${data.desde} y ${data.hasta}`}
         actualizando={loading || sincronizando}
         onActualizar={async () => {
           // Actualizar es ir a mirar el calendario de verdad, no releer lo mismo: la
@@ -96,7 +115,7 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
         onRango={onRango}
         estados={reuniones?.porEvento}
         ocultos={reuniones?.ocultos}
-        cierresDeOtroMes={reuniones?.cierresDeOtroMes ?? []}
+        cierresDeOtroMes={cierresDeOtroMes}
         onEditar={(reunion, estado) => setEditando({ reunion, estado })}
         onAgregar={() => setAgregando(true)}
         onOcultar={async (l) => {
@@ -241,7 +260,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', ventas.filter((l) => l.estado === 'cierre'), dinero, 'Cash')} />
       </div>
 
-      <CalendarioReal onCambio={onCambio} syncKey={syncKey} />
+      <CalendarioReal onCambio={onCambio} syncKey={syncKey} nombres={data?.nombresCrm ?? (data?.closer ? [data.closer] : [])} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 
