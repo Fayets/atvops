@@ -158,7 +158,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
                 {formatValue(r.metricas.cashUsd, 'usd')}
               </span>
               <span className="right dim" style={{ fontSize: 12 }}>
-                {hace(r.actualizadoAt, new Date('2026-09-09T19:00:00-03:00'))}
+                {hace(r.actualizadoAt, new Date())}
               </span>
             </div>
           ))}
@@ -176,7 +176,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
                 agendadas
               </span>
               <span className="right dim" style={{ fontSize: 12 }}>
-                {hace(r.actualizadoAt, new Date('2026-09-09T19:00:00-03:00'))}
+                {hace(r.actualizadoAt, new Date())}
               </span>
             </div>
           ))}

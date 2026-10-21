@@ -3,6 +3,7 @@ import EmbudoOps from '../components/ventas/EmbudoOps.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import { getEmbudoSetting, getVentas } from '../data/api.js';
+import { nombreMesAnio } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 
@@ -38,7 +39,7 @@ export default function VentasDashboard() {
     <div className="page ventas-dash">
       <PageHeader
         eyebrow="Ventas"
-        title={ctx.mes ? `Septiembre ${String(ctx.mes).slice(0, 4)}` : 'El mes'}
+        title={ctx.mes ? nombreMesAnio(new Date(`${String(ctx.mes).slice(0, 7)}-15T12:00:00`)) : 'El mes'}
         desc={
           ctx.diasMes
             ? `Día ${ctx.diaHoy} de ${ctx.diasMes} · el mes va por el ${Math.round((ctx.diaHoy / ctx.diasMes) * 100)}%`
