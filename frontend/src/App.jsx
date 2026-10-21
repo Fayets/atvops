@@ -118,6 +118,15 @@ function VentasPerformanceRoute() {
   return <VentasPerformancePage />;
 }
 
+/** El calendario de todo el equipo es del director; cada closer ve el suyo en Mi día. */
+function VentasOperativaRoute() {
+  const { rol } = useRol();
+  if (!puedeVerVentasDirector(rol)) {
+    return <Navigate to={homeParaRol(rol)} replace />;
+  }
+  return <VentasOperativaPage />;
+}
+
 /** Quién es setter y quién closer: lo asigna el director de ventas. */
 function EquipoVentasRoute() {
   const { rol } = useRol();
@@ -215,7 +224,7 @@ export default function App() {
             </Route>
             <Route path="ventas">
               <Route index element={<VentasIndex />} />
-              <Route path="operativa" element={<VentasOperativaPage />} />
+              <Route path="operativa" element={<VentasOperativaRoute />} />
               <Route path="lab-setting" element={<Laboratorio cual="setting" />} />
               <Route path="lab-closing" element={<LabClosing />} />
               <Route path="caja" element={<CajaUno />} />
