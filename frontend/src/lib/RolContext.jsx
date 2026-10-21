@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { getStoredUser } from './auth.js';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { SESION_CAMBIO, getStoredUser } from './auth.js';
 import { getRolPreview, homeParaRol, normalizarRol, rolDeVista, rolEfectivo as calcularRolEfectivo, setRolPreview as persistPreview } from './roles.js';
 
 const RolContext = createContext(null);
@@ -8,6 +8,10 @@ export function RolProvider({ children }) {
   const [version, setVersion] = useState(0);
 
   const bump = useCallback(() => setVersion((n) => n + 1), []);
+  useEffect(() => {
+    window.addEventListener(SESION_CAMBIO, bump);
+    return () => window.removeEventListener(SESION_CAMBIO, bump);
+  }, [bump]);
 
   const value = useMemo(() => {
     const user = getStoredUser();

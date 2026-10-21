@@ -2709,7 +2709,7 @@ export async function getLlamadosAgenda({ dias = 21, diasAtras = 7, refrescar = 
       todoElDia: e.todoElDia,
       estado,
       oferta: e.tipo ?? (externos.length ? 'Llamada' : 'Interno'),
-      closer: (e.invitados ?? []).filter((i) => i.equipo).map((i) => i.nombre).join(', ') || 'Equipo ATV',
+      closer: (e.invitados ?? []).filter((i) => i.equipo).map((i) => i.nombre).join(', ') || '',
       invitados: e.invitados ?? [],
       zoomUrl: e.zoomUrl ?? null,
       meetUrl: e.meetUrl ?? null,
@@ -3164,4 +3164,17 @@ export async function guardarJidGrupoTheo(grupo, jid) {
 
 export async function getTheoMensaje(id) {
   return pedirDeVerdad(`/api/theo/mensajes/${encodeURIComponent(id)}`);
+}
+
+/** El equipo de ventas con sus roles (setter / closer), para que el director los asigne. */
+export async function getEquipoRoles() {
+  return pedir('/api/ventas/equipo-roles');
+}
+
+export async function asignarRolesVentas(username, roles) {
+  return pedir(`/api/ventas/equipo-roles/${encodeURIComponent(username)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roles }),
+  });
 }

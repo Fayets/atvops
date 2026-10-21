@@ -8646,3 +8646,19 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 /* Home de marketing: cuatro columnas (sin reproducciones). */
 .mkt-top .conv-fila { grid-template-columns: 66px minmax(120px, 1fr) 150px 90px; }
 .pag-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: var(--space-3); }
+
+/* Ventas → Equipo: quién es setter y quién closer. */
+.eqv { padding: 18px 20px; margin-bottom: 16px; }
+.eqv-titulo { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+.eqv-lista { list-style: none; margin: 0; padding: 0; }
+.eqv-fila { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.eqv-fila:first-child { border-top: 0; }
+.eqv-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--surface-3); color: var(--text-2); font-size: 13px; font-weight: 600; }
+.eqv-quien { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 13.5px; }
+.eqv-quien .dim { font-size: 12px; }
+.eqv-roles { display: inline-flex; gap: 6px; flex: none; }
+.eqv-roles .chip { cursor: pointer; }
+.eqv-roles .chip.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+/* El rol principal de la cuenta: marcado pero sin poder sacarse. */
+.eqv-roles .chip.active:disabled { cursor: default; opacity: 0.55; }

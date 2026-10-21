@@ -477,7 +477,11 @@ class MiembroEquipo(db.Entity):
 
     id = PrimaryKey(int, auto=True)
     nombre = Required(str, unique=True)
-    rol = Required(str, index=True)           # closer | setter
+    rol = Required(str, index=True)           # closer | setter: el primero de `roles`
+    # Todos sus roles de ventas, separados por coma ("setter,closer"). Llegó en oct-2026
+    # cuando Cris, setter, empezó a cerrar: una persona puede ser las dos cosas. Vacío
+    # en las filas viejas: ahí vale `rol`.
+    roles = Optional(str, nullable=True)
     activo = Required(bool, default=True)
     alias = Optional(str)
     username = Optional(str)                  # su usuario de ATV Ops, si tiene

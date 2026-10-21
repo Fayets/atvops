@@ -12,7 +12,7 @@ ROLES_REPORTE = frozenset({"admin", "founder", "operaciones", "ventas", "closer"
 
 
 def _puede(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("rol") not in ROLES_REPORTE:
+    if user.get("rol") not in ROLES_REPORTE and "closer" not in (user.get("rolesVentas") or []):
         raise HTTPException(status_code=403, detail="No tenés acceso al reporte de closing.")
     return user
 

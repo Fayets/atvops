@@ -58,10 +58,12 @@ import Outcomes from './pages/fulfillment/Outcomes.jsx';
 import FulfillmentOps from './pages/fulfillment/FulfillmentOps.jsx';
 import Resumen from './pages/fulfillment/Resumen.jsx';
 import Retencion from './pages/fulfillment/Retencion.jsx';
+import EquipoVentas from './pages/EquipoVentas.jsx';
 import { useRol } from './lib/RolContext.jsx';
 import {
   homeParaRol,
   puedeVerVentasCloser,
+  rolDeVista,
   puedeVerVentasDirector,
   puedeVerVentasOps,
   puedeVerVentasSetter,
@@ -77,7 +79,8 @@ function FulfillmentIndex() {
 
 function VentasIndex() {
   const { rol } = useRol();
-  if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
+  // Cris es setter y también cierra: entra por su pantalla de setter.
+  if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol) && rolDeVista(rol) !== 'setter') {
     return <Navigate to="/ventas/mi-dia" replace />;
   }
   if (puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
@@ -115,6 +118,15 @@ function VentasPerformanceRoute() {
   return <VentasPerformancePage />;
 }
 
+/** Quién es setter y quién closer: lo asigna el director de ventas. */
+function EquipoVentasRoute() {
+  const { rol } = useRol();
+  if (!puedeVerVentasDirector(rol)) {
+    return <Navigate to={homeParaRol(rol)} replace />;
+  }
+  return <EquipoVentas />;
+}
+
 /** Operaciones ve la proyección del mes; marketing, su tablero de contenido. */
 function MarketingIndex() {
   const { rol } = useRol();
@@ -124,7 +136,8 @@ function MarketingIndex() {
 function HomeIndex() {
   const { rol } = useRol();
   // Closer / Setter no ven el cuadro de mando de la empresa.
-  if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
+  // Cris es setter y también cierra: entra por su pantalla de setter.
+  if (puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol) && rolDeVista(rol) !== 'setter') {
     return <Navigate to="/ventas/mi-dia" replace />;
   }
   if (puedeVerVentasSetter(rol) && !puedeVerVentasDirector(rol)) {
@@ -212,6 +225,7 @@ export default function App() {
               <Route path="setting" element={<Setting />} />
               <Route path="performance" element={<VentasPerformanceRoute />} />
               <Route path="ops" element={<VentasOps />} />
+              <Route path="equipo" element={<EquipoVentasRoute />} />
             </Route>
             <Route path="metas" element={<Metas />} />
             <Route path="sistemas" element={<Sistemas />} />

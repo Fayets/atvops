@@ -137,6 +137,8 @@ export const HOME_POR_ROL = {
   admin: '/',
 };
 
+import { getStoredUser } from './auth.js';
+
 const OVERRIDE_KEY = 'atv-ops-rol-preview';
 
 /**
@@ -150,6 +152,23 @@ export function rolDeVista(rol) {
   const r = normalizarRol(rol);
   return r === 'operaciones' ? 'founder' : r;
 }
+
+/**
+ * Todos los roles con que mira quien tiene este rol: el principal más los de ventas que le
+ * asignó el director (Cris es setter y también cierra). Los extra valen solo para el rol
+ * propio de la sesión: un admin que previsualiza "closer" no hereda nada.
+ * @param {string | null | undefined} rol
+ * @returns {Rol[]}
+ */
+export function rolesDe(rol) {
+  const vista = rolDeVista(rol);
+  const user = getStoredUser();
+  if (!user || normalizarRol(user.rol) !== normalizarRol(rol)) return [vista];
+  const extra = (user.rolesVentas ?? []).filter((r) => ROL_LIST.includes(r) && r !== vista);
+  return [vista, ...extra];
+}
+
+const algunoDe = (rol, permitidos) => rolesDe(rol).some((r) => permitidos.includes(r));
 
 /** @param {string | null | undefined} rol */
 export function normalizarRol(rol) {
@@ -220,7 +239,7 @@ export function puedeVerRuta(pathname, rol) {
   if (pathname === '/backbone/equipo' || pathname.startsWith('/backbone/equipo/')) {
     return ['admin', 'operaciones'].includes(normalizarRol(rol));
   }
-  const permitidas = RUTAS_POR_ROL[rolDeVista(rol)] ?? RUTAS_POR_ROL.operaciones;
+  const permitidas = rolesDe(rol).flatMap((r) => RUTAS_POR_ROL[r] ?? RUTAS_POR_ROL.operaciones);
   return permitidas.some((p) => {
     if (p === '/') return pathname === '/';
     return pathname === p || pathname.startsWith(`${p}/`);
@@ -234,6 +253,9 @@ export function puedeVerRuta(pathname, rol) {
  */
 export function filtrarNav(nav, rol) {
   const rolReal = normalizarRol(rol);
+  const mios = rolesDe(rol);
+  const toca = (roles) => roles.some((r) => mios.includes(r));
+  const rolOriginal = rol;
   rol = rolDeVista(rol);
   return nav
     .map((item) => {
@@ -244,15 +266,15 @@ export function filtrarNav(nav, rol) {
       // tenga permiso sobre la ruta del padre: el closer entra a /ventas/mi-dia pero no
       // a /ventas, y sin esto Ventas desaparecía del menú con sus dos pantallas adentro.
       const porHijos = (item.sub ?? []).some(
-        (h) => (!h.roles || h.roles.includes(rol)) && puedeVerRuta(h.to, rol));
-      if (!puedeVerRuta(item.to, rol) && !porHijos && item.to !== '/') return null;
-      if (item.to === '/' && !puedeVerRuta('/', rol)) return null;
-      if (item.roles && !item.roles.includes(rol)) return null;
+        (h) => (!h.roles || toca(h.roles)) && puedeVerRuta(h.to, rolOriginal));
+      if (!puedeVerRuta(item.to, rolOriginal) && !porHijos && item.to !== '/') return null;
+      if (item.to === '/' && !puedeVerRuta('/', rolOriginal)) return null;
+      if (item.roles && !toca(item.roles)) return null;
       if (!item.sub) return item;
       const sub = item.sub.filter((s) => {
         if (s.rolesReales) return s.rolesReales.includes(rolReal);
-        if (s.roles && !s.roles.includes(rol)) return false;
-        return puedeVerRuta(s.to, rol);
+        if (s.roles && !toca(s.roles)) return false;
+        return puedeVerRuta(s.to, rolOriginal);
       });
       if (item.to.startsWith('/fulfillment') && sub.length === 0) return null;
       // Cuando el link padre apunta a una pantalla concreta, `raiz` conserva la sección
@@ -267,6 +289,17 @@ export function filtrarNav(nav, rol) {
       if (item.to === '/ventas' && !puedeVerVentasDirector(rol) && !puedeVerVentasCloser(rol) && !puedeVerVentasSetter(rol) && puedeVerVentasOps(rol)) {
         return { ...item, to: '/ventas/ops', raiz: item.to, sub };
       }
+      // Quien es setter y closer a la vez (Cris) tiene dos pantallas propias: Ventas lo
+      // lleva a la de setter, que es su rol principal, y las dos van arriba del submenú.
+      if (item.to === '/ventas' && puedeVerVentasCloser(rolOriginal) && puedeVerVentasSetter(rolOriginal)
+          && !puedeVerVentasDirector(rolOriginal)) {
+        const propias = [
+          { to: '/ventas/mi-progreso', label: 'Mi setting' },
+          { to: '/ventas/mi-dia', label: 'Mi día' },
+        ];
+        const home = rol === 'closer' ? '/ventas/mi-dia' : '/ventas/mi-progreso';
+        return { ...item, to: home, raiz: item.to, sub: [...propias, ...sub] };
+      }
       if (item.to === '/ventas' && puedeVerVentasCloser(rol) && !puedeVerVentasDirector(rol)) {
         return { ...item, to: '/ventas/mi-dia', raiz: item.to, sub };
       }
@@ -276,7 +309,7 @@ export function filtrarNav(nav, rol) {
       // Un grupo con una sola pantalla visible no despliega nada: es un link común.
       if (sub.length === 1 && sub[0].to === item.to) return { ...item, sub: undefined };
       // El grupo (Reportes) lleva a la primera pantalla que este rol puede ver.
-      if (sub.length && !puedeVerRuta(item.to, rol)) {
+      if (sub.length && !puedeVerRuta(item.to, rolOriginal)) {
         return { ...item, to: sub[0].to, raiz: item.raiz ?? item.to, sub };
       }
       return { ...item, sub };
@@ -306,14 +339,12 @@ export function puedeVerVentasDirector(rol) {
   return r === 'ventas' || r === 'admin' || r === 'founder';
 }
 
-/** Quién ve el dashboard personal del Closer. */
+/** Quién ve el dashboard personal del Closer: también quien tenga closer como rol extra. */
 export function puedeVerVentasCloser(rol) {
-  const r = rolDeVista(rol);
-  return r === 'closer' || r === 'admin' || r === 'founder';
+  return algunoDe(rol, ['closer', 'admin', 'founder']);
 }
 
 /** Quién ve vistas del Setter (progreso diario / reporte). */
 export function puedeVerVentasSetter(rol) {
-  const r = rolDeVista(rol);
-  return r === 'setter' || r === 'admin' || r === 'founder';
+  return algunoDe(rol, ['setter', 'admin', 'founder']);
 }

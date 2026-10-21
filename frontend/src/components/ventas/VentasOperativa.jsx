@@ -68,7 +68,7 @@ export default function VentasOperativa({ data, agenda, agendaError, actualizand
       todoElDia: false,
       estado: 'pendiente',
       oferta: 'Cargada a mano',
-      closer: m.closer || 'Equipo ATV',
+      closer: m.closer || '',
       invitados: [],
       zoomUrl: null, meetUrl: null, url: null,
       notasSetter: m.reporte || '',

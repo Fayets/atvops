@@ -79,6 +79,7 @@ export function FormResultado({ llamada, programas, estados, equipo = [], onGuar
         <label className="campo">
           <span>Quién la tomó</span>
           <select value={closer} onChange={(e) => setCloser(e.target.value)}>
+            {!closer && <option value="">Sin asignar</option>}
             {!closer || equipo.includes(closer) ? null : <option value={closer}>{closer}</option>}
             {equipo.map((n2) => <option key={n2} value={n2}>{n2}</option>)}
           </select>

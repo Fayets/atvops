@@ -23,6 +23,7 @@ class UsuarioResponse(BaseModel):
     foto_url: str | None = None
     cargo: str | None = None  # "VA" es el único que usa ATV AI
     por: str | None = None  # el admin que entró como esta persona
+    rolesVentas: list[str] = []  # closer / setter, además del rol principal
 
 
 class GoogleLoginRequest(BaseModel):

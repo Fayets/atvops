@@ -20,6 +20,11 @@ _PBKDF2_ROUNDS = 120_000
 # Sesiones validadas en memoria por este tiempo antes de volver a consultar la base.
 _CACHE_SESION_SEGUNDOS = 300
 _CACHE_SESION: dict[int, tuple[float, dict]] = {}
+
+
+def olvidar_sesiones() -> None:
+    """Cambiaron los roles de alguien: la próxima consulta relee la base."""
+    _CACHE_SESION.clear()
 _TOKEN_DIAS = 7
 _LOCAL_USERNAME = "franco"
 _LOCAL_PASSWORD = "franco"
@@ -92,11 +97,16 @@ def _to_response(usuario: Usuario) -> dict:
     rol = getattr(usuario, "rol", None) or "operaciones"
     if rol not in ROLES_VALIDOS:
         rol = "operaciones"
+    from src.services import equipo_services
+
     return {
         "id": usuario.id,
         "username": usuario.username,
         "nombre": usuario.nombre,
         "rol": rol,
+        # Los roles de ventas que le asignó el director (closer, setter), además del rol
+        # principal: Cris es setter y también cierra.
+        "rolesVentas": equipo_services.roles_de_usuario(usuario.username),
         "foto_url": getattr(usuario, "foto_url", None),
         "cargo": getattr(usuario, "cargo", None),
     }
@@ -202,6 +212,11 @@ def ensure_reunion_usuario_column() -> None:
 def ensure_integracion_columns() -> None:
     """`base` llegó después: es el piso desde el que el script empieza a sumar."""
     _agregar_columnas("integraciones", "Integracion", [("base", "TEXT")])
+
+
+def ensure_equipo_roles_column() -> None:
+    """Una persona del equipo de ventas puede tener varios roles (setter y closer)."""
+    _agregar_columnas("equipo", "MiembroEquipo", [("roles", "TEXT")])
 
 
 def ensure_webinar_columns() -> None:

@@ -82,6 +82,8 @@ const NAV = [
       // Caja 1 cierra la lista: es lo que quedó de las ventas y todavía hay que terminar
       // de cobrar. Caja 2 —upsell y recompra— no es del área y vive en Cobranza.
       { to: '/ventas/caja', label: 'Caja 1', roles: ['closer', 'ventas', 'admin', 'founder', 'operaciones'] },
+      // Quién es setter y quién closer: lo asigna el director.
+      { to: '/ventas/equipo', label: 'Equipo', roles: ['ventas', 'admin', 'founder', 'operaciones'] },
     ],
   },
   // Los cuatro reportes en un solo ítem: el menú se achica y se despliegan al entrar.

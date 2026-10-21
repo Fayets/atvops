@@ -39,7 +39,9 @@ export default function EditorReunion({ reunion, estado, programas, estados, equ
     cashUsd: estado.cashUsd,
     saldoUsd: estado.saldoUsd,
     reporte: estado.reporte,
-    closer: estado.closer || reunion.closer || '',
+    // Solo el closer guardado: el del chip del calendario es el dueño de la cuenta de
+    // Google, no quien tomó la llamada, y preseleccionarlo lo dejaba cargado al guardar.
+    closer: estado.closer || '',
     eventoId: estado.eventoId || reunion.id,
     facturacionUsd: estado.facturacionUsd,
     cierreMes: estado.cierreMes || '',

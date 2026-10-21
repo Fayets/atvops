@@ -568,7 +568,7 @@ def estado_de_las_reuniones(desde: date, hasta: date, usuario: dict | None = Non
         "programas": programas(), "estados": list(ESTADOS_LLAMADA),
         # Quién puede figurar como closer de una reunión: lo necesita el editor del
         # calendario para poder decir que la tomó otro.
-        "equipo": equipo_services.nombres(),
+        "equipo": equipo_services.nombres("closer"),
         "porEvento": _numerar_agendas(por_evento, manuales),
         "manuales": manuales,
         # Las señas de meses anteriores que terminaron de cerrar dentro de este rango.
@@ -663,8 +663,9 @@ def _gente_del_rol(rol: str) -> list[str]:
         from src.models import Usuario
 
         with db_session:
-            return sorted((u.nombre or u.username).strip()
-                          for u in list(Usuario.select()) if u.rol == rol)
+            principal = {(u.nombre or u.username).strip() for u in list(Usuario.select()) if u.rol == rol}
+        # Más quien tenga ese rol asignado en el equipo de ventas (Cris: setter y closer).
+        return sorted(principal | set(equipo_services.nombres(rol)))
     except Exception as e:  # noqa: BLE001
         logger.warning("No se pudo leer el equipo de %s: %s", rol, str(e)[:160])
         return []
@@ -1161,6 +1162,12 @@ def _nombres_canonicos() -> dict[str, str]:
     return mapa
 
 
+def _toma_llamadas(usuario: dict) -> bool:
+    """Si una llamada sin closer queda a nombre de quien la carga: el closer, el director,
+    y quien tenga closer entre sus roles de ventas (Cris es setter y también cierra)."""
+    return usuario.get("rol") in {"closer", "ventas"} or "closer" in (usuario.get("rolesVentas") or [])
+
+
 def _unico_del_rol(rol: str) -> str:
     """Si hay una sola persona en ese rol, es esa. Si hay más, no se adivina.
 
@@ -1620,6 +1627,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
                 "mes": {}, "programas": programas(), "estados": list(ESTADOS_LLAMADA),
                 "closersDisponibles": disponibles if puede_mirar_otros else []}
     mios = [_norm(n) for n in nombres]
+    un_solo_closer = len(equipo_services.listar("closer")) <= 1
     todas = _sumar_reuniones_del_calendario(desde, hasta)
     # Las del closer + las del calendario que todavía no tienen closer en el CRM
     # (segunda reunión, lead nuevo, solo Google). Si no las sumamos, el chip queda
@@ -1645,9 +1653,11 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             continue
         if evento:
             vistos.add(evento)
-        if huerfana and not es_mio:
-            # En la vista del closer logueado, las huérfanas cuentan como suyas
-            # hasta que alguien les cargue closer / resultado.
+        if huerfana and not es_mio and un_solo_closer:
+            # Con un solo closer, las huérfanas son suyas hasta que alguien les cargue
+            # closer / resultado. Con dos (desde oct-2026, Cris también cierra) no se
+            # adivina: se muestran para que alguien diga quién la tomó, sin contar en
+            # los números de nadie.
             f = {**f, "closer": nombres[0]}
         filas.append(f)
     filas = sorted(filas, key=lambda f: f["call"], reverse=True)
@@ -1693,7 +1703,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     # mismo día) entran al total y se muestran aparte en el detalle del KPI.
     def _del_mes(x: dict) -> bool:
         f = datetime.fromisoformat(x["fechaAt"]).date()
-        return f >= inicio_mes and (fin_mes is None or f < fin_mes) and x["estado"] != "descartada"
+        return (f >= inicio_mes and (fin_mes is None or f < fin_mes) and x["estado"] != "descartada"
+                and bool((x["closer"] or "").strip()))
 
     del_mes = [x for x in llamadas if _del_mes(x)]
     ventas = [x for x in del_mes if _norm(x["resultado"]) in [_norm(e) for e in ESTADOS_VENTA]]
@@ -1716,7 +1727,7 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
         "closersDisponibles": disponibles if puede_mirar_otros else [],
         # Quién puede figurar como closer de una llamada. Va siempre: cuando Cris toma
         # una call de Nick hay que poder decirlo, o le queda contada a Nick.
-        "equipo": equipo_services.nombres(),
+        "equipo": equipo_services.nombres("closer"),
     }
 
 
@@ -2090,7 +2101,7 @@ def crear_llamada_manual(datos: dict, usuario: dict) -> dict:
     duenio = _duenio_de_cada_lead()
     base = duenio.get(f"nombre:{_clave_persona(prospecto)}") or {}
     closer = str(datos.get("closer") or "").strip() or base.get("closer") or (
-        quien if usuario.get("rol") in {"closer", "ventas"} else "")
+        quien if _toma_llamadas(usuario) else "")
 
     evento = f"manual:{uuid.uuid4().hex[:16]}"
     with db_session:
@@ -2139,7 +2150,7 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
     quien = (usuario.get("nombre") or usuario.get("username") or "")
     # Si la llamada no tiene closer, se queda con quien la carga, siempre que tome llamadas.
     closer_nuevo = str(datos.get("closer") or "").strip() or (
-        quien if usuario.get("rol") in {"closer", "ventas"} else "")
+        quien if _toma_llamadas(usuario) else "")
     # Qué reunión del calendario es esta llamada, para que el sync de atv-mkt no la
     # despegue cuando le cambie la fecha.
     evento = str(datos.get("evento") or "").strip() or evento_de_la_ficha

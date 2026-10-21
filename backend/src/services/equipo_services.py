@@ -28,6 +28,13 @@ def _alias_de(m) -> list[str]:
     return [a.strip() for a in (m.alias or "").split(",") if a.strip()]
 
 
+def roles_de(m) -> list[str]:
+    """Sus roles de ventas. Las filas de antes de oct-2026 tienen solo `rol`."""
+    propios = {r.strip().lower() for r in (getattr(m, "roles", None) or "").split(",") if r.strip()}
+    propios = propios or {(m.rol or "").strip().lower()}
+    return [r for r in ROLES if r in propios]
+
+
 def listar(rol: str | None = None, incluir_inactivos: bool = False) -> list[dict]:
     from pony.orm import db_session
 
@@ -40,10 +47,10 @@ def listar(rol: str | None = None, incluir_inactivos: bool = False) -> list[dict
         logger.warning("No se pudo leer el equipo: %s", str(e)[:160])
         return []
     return sorted(
-        [{"id": m.id, "nombre": m.nombre, "rol": m.rol, "activo": m.activo,
+        [{"id": m.id, "nombre": m.nombre, "rol": m.rol, "roles": roles_de(m), "activo": m.activo,
           "alias": _alias_de(m), "username": m.username or ""}
          for m in filas
-         if (incluir_inactivos or m.activo) and (rol is None or m.rol == rol)],
+         if (incluir_inactivos or m.activo) and (rol is None or rol in roles_de(m))],
         key=lambda x: (x["rol"], x["nombre"]),
     )
 
@@ -118,3 +125,78 @@ def borrar(nombre: str) -> bool:
             return False
         fila.activo = False
         return True
+
+
+# ------------------------------------------------------------------ roles por persona
+
+def roles_de_usuario(username: str | None) -> list[str]:
+    """Los roles de ventas de un usuario de ATV Ops. [] si no está en el equipo."""
+    if not username:
+        return []
+    for m in listar():
+        if m["username"] and m["username"].lower() == str(username).lower():
+            return m["roles"]
+    return []
+
+
+def personas() -> list[dict]:
+    """Todos los usuarios con sus roles de ventas: lo que ve el director para asignarlos.
+
+    El rol principal de la cuenta (el de Nick es closer) cuenta como asignado y no se puede
+    sacar desde acá: cambiarlo es cambiar qué ve esa persona al entrar, y eso es de sistemas.
+    """
+    from pony.orm import db_session
+
+    from src.models import Usuario
+
+    with db_session:
+        usuarios = [(u.username, u.nombre or u.username, getattr(u, "cargo", None) or "", u.rol or "")
+                    for u in list(Usuario.select())]
+    salida = []
+    for username, nombre, cargo, rol in usuarios:
+        extra = roles_de_usuario(username)
+        fijos = [rol] if rol in ROLES else []
+        salida.append({"username": username, "nombre": nombre, "cargo": cargo, "rol": rol,
+                       "roles": [r for r in ROLES if r in set(extra) | set(fijos)], "fijos": fijos})
+    return sorted(salida, key=lambda p: (not p["roles"], p["nombre"].lower()))
+
+
+def asignar(username: str, roles: list[str]) -> dict:
+    """Le deja a la persona exactamente estos roles de ventas.
+
+    Usa su fila del equipo si ya tiene (por usuario o por nombre, que es como estaban Nick
+    y Cris); si no, la crea. Sin roles queda inactiva, nunca se borra: el histórico de
+    llamadas sigue apuntando a ese nombre.
+    """
+    from pony.orm import db_session
+
+    from src.models import MiembroEquipo, Usuario
+    from src.services import auth_services
+
+    pedidos = {str(r).strip().lower() for r in roles or []}
+    invalidos = pedidos - set(ROLES)
+    if invalidos:
+        raise ValueError(f"Rol desconocido: {', '.join(sorted(invalidos))}.")
+    with db_session:
+        usuario = next((u for u in list(Usuario.select()) if u.username.lower() == str(username).lower()), None)
+        if usuario is None:
+            raise LookupError("No existe ese usuario.")
+        if usuario.rol in ROLES:
+            pedidos.add(usuario.rol)
+        lista = [r for r in ROLES if r in pedidos]
+        filas = list(MiembroEquipo.select())
+        fila = (next((m for m in filas if (m.username or "").lower() == usuario.username.lower()), None)
+                or next((m for m in filas if _norm(m.nombre) == _norm(usuario.nombre or usuario.username)), None))
+        if fila is None:
+            if not lista:
+                return {"username": usuario.username, "roles": []}
+            fila = MiembroEquipo(nombre=(usuario.nombre or usuario.username).strip(), rol=lista[0],
+                                 username=usuario.username)
+        fila.username = fila.username or usuario.username
+        fila.roles = ",".join(lista)
+        if lista:
+            fila.rol = lista[0]
+        fila.activo = bool(lista)
+    auth_services.olvidar_sesiones()
+    logger.info("Roles de ventas de %s: %s", username, lista or "ninguno")
+    return {"username": usuario.username, "roles": lista}

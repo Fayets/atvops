@@ -16,6 +16,7 @@ from src.services import lab_closing_services as lab_closing
 from src.services import ventas_services as ventas
 
 router = APIRouter()
+logger = logging.getLogger("atv_ops.ventas")
 log = logging.getLogger("atv_ops.ventas")
 
 
@@ -538,3 +539,36 @@ def fuentes(_user: dict = Depends(get_current_user)):
     """Qué fuentes están conectadas: lo que no lo esté, se muestra en cero."""
     return {"crm": ventas.estado(), "marketing": marketing.estado(), "cobranza": cartera.estado(),
             "onboarding": onboarding.estado()}
+
+
+# ------------------------------------------------------------------ equipo de ventas
+
+ROLES_DIRIGEN_VENTAS = frozenset({"ventas", "admin", "founder", "operaciones"})
+
+
+def _dirige_ventas(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("rol") not in ROLES_DIRIGEN_VENTAS:
+        raise HTTPException(status_code=403, detail="Solo el director de ventas asigna roles.")
+    return user
+
+
+@router.get("/equipo-roles")
+def equipo_roles(_user: dict = Depends(_dirige_ventas)):
+    from src.services import equipo_services
+
+    return {"personas": equipo_services.personas(), "roles": list(equipo_services.ROLES)}
+
+
+@router.put("/equipo-roles/{username}")
+def equipo_roles_asignar(username: str, user: dict = Depends(_dirige_ventas), payload: dict = Body(...)):
+    from src.services import equipo_services
+
+    try:
+        equipo_services.asignar(username, payload.get("roles") or [])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    logger.info("%s asignó roles de ventas a %s: %s", user.get("username"), username, payload.get("roles"))
+    ventas._olvidar_meses()
+    return {"personas": equipo_services.personas()}

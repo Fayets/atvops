@@ -26,9 +26,21 @@ export function getStoredUser() {
 export function saveSession({ token, user }) {
   // Cada login arranca sin permisos heredados de la sesión anterior.
   olvidarLiberacion();
+  const antes = localStorage.getItem(USER_KEY);
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  // Si cambió algo de la persona (p. ej. el director le sumó closer a Cris), el menú y los
+  // permisos se rearman sin esperar a un F5.
+  if (antes !== localStorage.getItem(USER_KEY)) {
+    try {
+      window.dispatchEvent(new Event(SESION_CAMBIO));
+    } catch {
+      /* fuera del navegador no hay a quién avisar */
+    }
+  }
 }
+
+export const SESION_CAMBIO = 'atv-ops:sesion';
 
 export function clearSession() {
   olvidarLiberacion();

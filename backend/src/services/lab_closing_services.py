@@ -185,7 +185,9 @@ def listar(usuario: dict, mes: str | None = None) -> dict:
 
     desde, hasta = _rango(mes)
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
-    es_closer = (usuario.get("rol") or "") == "closer"
+    # Cris es setter y también cierra: con closer entre sus roles de ventas ve solo las suyas.
+    es_closer = (usuario.get("rol") or "") == "closer" or (
+        "closer" in (usuario.get("rolesVentas") or []) and usuario.get("rol") in {"setter", "closer"})
     propios = {ventas._norm(n).split()[0] for n in ventas._nombres_crm(usuario) if ventas._norm(n)}
 
     # Lo que quedó en ATV Ops por evento: la grabación y el análisis viven ahí.

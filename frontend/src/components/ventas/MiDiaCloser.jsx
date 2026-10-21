@@ -61,7 +61,7 @@ function CalendarioReal({ onCambio, syncKey = 0 }) {
       email: '', telefono: '', instagram: '', facturacion: '', respuestas: [],
       fechaAt: m.fechaAt, duracionMin: 60, todoElDia: false,
       estado: 'pendiente', oferta: 'Cargada a mano',
-      closer: m.closer || 'Equipo ATV', invitados: [],
+      closer: m.closer || '', invitados: [],
       zoomUrl: null, meetUrl: null, url: null,
       notasSetter: m.reporte || '', montoUsd: m.cashUsd || null, origen: 'atv-ops',
     })),
