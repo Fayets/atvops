@@ -117,7 +117,7 @@ class CobranzaServices:
         }
 
 
-    def caja_uno(self, mes: str | None = None) -> dict:
+    def caja_uno(self, mes: str | None = None, desde: date | None = None, hasta: date | None = None) -> dict:
         """Caja 1: la plata de las ventas nuevas, que es la que cierra el closer.
 
         Caja 1 son las cuotas de una venta nueva y sus señas; Caja 2 es upsell y
@@ -137,13 +137,18 @@ class CobranzaServices:
         if not clients_db.disponible():
             raise HTTPException(status_code=503,
                                 detail="Sin acceso al esquema clients: falta CLIENTS_DSN.")
-        mes = (mes or _mes_label()).strip()
-        try:
-            anio, m = int(mes[:4]), int(mes[5:7])
-        except (ValueError, IndexError):
-            raise HTTPException(status_code=400, detail="El mes va como YYYY-MM.") from None
-        desde = date(anio, m, 1)
-        hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+        if desde and hasta:
+            # Un período cualquiera (hoy, semana, año, rango): `hasta` llega inclusivo.
+            mes = desde.strftime("%Y-%m")
+            hasta = hasta + timedelta(days=1)
+        else:
+            mes = (mes or _mes_label()).strip()
+            try:
+                anio, m = int(mes[:4]), int(mes[5:7])
+            except (ValueError, IndexError):
+                raise HTTPException(status_code=400, detail="El mes va como YYYY-MM.") from None
+            desde = date(anio, m, 1)
+            hasta = date(anio + (m == 12), (m % 12) + 1, 1)
 
         TIPO = "split_part(coalesce(q.notas, ''), chr(10), 1)"
 
@@ -203,6 +208,7 @@ class CobranzaServices:
         hoy = _hoy_ar()
         return {
             "mes": mes,
+            "desde": desde.isoformat(), "hasta": (hasta - timedelta(days=1)).isoformat(),
             "entro": {"usd": suma(entro), "cuotas": len(entro), "filas": entro,
                       "senasUsd": suma([x for x in entro if x["tipo"] == "sena"])},
             "vence": {"usd": suma(vence), "cuotas": len(vence), "filas": vence,

@@ -8669,3 +8669,17 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 /* El número se achica con su tarjeta: "US$ 100.400" se salía en pantallas medianas. */
 .home-ventas-metric { container-type: inline-size; }
 .home-ventas-metric-value { font-size: clamp(18px, 15cqi, 28px); white-space: nowrap; }
+/* Home del director: lo que trajo cada closer, una tarjeta por persona. */
+.home-ventas.cargando .home-ventas-segmentos { opacity: 0.55; transition: opacity 0.2s; }
+.home-ventas-rango { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.home-ventas-rango input { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
+.home-ventas-equipo { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
+.home-ventas-persona { padding: var(--space-4); border-radius: var(--radius-sm); background: var(--surface-2, var(--surface-3)); cursor: pointer; transition: box-shadow 0.15s; display: flex; flex-direction: column; gap: 10px; }
+.home-ventas-persona:hover { box-shadow: inset 0 0 0 1px var(--border); }
+.home-ventas-persona header { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.home-ventas-persona header .dim { margin-left: auto; font-size: 13px; }
+.home-ventas-persona-avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--text-2); font-size: 13px; font-weight: 600; }
+.home-ventas-persona-cash { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; color: var(--ok); line-height: 1.1; }
+.home-ventas-persona.sin .home-ventas-persona-cash { color: var(--text-2); }
+.home-ventas-persona-datos { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-2); }
+.home-ventas-persona-datos b { color: var(--text); font-weight: 600; }

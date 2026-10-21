@@ -572,3 +572,18 @@ def equipo_roles_asignar(username: str, user: dict = Depends(_dirige_ventas), pa
     logger.info("%s asignó roles de ventas a %s: %s", user.get("username"), username, payload.get("roles"))
     ventas._olvidar_meses()
     return {"personas": equipo_services.personas()}
+
+
+@router.get("/director")
+def director(_user: dict = Depends(solo_interno), desde: str = "", hasta: str = "",
+             programa: str | None = None, closer: str | None = None):
+    """El home del director para cualquier período, programa y closer."""
+    from datetime import date
+
+    try:
+        d, h = date.fromisoformat(desde), date.fromisoformat(hasta)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="desde y hasta van como AAAA-MM-DD.") from None
+    if h < d or (h - d).days > 400:
+        raise HTTPException(status_code=400, detail="El rango tiene que ir de una fecha a otra posterior, hasta un año.")
+    return ventas.director(d, h, programa or None, closer or None)

@@ -1045,8 +1045,19 @@ export async function cerrarSena(leadId, { cierreMes, cashUsd, evento, abrir = f
 }
 
 /** Caja 1 del mes: lo que entró de ventas nuevas, lo que vence y lo atrasado. */
-export async function getCajaUno(mes) {
+export async function getCajaUno(mes, { desde, hasta } = {}) {
+  if (desde && hasta) {
+    return pedir(`/api/cobranza/caja-1?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
+  }
   return pedir(`/api/cobranza/caja-1${mes ? `?month=${encodeURIComponent(mes)}` : ''}`);
+}
+
+/** El home del director para cualquier período (hasta inclusivo), programa y closer. */
+export async function getVentasDirector({ desde, hasta, programa, closer }) {
+  const q = new URLSearchParams({ desde, hasta });
+  if (programa) q.set('programa', programa);
+  if (closer) q.set('closer', closer);
+  return pedir(`/api/ventas/director?${q}`);
 }
 
 /** Los clientes cuyo acceso vence en los próximos `dias`, agrupados por urgencia. */

@@ -12,11 +12,20 @@ service = CobranzaServices()
 @router.get("/caja-1")
 def caja_uno(
     month: str | None = Query(default=None, description="Mes YYYY-MM (default: mes AR actual)"),
+    desde: str | None = Query(default=None, description="Período cualquiera: desde AAAA-MM-DD"),
+    hasta: str | None = Query(default=None, description="hasta AAAA-MM-DD, inclusivo"),
     _user=Depends(get_current_user),
 ):
     """Caja 1: lo que entró de ventas nuevas, lo que vence y lo atrasado."""
+    from datetime import date
+
     try:
-        return service.caja_uno(month)
+        d = date.fromisoformat(desde) if desde else None
+        h = date.fromisoformat(hasta) if hasta else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="desde y hasta van como AAAA-MM-DD.") from None
+    try:
+        return service.caja_uno(month, desde=d, hasta=h)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001

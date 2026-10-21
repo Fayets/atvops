@@ -1733,6 +1733,50 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     }
 
 
+def director(desde: date, hasta: date, programa: str | None = None, closer: str | None = None) -> dict:
+    """El home del director de ventas para cualquier período: hoy, semana, mes, año o rango.
+
+    Es el mismo cálculo que el mes de `resumen` (`_bloque`), cortado por fecha y, si se
+    pide, por el programa que se ofreció y por quién tomó la llamada. `hasta` es inclusivo.
+    Trae también a cada closer por separado, con la plata que trajo, para las tarjetas del
+    equipo; esas no se cortan por closer, así siempre se ven los dos.
+    """
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    fin = hasta + timedelta(days=1)
+    clave = f"director:{desde}:{hasta}:{programa or ''}"
+    with _lock:
+        guardado = _cache.get(clave)
+        if guardado and (datetime.utcnow() - guardado["at"]).total_seconds() < CACHE_SEGUNDOS:
+            leads = guardado["data"]
+        else:
+            leads = None
+    if leads is None:
+        leads = [l for l in _sumar_reuniones_del_calendario(desde, fin)
+                 if l.get("call") and desde <= l["call"].date() < fin]
+        if programa:
+            leads = [l for l in leads if _norm(l.get("programa_ofrecido")) == _norm(programa)]
+        with _lock:
+            _cache[clave] = {"at": datetime.utcnow(), "data": leads}
+
+    grupos: dict[str, list[dict]] = {}
+    for l in leads:
+        grupos.setdefault(_persona(l.get("closer"), "closer"), []).append(l)
+    closers = equipo_services.nombres("closer")
+    por_closer = [{"nombre": n, **_bloque(grupos.get(n, []), ahora, detalle=True)} for n in closers]
+    # Lo que no tiene closer cargado también trajo plata: se muestra aparte, no se reparte.
+    sin_asignar = [l for k, v in grupos.items() if k not in closers for l in v]
+    elegidas = grupos.get(closer, []) if closer else leads
+    return {
+        "desde": desde.isoformat(), "hasta": hasta.isoformat(),
+        "actual": _bloque(elegidas, ahora, detalle=True),
+        "porCloser": por_closer,
+        "sinAsignar": _bloque(sin_asignar, ahora, detalle=True) if sin_asignar else None,
+        "closers": closers,
+        "programas": [p["nombre"] for p in programas()],
+        "generadoAt": datetime.now(AR_TZ).isoformat(),
+    }
+
+
 def _metricas_closer(del_mes: list[dict], ventas: list[dict],
                      diferidos: list[dict] | None = None) -> dict:
     """Los números del mes del closer: agenda, show rate, close rate y ticket promedio.
