@@ -142,3 +142,20 @@ def test_de_una_llamada_salen_hasta_5_ideas_sin_repetir_frase_ni_colar_inventada
     assert [i["titulo"] for i in ideas] == ["Al osito no le das una ballena", "El servicio a medida"]
     assert len(p.validar_generales({"ideas": [buena] * 3 + [otra] * 3}, segs)) == 2
     assert p.validar_generales({"ideas": []}, segs) == []
+
+
+def test_los_bocetos_aceptan_las_flechas_marcas_y_graficos_de_juan():
+    data = {"secuencias": {"corta": [[
+        {"tipo": "texto", "tamano": "n", "texto": "responde [[ACCESO]] en {{1 día}}"},
+        {"tipo": "flecha", "color": "roja", "texto": "a la palabra"},
+        {"tipo": "flecha", "color": "violeta"},
+        {"tipo": "imagen", "texto": "captura de la bio", "marcas": ["autoridad", "promesa", 3, ""]},
+        {"tipo": "diagrama", "texto": "curiosidad → chats → agendas → ventas", "ciclo": True},
+        {"tipo": "diagrama", "texto": "un solo paso"},
+        {"tipo": "grafico", "texto": "curva de retención: el body cae"},
+    ]]}}
+    corta = p.validar_secuencias(data)["corta"][0]
+    assert [b["tipo"] for b in corta] == ["texto", "flecha", "flecha", "imagen", "diagrama", "grafico"]
+    assert corta[2]["color"] == "roja"  # un color que no es de Juan vuelve al rojo
+    assert corta[3]["marcas"] == ["autoridad", "promesa"]
+    assert corta[4] == {"tipo": "diagrama", "texto": "curiosidad → chats → agendas → ventas", "ciclo": True}

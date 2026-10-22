@@ -67,6 +67,39 @@ Se corrige acá mismo: lo que se cambie entra en la próxima secuencia que se ar
 - Memes sueltos para cortar el tono (vaca en la compu, shiba, Batman y Robin, Drake).
 - Fondo negro con texto blanco solo para el pedido de la palabra.
 
+## Flechas, marcas y gráficos
+
+Salen de mirar las 621 historias (mayo a octubre). Juan dibuja encima de la foto a mano, en rojo
+casi siempre, y lo usa para que el ojo vaya a un solo lugar. No decora: cada marca señala algo.
+
+- **La palabra del CTA en rojo, encerrada en un óvalo o con una flecha roja que baja hasta ella.**
+  Está en casi todas las historias que piden la palabra: VIDEO (9-6, 17-7), SOP (16-6), ACCESO
+  (11-7, 20-8), BASES (21-7), DOC (3-9), "4" (14-10), "1" (16-10). En el boceto: `[[PALABRA]]` y
+  una flecha roja hacia ella.
+- **Flecha roja al sticker o al link** cuando el CTA es un link o una caja: APLICA ACÁ (18-6, 16-9),
+  "responde sistema" con flecha hacia abajo (10-8).
+- **Etiquetas rojas con flecha sobre partes de una captura**, para desarmarla: la bio con
+  "autoridad", "solución única", "baúl de valor", "promesa" (2-6); los SOPs con "sop de oferta",
+  "sop de avatar", "sop de MVP" (8-6); el portal de clientes (13-7). En el boceto: `marcas` de la imagen.
+- **Diagramas dibujados con flechas rojas**: el ciclo curiosidad → chats → agendas → ventas (2-6),
+  el camino del revés pago → agenda → primer mensaje → primera historia → primer contenido (3-9),
+  el organigrama que lo reemplazó (10-8), las carpetas mkt / ventas / sistemas (16-6).
+- **Gráficos dibujados a mano en rojo**: las curvas de retención hook / body (24-8, 9-9), la lista
+  de objetivos con "contenido" marcado (26-8), los óvalos rojos sobre malos leads / ads / refunds (26-8).
+- **Flecha blanca que señala a una persona**, con el nombre al lado: "yo → ya me conocés",
+  "Emi." (18-6), "este tipo ↓" (15-6), "yo." (21-9). Sirve para presentar a alguien o a un cliente.
+- **El dato en rojo dentro del texto**: "$175k en {{70 días}}" (8-6), "+$100.000" (1-6),
+  "Responde {{ACCESO}}". En el boceto: `{{dato}}`.
+- **Listas con ❌ rojas** para lo que no hizo (sin ads, sin webinars, sin lanzamientos) y con ✅
+  para lo que sí (11-7, 20-8, 7-10).
+- **Excusas entre comillas, tachadas en rojo** sobre el caso del cliente que la rompió (11-9).
+  En el boceto: `~~tengo que pensarlo~~`.
+- **Subrayado o círculo rojo sobre la frase clave** de un texto o de una captura: "todo pasa por
+  vos" (10-8). En el boceto: `__frase__`.
+- **Lo borroso que después se revela**: la misma imagen dos veces, primero tapada y después con
+  la parte importante marcada (26-8, 2-6).
+- **Capturas numeradas** 1, 2, 3 cuando muestra varios clientes en una misma historia (23-9).
+
 ## Las tres estructuras
 
 ### Corta · 2 a 4 historias · para pedir la palabra

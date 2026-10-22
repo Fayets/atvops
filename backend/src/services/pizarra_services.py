@@ -789,8 +789,14 @@ Armá TRES secuencias de la misma idea:
 El objetivo de cada una te lo digo abajo.
 
 Cada historia es una lista de bloques, en el orden en que se ven de arriba a abajo:
-- {"tipo": "texto", "tamano": "g" | "n" | "c", "texto": "..."}  — g grande, n normal, c chico. Marcá la negrita con **así**. Un salto de línea dentro del bloque con \\n.
-- {"tipo": "imagen", "texto": "..."}  — qué imagen va ahí, dicho para que el equipo la busque o la arme: "captura del chat de un cliente con su resultado", "mockup del documento", "meme 3 doritos después", "selfie de Juan a cámara de noche".
+- {"tipo": "texto", "tamano": "g" | "n" | "c", "texto": "..."}  — g grande, n normal, c chico. Un salto de línea dentro del bloque con \\n. Marcas dentro del texto:
+  **así** negrita · [[PALABRA]] encerrada en óvalo rojo · {{dato}} en rojo · ~~así~~ tachado en rojo · __así__ subrayado en rojo. Las listas con ❌ o ✅ al principio de la línea.
+- {"tipo": "imagen", "texto": "...", "marcas": ["...", "..."]}  — qué imagen va ahí, dicho para que el equipo la busque o la arme: "captura del chat de un cliente con su resultado", "mockup del documento", "meme 3 doritos después", "selfie de Juan a cámara de noche". "marcas" (opcional, hasta 5): las etiquetas rojas con flecha que Juan dibuja sobre partes de la captura.
+- {"tipo": "flecha", "color": "roja" | "blanca", "texto": "..."}  — la flecha dibujada a mano. "texto" (opcional): hacia dónde apunta ("a la palabra", "al sticker", "a mí").
+- {"tipo": "diagrama", "texto": "paso → paso → paso", "ciclo": true | false}  — el diagrama dibujado a mano con flechas rojas; "ciclo" si vuelve al principio.
+- {"tipo": "grafico", "texto": "..."}  — el gráfico dibujado a mano en rojo (curva de retención, antes y después, barras): qué muestra.
+
+Los recursos visuales son de Juan, no decoración: usalos como los usa él (están en la guía), no en todas las historias.
 
 No inventes resultados, cifras ni nombres de clientes: si hace falta un caso, poné el hueco de imagen ("captura del resultado de un cliente, a elegir") y el texto sin cifras inventadas. Las cifras de Juan que están en la guía o en la frase sí se pueden usar.
 Si la secuencia pide la palabra, la palabra es una sola, en mayúscula, y es la misma en las tres secuencias.
@@ -820,14 +826,24 @@ def validar_secuencias(data: dict) -> dict[str, list[list[dict]]]:
             if not isinstance(h, list):
                 continue
             bloques = []
-            for b in h[:6]:
+            for b in h[:8]:
                 if not isinstance(b, dict):
                     continue
                 texto = str(b.get("texto") or "").strip()[:500]
-                if not texto:
+                if not texto and b.get("tipo") != "flecha":
                     continue
-                if b.get("tipo") == "imagen":
-                    bloques.append({"tipo": "imagen", "texto": _limpio(texto, 200)})
+                tipo = b.get("tipo")
+                if tipo == "imagen":
+                    marcas = [_limpio(m, 40) for m in b.get("marcas") or [] if isinstance(m, str) and _limpio(m, 40)][:5]
+                    bloques.append({"tipo": "imagen", "texto": _limpio(texto, 200), **({"marcas": marcas} if marcas else {})})
+                elif tipo == "flecha":
+                    bloques.append({"tipo": "flecha", "color": "blanca" if b.get("color") == "blanca" else "roja", "texto": _limpio(texto, 60)})
+                elif tipo == "diagrama":
+                    pasos = [_limpio(x, 40) for x in re.split(r"\s*(?:→|->)\s*", texto) if _limpio(x, 40)][:7]
+                    if len(pasos) >= 2:
+                        bloques.append({"tipo": "diagrama", "texto": " → ".join(pasos), "ciclo": bool(b.get("ciclo"))})
+                elif tipo == "grafico":
+                    bloques.append({"tipo": "grafico", "texto": _limpio(texto, 160)})
                 else:
                     tam = b.get("tamano") if b.get("tamano") in TAMANOS else "n"
                     bloques.append({"tipo": "texto", "tamano": tam, "texto": "\n".join(" ".join(l.split()) for l in texto.splitlines())})
