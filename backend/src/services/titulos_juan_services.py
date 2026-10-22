@@ -91,6 +91,19 @@ def aperturas() -> list[dict]:
                       key=lambda x: x["fecha"], reverse=True)
 
 
+MIN_CON_CTA = 10
+
+
+def _de_secuencias_con_cta(lista: list[dict]) -> list[dict]:
+    """Solo las secuencias con CTA: la primera historia de un día cualquiera ("abuelo", "I'm
+    back") no es un título. Con pocas marcadas todavía, van todas para no quedarse sin ejemplos."""
+    from src.services import instagram_services
+
+    marcadas = instagram_services.cta_marcadas()
+    con = [x for x in lista if x["fecha"].isoformat() in marcadas]
+    return con if len(con) >= MIN_CON_CTA else lista
+
+
 def bloque() -> str:
     """Lo que lee Claude antes de escribir un título. Vacío si todavía no hay nada."""
     def fecha(d) -> str:
@@ -105,7 +118,7 @@ def bloque() -> str:
     if v:
         partes.append("## YouTube (títulos, de más a menos vistas)\n"
                       + "\n".join(f"- {x['titulo']} ({x['vistas']:,} vistas · {fecha(x['fecha'])})".replace(",", ".") for x in v))
-    a = aperturas()[:MAX_APERTURAS]
+    a = _de_secuencias_con_cta(aperturas())[:MAX_APERTURAS]
     if a:
         partes.append("## Historias (la primera de cada secuencia, de la más nueva a la más vieja)\n"
                       + "\n".join(f"- {x['titulo']} ({fecha(x['fecha'])})" for x in a))
