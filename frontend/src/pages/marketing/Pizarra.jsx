@@ -6,6 +6,7 @@ import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
   pizarraCrearLlamada, pizarraEditarGeneral, pizarraGenerarGeneral, pizarraGenerarSecuencias,
   pizarraGuardarContexto, pizarraRegenerarVariantes, pizarraSubirArchivos,
+  getNarrativaPropuestas, narrativaDecidir, narrativaRevisar,
 } from '../../data/api.js';
 import { useLocalState } from '../../lib/hooks.js';
 import '../../styles/pizarra.css';
@@ -137,6 +138,72 @@ function PanelCargar({ tipo, onCargada }) {
   );
 }
 
+const ACCION = { agregar: 'Agregar', cambiar: 'Cambiar', quitar: 'Sacar' };
+const fechaCorta = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+
+/**
+ * La revisión semanal de la narrativa: cada lunes Claude lee lo que Juan publicó la semana
+ * anterior y propone cambios. Nada se aplica solo: cada cambio se acepta o se descarta.
+ */
+function RevisionNarrativa({ onAplicado }) {
+  const [datos, setDatos] = useState(null);
+  const [error, setError] = useState('');
+  const traer = useCallback(() => getNarrativaPropuestas(true).then(setDatos).catch((e) => setError(e.message)), []);
+  useEffect(() => { traer(); }, [traer]);
+  const armando = datos?.armando || datos?.propuestas?.[0]?.estado === 'armando';
+  useEffect(() => {
+    if (!armando) return undefined;
+    const t = setInterval(traer, 5000);
+    return () => clearInterval(t);
+  }, [armando, traer]);
+  const revisar = async () => { setError(''); try { setDatos(await narrativaRevisar()); } catch (e) { setError(e.message); } };
+  const decidir = async (p, c, estado) => {
+    setError('');
+    try {
+      const r = await narrativaDecidir(p.id, c.id, estado);
+      setDatos((d) => ({ ...d, propuestas: r.propuestas }));
+      onAplicado(r.contexto);
+    } catch (e) { setError(e.message); }
+  };
+  const ultima = datos?.propuestas?.[0];
+  return (
+    <div className="pz-sec">
+      <div className="pz-botones" style={{ justifyContent: 'space-between', paddingRight: 32 }}>
+        <span className="pz-k">Revisión semanal</span>
+        <button type="button" className="btn sm ghost" disabled={armando} onClick={revisar}>{armando ? 'Revisando…' : 'Revisar ahora'}</button>
+      </div>
+      {error && <p className="pz-error">{error}</p>}
+      {!ultima && datos && <p className="pz-dim">Todavía no hubo revisión. Corre sola los lunes.</p>}
+      {ultima && ultima.estado !== 'armando' && (
+        <span className="pz-dim">Semana del {fechaCorta(ultima.desde)} al {fechaCorta(ultima.hasta)} · {ultima.fuentes.reels ?? 0} reels, {ultima.fuentes.youtube ?? 0} videos, {ultima.fuentes.historias ?? 0} historias</span>
+      )}
+      {ultima?.estado === 'error' && <p className="pz-error">{ultima.error}</p>}
+      {ultima?.estado === 'sin_cambios' && <p className="pz-dim">Esa semana no trajo nada que cambie la narrativa.</p>}
+      <div className="pz-variantes">
+        {(ultima?.cambios || []).map((c) => (
+          <div key={c.id} className={`pz-var ${c.estado === 'aceptado' ? 'aprobada' : c.estado === 'descartado' ? 'descartada' : ''}`}>
+            <span className="pz-k">{ACCION[c.accion]}</span>
+            {c.linea_actual && <span className={c.accion === 'agregar' ? '' : 'pz-tachado'}>{c.linea_actual}</span>}
+            {c.linea_nueva && <b>{c.linea_nueva}</b>}
+            {c.motivo && <span className="pz-dim">{c.motivo}</span>}
+            {c.evidencias.map((e) => (
+              <blockquote key={e.ref + e.cita} className="pz-cita">
+                <span className="pz-min">{e.ref.split(':')[0]} · {fechaCorta(e.fecha)}</span>{e.cita}{!e.verificada && <span className="pz-dim"> (de una historia, sin verificar)</span>}
+              </blockquote>
+            ))}
+            {c.estado === 'pendiente' ? (
+              <div className="pz-botones">
+                <button type="button" className="btn sm primary" onClick={() => decidir(ultima, c, 'aceptado')}>Aceptar</button>
+                <button type="button" className="btn sm" onClick={() => decidir(ultima, c, 'descartado')}>Descartar</button>
+              </div>
+            ) : <span className={`pz-st ${c.estado === 'aceptado' ? 'aprobada' : 'descartada'}`}>{c.estado === 'aceptado' ? 'Aplicado' : 'Descartado'}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PanelContexto({ clave, valor, onGuardar }) {
   const [texto, setTexto] = useState(valor?.texto || '');
   const [estado, setEstado] = useState('');
@@ -148,7 +215,7 @@ function PanelContexto({ clave, valor, onGuardar }) {
   return (
     <div className="pz-sec">
       <span className="pz-k">{NODOS[clave].label}</span>
-      <textarea id={`pz-ctx-${clave}`} className="pz-ctx-texto" rows={16} value={texto} onChange={(e) => { setTexto(e.target.value); setEstado(''); }} />
+      <textarea id={`pz-ctx-${clave}`} className="pz-ctx-texto" rows={clave === 'narrativa' ? 10 : 16} value={texto} onChange={(e) => { setTexto(e.target.value); setEstado(''); }} />
       <div className="pz-botones">
         <button type="button" className="btn primary" disabled={estado === 'guardando' || texto === (valor?.texto || '')} onClick={guardar}>Guardar</button>
         {estado === 'ok' && <span className="pz-ok">Guardado</span>}
@@ -282,6 +349,7 @@ export default function Pizarra() {
   const [llamada, setLlamada] = useState(null);
   const [panel, setPanel] = useState(null); // clave de nodo, o {cargar: tipo}
   const [storyElegida, setStoryElegida] = useState(null);
+  const [ctxVersion, setCtxVersion] = useState(0); // sube cuando la revisión semanal cambia la narrativa
   const [aviso, setAviso] = useState('');
   const [escala, setEscala] = useState(1);
   const marcoRef = useRef(null);
@@ -353,6 +421,7 @@ export default function Pizarra() {
     uno: null, clase: null,
     fathom: llamada ? llamada.titulo : null,
     claude: estado.claude === 'armando' ? 'leyendo…' : null,
+    narrativa: base.narrativaPendientes ? `${base.narrativaPendientes} cambio${base.narrativaPendientes > 1 ? 's' : ''} propuesto${base.narrativaPendientes > 1 ? 's' : ''}` : null,
     general: g ? g.titulo : null,
     yt: g?.variantes?.yt?.length ? `${g.variantes.yt.length} ideas` : null,
     reel: g?.variantes?.reel?.length ? `${g.variantes.reel.length} ideas` : null,
@@ -438,7 +507,8 @@ export default function Pizarra() {
                 )}
               </div>
             )}
-            {CONTEXTO.includes(panelClave) && <PanelContexto clave={panelClave} valor={base.contexto[panelClave]} onGuardar={guardarContexto} />}
+            {panelClave === 'narrativa' && <RevisionNarrativa onAplicado={(ctx) => { setBase((b) => ({ ...b, contexto: ctx })); setCtxVersion((v) => v + 1); traerBase(true); }} />}
+            {CONTEXTO.includes(panelClave) && <PanelContexto key={`${panelClave}-${ctxVersion}`} clave={panelClave} valor={base.contexto[panelClave]} onGuardar={guardarContexto} />}
             {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral g={g} llamada={llamada} onGenerar={generarGeneral} onCambio={cambioGeneral} />}
             {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}
             {(panelClave === 'ytAprob' || panelClave === 'reelAprob') && <PanelVariantes canal={panelClave === 'ytAprob' ? 'yt' : 'reel'} g={g} soloAprobadas onVariante={cambioVariante} />}

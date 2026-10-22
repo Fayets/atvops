@@ -1159,6 +1159,23 @@ class PizarraSecuencia(db.Entity):
     creado_at = Required(datetime, default=datetime.utcnow)
 
 
+class PizarraPropuesta(db.Entity):
+    """La revisión semanal de la narrativa: Claude lee lo que Juan publicó en la semana y
+    propone cambios. Nada se aplica solo: cada cambio se acepta o se descarta."""
+
+    _table_ = _tabla("pizarra_propuestas", "PizarraPropuesta")
+
+    id = PrimaryKey(int, auto=True)
+    desde = Required(date, index=True)              # lunes de la semana revisada
+    hasta = Required(date)
+    estado = Required(str, default="armando")       # armando | lista | sin_cambios | error
+    fuentes_json = Required(LongStr, default="{}")  # qué se leyó: reels, videos, historias
+    cambios_json = Required(LongStr, default="[]")  # [{accion, linea_actual, linea_nueva, motivo, evidencias, estado}]
+    error = Optional(str, nullable=True)
+    origen = Required(str, default="programado")    # programado | manual
+    creado_at = Required(datetime, default=datetime.utcnow)
+
+
 class PizarraContexto(db.Entity):
     """Lo fijo que acompaña cada llamada: dolores, diferenciales, objeciones y narrativa.
     Texto libre que escribe marketing."""

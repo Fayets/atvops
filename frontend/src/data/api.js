@@ -3235,6 +3235,17 @@ export async function pizarraGenerarSecuencias(id, objetivos) {
 export async function pizarraGuardarContexto(clave, texto) {
   return pedir(`/api/pizarra/contexto/${clave}`, { method: 'PUT', headers: JSON_H, body: JSON.stringify({ texto }) });
 }
+export async function getNarrativaPropuestas(refrescar = false) {
+  return pedir(`/api/pizarra/narrativa/propuestas${refrescar ? '?refrescar=true' : ''}`);
+}
+export async function narrativaRevisar() {
+  return pedir('/api/pizarra/narrativa/revisar', { method: 'POST' });
+}
+export async function narrativaDecidir(propuestaId, cambioId, estado) {
+  return pedir(`/api/pizarra/narrativa/propuestas/${propuestaId}/cambios/${cambioId}`, {
+    method: 'PATCH', headers: JSON_H, body: JSON.stringify({ estado }),
+  });
+}
 
 /* ---------------------------------------------------------------- línea de pagos */
 

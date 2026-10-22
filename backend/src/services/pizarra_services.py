@@ -282,7 +282,10 @@ def _dict_llamada(ll: PizarraLlamada, completa: bool = False) -> dict:
 def listar() -> dict:
     with db_session:
         llamadas = sorted(PizarraLlamada.select(), key=lambda l: (l.creado_at, l.id), reverse=True)
-        return {"llamadas": [_dict_llamada(l) for l in llamadas], "contexto": contexto()}
+        llamadas_d = [_dict_llamada(l) for l in llamadas]
+    from src.services import narrativa_services
+
+    return {"llamadas": llamadas_d, "contexto": contexto(), "narrativaPendientes": narrativa_services.pendientes()}
 
 
 def detalle(llamada_id: int) -> dict:

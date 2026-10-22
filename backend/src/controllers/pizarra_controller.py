@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 
 from src.controllers.auth_controller import get_current_user
+from src.services import narrativa_services as narrativa
 from src.services import pizarra_services as pizarra
 
 router = APIRouter()
@@ -95,3 +96,21 @@ def guardar_contexto(clave: str, payload: dict = Body(...), user: dict = Depends
 def generar_secuencias(variante_id: int, payload: dict = Body(default={}), _user: dict = Depends(_puede)):
     """Corta, media y larga de una idea de historias aprobada. `objetivos` opcional por largo."""
     return pizarra.generar_secuencias(variante_id, (payload or {}).get("objetivos"))
+
+
+@router.get("/narrativa/propuestas")
+def propuestas_narrativa(_user: dict = Depends(_puede)):
+    """Las últimas revisiones semanales de la narrativa, con sus cambios propuestos."""
+    return narrativa.propuestas()
+
+
+@router.post("/narrativa/revisar")
+def revisar_narrativa(_user: dict = Depends(_puede)):
+    """Revisa ya la semana pasada, sin esperar al lunes. Corre en segundo plano."""
+    return narrativa.revisar(origen="manual")
+
+
+@router.patch("/narrativa/propuestas/{propuesta_id}/cambios/{cambio_id}")
+def decidir_cambio(propuesta_id: int, cambio_id: int, payload: dict = Body(...), user: dict = Depends(_puede)):
+    """`estado` aceptado (se aplica a la narrativa) o descartado."""
+    return narrativa.decidir(propuesta_id, cambio_id, str((payload or {}).get("estado") or ""), user.get("username"))
