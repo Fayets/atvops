@@ -34,9 +34,11 @@ def detalle(llamada_id: int, _user: dict = Depends(_puede)):
 
 @router.post("/llamadas")
 def crear(payload: dict = Body(...), user: dict = Depends(_puede)):
-    """Un link de compartir de Fathom o la transcripción pegada; `tipo` es 1a1 o clase."""
+    """Un link de Fathom o de una grabación de Zoom, o la transcripción pegada; `tipo` es 1a1 o clase."""
     tipo = str(payload.get("tipo") or "1a1")
     link = str(payload.get("link") or "").strip()
+    if link and "zoom.us/" in link:
+        return pizarra.crear_desde_zoom(link, user.get("username"), tipo=tipo)
     if link:
         return pizarra.crear_desde_fathom(link, user.get("username"), tipo=tipo)
     return pizarra.crear(str(payload.get("texto") or ""), payload.get("titulo"), user.get("username"), tipo=tipo)
@@ -44,7 +46,7 @@ def crear(payload: dict = Body(...), user: dict = Depends(_puede)):
 
 @router.post("/llamadas/archivos")
 async def subir(archivos: list[UploadFile] = File(...), tipo: str = Form("1a1"), user: dict = Depends(_puede)):
-    """Transcripciones exportadas (.txt), de a varias."""
+    """Transcripciones exportadas (.txt de Fathom o .vtt de Zoom), de a varias."""
     cargadas, errores = [], []
     for a in archivos[:300]:
         try:

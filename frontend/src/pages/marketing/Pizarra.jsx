@@ -116,11 +116,11 @@ function PanelCargar({ tipo, onCargada }) {
     <form className="pz-sec" onSubmit={enviar}>
       <span className="pz-k">Cargar {tipo === 'clase' ? 'clase grupal' : '1 a 1'}</span>
       <div className="pz-segmento" role="tablist">
-        {[['fathom', 'Link de Fathom'], ['pegar', 'Pegar'], ['archivos', 'Subir .txt']].map(([k, l]) => (
+        {[['fathom', 'Link de Fathom o Zoom'], ['pegar', 'Pegar'], ['archivos', 'Subir archivo']].map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={modo === k} onClick={() => setModo(k)}>{l}</button>
         ))}
       </div>
-      {modo === 'fathom' && <input id="pz-link" className="pz-input" type="url" placeholder="https://fathom.video/share/…" value={link} onChange={(e) => setLink(e.target.value)} />}
+      {modo === 'fathom' && <input id="pz-link" className="pz-input" type="url" placeholder="fathom.video/share/… o zoom.us/rec/…" value={link} onChange={(e) => setLink(e.target.value)} />}
       {modo === 'pegar' && (
         <>
           <input id="pz-titulo" className="pz-input" type="text" placeholder="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
@@ -129,8 +129,8 @@ function PanelCargar({ tipo, onCargada }) {
       )}
       {modo === 'archivos' && (
         <label className="pz-drop">
-          <input id="pz-archivos" type="file" accept=".txt,text/plain" multiple onChange={(e) => setArchivos([...e.target.files])} />
-          <span>{archivos.length ? `${archivos.length} archivo${archivos.length > 1 ? 's' : ''}` : 'Transcripciones exportadas de Fathom'}</span>
+          <input id="pz-archivos" type="file" accept=".txt,.vtt,text/plain,text/vtt" multiple onChange={(e) => setArchivos([...e.target.files])} />
+          <span>{archivos.length ? `${archivos.length} archivo${archivos.length > 1 ? 's' : ''}` : 'Transcripción de Fathom (.txt) o de Zoom (.vtt)'}</span>
         </label>
       )}
       {error && <p className="pz-error">{error}</p>}

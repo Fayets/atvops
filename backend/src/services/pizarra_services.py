@@ -23,7 +23,7 @@ import re
 import threading
 import unicodedata
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from decouple import config
 from fastapi import HTTPException
@@ -167,6 +167,8 @@ def _cabecera(texto: str) -> dict:
 def crear(texto: str, titulo: str | None, por: str | None, fuente: str = "pegada",
           url: str | None = None, fecha: date | None = None, tipo: str = "1a1") -> dict:
     texto = (texto or "").replace("\r\n", "\n").strip()
+    if texto.startswith("WEBVTT"):
+        texto = vtt_a_texto(texto)
     if len(texto) < 200:
         raise HTTPException(status_code=422, detail="La transcripción está vacía o es muy corta.")
     cab = _cabecera(texto)
@@ -189,8 +191,92 @@ def crear_desde_archivo(nombre: str, crudo: bytes, por: str | None, tipo: str = 
         texto = crudo.decode("utf-8")
     except UnicodeDecodeError:
         texto = crudo.decode("latin-1")
-    titulo = re.sub(r"^\d+[.\s]*", "", re.sub(r"\.txt$", "", nombre or "", flags=re.I)).replace("_", " ").strip()
+    titulo = re.sub(r"^\d+[.\s]*", "", re.sub(r"\.(txt|vtt)$", "", nombre or "", flags=re.I)).replace("_", " ").strip()
     return crear(texto, _cabecera(texto)["titulo"] or titulo or None, por, fuente="archivo", tipo=tipo)
+
+
+# ------------------------------------------------------------------ Zoom
+
+_CUE = re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})(?:[.,]\d+)?\s*-->")
+
+
+def vtt_a_texto(vtt: str) -> str:
+    """La transcripción de Zoom (.vtt) en el formato de siempre: "[00:14:11] Juan: …".
+    Así la cita se valida y el minuto sale igual que con Fathom."""
+    lineas, ts = [], None
+    for linea in (vtt or "").splitlines():
+        linea = linea.strip()
+        m = _CUE.match(linea)
+        if m:
+            ts = f"{int(m.group(1)):02d}:{m.group(2)}:{m.group(3)}"
+            continue
+        if not linea or linea == "WEBVTT" or linea.isdigit() or linea.startswith("NOTE"):
+            continue
+        lineas.append(f"[{ts}] {linea}" if ts else linea)
+    return "\n".join(lineas)
+
+
+def _inicio_zoom(link: str) -> datetime | None:
+    """El link de una grabación compartida trae la hora de inicio en `startTime` (ms), a
+    veces dentro de la URL de origen codificada."""
+    m = re.search(r"startTime(?:=|%3D)(\d{13})", link or "")
+    return datetime.utcfromtimestamp(int(m.group(1)) / 1000) if m else None
+
+
+def _momento_zoom(iso: str | None) -> datetime | None:
+    try:
+        return datetime.strptime(str(iso), "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+
+
+def elegir_grabacion(reuniones: list[dict], inicio: datetime) -> dict | None:
+    """La reunión cuya grabación arrancó a esa hora (con 5 minutos de margen)."""
+    mejor, distancia = None, None
+    for r in reuniones:
+        horas = [_momento_zoom(f.get("recording_start")) for f in r.get("recording_files") or []] + [_momento_zoom(r.get("start_time"))]
+        for h in filter(None, horas):
+            d = abs((h - inicio).total_seconds())
+            if d <= 300 and (distancia is None or d < distancia):
+                mejor, distancia = r, d
+    return mejor
+
+
+def crear_desde_zoom(link: str, por: str | None, tipo: str = "1a1") -> dict:
+    """Un link de grabación de Zoom no trae la transcripción ni el id de la reunión, pero sí
+    la hora de inicio. Con la app de Zoom de Ops se buscan las grabaciones de ese día, se
+    elige la que arrancó a esa hora y se baja su transcripción."""
+    from src.services import zoom_services as zoom
+
+    if "zoom.us/" not in (link or ""):
+        raise HTTPException(status_code=422, detail="Ese link no es de Zoom.")
+    inicio = _inicio_zoom(link)
+    if inicio is None:
+        raise HTTPException(status_code=422, detail="El link no trae la hora de la grabación (startTime). Copiá el link completo desde la grabación en Zoom, o subí la transcripción .vtt.")
+    dia = inicio.date()
+    params = {"from": (dia - timedelta(days=1)).isoformat(), "to": (dia + timedelta(days=1)).isoformat(), "page_size": 300}
+    reuniones, permiso = [], None
+    for path in ("/users/me/recordings", "/accounts/me/recordings"):
+        try:
+            reuniones += zoom._get(path, params).get("meetings") or []
+        except HTTPException as e:
+            permiso = e.detail
+    r = elegir_grabacion(reuniones, inicio)
+    if r is None:
+        if permiso and not reuniones:
+            raise HTTPException(status_code=502, detail=f"La app de Zoom de Ops no pudo leer las grabaciones ({permiso}). Hay que sumarle el permiso de grabaciones (cloud_recording:read) en marketplace.zoom.us, o subí la transcripción .vtt.")
+        raise HTTPException(status_code=404, detail="No encontré en Zoom una grabación que haya arrancado a esa hora. Subí la transcripción .vtt de esa grabación.")
+    archivo = next((f for f in r.get("recording_files") or [] if f.get("file_type") in ("TRANSCRIPT", "CC")), None)
+    if archivo is None or not archivo.get("download_url"):
+        raise HTTPException(status_code=422, detail="Esa grabación no tiene transcripción. En Zoom: Configuración → Grabación → activar la transcripción de audio (sirve para las próximas). Para esta, pegá el texto o subí un .vtt.")
+    pedido = urllib.request.Request(archivo["download_url"], headers={"Authorization": f"Bearer {zoom._access_token()}"})
+    try:
+        with urllib.request.urlopen(pedido, timeout=60) as resp:
+            vtt = resp.read().decode("utf-8", "replace")
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo bajar la transcripción de Zoom: {str(e)[:160]}") from e
+    url = "https://zoom.us/recording/" + str(r.get("uuid") or r.get("id"))
+    return crear(vtt_a_texto(vtt), r.get("topic"), por, fuente="zoom", url=url, fecha=inicio.date(), tipo=tipo)
 
 
 def _token_fathom(link: str) -> str | None:

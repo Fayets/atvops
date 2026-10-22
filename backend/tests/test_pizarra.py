@@ -79,3 +79,39 @@ def test_las_secuencias_respetan_el_largo_y_los_bloques_fijos():
     assert s["corta"][0] == [{"tipo": "texto", "tamano": "g", "texto": "le vendés lo mismo"},
                              {"tipo": "imagen", "texto": "mockup del doc"},
                              {"tipo": "texto", "tamano": "n", "texto": "raro"}]
+
+
+VTT = """WEBVTT
+
+1
+00:14:11.000 --> 00:14:15.000
+Juan Carrizo: Entonces, un servicio es malo hasta cuando das un sobreservicio.
+
+2
+00:14:20.500 --> 00:14:24.000
+Luis Garcia: El problema más grande es que todavía no he acotado al avatar ideal.
+"""
+
+LINK_ZOOM = ("https://us06web.zoom.us/rec/play/9RMPd9V2?accessLevel=meeting&startTime=1792421049000"
+             "&originRequestUrl=https%3A%2F%2Fus06web.zoom.us%2Frec%2Fshare%2FpXos%3FstartTime%3D1792421049000")
+
+
+def test_la_transcripcion_de_zoom_se_lee_como_la_de_fathom():
+    texto = p.vtt_a_texto(VTT)
+    assert texto.splitlines()[0] == "[00:14:11] Juan Carrizo: Entonces, un servicio es malo hasta cuando das un sobreservicio."
+    idea = p.validar_general(_idea("un servicio es malo hasta cuando das un sobreservicio"), p.segmentos(texto))
+    assert idea["minuto"] == "14:11"
+
+
+def test_el_link_de_zoom_trae_la_hora_de_la_grabacion():
+    assert p._inicio_zoom(LINK_ZOOM).isoformat() == "2026-10-19T14:44:09"
+    assert p._inicio_zoom("https://us06web.zoom.us/rec/share/abc") is None
+
+
+def test_se_elige_la_grabacion_que_arranco_a_esa_hora():
+    inicio = p._inicio_zoom(LINK_ZOOM)
+    otra = {"topic": "otra", "start_time": "2026-10-19T12:00:00Z", "recording_files": []}
+    esta = {"topic": "1 a 1", "start_time": "2026-10-19T14:40:00Z",
+            "recording_files": [{"recording_start": "2026-10-19T14:44:10Z", "file_type": "TRANSCRIPT"}]}
+    assert p.elegir_grabacion([otra, esta], inicio)["topic"] == "1 a 1"
+    assert p.elegir_grabacion([otra], inicio) is None
