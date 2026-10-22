@@ -37,7 +37,7 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 CARPETA = DATA_DIR / "pizarra" / "dibujos"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130 Safari/537.36"
 PASO_S = 30           # cada cuánto se mira un cuadro
-HILOS = 6
+HILOS = 2              # el VPS es chico: más ffmpeg a la vez lo dejan sin memoria
 W, H = 160, 90        # tamaño del cuadro que se mide
 FONDO = 200           # gris a partir del cual un píxel es fondo claro
 NEGRO = 40            # por debajo es franja negra de Zoom
@@ -83,10 +83,10 @@ def trozos_fathom(pagina: str) -> list[tuple[float, str]]:
 def _cuadro(url: str, ancho: int | None = None, destino: Path | None = None) -> bytes | None:
     """El primer cuadro del trozo: en grises y chico para medir, o en jpg grande para guardar."""
     if destino is not None:
-        cmd = ["ffmpeg", "-loglevel", "error", "-y", "-user_agent", UA, "-i", url, "-frames:v", "1",
+        cmd = ["ffmpeg", "-loglevel", "error", "-y", "-threads", "1", "-user_agent", UA, "-i", url, "-frames:v", "1",
                "-vf", f"scale={ancho or 1280}:-2", "-q:v", "3", str(destino)]
     else:
-        cmd = ["ffmpeg", "-loglevel", "error", "-user_agent", UA, "-i", url, "-frames:v", "1",
+        cmd = ["ffmpeg", "-loglevel", "error", "-threads", "1", "-user_agent", UA, "-i", url, "-frames:v", "1",
                "-vf", f"scale={W}:{H},format=gray", "-f", "rawvideo", "-"]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=90)
@@ -281,6 +281,16 @@ def _buscar(llamada_id: int) -> None:
 
 def buscando(llamada_id: int) -> bool:
     return llamada_id in _en_curso
+
+
+def estado(ll) -> tuple[str | None, str | None]:
+    """El estado de la búsqueda. Si el backend se reinició a mitad de camino, la base dice
+    "buscando" pero nadie está buscando: queda como error para poder reintentar."""
+    if buscando(ll.id):
+        return "buscando", None
+    if ll.dibujos_estado == "buscando":
+        return "error", "La búsqueda se cortó (se reinició el servidor). Volvé a buscar."
+    return ll.dibujos_estado, ll.dibujos_error
 
 
 def descartar(dibujo_id: int, estado: str) -> int:

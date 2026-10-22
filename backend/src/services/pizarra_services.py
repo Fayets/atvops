@@ -434,8 +434,7 @@ def _dict_llamada(ll: PizarraLlamada, completa: bool = False) -> dict:
     }
     if completa:
         d["generales"] = [_dict_general(g) for g in sorted(ll.generales, key=lambda g: g.id) if g.estado != "descartada"]
-        d["dibujosEstado"] = "buscando" if dibujos.buscando(ll.id) else ll.dibujos_estado
-        d["dibujosError"] = ll.dibujos_error
+        d["dibujosEstado"], d["dibujosError"] = dibujos.estado(ll)
         d["dibujos"] = [{"id": x.id, "minuto": dibujos.minuto(x.segundo), "src": x.archivo, "dicho": x.dicho, "estado": x.estado}
                         for x in sorted(ll.dibujos, key=lambda x: x.segundo)]
     return d

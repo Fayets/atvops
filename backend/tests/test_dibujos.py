@@ -42,3 +42,10 @@ def test_lo_que_juan_decia_sale_de_la_transcripcion_alrededor_del_minuto():
     largo = "[00:07:00] Juan: " + " ".join(["logo"] * 50 + ["planta"] * 50) + "\n[00:15:00] Ana: ok"
     assert d.dicho_en(largo, 720, antes=60, despues=10) == "Juan: " + " ".join(["planta"] * 50)  # la mitad que cae en el tramo
     assert d.minuto(2283) == "38:03" and d.minuto(3725) == "1:02:05"
+
+
+def test_una_busqueda_cortada_por_un_reinicio_queda_como_error_para_reintentar():
+    class Llamada:
+        id, dibujos_estado, dibujos_error = 999, "buscando", None
+    est, error = d.estado(Llamada())
+    assert est == "error" and "Volvé a buscar" in error
