@@ -148,6 +148,19 @@
 .dc-texto b { font-weight: 700; }
 .dc-margen { width: 320px; flex: 0 0 320px; position: sticky; top: 0; background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; box-shadow: var(--shadow); color: var(--text); cursor: auto; }
+.dc-acciones { display: flex; gap: 8px; align-items: center; }
+.di-titulo { font-weight: 400; outline: none; caret-color: #1a73e8; }
+.di-dolor { margin: 0 0 4px; font-size: 13px; color: #3c4043; display: flex; gap: 8px; align-items: baseline; }
+.di-dolor span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #5f6368; }
+.di-detalle { white-space: pre-wrap; }
+.di-h2 { margin: 40px 0 10px; font-size: 18px; font-weight: 400; color: #202124; font-family: inherit; }
+.di-cita { margin: 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--brand); font-size: 15px; line-height: 1.6; color: #3c4043; font-style: italic; }
+.di-min { font-style: normal; font-size: 12px; font-weight: 700; color: var(--brand); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.di-link { display: inline-block; margin-top: 12px; font-size: 13px; color: #1a73e8; }
+.pz-docprev { display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%; padding: 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); cursor: pointer; font: inherit; color: var(--text); }
+.pz-docprev:hover { border-color: var(--text-3); }
+.pz-docprev > span:last-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 @media (max-width: 1240px) {
   .dc-mesa { flex-direction: column; align-items: center; }
   .dc-margen { position: static; width: min(816px, 100%); flex: 0 0 auto; }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Link } from 'react-router-dom';
 import Bocetos, { OBJETIVO } from '../../components/marketing/Bocetos.jsx';
 import DocumentoContexto from '../../components/marketing/DocumentoContexto.jsx';
+import DocumentoIdea from '../../components/marketing/DocumentoIdea.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
@@ -205,11 +206,7 @@ function RevisionNarrativa({ onAplicado }) {
   );
 }
 
-function PanelGeneral({ g, llamada, onGenerar, onCambio }) {
-  const [titulo, setTitulo] = useState(g?.titulo || '');
-  const [detalle, setDetalle] = useState(g?.detalle || '');
-  const [ocupado, setOcupado] = useState(false);
-  useEffect(() => { setTitulo(g?.titulo || ''); setDetalle(g?.detalle || ''); }, [g?.id, g?.titulo, g?.detalle]);
+function PanelGeneral({ g, llamada, onGenerar, onAbrir }) {
   if (!g) {
     return (
       <div className="pz-sec">
@@ -223,30 +220,15 @@ function PanelGeneral({ g, llamada, onGenerar, onCambio }) {
       </div>
     );
   }
-  const cambio = titulo !== g.titulo || detalle !== (g.detalle || '');
-  const hacer = async (fn) => { setOcupado(true); try { await fn(); } finally { setOcupado(false); } };
   return (
-    <>
-      <div className="pz-sec">
-        <span className="pz-k">Idea general{g.editada ? ' · editada' : ''}</span>
-        <textarea id="pz-gen-titulo" className="pz-gen-titulo" rows={2} value={titulo} disabled={g.estado === 'aprobada'} onChange={(e) => setTitulo(e.target.value)} />
-        <textarea id="pz-gen-detalle" rows={5} value={detalle} disabled={g.estado === 'aprobada'} onChange={(e) => setDetalle(e.target.value)} />
-        {g.dolor && <span className="pz-tag">{g.dolor}</span>}
-      </div>
-      <div className="pz-sec">
-        <span className="pz-k">De la llamada</span>
-        <blockquote className="pz-cita">{g.minuto && <span className="pz-min">{g.minuto}</span>}{g.cita}</blockquote>
-      </div>
-      <div className="pz-sec pz-botones">
-        {g.estado === 'aprobada' ? <span className="pz-ok">Aprobada{g.aprobadaPor ? ` por ${g.aprobadaPor}` : ''}</span> : (
-          <>
-            {cambio && <button type="button" className="btn" disabled={ocupado} onClick={() => hacer(() => onCambio('editar', { titulo, detalle }))}>Guardar cambios</button>}
-            <button type="button" className="btn primary" disabled={ocupado || cambio} onClick={() => hacer(() => onCambio('aprobar'))}>Aprobar</button>
-            <button type="button" className="btn ghost" disabled={ocupado || llamada?.estado === 'armando'} onClick={onGenerar}>Otra idea</button>
-          </>
-        )}
-      </div>
-    </>
+    <div className="pz-sec">
+      <span className="pz-k">Idea general{g.estado === 'aprobada' ? ' · aprobada' : ''}</span>
+      <button type="button" className="pz-docprev" onClick={onAbrir}>
+        <span className="dc-icono" aria-hidden="true" />
+        <span><b>{g.titulo}</b>{g.dolor && <span className="pz-dim">{g.dolor}</span>}</span>
+      </button>
+      <div className="pz-botones"><button type="button" className="btn primary" onClick={onAbrir}>Abrir</button></div>
+    </div>
   );
 }
 
@@ -331,6 +313,7 @@ export default function Pizarra() {
   const [storyElegida, setStoryElegida] = useState(null);
   const [ctxVersion, setCtxVersion] = useState(0); // sube cuando la revisión semanal cambia la narrativa
   const [doc, setDoc] = useState(null); // el cuadro de contexto abierto como documento
+  const [ideaAbierta, setIdeaAbierta] = useState(false); // la idea general abierta como documento
   const [aviso, setAviso] = useState('');
   const [escala, setEscala] = useState(1);
   const marcoRef = useRef(null);
@@ -415,6 +398,7 @@ export default function Pizarra() {
   const tocar = (k) => {
     if (CONTEXTO.includes(k)) { setPanel(null); setDoc(k); return; }
     if (estado[k] === 'off' || estado[k] === 'prox') return;
+    if (k === 'general') { setPanel(null); setIdeaAbierta(true); return; }
     if (k === 'uno' || k === 'clase') { setPanel({ cargar: k === 'uno' ? '1a1' : 'clase' }); return; }
     setPanel(k);
   };
@@ -428,7 +412,9 @@ export default function Pizarra() {
   const cargada = async (l) => { await traerBase(true); setLlamadaId(l.id); setPanel('claude'); };
   const guardarContexto = async (clave, texto) => { const ctx = await pizarraGuardarContexto(clave, texto); setBase((b) => ({ ...b, contexto: ctx })); };
   const generarGeneral = () => accion(() => pizarraGenerarGeneral(llamada.id));
-  const cambioGeneral = (tipo, cambios) => accion(() => (tipo === 'aprobar' ? pizarraAprobarGeneral(g.id) : pizarraEditarGeneral(g.id, cambios)));
+  const guardarGeneral = async (cambios) => { setLlamada(await pizarraEditarGeneral(g.id, cambios)); };
+  const aprobarGeneral = async () => { await accion(() => pizarraAprobarGeneral(g.id)); setIdeaAbierta(false); };
+  const otraGeneral = async () => { setIdeaAbierta(false); setPanel('claude'); await generarGeneral(); };
   const cambioVariante = (id, cambios) => accion(() => pizarraActualizarVariante(id, cambios));
   const armar = (id, obj) => { setStoryElegida(id); accion(() => pizarraGenerarSecuencias(id, obj)); };
   const panelClave = typeof panel === 'string' ? panel : null;
@@ -489,7 +475,7 @@ export default function Pizarra() {
                 )}
               </div>
             )}
-            {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral g={g} llamada={llamada} onGenerar={generarGeneral} onCambio={cambioGeneral} />}
+            {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral g={g} llamada={llamada} onGenerar={generarGeneral} onAbrir={() => { setPanel(null); setIdeaAbierta(true); }} />}
             {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}
             {(panelClave === 'ytAprob' || panelClave === 'reelAprob') && <PanelVariantes canal={panelClave === 'ytAprob' ? 'yt' : 'reel'} g={g} soloAprobadas onVariante={cambioVariante} />}
             {panelClave === 'storySec' && <PanelSecuencias g={g} elegida={storyConSec?.id} onElegir={setStoryElegida} onArmar={armar} />}
@@ -502,6 +488,18 @@ export default function Pizarra() {
           <div className="pz-bocetos-h"><span className="pz-k">Secuencias</span><b>{storyConSec.titulo}</b></div>
           <Bocetos secuencias={storyConSec.secuencias} />
         </section>
+      )}
+
+      {ideaAbierta && g && (
+        <DocumentoIdea
+          key={g.id}
+          g={g}
+          llamada={llamada}
+          onGuardar={guardarGeneral}
+          onAprobar={aprobarGeneral}
+          onOtra={otraGeneral}
+          onCerrar={() => setIdeaAbierta(false)}
+        />
       )}
 
       {doc && (
