@@ -275,7 +275,10 @@ function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
             <span className="dc-icono" aria-hidden="true" />
             <span>
               <b>{x.titulo}</b>
-              {x.detalle && <span className="pz-dim pz-dos-lineas">{x.detalle}</span>}
+              {/* Lo que dijo Juan y lo despertó, no un resumen de la IA (Franco, 22-10-2026). */}
+              {x.cita
+                ? <span className="pz-dim pz-dos-lineas pz-frase"><span className="pz-min">{x.minuto}</span>“{x.cita}”</span>
+                : x.detalle && <span className="pz-dim pz-dos-lineas">{x.detalle}</span>}
               {x.conDibujo && <span className="pz-tag">con dibujo</span>}
               {x.estado === 'aprobada' && <span className="pz-st aprobada">Aprobada</span>}
             </span>

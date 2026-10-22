@@ -491,7 +491,7 @@ Tu trabajo: encontrar los temas que habló Juan en la llamada que pueden ser una
 Reglas para cada idea:
 - Se apoya en UNA frase que dijo Juan. Copiala TEXTUAL de la transcripción, sin corregirla ni resumirla, entre 8 y 40 palabras. Nunca uses frases del cliente ni de otra persona del equipo.
 - Nada de datos del cliente (nombre, facturación, negocio): el contenido es de Juan para su audiencia.
-- "titulo": la idea como Juan la abriría en una historia o un reel. Mirá "Cómo abre Juan una idea": frase corta (hasta 12 palabras), directa, en minúscula, que pega (una acusación, una pregunta, un número, un pov). NUNCA "concepto: explicación" con dos puntos ni tono de titular de blog o de curso.
+- "titulo": un pedazo TEXTUAL de lo que dijo Juan en la llamada, de 4 a 14 palabras seguidas, copiado tal cual (puede ser parte de la cita o de otra frase suya sobre el mismo tema). Elegí el pedazo que más pega, el que Juan usaría para abrir una historia (mirá "Cómo abre Juan una idea"). No lo reescribas, no lo resumas, no le agregues nada: si no está dicho así en la transcripción, no sirve.
 - "detalle": de 2 a 4 frases escritas por Juan en primera persona, con su voz, contándole a su audiencia la idea y por qué le importa. Nada de "Juan cuenta que…" ni tercera persona: es él el que escribe.
 - "dolor": a qué dolor de la audiencia apunta. Si coincide con uno de la lista, usá ese texto (es una etiqueta interna, no se publica).
 - No repitas las ideas que te paso como ya usadas.
@@ -543,8 +543,29 @@ def validar_general(data: dict, segs: list[dict]) -> dict | None:
     if lugar is None or not es_del_vocero(lugar["quien"], segs):
         logger.info("Pizarra: idea general descartada (%s): %r", "cita de otro" if lugar else "cita no encontrada", cita[:120])
         return None
-    return {"titulo": titulo, "detalle": _limpio(data.get("detalle"), 1500) or None,
+    return {"titulo": titulo_de_juan(titulo, lugar["texto"], segs), "detalle": _limpio(data.get("detalle"), 1500) or None,
             "dolor": _limpio(data.get("dolor"), 200) or None, "cita": lugar["texto"][:600], "minuto": lugar["ts"]}
+
+
+TITULO_PALABRAS = (4, 14)
+
+
+def titulo_de_juan(titulo: str, cita: str, segs: list[dict]) -> str:
+    """El título son palabras que Juan dijo, no una imitación de su voz.
+
+    Franco (22-10-2026): aun pidiéndole "escribí como Juan", los títulos sonaban a IA. Así
+    que el título tiene que estar en la transcripción, dicho por Juan, igual que la cita. Si
+    el que propuso Claude no está, sale del arranque de la cita, cortado en la primera pausa.
+    """
+    minimo, maximo = TITULO_PALABRAS
+    if minimo <= len(titulo.split()) <= maximo:
+        lugar = ubicar_cita(titulo, segs)
+        if lugar is not None and es_del_vocero(lugar["quien"], segs):
+            return lugar["texto"].strip(" ,.;:").lower()
+    primera = re.split(r"[.;:?!]|,\s", cita, maxsplit=1)[0].split()
+    if len(primera) < minimo:
+        primera = cita.split()
+    return " ".join(primera[:maximo]).strip(" ,.;:").lower()
 
 
 def validar_generales(data: dict, segs: list[dict]) -> list[dict]:

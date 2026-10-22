@@ -236,3 +236,6 @@
   .dc-margen { position: static; width: min(816px, 100%); flex: 0 0 auto; }
 }
 @media (max-width: 700px) { .dc-hoja { padding: 40px 24px; min-height: 0; } }
+/* La frase de Juan bajo el título de cada idea general. */
+.pz-frase { font-style: italic; }
+.pz-frase .pz-min { font-style: normal; }

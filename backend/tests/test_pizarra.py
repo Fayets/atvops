@@ -136,10 +136,14 @@ def test_una_cita_parecida_en_el_tema_pero_inventada_no_entra():
 def test_de_una_llamada_salen_hasta_5_ideas_sin_repetir_frase_ni_colar_inventadas():
     segs = p.segmentos(FATHOM)
     buena = _idea("un servicio es malo hasta cuando das un sobreservicio")
-    otra = {**_idea("el servicio bueno es el servicio que está adecuado para la persona"), "titulo": "El servicio a medida"}
+    otra = {**_idea("el servicio bueno es el servicio que está adecuado para la persona"),
+            "titulo": "qué le tenés que dar al osito chiquito"}
     inventada = _idea("el sobreservicio es lo peor que le podés hacer a un cliente")
     ideas = p.validar_generales({"ideas": [buena, inventada, buena, otra]}, segs)
-    assert [i["titulo"] for i in ideas] == ["Al osito no le das una ballena", "El servicio a medida"]
+    # El título son palabras de Juan: el inventado ("al osito no le das una ballena") no está
+    # en la llamada y cae al arranque de su frase; el que dijo, queda tal cual lo dijo.
+    assert [i["titulo"] for i in ideas] == ["un servicio es malo hasta cuando das un sobreservicio",
+                                            "¿qué le tenés que dar al osito chiquito?"]
     assert len(p.validar_generales({"ideas": [buena] * 3 + [otra] * 3}, segs)) == 2
     assert p.validar_generales({"ideas": []}, segs) == []
 
