@@ -448,7 +448,9 @@ export default function Pizarra() {
 
   const resumen = {
     uno: null, clase: null,
-    fathom: llamada ? llamada.titulo : null,
+    fathom: !llamada ? null : llamada.dibujosEstado === 'buscando' ? 'buscando dibujos…'
+      : (llamada.dibujos || []).some((x) => x.estado === 'visible')
+        ? `${llamada.dibujos.filter((x) => x.estado === 'visible').length} dibujos · ${llamada.titulo}` : llamada.titulo,
     claude: estado.claude === 'armando' ? 'leyendo…' : null,
     narrativa: base.narrativaPendientes ? `${base.narrativaPendientes} cambio${base.narrativaPendientes > 1 ? 's' : ''} propuesto${base.narrativaPendientes > 1 ? 's' : ''}` : null,
     general: g ? g.titulo : generales.length ? `${generales.length} idea${generales.length > 1 ? 's' : ''}` : null,
