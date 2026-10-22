@@ -18,6 +18,7 @@ const fecha = (f) => new Date(`${f}T12:00:00`).toLocaleDateString('es-AR', { day
 export default function DocumentoEstructuras({ onCerrar, onCambio }) {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
+  const [foto, setFoto] = useState(null); // historia abierta en grande
   const traer = useCallback(() => getEstructurasHistorias(true).then(setDatos).catch((e) => setError(e.message)), []);
   useEffect(() => { traer(); }, [traer]);
   const armando = datos?.armando || datos?.revision?.estado === 'armando';
@@ -28,12 +29,16 @@ export default function DocumentoEstructuras({ onCerrar, onCambio }) {
   }, [armando, traer]);
 
   useEffect(() => {
-    const tecla = (e) => { if (e.key === 'Escape') onCerrar(); };
-    window.addEventListener('keydown', tecla);
     const previo = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', tecla); document.body.style.overflow = previo; };
-  }, [onCerrar]);
+    return () => { document.body.style.overflow = previo; };
+  }, []);
+  // Escape cierra primero la foto abierta, y después el documento.
+  useEffect(() => {
+    const tecla = (e) => { if (e.key === 'Escape') { if (foto) setFoto(null); else onCerrar(); } };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [foto, onCerrar]);
 
   const revisar = async () => { setError(''); try { setDatos(await estructurasRevisar()); } catch (e) { setError(e.message); } };
   const decidir = async (clave, estado) => {
@@ -90,15 +95,37 @@ export default function DocumentoEstructuras({ onCerrar, onCambio }) {
                   <li key={i}><span className="es-rol">{ROL[p.rol] || p.rol}</span>{p.que}</li>
                 ))}
               </ol>
-              <div className="es-ejemplos">
+              <div className="es-secuencias">
                 {e.ejemplos.map((x) => (
-                  <span key={x.fecha} className="es-ej">{fecha(x.fecha)}{x.respuestas != null ? ` · ${x.respuestas}` : ''}</span>
+                  <div key={x.fecha} className="es-sec">
+                    <div className="es-sec-cab">
+                      <b>{fecha(x.fecha)}</b>
+                      <span>{[x.respuestas != null ? `${x.respuestas} respuestas` : null, x.historias ? `${x.historias} historias` : null].filter(Boolean).join(' · ')}</span>
+                    </div>
+                    {x.resumen && <p className="es-sec-res">{x.resumen}</p>}
+                    {x.fotos?.length > 0 && (
+                      <div className="es-fotos">
+                        {x.fotos.map((f, i) => (
+                          // eslint-disable-next-line react/no-array-index-key
+                          <button key={i} type="button" className="es-foto" onClick={() => setFoto(f.url)} aria-label={`Historia ${i + 1} del ${fecha(x.fecha)}`}>
+                            {f.url ? <img src={f.url} alt="" loading="lazy" /> : <span>{i + 1}</span>}
+                            {f.respuestas > 0 && <span className="es-foto-r">{f.respuestas}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>
           ))}
         </article>
       </div>
+      {foto && (
+        <div className="es-visor" role="presentation" onClick={() => setFoto(null)}>
+          <img src={foto} alt="" />
+        </div>
+      )}
     </div>,
     document.body,
   );

@@ -66,27 +66,32 @@ def sembrar() -> int:
 
 
 def _metricas_por_dia(fechas: set[str]) -> dict[str, dict]:
-    """Historias y respuestas de cada día, de las métricas de Instagram."""
+    """Historias, respuestas y fotos (en orden) de cada día, de lo que se trajo de Instagram."""
     if not fechas:
         return {}
     ini = datetime.combine(date.fromisoformat(min(fechas)), datetime.min.time())
     fin = datetime.combine(date.fromisoformat(max(fechas)) + timedelta(days=1), datetime.min.time())
     salida: dict[str, dict] = {}
     with db_session:
-        for p in PublicacionIg.select(lambda p: p.tipo == "historia" and p.publicado_at >= ini and p.publicado_at < fin):
+        pubs = PublicacionIg.select(lambda p: p.tipo == "historia" and p.publicado_at >= ini and p.publicado_at < fin)
+        for p in sorted(pubs, key=lambda p: p.publicado_at):
             f = p.publicado_at.date().isoformat()
             if f not in fechas:
                 continue
             m = json.loads(p.metricas or "{}")
-            d = salida.setdefault(f, {"historias": 0, "respuestas": 0})
+            d = salida.setdefault(f, {"historias": 0, "respuestas": 0, "fotos": []})
             d["historias"] += 1
             d["respuestas"] += int(m.get("replies") or 0)
+            d["fotos"].append({"url": p.thumbnail, "respuestas": int(m.get("replies") or 0)})
+        resumenes = {d.fecha: d.resumen for d in PizarraHistoriaDia.select(lambda d: d.fecha in fechas)}
+    for f, d in salida.items():
+        d["resumen"] = resumenes.get(f)
     return salida
 
 
 def _dict(e: PizarraEstructura, met: dict[str, dict]) -> dict:
     fechas = json.loads(e.ejemplos_json or "[]")
-    ejemplos = [{"fecha": f, **met.get(f, {"historias": None, "respuestas": None})} for f in fechas]
+    ejemplos = [{"fecha": f, **met.get(f, {"historias": None, "respuestas": None, "fotos": [], "resumen": None})} for f in fechas]
     con = [x for x in ejemplos if x["historias"]]
     return {
         "clave": e.clave, "nombre": e.nombre, "cuando": e.cuando, "estado": e.estado, "origen": e.origen,

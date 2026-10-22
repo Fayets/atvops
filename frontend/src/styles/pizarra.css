@@ -176,8 +176,19 @@
 .es-pasos { margin: 12px 0 0; padding-left: 22px; font-size: 15px; line-height: 1.6; color: #202124; }
 .es-pasos li { margin-bottom: 6px; }
 .es-rol { display: inline-block; margin-right: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--brand); }
-.es-ejemplos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.es-ej { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f1f3f4; color: #3c4043; font-variant-numeric: tabular-nums; }
+.es-secuencias { display: flex; flex-direction: column; gap: 18px; margin-top: 18px; }
+.es-sec-cab { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: #5f6368; font-variant-numeric: tabular-nums; }
+.es-sec-cab b { font-size: 14px; font-weight: 600; color: #202124; }
+.es-sec-res { margin: 4px 0 0; font-size: 13px; line-height: 1.5; color: #5f6368; }
+.es-fotos { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px; }
+.es-foto { position: relative; flex: 0 0 auto; width: 76px; aspect-ratio: 9 / 16; padding: 0; border: 1px solid #e8eaed; border-radius: 6px;
+  overflow: hidden; background: #f1f3f4; cursor: zoom-in; }
+.es-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.es-foto > span:first-child { display: grid; place-items: center; height: 100%; font-size: 12px; color: #5f6368; }
+.es-foto-r { position: absolute; right: 4px; bottom: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 5px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72); color: #fff; font-variant-numeric: tabular-nums; }
+.es-visor { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(0, 0, 0, 0.82); cursor: zoom-out; padding: 24px; }
+.es-visor img { max-height: 100%; max-width: 100%; border-radius: 8px; }
 @media (max-width: 1240px) {
   .dc-mesa { flex-direction: column; align-items: center; }
   .dc-margen { position: static; width: min(816px, 100%); flex: 0 0 auto; }
