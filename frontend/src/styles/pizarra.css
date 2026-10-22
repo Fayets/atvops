@@ -69,7 +69,7 @@
 .pz-var.sel { border-color: var(--text); }
 .pz-objetivos { display: flex; flex-direction: column; gap: 6px; }
 .pz-objetivos label { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12.5px; text-transform: capitalize; color: var(--text-2); }
-.pz-objetivos select { height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12.5px; text-transform: none; }
+.pz-objetivos select { height: 34px; padding: 0 10px; line-height: normal; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12.5px; text-transform: none; }
 .pz-segmento { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 3px; }
 .pz-segmento button { flex: 1; font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: none; color: var(--text-2); padding: 6px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .pz-segmento button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
