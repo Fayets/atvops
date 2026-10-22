@@ -10,7 +10,7 @@ import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
   pizarraCrearLlamada, pizarraEditarGeneral, pizarraGenerarGeneral, pizarraGenerarSecuencias,
   pizarraGuardarContexto, pizarraRegenerarVariantes, pizarraSubirArchivos,
-  getEstructurasHistorias, getNarrativaPropuestas, narrativaDecidir, narrativaRevisar, pizarraBuscarDibujos, pizarraEstadoDibujo,
+  getEstructurasHistorias, getNarrativaPropuestas, narrativaDecidir, narrativaRevisar, pizarraBuscarDibujos, pizarraEstadoDibujo, pizarraMoverDibujo,
 } from '../../data/api.js';
 import { useLocalState } from '../../lib/hooks.js';
 import '../../styles/pizarra.css';
@@ -208,9 +208,16 @@ function RevisionNarrativa({ onAplicado }) {
   );
 }
 
-function PanelDibujos({ llamada, onBuscar, onEstado }) {
-  const [foto, setFoto] = useState(null);
+function PanelDibujos({ llamada, onBuscar, onEstado, onMover }) {
+  const [fotoId, setFotoId] = useState(null);
+  const [moviendo, setMoviendo] = useState(false);
   const lista = llamada.dibujos || [];
+  const foto = lista.find((d) => d.id === fotoId) || null;
+  const mover = async (e, seg) => {
+    e.stopPropagation();
+    setMoviendo(true);
+    try { await onMover(foto.id, seg); } finally { setMoviendo(false); }
+  };
   const est = llamada.dibujosEstado;
   if (llamada.fuente !== 'fathom') return null;
   return (
@@ -223,7 +230,7 @@ function PanelDibujos({ llamada, onBuscar, onEstado }) {
         <div className="pz-dibujos">
           {lista.map((d) => (
             <figure key={d.id} className={d.estado === 'descartado' ? 'descartado' : ''}>
-              <button type="button" className="pz-dibujo" onClick={() => setFoto(d)} aria-label={`Dibujo del minuto ${d.minuto}`}>
+              <button type="button" className="pz-dibujo" onClick={() => setFotoId(d.id)} aria-label={`Dibujo del minuto ${d.minuto}`}>
                 <img src={d.src} alt="" loading="lazy" />
               </button>
               <figcaption>
@@ -240,8 +247,13 @@ function PanelDibujos({ llamada, onBuscar, onEstado }) {
         <div className="pz-botones"><button type="button" className="btn ghost" onClick={onBuscar}>{est ? 'Volver a buscar' : 'Buscar dibujos'}</button></div>
       )}
       {foto && createPortal(
-        <div className="es-visor" role="presentation" onClick={() => setFoto(null)}>
-          <img src={foto.src} alt="" />
+        <div className="es-visor" role="presentation" onClick={() => setFotoId(null)}>
+          <img src={foto.src} alt="" className={moviendo ? 'pz-visor-cargando' : ''} />
+          <div className="pz-visor-mover">
+            <button type="button" className="btn sm" disabled={moviendo} onClick={(e) => mover(e, -6)}>◀ antes</button>
+            <span>{foto.minuto}</span>
+            <button type="button" className="btn sm" disabled={moviendo} onClick={(e) => mover(e, 6)}>después ▶</button>
+          </div>
           {foto.dicho && <p className="pz-visor-dicho">{foto.minuto} · {foto.dicho}</p>}
         </div>,
         document.body,
@@ -557,7 +569,8 @@ export default function Pizarra() {
             )}
             {panelClave === 'fathom' && llamada && (
               <PanelDibujos llamada={llamada} onBuscar={() => accion(() => pizarraBuscarDibujos(llamada.id))}
-                onEstado={(id, estado) => accion(() => pizarraEstadoDibujo(id, estado))} />
+                onEstado={(id, estado) => accion(() => pizarraEstadoDibujo(id, estado))}
+                onMover={(id, seg) => accion(() => pizarraMoverDibujo(id, seg))} />
             )}
             {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral generales={generales} elegida={g?.id} llamada={llamada} onGenerar={generarGeneral} onAbrir={abrirGeneral} />}
             {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} estructuras={estructuras} onEstructuras={() => setVerEstructuras(true)} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}

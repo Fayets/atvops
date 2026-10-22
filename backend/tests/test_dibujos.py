@@ -49,3 +49,23 @@ def test_una_busqueda_cortada_por_un_reinicio_queda_como_error_para_reintentar()
         id, dibujos_estado, dibujos_error = 999, "buscando", None
     est, error = d.estado(Llamada())
     assert est == "error" and "Volvé a buscar" in error
+
+
+def _rgb(fondo=(235, 235, 235), manchas=()):
+    raw = bytearray(bytes(fondo) * (d.W * d.H))
+    for (x0, y0, x1, y1), color in manchas:
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                raw[(y * d.W + x) * 3:(y * d.W + x) * 3 + 3] = bytes(color)
+    return bytes(raw)
+
+
+def test_entre_cuadros_igual_de_completos_queda_el_que_no_tiene_la_paleta_de_miro_encima():
+    dibujo = _rgb(manchas=[((60, 30, 70, 40), (200, 30, 30)), ((80, 30, 90, 40), (230, 200, 40))])  # rojo y amarillo
+    paleta = _rgb(manchas=[((100 + 4 * i, 20, 104 + 4 * i, 60), c) for i, c in enumerate(
+        [(200, 30, 30), (40, 80, 220), (120, 40, 200), (40, 200, 120), (230, 200, 40), (230, 120, 30), (30, 200, 220)])])
+    assert d.colores(dibujo) <= 2 < d.colores(paleta)
+    m = {"pizarra": True, "tinta": 0.03}
+    elegido = d.mas_limpio([(100, "con-paleta", {**m, "tinta": 0.034}, d.colores(paleta)), (106, "limpio", m, d.colores(dibujo)),
+                            (112, "a-medio-hacer", {**m, "tinta": 0.01}, 0)])
+    assert elegido == (106, "limpio")

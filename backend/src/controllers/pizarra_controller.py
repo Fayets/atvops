@@ -153,5 +153,9 @@ def buscar_dibujos(llamada_id: int, _user: dict = Depends(_puede)):
 
 @router.patch("/dibujos/{dibujo_id}")
 def estado_dibujo(dibujo_id: int, payload: dict = Body(...), _user: dict = Depends(_puede)):
-    """`estado` visible o descartado (un descartado no se usa en las secuencias)."""
-    return pizarra.detalle(dibujos.descartar(dibujo_id, str((payload or {}).get("estado") or "")))
+    """`estado` visible o descartado (un descartado no se usa en las secuencias), o `mover`
+    en segundos (-6 / 6) para quedarse con el cuadro de antes o de después."""
+    payload = payload or {}
+    if "mover" in payload:
+        return pizarra.detalle(dibujos.mover(dibujo_id, int(payload["mover"])))
+    return pizarra.detalle(dibujos.descartar(dibujo_id, str(payload.get("estado") or "")))

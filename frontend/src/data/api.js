@@ -3232,6 +3232,9 @@ export async function pizarraActualizarVariante(id, cambios) {
 export async function pizarraBuscarDibujos(llamadaId) {
   return pedir(`/api/pizarra/llamadas/${llamadaId}/dibujos`, { method: 'POST' });
 }
+export async function pizarraMoverDibujo(id, segundos) {
+  return pedir(`/api/pizarra/dibujos/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify({ mover: segundos }) });
+}
 export async function pizarraEstadoDibujo(id, estado) {
   return pedir(`/api/pizarra/dibujos/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify({ estado }) });
 }

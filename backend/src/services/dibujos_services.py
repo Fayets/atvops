@@ -12,6 +12,9 @@ Sin IA: es medir píxeles.
   es un documento con texto, no un dibujo.
 - Juan vuelve al mismo tablero, lo corre y le agrega cosas: si los trazos de un dibujo ya
   están (corridos o no) en otro, queda solo el más completo.
+- Elegido el momento, se miran los cuadros de alrededor (cada 6 s, un minuto) y queda el más
+  limpio: sin la paleta de colores ni menús de Miro encima. La paleta se nota porque trae
+  muchos colores distintos juntos; los dibujos de Juan usan uno o dos.
 - De cada dibujo se guarda la captura en grande y lo que Juan decía en ese momento.
 """
 
@@ -47,6 +50,7 @@ MIN_TINTA = 0.004     # una pizarra en blanco no es un dibujo
 MAX_TINTA = 0.07      # más que esto es un documento con texto, no un dibujo
 CORTE_TINTA = 0.5     # si la tinta cae a menos de la mitad, es otro dibujo
 MAX_DIBUJOS = 12
+VENTANA_S = 36        # alrededor del momento elegido se busca el cuadro más limpio
 MISMO_TABLERO = 0.5   # parte de los trazos compartidos para que sea el mismo tablero
 MISMO_CORRIMIENTO = 6 # celdas que el tablero puede estar corrido
 
@@ -80,9 +84,13 @@ def trozos_fathom(pagina: str) -> list[tuple[float, str]]:
     return lista
 
 
-def _cuadro(url: str, ancho: int | None = None, destino: Path | None = None) -> bytes | None:
-    """El primer cuadro del trozo: en grises y chico para medir, o en jpg grande para guardar."""
-    if destino is not None:
+def _cuadro(url: str, ancho: int | None = None, destino: Path | None = None, color: bool = False) -> bytes | None:
+    """El primer cuadro del trozo: en grises y chico para medir, en color para ver si hay
+    menús encima, o en jpg grande para guardar."""
+    if color:
+        cmd = ["ffmpeg", "-loglevel", "error", "-threads", "1", "-user_agent", UA, "-i", url, "-frames:v", "1",
+               "-vf", f"scale={W}:{H},format=rgb24", "-f", "rawvideo", "-"]
+    elif destino is not None:
         cmd = ["ffmpeg", "-loglevel", "error", "-y", "-threads", "1", "-user_agent", UA, "-i", url, "-frames:v", "1",
                "-vf", f"scale={ancho or 1280}:-2", "-q:v", "3", str(destino)]
     else:
@@ -132,6 +140,47 @@ def contenido(a: frozenset, b: frozenset, corrimiento: int = 3) -> float:
         for dy in range(-corrimiento, corrimiento + 1):
             mejor = max(mejor, sum(1 for (x, y) in a if (x + dx, y + dy) in b))
     return mejor / len(a)
+
+
+def colores(raw: bytes) -> int:
+    """Cuántos colores distintos hay en la zona útil (de 12 tonos posibles). La paleta de
+    Miro suma muchos; un dibujo de Juan, uno o dos."""
+    if not raw or len(raw) < W * H * 3:
+        return 99
+    import colorsys
+
+    cuenta = [0] * 12
+    total = 0
+    for y in range(int(H * 0.16), int(H * 0.95)):
+        for x in range(int(W * 0.06), int(W * 0.94)):
+            i = (y * W + x) * 3
+            r, g, b = raw[i], raw[i + 1], raw[i + 2]
+            total += 1
+            if max(r, g, b) - min(r, g, b) < 60:
+                continue  # gris, blanco o negro
+            h, _, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            cuenta[int(h * 12) % 12] += 1
+    return sum(1 for c in cuenta if c > total * 0.002)
+
+
+def medir_en_color(rgb: bytes | None) -> tuple[dict | None, int]:
+    """Un solo cuadro en color sirve para las dos cosas: la tinta (en grises) y los colores."""
+    if not rgb or len(rgb) < W * H * 3:
+        return None, 99
+    gris = bytes((rgb[i] * 299 + rgb[i + 1] * 587 + rgb[i + 2] * 114) // 1000 for i in range(0, W * H * 3, 3))
+    return medir(gris), colores(rgb)
+
+
+def mas_limpio(candidatos: list[tuple[float, str, dict | None, int]]) -> tuple[float, str] | None:
+    """De los cuadros alrededor de un dibujo, el más limpio que siga igual de completo:
+    [(segundo, url, medida, colores)]."""
+    validos = [c for c in candidatos if c[2] and c[2]["pizarra"] and c[2]["tinta"] <= MAX_TINTA]
+    if not validos:
+        return None
+    tope = max(c[2]["tinta"] for c in validos)
+    completos = [c for c in validos if c[2]["tinta"] >= tope * 0.8]
+    t, url, _, _ = min(completos, key=lambda c: (c[3], -c[2]["tinta"]))
+    return t, url
 
 
 def elegir(muestras: list[tuple[float, str, dict | None]]) -> list[tuple[float, str, float]]:
@@ -256,6 +305,11 @@ def _buscar(llamada_id: int) -> None:
         carpeta.mkdir(parents=True, exist_ok=True)
         nuevos = []
         for t, url, inicio in dibujos:
+            # Los cuadros de alrededor (cada 6 s): el más limpio, sin menús de Miro encima.
+            cerca = [c for c in trozos if abs(c[0] - t) <= VENTANA_S]
+            with ThreadPoolExecutor(HILOS) as pool:
+                medidos = list(pool.map(lambda c: (c[0], c[1], *medir_en_color(_cuadro(c[1], color=True))), cerca))
+            t, url = mas_limpio(medidos) or (t, url)
             destino = carpeta / f"{int(t)}.jpg"
             if _cuadro(url, ancho=1280, destino=destino):
                 # Lo que decía mientras lo dibujaba: desde que apareció el tablero hasta el cuadro elegido.
@@ -319,6 +373,29 @@ def completar_descripciones(llamada_id: int) -> None:
             d = PizarraDibujo.get(id=dib_id)
             if d is not None and hechas.get(ruta.name):
                 d.descripcion = hechas[ruta.name]
+
+
+def mover(dibujo_id: int, segundos: int) -> int:
+    """Corre el dibujo al cuadro de antes o de después (cada trozo son 6 s) y reemplaza la captura."""
+    with db_session:
+        d = PizarraDibujo.get(id=dibujo_id)
+        if d is None:
+            raise HTTPException(status_code=404, detail="Ese dibujo no existe.")
+        llamada_id, pagina, actual = d.llamada.id, d.llamada.url, d.segundo
+    trozos = trozos_fathom(pagina)
+    objetivo = actual + segundos
+    t, url = min(trozos, key=lambda c: abs(c[0] - objetivo))
+    if int(t) == actual:
+        t, url = next(((ct, cu) for ct, cu in trozos if (ct > actual if segundos > 0 else ct < actual) and int(ct) != actual), (t, url))
+    carpeta = CARPETA / str(llamada_id)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    destino = carpeta / f"{int(t)}.jpg"
+    if not _cuadro(url, ancho=1280, destino=destino):
+        raise HTTPException(status_code=502, detail="No se pudo sacar ese cuadro del video.")
+    with db_session:
+        d = PizarraDibujo[dibujo_id]
+        d.segundo, d.archivo = int(t), f"/uploads/pizarra/dibujos/{llamada_id}/{destino.name}"
+    return llamada_id
 
 
 def buscando(llamada_id: int) -> bool:
