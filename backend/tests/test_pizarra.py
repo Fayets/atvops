@@ -166,3 +166,32 @@ def test_el_titulo_de_una_idea_de_historias_no_repite_el_nombre_de_la_estructura
     v = p.validar_variantes({"story": [{"titulo": "Te lo dibujo: de los chats al cash collected", "detalle": "x", "estructura": "te-lo-dibujo"},
                                        {"titulo": "ojo: esto no es ads", "detalle": "x", "estructura": "te-lo-dibujo"}]}, est)
     assert [i["titulo"] for i in v["story"]] == ["de los chats al cash collected", "ojo: esto no es ads"]
+
+
+def test_una_historia_puede_usar_un_dibujo_real_de_la_llamada_y_no_uno_inventado():
+    data = {"secuencias": {"corta": [[
+        {"tipo": "imagen", "dibujo": 7, "texto": "el embudo de la clase"},
+        {"tipo": "imagen", "dibujo": 99, "texto": "un dibujo que no existe"},
+        {"tipo": "imagen", "dibujo": "7"},
+    ]]}}
+    corta = p.validar_secuencias(data, {7: "/uploads/pizarra/dibujos/1/2283.jpg"})["corta"][0]
+    assert corta[0]["src"] == "/uploads/pizarra/dibujos/1/2283.jpg" and corta[0]["dibujo"] == 7
+    assert "src" not in corta[1]  # queda como hueco a buscar
+    assert corta[2]["src"].endswith("2283.jpg")
+
+
+ZOOM = """[00:10:00] Aumenta Tu Valor (aumentatuvalorx@gmail.com): primero va la narrativa y después los anuncios que la acompañan
+[00:10:20] Alan Klein: a mí me bajó un montón el alcance con tantos testimonios
+"""
+
+
+def test_en_las_clases_juan_figura_como_la_cuenta_de_zoom_y_el_alumno_no_pasa_por_juan():
+    segs = p.segmentos(ZOOM)
+    assert p.validar_general(_idea("primero va la narrativa y después los anuncios que la acompañan"), segs) is not None
+    assert p.validar_general(_idea("me bajó un montón el alcance con tantos testimonios"), segs) is None
+
+
+def test_si_nadie_en_la_transcripcion_es_juan_no_entra_ninguna_frase():
+    segs = p.segmentos("[00:01:00] Ana: el contenido no me trae clientes de verdad nunca\n[00:02:00] Pedro: a mí tampoco me pasa eso")
+    assert p.validar_general(_idea("el contenido no me trae clientes de verdad nunca"), segs) is None
+    assert p.quienes_hablan(segs) == ["Ana", "Pedro"]

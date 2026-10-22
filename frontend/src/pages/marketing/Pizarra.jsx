@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Bocetos, { OBJETIVO } from '../../components/marketing/Bocetos.jsx';
 import DocumentoContexto from '../../components/marketing/DocumentoContexto.jsx';
@@ -9,7 +10,7 @@ import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
   pizarraCrearLlamada, pizarraEditarGeneral, pizarraGenerarGeneral, pizarraGenerarSecuencias,
   pizarraGuardarContexto, pizarraRegenerarVariantes, pizarraSubirArchivos,
-  getEstructurasHistorias, getNarrativaPropuestas, narrativaDecidir, narrativaRevisar,
+  getEstructurasHistorias, getNarrativaPropuestas, narrativaDecidir, narrativaRevisar, pizarraBuscarDibujos, pizarraEstadoDibujo,
 } from '../../data/api.js';
 import { useLocalState } from '../../lib/hooks.js';
 import '../../styles/pizarra.css';
@@ -207,6 +208,48 @@ function RevisionNarrativa({ onAplicado }) {
   );
 }
 
+function PanelDibujos({ llamada, onBuscar, onEstado }) {
+  const [foto, setFoto] = useState(null);
+  const lista = llamada.dibujos || [];
+  const est = llamada.dibujosEstado;
+  if (llamada.fuente !== 'fathom') return null;
+  return (
+    <div className="pz-sec">
+      <span className="pz-k">Dibujos de la llamada{lista.length ? ` · ${lista.filter((d) => d.estado === 'visible').length}` : ''}</span>
+      {est === 'buscando' && <p className="pz-dim">Buscando en el video…</p>}
+      {est === 'error' && <p className="pz-error">{llamada.dibujosError}</p>}
+      {est === 'listos' && !lista.length && <p className="pz-dim">No dibujó en esta llamada.</p>}
+      {lista.length > 0 && (
+        <div className="pz-dibujos">
+          {lista.map((d) => (
+            <figure key={d.id} className={d.estado === 'descartado' ? 'descartado' : ''}>
+              <button type="button" className="pz-dibujo" onClick={() => setFoto(d)} aria-label={`Dibujo del minuto ${d.minuto}`}>
+                <img src={d.src} alt="" loading="lazy" />
+              </button>
+              <figcaption>
+                <span>{d.minuto}</span>
+                <button type="button" className="btn sm ghost" onClick={() => onEstado(d.id, d.estado === 'descartado' ? 'visible' : 'descartado')}>
+                  {d.estado === 'descartado' ? 'Recuperar' : 'Descartar'}
+                </button>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+      {est !== 'buscando' && (
+        <div className="pz-botones"><button type="button" className="btn ghost" onClick={onBuscar}>{est ? 'Volver a buscar' : 'Buscar dibujos'}</button></div>
+      )}
+      {foto && createPortal(
+        <div className="es-visor" role="presentation" onClick={() => setFoto(null)}>
+          <img src={foto.src} alt="" />
+          {foto.dicho && <p className="pz-visor-dicho">{foto.minuto} · {foto.dicho}</p>}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
   const armando = llamada?.estado === 'armando';
   return (
@@ -364,7 +407,7 @@ export default function Pizarra() {
   // Lo que sigue en el mapa (variantes, vault, secuencias) es de la idea aprobada elegida.
   const g = aprobadasGen.find((x) => x.id === generalId) || aprobadasGen.at(-1) || null;
   const variantes = g ? Object.values(g.variantes).flat() : [];
-  const armando = llamada?.estado === 'armando' || g?.variantesEstado === 'armando' || variantes.some((v) => v.secuenciasEstado === 'armando');
+  const armando = llamada?.estado === 'armando' || llamada?.dibujosEstado === 'buscando' || g?.variantesEstado === 'armando' || variantes.some((v) => v.secuenciasEstado === 'armando');
 
   // Mientras Claude trabaja, se repregunta cada 4 s.
   useEffect(() => {
@@ -508,6 +551,10 @@ export default function Pizarra() {
                 {llamada.url && <a href={llamada.url} target="_blank" rel="noreferrer" className="pz-link">Ver grabación</a>}
                 <div className="pz-botones"><button type="button" className="btn ghost" onClick={borrarLlamada}>Borrar llamada</button></div>
               </div>
+            )}
+            {panelClave === 'fathom' && llamada && (
+              <PanelDibujos llamada={llamada} onBuscar={() => accion(() => pizarraBuscarDibujos(llamada.id))}
+                onEstado={(id, estado) => accion(() => pizarraEstadoDibujo(id, estado))} />
             )}
             {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral generales={generales} elegida={g?.id} llamada={llamada} onGenerar={generarGeneral} onAbrir={abrirGeneral} />}
             {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} estructuras={estructuras} onEstructuras={() => setVerEstructuras(true)} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}

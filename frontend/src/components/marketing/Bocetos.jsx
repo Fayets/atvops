@@ -71,7 +71,16 @@ function Grafico({ texto }) {
   );
 }
 
-function Hueco({ texto, marcas }) {
+function Hueco({ texto, marcas, src }) {
+  if (src) {
+    // La captura real de un dibujo de Juan en la llamada.
+    return (
+      <div className="bc-real">
+        <img src={src} alt={texto || ''} loading="lazy" />
+        {marcas?.length > 0 && <span className="bc-marcas">{marcas.map((m) => <span key={m} className="bc-etiqueta">{m}</span>)}</span>}
+      </div>
+    );
+  }
   return (
     <div className="bc-hueco">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
@@ -92,7 +101,7 @@ function Historia({ bloques, n }) {
       <div className="bc-card">
         {bloques.map((b, i) => {
           /* eslint-disable react/no-array-index-key */
-          if (b.tipo === 'imagen') return <Hueco key={i} texto={b.texto} marcas={b.marcas} />;
+          if (b.tipo === 'imagen') return <Hueco key={i} texto={b.texto} marcas={b.marcas} src={b.src} />;
           if (b.tipo === 'flecha') return <Flecha key={i} color={b.color} texto={b.texto} />;
           if (b.tipo === 'diagrama') return <Diagrama key={i} texto={b.texto} ciclo={b.ciclo} />;
           if (b.tipo === 'grafico') return <Grafico key={i} texto={b.texto} />;

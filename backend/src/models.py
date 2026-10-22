@@ -1104,7 +1104,26 @@ class PizarraLlamada(db.Entity):
     error = Optional(str, nullable=True)
     creado_por = Optional(str, nullable=True)
     creado_at = Required(datetime, default=datetime.utcnow)
+    dibujos_estado = Optional(str, nullable=True)   # buscando | listos | sin_video | error
+    dibujos_error = Optional(str, nullable=True)
     generales = Set("PizarraGeneral")
+    dibujos = Set("PizarraDibujo")
+
+
+class PizarraDibujo(db.Entity):
+    """Lo que Juan dibujó en la pizarra durante la llamada (Miro, embudos, cuentas): la
+    captura del video en el momento en que el dibujo está más completo, con lo que estaba
+    diciendo. Sirve de imagen real para las historias."""
+
+    _table_ = _tabla("pizarra_dibujos", "PizarraDibujo")
+
+    id = PrimaryKey(int, auto=True)
+    llamada = Required(PizarraLlamada)
+    segundo = Required(int)                         # dónde está en el video
+    archivo = Required(str)                         # /uploads/pizarra/dibujos/…
+    dicho = Optional(LongStr, nullable=True)        # lo que decía Juan alrededor de ese momento
+    estado = Required(str, default="visible")       # visible | descartado
+    creado_at = Required(datetime, default=datetime.utcnow)
 
 
 class PizarraGeneral(db.Entity):

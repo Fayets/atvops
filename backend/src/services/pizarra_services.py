@@ -31,6 +31,7 @@ from pony.orm import db_session, flush
 
 from src.models import PizarraContexto, PizarraGeneral, PizarraHistoriaDia, PizarraLlamada, PizarraSecuencia, PizarraVariante
 from src.services import activacion_ia_services as ia
+from src.services import dibujos_services as dibujos
 from src.services import estructuras_services as estructuras
 from src.services import voz_juan_services as voz_juan
 
@@ -40,7 +41,10 @@ MODELO = config("PIZARRA_MODEL", default="claude-sonnet-5-5")
 TIMEOUT_S = int(config("PIZARRA_TIMEOUT", default="420"))
 # De quién son las citas: si en la transcripción aparece alguien con este nombre, la cita
 # tiene que ser suya.
-VOCERO = config("PIZARRA_VOCERO", default="Juan")
+VOCERO = "Juan"
+# Cómo puede figurar Juan en una transcripción: en las clases por la cuenta de Zoom de ATV
+# aparece como "Aumenta Tu Valor (aumentatuvalorx@gmail.com)".
+VOCEROS = [v.strip().lower() for v in config("PIZARRA_VOCERO", default="Juan,Aumenta Tu Valor").split(",") if v.strip()]
 MAX_CHARS = 160_000
 
 TIPOS_LLAMADA = ("1a1", "clase")
@@ -57,7 +61,8 @@ _lock = threading.Lock()
 # ------------------------------------------------------------------ transcripción
 
 _TS = re.compile(r"^\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*[-–]?\s*")
-_QUIEN = re.compile(r"^([A-ZÁÉÍÓÚÑa-záéíóúñ][\w .'áéíóúñÁÉÍÓÚÑ-]{0,58}?):\s+")
+# "Juan Cruz Carrizo:" o, en las clases por Zoom, "Aumenta Tu Valor (aumentatuvalorx@gmail.com):".
+_QUIEN = re.compile(r"^([A-ZÁÉÍÓÚÑa-záéíóúñ][\w .'áéíóúñÁÉÍÓÚÑ-]{0,58}?(?:\s*\([^()]{1,80}\))?):\s+")
 
 
 def _norm(t: str) -> str:
@@ -174,11 +179,22 @@ def _casi_igual(buscada: list[str], tokens: list[str]) -> tuple[int, int] | None
     return donde if mejor >= PARECIDO_MIN else None
 
 
+def _es_juan(quien: str | None) -> bool:
+    return bool(quien) and any(v in quien.lower() for v in VOCEROS)
+
+
 def es_del_vocero(quien: str | None, segs: list[dict]) -> bool:
-    voceros = {s["quien"] for s in segs if s["quien"] and VOCERO.lower() in s["quien"].lower()}
-    if not voceros:
+    if not any(s["quien"] for s in segs):
         return True  # transcripción sin nombres: no hay cómo saberlo
-    return quien in voceros
+    return _es_juan(quien)  # con nombres, solo cuenta lo que dijo Juan
+
+
+def quienes_hablan(segs: list[dict]) -> list[str]:
+    vistos: dict[str, int] = {}
+    for s in segs:
+        if s["quien"]:
+            vistos[s["quien"]] = vistos.get(s["quien"], 0) + 1
+    return [q for q, _ in sorted(vistos.items(), key=lambda kv: -kv[1])]
 
 
 # ------------------------------------------------------------------ contexto
@@ -371,7 +387,9 @@ def crear_desde_fathom(link: str, por: str | None, http=_http, tipo: str = "1a1"
             fecha = date.fromisoformat(str(call["started_at"])[:10])
         except ValueError:
             pass
-    return crear(texto, call.get("title"), por, fuente="fathom", url=pagina, fecha=fecha, tipo=tipo)
+    nueva = crear(texto, call.get("title"), por, fuente="fathom", url=pagina, fecha=fecha, tipo=tipo)
+    dibujos.buscar(nueva["id"])  # lo que Juan dibujó en la pizarra, sacado del video
+    return detalle(nueva["id"])
 
 
 # ------------------------------------------------------------------ cómo se devuelve
@@ -416,6 +434,10 @@ def _dict_llamada(ll: PizarraLlamada, completa: bool = False) -> dict:
     }
     if completa:
         d["generales"] = [_dict_general(g) for g in sorted(ll.generales, key=lambda g: g.id) if g.estado != "descartada"]
+        d["dibujosEstado"] = "buscando" if dibujos.buscando(ll.id) else ll.dibujos_estado
+        d["dibujosError"] = ll.dibujos_error
+        d["dibujos"] = [{"id": x.id, "minuto": dibujos.minuto(x.segundo), "src": x.archivo, "dicho": x.dicho, "estado": x.estado}
+                        for x in sorted(ll.dibujos, key=lambda x: x.segundo)]
     return d
 
 
@@ -629,7 +651,12 @@ def _generar_general(llamada_id: int) -> None:
     with db_session:
         ll = PizarraLlamada[llamada_id]
         if not ideas:
-            ll.estado, ll.error = "error", "Claude no encontró frases de Juan en esta llamada para apoyar las ideas. Revisá que en la transcripción figure quién habla."
+            nombres = quienes_hablan(segs)
+            if nombres and not any(_es_juan(q) for q in nombres):
+                ll.estado, ll.error = "error", ("No encontré a Juan entre los que hablan en la transcripción (" + ", ".join(nombres[:5])
+                                                + "). Si figura con otro nombre, hay que sumarlo en PIZARRA_VOCERO.")
+            else:
+                ll.estado, ll.error = "error", "Claude no encontró frases de Juan en esta llamada para apoyar las ideas. Probá de nuevo."
             return
         for g in list(ll.generales):
             if g.estado == "propuesta":
@@ -758,7 +785,12 @@ def borrar(llamada_id: int, forzar: bool = False) -> dict:
                     s.delete()
                 v.delete()
             g.delete()
+        for d in list(ll.dibujos):
+            d.delete()
         ll.delete()
+    import shutil
+
+    shutil.rmtree(dibujos.CARPETA / str(llamada_id), ignore_errors=True)
     return {"ok": True}
 
 
@@ -828,7 +860,16 @@ def guia_secuencias() -> str:
     return ""
 
 
-def validar_secuencias(data: dict) -> dict[str, list[list[dict]]]:
+def _dibujos_texto(lista: list[dict]) -> str:
+    """Los dibujos que Juan hizo en la llamada, con lo que estaba diciendo, para usar de imagen."""
+    if not lista:
+        return ""
+    filas = "\n".join(f"- dibujo {d['id']} (minuto {d['minuto']}): lo que decía: \"{d['dicho'][:500]}\"" for d in lista)
+    return ("\n\n# Dibujos que Juan hizo en la pizarra durante esta llamada (capturas reales)\n" + filas
+            + "\nSi uno sirve para una historia, usalo de imagen: {\"tipo\": \"imagen\", \"dibujo\": id, \"texto\": qué muestra}. Es la captura real: no lo describas como algo a buscar.")
+
+
+def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None) -> dict[str, list[list[dict]]]:
     """Las secuencias con bloques de tipos y tamaños fijos. Una secuencia más larga que su rango
     se corta; una más corta queda, pero sin historias vacías."""
     salida = {}
@@ -842,12 +883,19 @@ def validar_secuencias(data: dict) -> dict[str, list[list[dict]]]:
                 if not isinstance(b, dict):
                     continue
                 texto = str(b.get("texto") or "").strip()[:500]
-                if not texto and b.get("tipo") != "flecha":
+                if not texto and b.get("tipo") != "flecha" and not (b.get("tipo") == "imagen" and b.get("dibujo") is not None):
                     continue
                 tipo = b.get("tipo")
                 if tipo == "imagen":
                     marcas = [_limpio(m, 40) for m in b.get("marcas") or [] if isinstance(m, str) and _limpio(m, 40)][:5]
-                    bloques.append({"tipo": "imagen", "texto": _limpio(texto, 200), **({"marcas": marcas} if marcas else {})})
+                    imagen = {"tipo": "imagen", "texto": _limpio(texto, 200), **({"marcas": marcas} if marcas else {})}
+                    try:
+                        dib = int(b.get("dibujo")) if b.get("dibujo") is not None else None
+                    except (TypeError, ValueError):
+                        dib = None
+                    if dib is not None and dib in (dibujos_ok or {}):
+                        imagen.update(dibujo=dib, src=dibujos_ok[dib])  # la captura real de la llamada
+                    bloques.append(imagen)
                 elif tipo == "flecha":
                     bloques.append({"tipo": "flecha", "color": "blanca" if b.get("color") == "blanca" else "roja", "texto": _limpio(texto, 60)})
                 elif tipo == "diagrama":
@@ -887,13 +935,15 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
     with db_session:
         v = PizarraVariante[variante_id]
         g = v.general
+        de_la_llamada = dibujos.para_ia(g.llamada.id)
         prompt = ("# Guía: cómo arma Juan sus secuencias\n" + guia_secuencias()
                   + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx)
                   + f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
                   + f"\n\n# La idea de historias aprobada\n{v.titulo}\n{v.detalle or ''}"
                   + _estructura_texto(todas.get(v.estructura or ""))
+                  + _dibujos_texto(de_la_llamada)
                   + "\n\n# Objetivo de cada secuencia\n" + "\n".join(f"- {l}: {OBJETIVOS[objetivos[l]]}" for l in LARGOS))
-    secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000))
+    secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000), {d["id"]: d["src"] for d in de_la_llamada})
     with db_session:
         v = PizarraVariante[variante_id]
         for s in list(v.secuencias):

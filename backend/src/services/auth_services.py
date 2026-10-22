@@ -225,8 +225,11 @@ def ensure_webinar_columns() -> None:
 
 
 def ensure_pizarra_columns() -> None:
-    """Las ideas de historias pasaron a apoyarse en una estructura real de Juan."""
+    """Las ideas de historias pasaron a apoyarse en una estructura real de Juan, y las
+    llamadas a guardar los dibujos de Juan."""
     _agregar_columnas("pizarra_variantes", "PizarraVariante", [("estructura", "TEXT")])
+    # Los dibujos de Juan en la llamada se buscan en el video.
+    _agregar_columnas("pizarra_llamadas", "PizarraLlamada", [("dibujos_estado", "TEXT"), ("dibujos_error", "TEXT")])
 
 
 def ensure_reunion_crm_columns() -> None:

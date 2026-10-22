@@ -3229,6 +3229,12 @@ export async function pizarraRegenerarVariantes(id) {
 export async function pizarraActualizarVariante(id, cambios) {
   return pedir(`/api/pizarra/variantes/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify(cambios) });
 }
+export async function pizarraBuscarDibujos(llamadaId) {
+  return pedir(`/api/pizarra/llamadas/${llamadaId}/dibujos`, { method: 'POST' });
+}
+export async function pizarraEstadoDibujo(id, estado) {
+  return pedir(`/api/pizarra/dibujos/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify({ estado }) });
+}
 export async function pizarraBorrarVariante(id) {
   return pedir(`/api/pizarra/variantes/${id}`, { method: 'DELETE' });
 }
