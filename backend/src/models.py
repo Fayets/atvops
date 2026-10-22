@@ -1194,6 +1194,53 @@ class PizarraSecuencia(db.Entity):
     objetivo = Optional(str, nullable=True)         # palabra | ensenar | mostrar | objecion
     historias_json = Required(LongStr, default="[]")
     creado_at = Required(datetime, default=datetime.utcnow)
+    # Lo que Juan o marketing editó encima: [{origen, bloques, trazos, figuras, fondo}] en un
+    # espacio de 0 a 1000 por tarjeta. La vista muestra esta si existe.
+    editada_json = Optional(LongStr, nullable=True)
+    # Lo que armó la IA, guardado la primera vez que se edita: contra esto se mide qué cambió.
+    original_json = Optional(LongStr, nullable=True)
+    editada_por = Optional(str, nullable=True)
+    editada_at = Optional(datetime, nullable=True)
+
+
+class PizarraCorreccion(db.Entity):
+    """Lo que cambió una persona sobre una secuencia que armó la IA, medido por el código.
+    Una por secuencia (se pisa en cada guardado). Sin cambios es una secuencia aprobada tal
+    cual. Las próximas secuencias leen las últimas. Guarda el id de la secuencia y no la
+    relación: al volver a armar, la secuencia se borra pero lo aprendido queda."""
+
+    _table_ = _tabla("pizarra_correcciones", "PizarraCorreccion")
+
+    id = PrimaryKey(int, auto=True)
+    secuencia_id = Required(int, unique=True)
+    variante_id = Required(int, index=True)
+    idea = Required(str)                            # el título de la idea de historias
+    largo = Required(str)
+    objetivo = Optional(str, nullable=True)
+    estructura = Optional(str, nullable=True)
+    cambios_json = Required(LongStr, default="{}")
+    antes = Optional(LongStr, nullable=True)        # el texto de la secuencia como la armó la IA
+    despues = Optional(LongStr, nullable=True)      # y como quedó
+    aprobada = Required(bool, default=False)
+    por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow, index=True)
+
+
+class FondoFoto(db.Entity):
+    """Una foto del álbum compartido de Google Photos de ATV, para usar de fondo en las
+    historias. Nunca se borra: si sale del álbum queda inactiva."""
+
+    _table_ = _tabla("fondos_fotos", "FondoFoto")
+
+    id = PrimaryKey(int, auto=True)
+    url = Required(str, unique=True)                # lh3 sin parámetros de tamaño
+    ancho = Required(int, default=0)
+    alto = Required(int, default=0)
+    descripcion = Optional(LongStr, nullable=True)  # qué se ve, leído una vez por Claude
+    activo = Required(bool, default=True)
+    visto_at = Required(datetime, default=datetime.utcnow)
+    creado_at = Required(datetime, default=datetime.utcnow)
 
 
 class PizarraPropuesta(db.Entity):

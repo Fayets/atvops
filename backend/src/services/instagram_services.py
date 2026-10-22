@@ -495,6 +495,13 @@ def iniciar_scheduler(stop: threading.Event) -> None:
                 titulos_juan_services.leer_aperturas_nuevas()
             except Exception as e:  # noqa: BLE001
                 logger.warning("Aperturas de historias: %s", str(e)[:200])
+            try:
+                # El banco de fondos de las historias: el álbum de Google Photos de ATV.
+                from src.services import fondos_services
+
+                fondos_services.tarea()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Fondos del álbum: %s", str(e)[:200])
         except Exception as e:  # noqa: BLE001
             logger.warning("Sincronización de Instagram falló: %s", str(e)[:200])
         stop.wait(espera)

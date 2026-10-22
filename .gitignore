@@ -37,6 +37,8 @@ frontend/.env.local
 # Miniaturas de Instagram: se rebajan solas en cada sincronización.
 backend/data/ig/
 backend/data/yt/
+# Fotos del álbum de fondos bajadas para describirlas: se vuelven a bajar si faltan.
+backend/data/fondos/
 
 # Audios de las sesiones del setter: pesan y viven en el volumen.
 backend/data/notas/

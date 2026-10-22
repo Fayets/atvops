@@ -3244,6 +3244,17 @@ export async function pizarraBorrarVariante(id) {
 export async function pizarraGenerarSecuencias(id, objetivos) {
   return pedir(`/api/pizarra/variantes/${id}/secuencias`, { method: 'POST', headers: JSON_H, body: JSON.stringify({ objetivos }) });
 }
+/** La secuencia editada a mano. Devuelve {llamada, cambios, usa}: lo que la pizarra aprendió. */
+export async function pizarraGuardarSecuencia(id, historias) {
+  return pedir(`/api/pizarra/secuencias/${id}`, { method: 'PUT', headers: JSON_H, body: JSON.stringify({ historias }) });
+}
+/** Las fotos del álbum de ATV para usar de fondo, buscadas por lo que se ve en ellas. */
+export async function getFondos(q = '') {
+  return pedir(`/api/pizarra/fondos${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+}
+export async function pizarraSincronizarFondos() {
+  return pedir('/api/pizarra/fondos/sincronizar', { method: 'POST' });
+}
 export async function pizarraGuardarContexto(clave, texto) {
   return pedir(`/api/pizarra/contexto/${clave}`, { method: 'PUT', headers: JSON_H, body: JSON.stringify({ texto }) });
 }

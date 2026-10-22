@@ -5,6 +5,7 @@ import Bocetos, { OBJETIVO } from '../../components/marketing/Bocetos.jsx';
 import DocumentoContexto from '../../components/marketing/DocumentoContexto.jsx';
 import DocumentoEstructuras from '../../components/marketing/DocumentoEstructuras.jsx';
 import DocumentoIdea from '../../components/marketing/DocumentoIdea.jsx';
+import EditorSecuencia, { Aprendio } from '../../components/marketing/EditorSecuencia.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
@@ -389,6 +390,8 @@ export default function Pizarra() {
   const [estructuras, setEstructuras] = useState({}); // clave → nombre de las estructuras de historias
   const [verEstructuras, setVerEstructuras] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [editando, setEditando] = useState(null); // id de la secuencia que se está editando
+  const [aprendio, setAprendio] = useState(null); // {id, cambios, usa} de la última guardada
   const [escala, setEscala] = useState(1);
   const marcoRef = useRef(null);
 
@@ -500,7 +503,13 @@ export default function Pizarra() {
   const descartarGeneral = async () => { const id = abierta.id; setIdeaAbierta(null); await accion(() => pizarraEditarGeneral(id, { estado: 'descartada' })); };
   const abrirGeneral = (id) => { if (generales.find((x) => x.id === id)?.estado === 'aprobada') setGeneralId(id); setIdeaAbierta(id); };
   const cambioVariante = (id, cambios) => accion(() => pizarraActualizarVariante(id, cambios));
-  const armar = (id, obj) => { setStoryElegida(id); accion(() => pizarraGenerarSecuencias(id, obj)); };
+  const armar = (id, obj) => {
+    const v = (g?.variantes?.story || []).find((x) => x.id === id);
+    if (v?.secuencias.some((x) => x.editada) && !window.confirm('Hay secuencias editadas: se reemplazan por las nuevas. Lo que corregiste queda aprendido.')) return;
+    setStoryElegida(id); setEditando(null); setAprendio(null);
+    accion(() => pizarraGenerarSecuencias(id, obj));
+  };
+  const guardada = (r) => { setLlamada(r.llamada); setEditando(null); setAprendio({ id: r.secuencia, cambios: r.cambios, usa: r.usa }); };
   const panelClave = typeof panel === 'string' ? panel : null;
   const borrarLlamada = async () => {
     const enVault = (llamada.generales || []).flatMap((x) => Object.values(x.variantes || {}).flat()).filter((v) => v.estado === 'aprobada').length;
@@ -586,7 +595,13 @@ export default function Pizarra() {
       {storyConSec?.secuencias.length > 0 && (
         <section className="pz-bocetos">
           <div className="pz-bocetos-h"><span className="pz-k">Secuencias</span><b>{storyConSec.titulo}</b></div>
-          <Bocetos secuencias={storyConSec.secuencias} />
+          <Bocetos
+            secuencias={storyConSec.secuencias}
+            onEditar={(id) => { setEditando(id); setAprendio(null); }}
+            editando={editando}
+            editor={(s) => <EditorSecuencia key={s.id} s={s} onCancelar={() => setEditando(null)} onGuardado={guardada} />}
+            pie={(s) => aprendio?.id === s.id && <Aprendio cambios={aprendio.cambios} usa={aprendio.usa} onCerrar={() => setAprendio(null)} />}
+          />
         </section>
       )}
 

@@ -31,8 +31,10 @@ from pony.orm import db_session, flush
 
 from src.models import PizarraContexto, PizarraGeneral, PizarraHistoriaDia, PizarraLlamada, PizarraSecuencia, PizarraVariante
 from src.services import activacion_ia_services as ia
+from src.services import correcciones_services as correcciones
 from src.services import dibujos_services as dibujos
 from src.services import estructuras_services as estructuras
+from src.services import fondos_services as fondos
 from src.services import voz_juan_services as voz_juan
 
 logger = logging.getLogger("atv_ops.pizarra")
@@ -404,7 +406,18 @@ def _duracion(ll: PizarraLlamada) -> int | None:
 
 
 def _dict_secuencia(s: PizarraSecuencia) -> dict:
-    return {"id": s.id, "largo": s.largo, "objetivo": s.objetivo, "historias": json.loads(s.historias_json or "[]")}
+    """La secuencia como se ve: la editada si alguien la editó, si no la que armó la IA.
+    Cada historia va con sus capas (trazos, figuras) y la foto de fondo ya resuelta."""
+    if s.editada_json:
+        historias = [correcciones.historia_normal(h) for h in json.loads(s.editada_json)]
+    else:
+        historias = correcciones.historias_normales(json.loads(s.historias_json or "[]"))
+    fotos = fondos.existentes(h["fondo"] for h in historias)
+    for h in historias:
+        h["fondoSrc"] = fotos.get(h["fondo"])
+    return {"id": s.id, "largo": s.largo, "objetivo": s.objetivo, "historias": historias,
+            "editada": bool(s.editada_json), "editadaPor": s.editada_por,
+            "editadaAt": s.editada_at.isoformat() if s.editada_at else None}
 
 
 def _dict_variante(v: PizarraVariante) -> dict:
@@ -1024,50 +1037,164 @@ def _grafico(b: dict) -> dict | None:
     return {"tipo": "grafico", "forma": forma, "datos": datos, "texto": _limpio(b.get("texto"), 40)}
 
 
-def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None) -> dict[str, list[list[dict]]]:
+def _bloque(b, dibujos_ok: dict[int, str] | None = None, fondos_ok=None) -> dict | None:
+    """Un bloque de historia con tipo y tamaño fijos, o None si no se puede dibujar."""
+    if not isinstance(b, dict):
+        return None
+    texto = str(b.get("texto") or "").strip()[:500]
+    tipo = b.get("tipo")
+    if tipo == "fondo":
+        # La foto del álbum que eligió la IA: solo si existe.
+        try:
+            foto = int(b.get("foto"))
+        except (TypeError, ValueError):
+            return None
+        return {"tipo": "fondo", "foto": foto} if foto in (fondos_ok or ()) else None
+    if not texto and tipo not in ("flecha", "grafico") and not (tipo == "imagen" and b.get("dibujo") is not None):
+        return None
+    if tipo == "imagen":
+        marcas = [_limpio(m, 40) for m in b.get("marcas") or [] if isinstance(m, str) and _limpio(m, 40)][:5]
+        imagen = {"tipo": "imagen", "texto": _limpio(texto, 200), **({"marcas": marcas} if marcas else {})}
+        try:
+            dib = int(b.get("dibujo")) if b.get("dibujo") is not None else None
+        except (TypeError, ValueError):
+            dib = None
+        if dib is not None and dib in (dibujos_ok or {}):
+            imagen.update(dibujo=dib, src=dibujos_ok[dib])  # la captura real de la llamada
+        return imagen
+    if tipo == "flecha":
+        return {"tipo": "flecha", "color": "blanca" if b.get("color") == "blanca" else "roja", "texto": _limpio(texto, 60)}
+    if tipo == "diagrama":
+        pasos = [_limpio(x, 40) for x in re.split(r"\s*(?:→|->)\s*", texto) if _limpio(x, 40)][:7]
+        return {"tipo": "diagrama", "texto": " → ".join(pasos), "ciclo": bool(b.get("ciclo"))} if len(pasos) >= 2 else None
+    if tipo == "grafico":
+        return _grafico(b)
+    tam = b.get("tamano") if b.get("tamano") in TAMANOS else "n"
+    return {"tipo": "texto", "tamano": tam, "texto": "\n".join(" ".join(l.split()) for l in texto.splitlines())}
+
+
+def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None, fondos_ok=None) -> dict[str, list[list[dict]]]:
     """Las secuencias con bloques de tipos y tamaños fijos. Una secuencia más larga que su rango
-    se corta; una más corta queda, pero sin historias vacías."""
+    se corta; una más corta queda, pero sin historias vacías. Un fondo por historia."""
     salida = {}
     for largo in LARGOS:
         historias = []
         for h in (data.get("secuencias") or {}).get(largo) or []:
             if not isinstance(h, list):
                 continue
-            bloques = []
-            for b in h[:8]:
-                if not isinstance(b, dict):
-                    continue
-                texto = str(b.get("texto") or "").strip()[:500]
-                if not texto and b.get("tipo") not in ("flecha", "grafico") and not (b.get("tipo") == "imagen" and b.get("dibujo") is not None):
-                    continue
-                tipo = b.get("tipo")
-                if tipo == "imagen":
-                    marcas = [_limpio(m, 40) for m in b.get("marcas") or [] if isinstance(m, str) and _limpio(m, 40)][:5]
-                    imagen = {"tipo": "imagen", "texto": _limpio(texto, 200), **({"marcas": marcas} if marcas else {})}
-                    try:
-                        dib = int(b.get("dibujo")) if b.get("dibujo") is not None else None
-                    except (TypeError, ValueError):
-                        dib = None
-                    if dib is not None and dib in (dibujos_ok or {}):
-                        imagen.update(dibujo=dib, src=dibujos_ok[dib])  # la captura real de la llamada
-                    bloques.append(imagen)
-                elif tipo == "flecha":
-                    bloques.append({"tipo": "flecha", "color": "blanca" if b.get("color") == "blanca" else "roja", "texto": _limpio(texto, 60)})
-                elif tipo == "diagrama":
-                    pasos = [_limpio(x, 40) for x in re.split(r"\s*(?:→|->)\s*", texto) if _limpio(x, 40)][:7]
-                    if len(pasos) >= 2:
-                        bloques.append({"tipo": "diagrama", "texto": " → ".join(pasos), "ciclo": bool(b.get("ciclo"))})
-                elif tipo == "grafico":
-                    graf = _grafico(b)
-                    if graf:
-                        bloques.append(graf)
-                else:
-                    tam = b.get("tamano") if b.get("tamano") in TAMANOS else "n"
-                    bloques.append({"tipo": "texto", "tamano": tam, "texto": "\n".join(" ".join(l.split()) for l in texto.splitlines())})
+            bloques = [x for x in (_bloque(b, dibujos_ok, fondos_ok) for b in h[:9]) if x]
+            fondo = next((x for x in bloques if x["tipo"] == "fondo"), None)
+            bloques = [x for x in bloques if x["tipo"] != "fondo"][:8]
             if bloques:
-                historias.append(bloques)
+                historias.append(bloques + ([fondo] if fondo else []))
         salida[largo] = historias[: RANGO_LARGO[largo][1]]
     return salida
+
+
+# --- edición a mano
+
+MAX_HISTORIAS_EDITADA = 20
+MAX_TRAZOS = 80
+MAX_FIGURAS = 30
+MAX_PUNTOS_TRAZO = 20_000   # caracteres del camino de un trazo (el editor corta en 18.000)
+MAX_BYTES_EDITADA = 600_000
+COLORES = ("rojo", "negro", "blanco")
+FIGURAS = ("rect", "circ", "linea", "flecha", "nota")
+_CAMINO = re.compile(r"M[\d.\s]+(?:L[\d.\s]+)*")
+
+
+def _coord(v, minimo: float = 0, maximo: float = 1000) -> float:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return minimo
+    return round(min(maximo, max(minimo, x)), 1) if x == x else minimo  # x != x es NaN
+
+
+def _trazo(t) -> dict | None:
+    if not isinstance(t, dict):
+        return None
+    d = " ".join(str(t.get("d") or "").split())
+    if not d or len(d) > MAX_PUNTOS_TRAZO or not _CAMINO.fullmatch(d):
+        return None
+    return {"d": d, "color": t.get("color") if t.get("color") in COLORES else "rojo"}
+
+
+def _figura(f) -> dict | None:
+    if not isinstance(f, dict) or f.get("tipo") not in FIGURAS:
+        return None
+    x, y = _coord(f.get("x")), _coord(f.get("y"))
+    w, h = _coord(f.get("w"), 10, max(10, 1000 - x)), _coord(f.get("h"), 10, max(10, 1000 - y))
+    salida = {"tipo": f["tipo"], "x": x, "y": y, "w": w, "h": h,
+              "color": f.get("color") if f.get("color") in COLORES else "rojo", "relleno": bool(f.get("relleno"))}
+    if f["tipo"] == "nota":
+        salida["texto"] = str(f.get("texto") or "").strip()[:300]
+    return salida
+
+
+def validar_editada(data, dibujos_ok: dict[int, str] | None = None, fondos_ok=None, n_original: int = 0) -> list[dict]:
+    """Las historias editadas a mano, con cada cosa en su forma y su tope. Lo absurdo (más de
+    20 historias, un pedido enorme) se rechaza; lo de más dentro de una historia se corta.
+    `origen` es la historia de la IA de donde viene (para medir qué cambió), o None si es nueva."""
+    historias = data.get("historias") if isinstance(data, dict) else None
+    if not isinstance(historias, list) or not historias:
+        raise HTTPException(status_code=422, detail="La secuencia tiene que tener al menos una historia.")
+    if len(historias) > MAX_HISTORIAS_EDITADA:
+        raise HTTPException(status_code=422, detail=f"Una secuencia no puede tener más de {MAX_HISTORIAS_EDITADA} historias.")
+    if len(json.dumps(data, ensure_ascii=False)) > MAX_BYTES_EDITADA:
+        raise HTTPException(status_code=413, detail="La secuencia editada es demasiado grande.")
+    salida, usados = [], set()
+    for h in historias:
+        if not isinstance(h, dict):
+            continue
+        bloques = [x for x in (_bloque(b, dibujos_ok) for b in (h.get("bloques") or [])[:12]) if x and x["tipo"] != "fondo"]
+        trazos = [x for x in (_trazo(t) for t in (h.get("trazos") or [])[:MAX_TRAZOS]) if x]
+        figuras = [x for x in (_figura(f) for f in (h.get("figuras") or [])[:MAX_FIGURAS]) if x]
+        try:
+            fondo = int(h.get("fondo")) if h.get("fondo") is not None else None
+        except (TypeError, ValueError):
+            fondo = None
+        if fondo not in (fondos_ok or ()):
+            fondo = None
+        origen = h.get("origen")
+        if not isinstance(origen, int) or isinstance(origen, bool) or not 0 <= origen < n_original or origen in usados:
+            origen = None
+        if not (bloques or trazos or figuras or fondo is not None):
+            continue   # una historia vacía no va
+        if origen is not None:
+            usados.add(origen)
+        salida.append({"origen": origen, "bloques": bloques, "trazos": trazos, "figuras": figuras, "fondo": fondo})
+    if not salida:
+        raise HTTPException(status_code=422, detail="La secuencia quedó vacía.")
+    return salida
+
+
+def guardar_secuencia(secuencia_id: int, data: dict, por: str | None) -> dict:
+    """Guarda la secuencia editada, mide qué cambió contra lo que armó la IA y lo deja como
+    corrección para las próximas. Devuelve la llamada al día y lo que se aprendió."""
+    with db_session:
+        s = PizarraSecuencia.get(id=secuencia_id)
+        if s is None:
+            raise HTTPException(status_code=404, detail="Esa secuencia no existe.")
+        original = json.loads(s.original_json or s.historias_json or "[]")
+        dibujos_ok = {d.id: d.archivo for d in s.variante.general.llamada.dibujos}
+    pedidos = [h.get("fondo") for h in (data or {}).get("historias") or [] if isinstance(h, dict)]
+    fotos = fondos.existentes(x for x in pedidos if isinstance(x, int) and not isinstance(x, bool))
+    editada = validar_editada(data, dibujos_ok, set(fotos), len(original))
+    normales = correcciones.historias_normales(original)
+    d = correcciones.diferencias(original, editada,
+                                 fondos.descripciones({h["fondo"] for h in editada + normales if h["fondo"] is not None}))
+    with db_session:
+        s = PizarraSecuencia[secuencia_id]
+        v = s.variante
+        if not s.original_json:
+            s.original_json = s.historias_json   # lo que armó la IA, una sola vez
+        s.editada_json = json.dumps(editada, ensure_ascii=False)
+        s.editada_por, s.editada_at = por, datetime.utcnow()
+        correcciones.registrar(s.id, v.id, v.titulo, s.largo, s.objetivo, v.estructura, original, editada, d, por)
+        llamada_id = v.general.llamada.id
+    return {"llamada": detalle(llamada_id), "secuencia": secuencia_id,
+            "cambios": correcciones.lo_que_cambiaste(d), "usa": correcciones.lo_que_usa(d), "aprobada": d["aprobada"]}
 
 
 def generar_secuencias(variante_id: int, objetivos: dict | None = None) -> dict:
@@ -1092,6 +1219,12 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
     with db_session:
         llamada_id = PizarraVariante[variante_id].general.llamada.id
     dibujos.completar_descripciones(llamada_id)  # fuera de la sesión: llama a Claude
+    # Lo que Juan corrigió en secuencias anteriores va junto a su voz; los fondos que ya eligió
+    # se ofrecen primero.
+    corregido = correcciones.bloque()
+    preferidas = correcciones.fondos_elegidos()
+    fotos = fondos.para_ia(preferidas)
+    fondos_texto = fondos.bloque_para_ia(fotos)
     with db_session:
         v = PizarraVariante[variante_id]
         g = v.general
@@ -1099,13 +1232,15 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
         idea = f"{g.titulo} {g.detalle or ''} {g.cita or ''} {v.titulo} {v.detalle or ''}"
         cerca_de = dibujos._segundos(g.minuto)
         prompt = ("# Guía: cómo arma Juan sus secuencias\n" + guia_secuencias()
-                  + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx)
+                  + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx) + corregido
                   + f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
                   + f"\n\n# La idea de historias aprobada\n{v.titulo}\n{v.detalle or ''}"
                   + _estructura_texto(todas.get(v.estructura or ""))
                   + _dibujos_texto(de_la_llamada, dibujos_de_la_idea(de_la_llamada, idea, cerca_de))
+                  + fondos_texto
                   + "\n\n# Objetivo de cada secuencia\n" + "\n".join(f"- {l}: {OBJETIVOS[objetivos[l]]}" for l in LARGOS))
-    secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000), {d["id"]: d["src"] for d in de_la_llamada})
+    secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000), {d["id"]: d["src"] for d in de_la_llamada},
+                                    {f["id"] for f in fotos})
     secuencias = asegurar_dibujos(secuencias, de_la_llamada, idea, cerca_de)
     with db_session:
         v = PizarraVariante[variante_id]

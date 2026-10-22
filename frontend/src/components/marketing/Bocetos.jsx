@@ -3,6 +3,8 @@
  * con el texto tal cual va y el lugar de cada imagen marcado para que el equipo la busque.
  * No es diseño: es el boceto. Lo que Juan dibuja encima (flechas, la palabra encerrada,
  * etiquetas sobre una captura, diagramas, gráficos) va en rojo, como en sus historias.
+ * Una secuencia editada en la pizarra trae además, por historia, los rayones a mano, las
+ * figuras y la foto de fondo: se dibujan encima, en un espacio de 0 a 1000 por tarjeta.
  */
 
 const LARGO = { corta: 'Corta', media: 'Media', larga: 'Larga' };
@@ -12,7 +14,7 @@ const OBJETIVO = {
 };
 
 /** Las marcas del texto: **negrita**, [[encerrada]], {{en rojo}}, ~~tachado~~ y __subrayado__. */
-const MARCA = /(\*\*[^*]+\*\*|\[\[[^\]]+\]\]|\{\{[^}]+\}\}|~~[^~]+~~|__[^_]+__)/g;
+export const MARCA = /(\*\*[^*]+\*\*|\[\[[^\]]+\]\]|\{\{[^}]+\}\}|~~[^~]+~~|__[^_]+__)/g;
 
 function Trozo({ p }) {
   if (p.startsWith('**') && p.endsWith('**')) return <b>{p.slice(2, -2)}</b>;
@@ -113,7 +115,7 @@ function Grafico({ forma, datos, texto }) {
   );
 }
 
-function Hueco({ texto, marcas, src }) {
+export function Hueco({ texto, marcas, src }) {
   if (src) {
     // La captura real de un dibujo de Juan en la llamada.
     return (
@@ -136,47 +138,115 @@ function Hueco({ texto, marcas, src }) {
   );
 }
 
-function Historia({ bloques, n }) {
+/** Un bloque de la historia tal cual se ve, sin editar. */
+export function Bloque({ b }) {
+  if (b.tipo === 'imagen') return <Hueco texto={b.texto} marcas={b.marcas} src={b.src} />;
+  if (b.tipo === 'flecha') return <Flecha color={b.color} texto={b.texto} />;
+  if (b.tipo === 'diagrama') return <Diagrama texto={b.texto} ciclo={b.ciclo} />;
+  if (b.tipo === 'grafico') return <Grafico forma={b.forma} datos={b.datos} texto={b.texto} />;
+  return <p className={`bc-t ${b.tamano}`}><Texto texto={b.texto} /></p>;
+}
+
+/** Los colores del lápiz y de las figuras. El rojo es el de la tinta de Juan en los bocetos. */
+export const TINTA = { rojo: '#d62d20', negro: '#1c1917', blanco: '#ffffff' };
+
+/** Dónde va una figura dentro de la tarjeta: sus coordenadas van de 0 a 1000. */
+export const posicion = (f) => ({ left: `${f.x / 10}%`, top: `${f.y / 10}%`, width: `${f.w / 10}%`, height: `${f.h / 10}%` });
+
+/** Una figura (cuadrado, círculo, línea, flecha) o la nota adhesiva para el equipo. */
+export function Figura({ f }) {
+  const c = TINTA[f.color] ?? TINTA.rojo;
+  if (f.tipo === 'nota') return <span className="bc-nota-t">{f.texto}</span>;
+  const relleno = f.relleno ? c : 'none';
+  const trazo = { stroke: c, strokeWidth: 3, vectorEffect: 'non-scaling-stroke', strokeLinecap: 'round', strokeLinejoin: 'round' };
   return (
-    <div className="bc-hist">
-      <span className="bc-num">{n}</span>
-      <div className="bc-card">
-        {bloques.map((b, i) => {
-          /* eslint-disable react/no-array-index-key */
-          if (b.tipo === 'imagen') return <Hueco key={i} texto={b.texto} marcas={b.marcas} src={b.src} />;
-          if (b.tipo === 'flecha') return <Flecha key={i} color={b.color} texto={b.texto} />;
-          if (b.tipo === 'diagrama') return <Diagrama key={i} texto={b.texto} ciclo={b.ciclo} />;
-          if (b.tipo === 'grafico') return <Grafico key={i} forma={b.forma} datos={b.datos} texto={b.texto} />;
-          return <p key={i} className={`bc-t ${b.tamano}`}><Texto texto={b.texto} /></p>;
-          /* eslint-enable react/no-array-index-key */
-        })}
-      </div>
-    </div>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {f.tipo === 'rect' && <rect x="2" y="2" width="96" height="96" rx="4" fill={relleno} {...trazo} />}
+      {f.tipo === 'circ' && <ellipse cx="50" cy="50" rx="48" ry="48" fill={relleno} {...trazo} />}
+      {f.tipo === 'linea' && <line x1="2" y1="50" x2="98" y2="50" {...trazo} />}
+      {f.tipo === 'flecha' && (
+        <>
+          <line x1="2" y1="50" x2="92" y2="50" {...trazo} />
+          <path d="M78 25 L96 50 L78 75" fill="none" {...trazo} />
+        </>
+      )}
+    </svg>
   );
 }
 
-export default function Bocetos({ secuencias }) {
+/** Los rayones a mano y las figuras encima de la tarjeta. */
+function Capa({ trazos = [], figuras = [] }) {
+  if (!trazos.length && !figuras.length) return null;
   return (
-    <div className="bc">
-      {secuencias.map((s) => (
-        <section key={s.id} className="bc-franja">
-          <div className="bc-franja-h">
-            <h3>{LARGO[s.largo] ?? s.largo}</h3>
-            <span className="bc-chip">{s.historias.length} historias</span>
-            {s.objetivo && <span className="bc-chip">{OBJETIVO[s.objetivo] ?? s.objetivo}</span>}
-          </div>
-          <div className="bc-fila">
-            {s.historias.map((h, i) => (
-              <div key={i} className="bc-paso">
-                {i > 0 && <span className="bc-flecha" aria-hidden="true" />}
-                <Historia bloques={h} n={i + 1} />
-              </div>
-            ))}
-          </div>
-        </section>
+    <div className="bc-capa" aria-hidden="true">
+      {trazos.length > 0 && (
+        <svg viewBox="0 0 1000 1000" preserveAspectRatio="none">
+          {/* eslint-disable-next-line react/no-array-index-key */}
+          {trazos.map((t, i) => <path key={i} d={t.d} className="bc-rayon" stroke={TINTA[t.color] ?? TINTA.rojo} />)}
+        </svg>
+      )}
+      {figuras.map((f, i) => (
+        // eslint-disable-next-line react/no-array-index-key
+        <div key={i} className={`bc-fig${f.tipo === 'nota' ? ' nota' : ''}`} style={posicion(f)}><Figura f={f} /></div>
       ))}
     </div>
   );
 }
 
-export { OBJETIVO };
+/** Las secuencias viejas traen cada historia como una lista de bloques. */
+export const normal = (h) => (Array.isArray(h) ? { bloques: h, trazos: [], figuras: [], fondo: null, fondoSrc: null } : h);
+
+/** El fondo de la tarjeta: la foto del álbum, oscurecida para que el texto blanco se lea.
+ * Va sin Referer: Google Photos no sirve sus fotos a otra página que las pida con uno. */
+export function Fondo({ src }) {
+  return src ? <img className="bc-fondo" src={src} alt="" referrerPolicy="no-referrer" loading="lazy" /> : null;
+}
+
+function Historia({ h, n }) {
+  const { bloques, trazos, figuras, fondoSrc } = normal(h);
+  return (
+    <div className="bc-hist">
+      <span className="bc-num">{n}</span>
+      <div className={`bc-card${fondoSrc ? ' con-fondo' : ''}`}>
+        <Fondo src={fondoSrc} />
+        {/* eslint-disable-next-line react/no-array-index-key */}
+        {bloques.map((b, i) => <Bloque key={i} b={b} />)}
+        <Capa trazos={trazos} figuras={figuras} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `onEditar` suma el botón Editar a cada secuencia; la que tiene el id `editando` se
+ * reemplaza por lo que devuelve `editor(s)`. `pie(s)` va debajo de cada secuencia.
+ */
+export default function Bocetos({ secuencias, onEditar, editando, editor, pie }) {
+  return (
+    <div className="bc">
+      {secuencias.map((s) => (editando === s.id && editor ? <section key={s.id} className="bc-franja">{editor(s)}</section> : (
+        <section key={s.id} className="bc-franja">
+          <div className="bc-franja-h">
+            <h3>{LARGO[s.largo] ?? s.largo}</h3>
+            <span className="bc-chip">{s.historias.length} historias</span>
+            {s.objetivo && <span className="bc-chip">{OBJETIVO[s.objetivo] ?? s.objetivo}</span>}
+            {s.editada && <span className="bc-chip" title={s.editadaPor ? `Editada por ${s.editadaPor}` : undefined}>editada</span>}
+            {onEditar && <button type="button" className="btn sm ghost bc-editar" onClick={() => onEditar(s.id)}>Editar</button>}
+          </div>
+          <div className="bc-fila">
+            {s.historias.map((h, i) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <div key={i} className="bc-paso">
+                {i > 0 && <span className="bc-flecha" aria-hidden="true" />}
+                <Historia h={h} n={i + 1} />
+              </div>
+            ))}
+          </div>
+          {pie?.(s)}
+        </section>
+      )))}
+    </div>
+  );
+}
+
+export { LARGO, OBJETIVO };

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadF
 from src.controllers.auth_controller import get_current_user
 from src.services import dibujos_services as dibujos
 from src.services import estructuras_services as estructuras
+from src.services import fondos_services as fondos
 from src.services import narrativa_services as narrativa
 from src.services import pizarra_services as pizarra
 
@@ -106,6 +107,25 @@ def borrar_variante(variante_id: int, _user: dict = Depends(_puede)):
 def generar_secuencias(variante_id: int, payload: dict = Body(default={}), _user: dict = Depends(_puede)):
     """Corta, media y larga de una idea de historias aprobada. `objetivos` opcional por largo."""
     return pizarra.generar_secuencias(variante_id, (payload or {}).get("objetivos"))
+
+
+@router.put("/secuencias/{secuencia_id}")
+def guardar_secuencia(secuencia_id: int, payload: dict = Body(...), user: dict = Depends(_puede)):
+    """La secuencia editada a mano. Devuelve la llamada al día, lo que cambió y lo que las
+    próximas secuencias van a usar."""
+    return pizarra.guardar_secuencia(secuencia_id, payload or {}, user.get("username"))
+
+
+@router.get("/fondos")
+def listar_fondos(q: str = "", _user: dict = Depends(_puede)):
+    """Las fotos del álbum de ATV para usar de fondo, filtradas por lo que se ve en ellas."""
+    return fondos.listar(q)
+
+
+@router.post("/fondos/sincronizar")
+def sincronizar_fondos(_user: dict = Depends(_puede)):
+    """Lee ya el álbum en vez de esperar al programador. Las descripciones siguen en segundo plano."""
+    return fondos.sincronizar_ahora()
 
 
 @router.get("/narrativa/propuestas")

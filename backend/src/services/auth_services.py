@@ -231,6 +231,10 @@ def ensure_pizarra_columns() -> None:
     # Los dibujos de Juan en la llamada se buscan en el video.
     _agregar_columnas("pizarra_llamadas", "PizarraLlamada", [("dibujos_estado", "TEXT"), ("dibujos_error", "TEXT")])
     _agregar_columnas("pizarra_dibujos", "PizarraDibujo", [("descripcion", "TEXT")])
+    # Las secuencias se editan en la pizarra y se guarda lo que armó la IA para aprender.
+    _agregar_columnas("pizarra_secuencias", "PizarraSecuencia", [
+        ("editada_json", "TEXT"), ("original_json", "TEXT"), ("editada_por", "TEXT"), ("editada_at", "TIMESTAMP"),
+    ])
 
 
 def ensure_reunion_crm_columns() -> None:
