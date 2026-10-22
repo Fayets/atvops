@@ -188,8 +188,10 @@ def _prompt(narrativa: str, semana: dict, desde: date, hasta: date) -> str:
     return "\n\n".join(partes)
 
 
-def _claude(prompt: str, fotos: list[str]) -> dict:
-    """Con API, las fotos van en el mensaje; con el CLI, Claude las lee con Read."""
+def _claude(prompt: str, fotos: list[str], system: str | None = None) -> dict:
+    """Con API, las fotos van en el mensaje; con el CLI, Claude las lee con Read.
+    `system` lo usa también la revisión de estructuras de historias."""
+    system = system or SYSTEM
     if ia.via_api():
         import anthropic
 
@@ -198,10 +200,10 @@ def _claude(prompt: str, fotos: list[str]) -> dict:
             contenido.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
                                                           "data": base64.b64encode(Path(f).read_bytes()).decode()}})
         msg = anthropic.Anthropic(api_key=ia.API_KEY, timeout=TIMEOUT_S).messages.create(
-            model=MODELO, max_tokens=4000, system=SYSTEM, messages=[{"role": "user", "content": contenido}])
+            model=MODELO, max_tokens=6000, system=system, messages=[{"role": "user", "content": contenido}])
         return ia._extraer_json("".join(getattr(b, "text", "") for b in msg.content))
     cmd = [ia.CLAUDE_BIN, "-p", "--model", MODELO, "--output-format", "json", "--max-turns", str(len(fotos) + 5),
-           "--no-session-persistence", "--strict-mcp-config", "--system-prompt", SYSTEM]
+           "--no-session-persistence", "--strict-mcp-config", "--system-prompt", system]
     if fotos:
         # Solo puede leer: ni escribir ni ejecutar nada.
         cmd += ["--tools", "Read", "--allowedTools", "Read", "--add-dir", str(DATA_DIR / "ig")]

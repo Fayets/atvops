@@ -29,8 +29,9 @@ from decouple import config
 from fastapi import HTTPException
 from pony.orm import db_session, flush
 
-from src.models import PizarraContexto, PizarraGeneral, PizarraLlamada, PizarraSecuencia, PizarraVariante
+from src.models import PizarraContexto, PizarraGeneral, PizarraHistoriaDia, PizarraLlamada, PizarraSecuencia, PizarraVariante
 from src.services import activacion_ia_services as ia
+from src.services import estructuras_services as estructuras
 from src.services import voz_juan_services as voz_juan
 
 logger = logging.getLogger("atv_ops.pizarra")
@@ -391,7 +392,7 @@ def _dict_secuencia(s: PizarraSecuencia) -> dict:
 def _dict_variante(v: PizarraVariante) -> dict:
     return {
         "id": v.id, "canal": v.canal, "titulo": v.titulo, "detalle": v.detalle, "estado": v.estado,
-        "decididoPor": v.decidido_por,
+        "decididoPor": v.decidido_por, "estructura": v.estructura,
         "secuenciasEstado": "armando" if f"secuencias:{v.id}" in _en_curso else ("listas" if v.secuencias else "nada"),
         "secuencias": [_dict_secuencia(s) for s in sorted(v.secuencias, key=lambda s: LARGOS.index(s.largo) if s.largo in LARGOS else 9)],
     }
@@ -478,10 +479,10 @@ Tu trabajo: bajarla a variantes por canal. Todas cuentan la misma idea general, 
 
 - yt: %(n)s ideas de video de YouTube. "titulo": el título del video. "detalle": el ángulo y qué se lleva el que lo mira, en 1 o 2 frases.
 - reel: %(n)s ideas de reel. "titulo": el gancho (lo primero que se dice o se lee). "detalle": de qué va, en 1 o 2 frases.
-- story: %(n)s ideas de secuencia de historias. "titulo": de qué va la secuencia. "detalle": con qué arranca y qué le pide a la gente al final (encuesta, caja de preguntas, palabra por DM).
+- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": de qué va la secuencia. "detalle": cómo baja la idea a esa estructura: con qué arranca y qué le pide a la gente al final.
 
 Devolvé SOLO un objeto JSON, sin texto antes ni después:
-{"yt": [{"titulo": "...", "detalle": "..."}], "reel": [...], "story": [...]}"""
+{"yt": [{"titulo": "...", "detalle": "..."}], "reel": [...], "story": [{"titulo": "...", "detalle": "...", "estructura": "clave"}]}"""
 
 
 def _contexto_texto(ctx: dict) -> str:
@@ -528,12 +529,22 @@ def validar_generales(data: dict, segs: list[dict]) -> list[dict]:
     return salida
 
 
-def validar_variantes(data: dict) -> dict[str, list[dict]]:
+def validar_variantes(data: dict, estructuras: set[str] | None = None) -> dict[str, list[dict]]:
+    """Las variantes que se pueden guardar. Una idea de historias sin una estructura real
+    de Juan (de las activas) no entra."""
     salida = {}
     for canal in CANALES:
         items = data.get(canal) if isinstance(data.get(canal), list) else []
-        salida[canal] = [{"titulo": _limpio(i.get("titulo"), 300), "detalle": _limpio(i.get("detalle"), 1200) or None}
-                         for i in items[:VARIANTES_POR_CANAL + 2] if isinstance(i, dict) and _limpio(i.get("titulo"), 300)]
+        salida[canal] = []
+        for i in items[:VARIANTES_POR_CANAL + 2]:
+            if not isinstance(i, dict) or not _limpio(i.get("titulo"), 300):
+                continue
+            item = {"titulo": _limpio(i.get("titulo"), 300), "detalle": _limpio(i.get("detalle"), 1200) or None}
+            if canal == "story" and estructuras:
+                if i.get("estructura") not in estructuras:
+                    continue
+                item["estructura"] = i["estructura"]
+            salida[canal].append(item)
     return salida
 
 
@@ -663,14 +674,16 @@ def regenerar_variantes(general_id: int) -> dict:
 def _generar_variantes(general_id: int) -> None:
     ctx = contexto()
     voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
+    catalogo, claves = estructuras.catalogo_texto(), set(estructuras.activas())
     with db_session:
         g = PizarraGeneral[general_id]
         aprobadas = [f"- ({v.canal}) {v.titulo}" for v in g.variantes if v.estado == "aprobada"]
         prompt = ("# Lo fijo de la marca\n" + _contexto_texto(ctx)
                   + f"\n\n# La idea general aprobada\n{g.titulo}\n{g.detalle or ''}\nDolor: {g.dolor or '-'}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
                   + ("\n\n# Variantes ya aprobadas (no las repitas)\n" + "\n".join(aprobadas) if aprobadas else "")
+                  + (f"\n\n# Estructuras de historias de Juan\n{catalogo}" if catalogo else "")
                   + f"\n\n# La llamada: {g.llamada.titulo}\n{_recortar(g.llamada.transcripcion)}")
-    variantes = validar_variantes(_claude(SYSTEM_VARIANTES % {"n": VARIANTES_POR_CANAL}, prompt, 4000))
+    variantes = validar_variantes(_claude(SYSTEM_VARIANTES % {"n": VARIANTES_POR_CANAL}, prompt, 4000), claves)
     with db_session:
         g = PizarraGeneral[general_id]
         for v in list(g.variantes):
@@ -678,7 +691,7 @@ def _generar_variantes(general_id: int) -> None:
                 v.delete()
         for canal, items in variantes.items():
             for i in items:
-                PizarraVariante(general=g, canal=canal, titulo=i["titulo"], detalle=i["detalle"])
+                PizarraVariante(general=g, canal=canal, titulo=i["titulo"], detalle=i["detalle"], estructura=i.get("estructura"))
         hay = any(variantes.values())
         g.variantes_estado = "listas" if hay else "error"
         g.error = None if hay else "Claude no devolvió variantes. Probá de nuevo."
@@ -737,6 +750,19 @@ OBJETIVOS = {
 }
 OBJETIVO_POR_LARGO = {"corta": "palabra", "media": "ensenar", "larga": "mostrar"}
 TAMANOS = ("g", "n", "c")   # grande, normal, chico — como en los bocetos de marketing
+
+def _estructura_texto(e: dict | None) -> str:
+    """La estructura real que eligió la idea, con cómo la usó Juan en sus secuencias."""
+    if not e:
+        return ""
+    pasos = "\n".join(f"{i}. [{p['rol']}] {p['que']}" for i, p in enumerate(e["pasos"], 1))
+    with db_session:
+        resumenes = [(d.fecha, d.resumen) for d in PizarraHistoriaDia.select(lambda d: d.fecha in e["ejemplos"]) if d.resumen]
+    ejemplos = "\n".join(f"- {f}: {r}" for f, r in sorted(resumenes)[-4:])
+    return (f"\n\n# La estructura de esta idea: {e['nombre']}\n{e['cuando'] or ''}\nPasos:\n{pasos}"
+            + (f"\nAsí la usó Juan:\n{ejemplos}" if ejemplos else "")
+            + "\nLas tres secuencias siguen estos pasos: la corta los comprime, la larga los estira con más prueba.")
+
 
 SYSTEM_SECUENCIAS = MARCA + """
 
@@ -817,6 +843,7 @@ def generar_secuencias(variante_id: int, objetivos: dict | None = None) -> dict:
 def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
     ctx = contexto()
     voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
+    todas = estructuras.activas()
     with db_session:
         v = PizarraVariante[variante_id]
         g = v.general
@@ -824,6 +851,7 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
                   + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx)
                   + f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
                   + f"\n\n# La idea de historias aprobada\n{v.titulo}\n{v.detalle or ''}"
+                  + _estructura_texto(todas.get(v.estructura or ""))
                   + "\n\n# Objetivo de cada secuencia\n" + "\n".join(f"- {l}: {OBJETIVOS[objetivos[l]]}" for l in LARGOS))
     secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000))
     with db_session:

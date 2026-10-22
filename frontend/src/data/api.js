@@ -3246,6 +3246,15 @@ export async function narrativaDecidir(propuestaId, cambioId, estado) {
     method: 'PATCH', headers: JSON_H, body: JSON.stringify({ estado }),
   });
 }
+export async function getEstructurasHistorias(refrescar = false) {
+  return pedir(`/api/pizarra/estructuras${refrescar ? '?refrescar=true' : ''}`);
+}
+export async function estructurasRevisar() {
+  return pedir('/api/pizarra/estructuras/revisar', { method: 'POST' });
+}
+export async function estructuraDecidir(clave, estado) {
+  return pedir(`/api/pizarra/estructuras/${clave}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify({ estado }) });
+}
 
 /* ---------------------------------------------------------------- línea de pagos */
 

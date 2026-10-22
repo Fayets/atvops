@@ -2,13 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Link } from 'react-router-dom';
 import Bocetos, { OBJETIVO } from '../../components/marketing/Bocetos.jsx';
 import DocumentoContexto from '../../components/marketing/DocumentoContexto.jsx';
+import DocumentoEstructuras from '../../components/marketing/DocumentoEstructuras.jsx';
 import DocumentoIdea from '../../components/marketing/DocumentoIdea.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
   pizarraCrearLlamada, pizarraEditarGeneral, pizarraGenerarGeneral, pizarraGenerarSecuencias,
   pizarraGuardarContexto, pizarraRegenerarVariantes, pizarraSubirArchivos,
-  getNarrativaPropuestas, narrativaDecidir, narrativaRevisar,
+  getEstructurasHistorias, getNarrativaPropuestas, narrativaDecidir, narrativaRevisar,
 } from '../../data/api.js';
 import { useLocalState } from '../../lib/hooks.js';
 import '../../styles/pizarra.css';
@@ -236,7 +237,7 @@ function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
   );
 }
 
-function PanelVariantes({ canal, g, soloAprobadas, onVariante, onRegenerar }) {
+function PanelVariantes({ canal, g, soloAprobadas, onVariante, onRegenerar, estructuras = {}, onEstructuras }) {
   const lista = (g?.variantes?.[canal] || []).filter((v) => (soloAprobadas ? v.estado === 'aprobada' : true));
   return (
     <div className="pz-sec">
@@ -246,6 +247,7 @@ function PanelVariantes({ canal, g, soloAprobadas, onVariante, onRegenerar }) {
       <div className="pz-variantes">
         {lista.map((v) => (
           <div key={v.id} className={`pz-var ${v.estado}`}>
+            {v.estructura && <span className="pz-tag">{estructuras[v.estructura] || v.estructura}</span>}
             <b>{v.titulo}</b>
             {v.detalle && <span className="pz-dim">{v.detalle}</span>}
             <div className="pz-botones">
@@ -262,12 +264,17 @@ function PanelVariantes({ canal, g, soloAprobadas, onVariante, onRegenerar }) {
         ))}
       </div>
       {soloAprobadas ? <Link to="/marketing/vault" className="pz-link">Ver el vault de ideas</Link>
-        : g?.variantesEstado !== 'armando' && <div className="pz-botones"><button type="button" className="btn ghost" onClick={onRegenerar}>Otras variantes</button></div>}
+        : g?.variantesEstado !== 'armando' && (
+          <div className="pz-botones">
+            <button type="button" className="btn ghost" onClick={onRegenerar}>Otras variantes</button>
+            {canal === 'story' && onEstructuras && <button type="button" className="btn ghost" onClick={onEstructuras}>Estructuras</button>}
+          </div>
+        )}
     </div>
   );
 }
 
-function PanelSecuencias({ g, elegida, onElegir, onArmar }) {
+function PanelSecuencias({ g, elegida, onElegir, onArmar, estructuras = {} }) {
   const aprobadas = (g?.variantes?.story || []).filter((v) => v.estado === 'aprobada');
   const [obj, setObj] = useState(OBJ_DEFECTO);
   const v = aprobadas.find((x) => x.id === elegida) || aprobadas[0];
@@ -279,6 +286,7 @@ function PanelSecuencias({ g, elegida, onElegir, onArmar }) {
           <label key={x.id} className={`pz-var elegible${v?.id === x.id ? ' sel' : ''}`}>
             <input type="radio" name="pz-story" checked={v?.id === x.id} onChange={() => onElegir(x.id)} />
             <b>{x.titulo}</b>
+            {x.estructura && <span className="pz-tag">{estructuras[x.estructura] || x.estructura}</span>}
             {x.secuencias.length > 0 && <span className="pz-st aprobada">con secuencias</span>}
           </label>
         ))}
@@ -319,6 +327,8 @@ export default function Pizarra() {
   const [doc, setDoc] = useState(null); // el cuadro de contexto abierto como documento
   const [ideaAbierta, setIdeaAbierta] = useState(null); // id de la idea general abierta como documento
   const [generalId, setGeneralId] = useState(null); // la idea aprobada que sigue por el mapa
+  const [estructuras, setEstructuras] = useState({}); // clave → nombre de las estructuras de historias
+  const [verEstructuras, setVerEstructuras] = useState(false);
   const [aviso, setAviso] = useState('');
   const [escala, setEscala] = useState(1);
   const marcoRef = useRef(null);
@@ -335,6 +345,10 @@ export default function Pizarra() {
     try { const b = await getPizarra(refrescar); setBase(b); return b; } catch (e) { setError(e); return null; }
   }, []);
   useEffect(() => { traerBase(); }, [traerBase]);
+  const traerEstructuras = useCallback(() => getEstructurasHistorias()
+    .then((d) => setEstructuras(Object.fromEntries(d.estructuras.map((e) => [e.clave, e.nombre]))))
+    .catch(() => {}), []);
+  useEffect(() => { traerEstructuras(); }, [traerEstructuras]);
   useEffect(() => {
     if (base && llamadaId && !base.llamadas.some((l) => l.id === llamadaId)) setLlamadaId(base.llamadas[0]?.id ?? null);
   }, [base, llamadaId, setLlamadaId]);
@@ -496,9 +510,9 @@ export default function Pizarra() {
               </div>
             )}
             {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral generales={generales} elegida={g?.id} llamada={llamada} onGenerar={generarGeneral} onAbrir={abrirGeneral} />}
-            {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}
+            {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} estructuras={estructuras} onEstructuras={() => setVerEstructuras(true)} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}
             {(panelClave === 'ytAprob' || panelClave === 'reelAprob') && <PanelVariantes canal={panelClave === 'ytAprob' ? 'yt' : 'reel'} g={g} soloAprobadas onVariante={cambioVariante} />}
-            {panelClave === 'storySec' && <PanelSecuencias g={g} elegida={storyConSec?.id} onElegir={setStoryElegida} onArmar={armar} />}
+            {panelClave === 'storySec' && <PanelSecuencias g={g} estructuras={estructuras} elegida={storyConSec?.id} onElegir={setStoryElegida} onArmar={armar} />}
           </aside>
         )}
       </div>
@@ -509,6 +523,8 @@ export default function Pizarra() {
           <Bocetos secuencias={storyConSec.secuencias} />
         </section>
       )}
+
+      {verEstructuras && <DocumentoEstructuras onCerrar={() => setVerEstructuras(false)} onCambio={traerEstructuras} />}
 
       {abierta && (
         <DocumentoIdea

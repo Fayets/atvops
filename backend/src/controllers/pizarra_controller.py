@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 
 from src.controllers.auth_controller import get_current_user
+from src.services import estructuras_services as estructuras
 from src.services import narrativa_services as narrativa
 from src.services import pizarra_services as pizarra
 
@@ -116,3 +117,21 @@ def revisar_narrativa(_user: dict = Depends(_puede)):
 def decidir_cambio(propuesta_id: int, cambio_id: int, payload: dict = Body(...), user: dict = Depends(_puede)):
     """`estado` aceptado (se aplica a la narrativa) o descartado."""
     return narrativa.decidir(propuesta_id, cambio_id, str((payload or {}).get("estado") or ""), user.get("username"))
+
+
+@router.get("/estructuras")
+def listar_estructuras(_user: dict = Depends(_puede)):
+    """Las estructuras de historias de Juan, con sus secuencias reales y cómo rinden."""
+    return estructuras.listar()
+
+
+@router.post("/estructuras/revisar")
+def revisar_estructuras(_user: dict = Depends(_puede)):
+    """Lee ya las historias nuevas en vez de esperar al lunes."""
+    return estructuras.revisar(origen="manual")
+
+
+@router.patch("/estructuras/{clave}")
+def decidir_estructura(clave: str, payload: dict = Body(...), user: dict = Depends(_puede)):
+    """`estado` activa (se acepta una propuesta) o descartada."""
+    return estructuras.decidir(clave, str((payload or {}).get("estado") or ""), user.get("username"))

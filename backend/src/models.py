@@ -1142,6 +1142,7 @@ class PizarraVariante(db.Entity):
     estado = Required(str, default="propuesta")     # propuesta | aprobada | descartada
     decidido_por = Optional(str, nullable=True)
     decidido_at = Optional(datetime, nullable=True)
+    estructura = Optional(str, nullable=True)       # clave de PizarraEstructura (solo historias)
     secuencias = Set("PizarraSecuencia")
 
 
@@ -1171,6 +1172,56 @@ class PizarraPropuesta(db.Entity):
     estado = Required(str, default="armando")       # armando | lista | sin_cambios | error
     fuentes_json = Required(LongStr, default="{}")  # qué se leyó: reels, videos, historias
     cambios_json = Required(LongStr, default="[]")  # [{accion, linea_actual, linea_nueva, motivo, evidencias, estado}]
+    error = Optional(str, nullable=True)
+    origen = Required(str, default="programado")    # programado | manual
+    creado_at = Required(datetime, default=datetime.utcnow)
+
+
+class PizarraEstructura(db.Entity):
+    """Una forma de armar secuencias de historias que Juan repite, sacada de sus secuencias
+    reales: nunca inventada. Cada una lleva las fechas de las secuencias que la prueban.
+    La revisión semanal suma ejemplos solos y propone estructuras nuevas, que se aceptan o
+    se descartan."""
+
+    _table_ = _tabla("pizarra_estructuras", "PizarraEstructura")
+
+    id = PrimaryKey(int, auto=True)
+    clave = Required(str, unique=True)
+    nombre = Required(str)
+    cuando = Optional(LongStr, nullable=True)
+    pasos_json = Required(LongStr, default="[]")    # [{rol, que}]
+    ejemplos_json = Required(LongStr, default="[]")  # fechas AAAA-MM-DD de las secuencias que la usan
+    estado = Required(str, default="activa")        # activa | propuesta | descartada
+    origen = Required(str, default="analisis")      # analisis | revision
+    creado_at = Required(datetime, default=datetime.utcnow)
+    decidido_por = Optional(str, nullable=True)
+    decidido_at = Optional(datetime, nullable=True)
+
+
+class PizarraHistoriaDia(db.Entity):
+    """Una secuencia de historias (un día) ya leída: qué estructura usó y cómo fue.
+    Las que no entran en ninguna quedan sueltas, y dos sueltas parecidas son una
+    estructura nueva."""
+
+    _table_ = _tabla("pizarra_historias_dia", "PizarraHistoriaDia")
+
+    fecha = PrimaryKey(str)                         # AAAA-MM-DD
+    estructura = Optional(str, nullable=True)       # clave, o vacío si no entra en ninguna
+    resumen = Optional(LongStr, nullable=True)      # "gancho → prueba → … → cta"
+    revisado_at = Required(datetime, default=datetime.utcnow)
+
+
+class PizarraEstructuraRevision(db.Entity):
+    """Cada pasada que lee las historias nuevas para seguir aprendiendo estructuras."""
+
+    _table_ = _tabla("pizarra_estructuras_revision", "PizarraEstructuraRevision")
+
+    id = PrimaryKey(int, auto=True)
+    desde = Required(date, index=True)
+    hasta = Required(date)
+    estado = Required(str, default="armando")       # armando | lista | sin_historias | error
+    dias = Required(int, default=0)
+    nuevas = Required(int, default=0)
     error = Optional(str, nullable=True)
     origen = Required(str, default="programado")    # programado | manual
     creado_at = Required(datetime, default=datetime.utcnow)

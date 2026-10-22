@@ -224,6 +224,11 @@ def ensure_webinar_columns() -> None:
     _agregar_columnas("webinars", "Webinar", [("zoom_webinar_id", "TEXT")])
 
 
+def ensure_pizarra_columns() -> None:
+    """Las ideas de historias pasaron a apoyarse en una estructura real de Juan."""
+    _agregar_columnas("pizarra_variantes", "PizarraVariante", [("estructura", "TEXT")])
+
+
 def ensure_reunion_crm_columns() -> None:
     """La tabla de llamadas de ATV Ops nació solo con la referencia al CRM. Se le agregan
     las columnas del resultado, que es lo que ahora guarda el sistema por su cuenta."""

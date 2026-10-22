@@ -1,0 +1,876 @@
+{
+ "leido": "108 secuencias del 2026-05-02 al 2026-10-19, leídas historia por historia el 2026-10-22",
+ "estructuras": [
+  {
+   "clave": "por-que-no-vendes",
+   "nombre": "Te digo por qué no vendés",
+   "cuando": "Enseñar una idea y pedir la palabra a cambio del recurso que la desarrolla (video, doc, SOP).",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la acusación en texto, sin vueltas: \"no X, por eso no vendés\" o \"querés hacer $100k/mes y nunca vas a lograrlo porque…\""
+    },
+    {
+     "rol": "enseñanza",
+     "que": "el mecanismo en frases cortas, una idea por historia; muchas veces la misma foto sumando una línea por historia"
+    },
+    {
+     "rol": "prueba",
+     "que": "su número con poco contenido: \"hice $170k en 28 días con 3 reels, 1 youtube y un par de secuencias\""
+    },
+    {
+     "rol": "cta",
+     "que": "el recurso a la vista (miro, doc, loom) + \"llegó el momento de explicarte…\" + responde PALABRA y te lo paso"
+    }
+   ],
+   "ejemplos": [
+    "2026-05-27",
+    "2026-06-09",
+    "2026-06-16",
+    "2026-07-17",
+    "2026-10-16"
+   ]
+  },
+  {
+   "clave": "te-lo-dibujo",
+   "nombre": "Te lo dibujo",
+   "cuando": "Cuando la idea entra en un diagrama o una lista: se revela de a poco y se pide la palabra.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la frase que abre el problema (\"vas a seguir ahí hasta que entiendas que…\", tres niveles de reels e ingresos)"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "la lista o el diagrama con la clave tapada o borrosa"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "la misma imagen revelando la clave con flecha u óvalo rojo (\"y sabés perfectamente de lo que hablo\")"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "la consecuencia en el negocio (malos leads, ads poco rentables, refunds…)"
+    },
+    {
+     "rol": "cta",
+     "que": "el doc o video que lo explica + responde PALABRA"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-02",
+    "2026-08-24",
+    "2026-08-26",
+    "2026-09-03"
+   ]
+  },
+  {
+   "clave": "por-unica-vez",
+   "nombre": "Por única vez",
+   "cuando": "Dar acceso a algo grande (plataforma, SOPs, biblioteca) con escasez.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la escasez: \"primera y última vez que voy a hacer esto\", \"nunca hice lo que voy a hacer\""
+    },
+    {
+     "rol": "prueba",
+     "que": "lo que logró con la lista de ❌: sin ads, sin webinars, sin lanzamientos, sin contenido diario"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "qué es: captura de la plataforma o los SOPs, cuántas horas, qué áreas (marketing, ventas, equipo, producto, IA y sistemas)"
+    },
+    {
+     "rol": "cta",
+     "que": "la pantalla de login o de acceso + \"para acceder necesitás: 1. link 2. clave\" + responde ACCESO"
+    },
+    {
+     "rol": "objecion",
+     "que": "opcional: la aclaración del filtro o \"tengan paciencia\" con las métricas de respuestas"
+    }
+   ],
+   "ejemplos": [
+    "2026-07-11",
+    "2026-08-20",
+    "2026-09-09"
+   ]
+  },
+  {
+   "clave": "cayo-un-pago",
+   "nombre": "Me pagaron mientras hacía esta historia",
+   "cuando": "Mostrar caja real y usarla para explicar por qué entra la plata.",
+   "pasos": [
+    {
+     "rol": "contexto",
+     "que": "la hora o el momento del día (\"BUEN DÍA. 7:33am\", \"esta siendo ridículo\")"
+    },
+    {
+     "rol": "prueba",
+     "que": "la captura del pago o de la caja del día, con la hora"
+    },
+    {
+     "rol": "objecion",
+     "que": "\"fuera del meme\" / \"sé que te parece raro\": por qué entra, con ❌ (no vino de ads, no persigo a nadie, no subo todos los días)"
+    },
+    {
+     "rol": "prueba",
+     "que": "opcional: wins de clientes que copiaron el camino"
+    },
+    {
+     "rol": "cta",
+     "que": "el recurso que explica el sistema + responde PALABRA"
+    }
+   ],
+   "ejemplos": [
+    "2026-05-06",
+    "2026-07-01",
+    "2026-08-10",
+    "2026-10-07"
+   ]
+  },
+  {
+   "clave": "me-preguntaron",
+   "nombre": "Me preguntaron",
+   "cuando": "Responder una pregunta real de seguidores o clientes y convertirla en recurso.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la pregunta real: captura del DM o de la caja de preguntas (o varias juntas)"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "su respuesta, corta y directa, a veces con humor"
+    },
+    {
+     "rol": "prueba",
+     "que": "la prueba que la respalda (métricas de un reel, márgenes, wins)"
+    },
+    {
+     "rol": "cta",
+     "que": "el recurso a la vista + responde PALABRA (o sin CTA cuando es ronda de preguntas)"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-02",
+    "2026-06-13",
+    "2026-10-14"
+   ]
+  },
+  {
+   "clave": "asi-lo-escalamos",
+   "nombre": "Así lo escalamos: 1, 2, 3",
+   "cuando": "Mostrar la implementación con un caso o un proceso, paso por paso.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "antes → después con tiempo: \"hace 1 mes. de $10.000 a $170.000\" o \"hoy voy a mostrarte un proceso de $15.000USD. róbamelo.\""
+    },
+    {
+     "rol": "contexto",
+     "que": "cómo entró el cliente (perfil, formulario, situación)"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "los pasos numerados, una historia por paso, con la captura del entregable, la call de Fathom o el miro"
+    },
+    {
+     "rol": "prueba",
+     "que": "el resultado con capturas de pagos o métricas"
+    },
+    {
+     "rol": "historia_personal",
+     "que": "el cierre humano: la vida que vive hoy, el testimonio o el agradecimiento"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-01",
+    "2026-06-08",
+    "2026-06-15",
+    "2026-09-30"
+   ]
+  },
+  {
+   "clave": "ronda-de-casos",
+   "nombre": "Ronda de casos",
+   "cuando": "Mostrar varios clientes seguidos, cada uno con su antes y después.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "\"los clientes vienen demasiado bien\", \"escalé 4 negocios muy fuerte estos últimos 45 días\""
+    },
+    {
+     "rol": "prueba",
+     "que": "opcional: el total (cobros pendientes, generado por clientes en el mes)"
+    },
+    {
+     "rol": "prueba",
+     "que": "una historia por cliente: \"de $X/mes a $Y/mes en N días\" + captura de Discord o WhatsApp"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "el cierre: una frase, un compromiso o la llamada que lo explica + palabra"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-13",
+    "2026-07-06",
+    "2026-09-07",
+    "2026-09-23",
+    "2026-10-05"
+   ]
+  },
+  {
+   "clave": "rompo-la-objecion",
+   "nombre": "Rompo la objeción",
+   "cuando": "Desarmar una excusa o creencia de la audiencia con casos.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la objeción dicha como la piensa el que mira (\"tengo que pensarlo\", \"vivís pensando que tu contenido es bueno, pero…\"), muchas veces texto blanco sobre negro"
+    },
+    {
+     "rol": "prueba",
+     "que": "el cliente o el número que la rompe; la excusa tachada (~~ ~~) sobre la captura"
+    },
+    {
+     "rol": "objecion",
+     "que": "repetir con otra objeción si hay más"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "la frase dura de cierre o el recurso + palabra"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-06",
+    "2026-08-10",
+    "2026-09-03",
+    "2026-09-11"
+   ]
+  },
+  {
+   "clave": "un-dia-conmigo",
+   "nombre": "Un día conmigo, hora por hora",
+   "cuando": "Mostrar el trabajo real detrás de los resultados.",
+   "pasos": [
+    {
+     "rol": "contexto",
+     "que": "la hora + la foto (\"9am. 10k pasos.\", \"10am - call 1-1\")"
+    },
+    {
+     "rol": "contexto",
+     "que": "cada bloque del día con su captura de Fathom, Meet o Discord: calls, clase, deepwork"
+    },
+    {
+     "rol": "prueba",
+     "que": "lo que salió de ese día (pago, win, roadmaps entregados)"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "la reflexión final, o la clase de hoy + responde PALABRA"
+    }
+   ],
+   "ejemplos": [
+    "2026-05-09",
+    "2026-06-22",
+    "2026-06-29",
+    "2026-07-13",
+    "2026-08-01",
+    "2026-09-14"
+   ]
+  },
+  {
+   "clave": "postales",
+   "nombre": "Postales",
+   "cuando": "Mantener presencia sin pedir nada: lugar, viaje, equipo.",
+   "pasos": [
+    {
+     "rol": "contexto",
+     "que": "la ubicación (sticker o texto: \"Paris, France\") con foto o video"
+    },
+    {
+     "rol": "otro",
+     "que": "fotos o videos casi sin texto, humor del momento"
+    },
+    {
+     "rol": "cta",
+     "que": "opcional: \"documenté todo\" + responde vlog"
+    }
+   ],
+   "ejemplos": [
+    "2026-05-21",
+    "2026-06-21",
+    "2026-07-14",
+    "2026-07-22",
+    "2026-08-16",
+    "2026-08-21"
+   ]
+  },
+  {
+   "clave": "lo-que-nadie-muestra",
+   "nombre": "Lo que nadie muestra",
+   "cuando": "Un número que sorprende y lo que de verdad importa en un negocio.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "el número inesperado: pérdida neta, métricas con \"??\", \"ayer hicimos $17.2k pero eso no es lo importante\""
+    },
+    {
+     "rol": "enseñanza",
+     "que": "lo que sí importa, con su captura (dashboard de cuotas, márgenes, profit)"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "la regla de negocio en texto (\"la matemática es simple…\", los 2 tipos de jugadores)"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-04",
+    "2026-08-14",
+    "2026-08-15"
+   ]
+  },
+  {
+   "clave": "hace-un-ano",
+   "nombre": "Hace un año yo estaba ahí",
+   "cuando": "Contar algo personal con fecha y bajarlo a una lección de negocio.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la frase personal (\"y si no se da?\", \"por primera vez estuve totalmente fuera del negocio\", \"este de acá soy yo\")"
+    },
+    {
+     "rol": "historia_personal",
+     "que": "dónde estaba con números y fecha (\"hace un año estaba en $30k/mes, 14 horas diarias…\")"
+    },
+    {
+     "rol": "enseñanza",
+     "que": "lo que entendió y la lección para el dueño de negocio"
+    },
+    {
+     "rol": "cta",
+     "que": "el video donde lo cuenta + responde VIDEO"
+    }
+   ],
+   "ejemplos": [
+    "2026-05-11",
+    "2026-06-11",
+    "2026-09-01",
+    "2026-10-12"
+   ]
+  },
+  {
+   "clave": "anuncio-con-cupos",
+   "nombre": "Anuncio con cupos",
+   "cuando": "Evento, oferta nueva o suba de precios con fecha y lugares contados.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "la visión o la provocación (\"no hacés $100.000/mes porque sos muy normal\", \"nueva misión\")"
+    },
+    {
+     "rol": "prueba",
+     "que": "lo que ya pasó (sold out, roadmaps entregados, clientes con facturación)"
+    },
+    {
+     "rol": "contexto",
+     "que": "qué es: flyer, fechas, invitados, precio"
+    },
+    {
+     "rol": "cta",
+     "que": "los cupos que quedan o la fecha límite + responde PALABRA"
+    }
+   ],
+   "ejemplos": [
+    "2026-07-05",
+    "2026-07-27",
+    "2026-08-03",
+    "2026-08-05",
+    "2026-08-12"
+   ]
+  },
+  {
+   "clave": "te-estamos-buscando",
+   "nombre": "Te estamos buscando",
+   "cuando": "Sumar gente al equipo.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "\"TE ESTAMOS BUSCANDO\" con los roles"
+    },
+    {
+     "rol": "contexto",
+     "que": "la misión del equipo y quiénes son"
+    },
+    {
+     "rol": "cta",
+     "que": "qué ganás y el link para aplicar (o responde PUESTO)"
+    }
+   ],
+   "ejemplos": [
+    "2026-06-18",
+    "2026-09-08",
+    "2026-09-16"
+   ]
+  },
+  {
+   "clave": "cuenta-regresiva",
+   "nombre": "Cuenta regresiva",
+   "cuando": "Varios días seguidos que preparan un lanzamiento o una clase con fecha.",
+   "pasos": [
+    {
+     "rol": "gancho",
+     "que": "un cambio que llama la atención (\"ya no publico\", mensajes de la gente esperando)"
+    },
+    {
+     "rol": "prueba",
+     "que": "pagos, reservas o resultados de clientes de esos días"
+    },
+    {
+     "rol": "cta",
+     "que": "\"el próximo lunes 28 voy a revelar…\": la fecha, todos los días"
+    }
+   ],
+   "ejemplos": [
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23"
+   ]
+  }
+ ],
+ "dias": {
+  "2026-05-02": {
+   "estructura": null,
+   "resumen": "clip único sin texto"
+  },
+  "2026-05-03": {
+   "estructura": null,
+   "resumen": "agradecimiento → métricas del video → enseñanza (no ser robot) → marca personal → comentarios → distribución → patrón copiable → objetivos del mes"
+  },
+  "2026-05-04": {
+   "estructura": null,
+   "resumen": "pov 3am → muestra del dashboard"
+  },
+  "2026-05-06": {
+   "estructura": "cayo-un-pago",
+   "resumen": "buen día → cobro $5k → cobro $15k + qué incluye → explicación (sistema) → wins de clientes → CTA SOP → ejemplo de DM → CTA SOP otra vez"
+  },
+  "2026-05-07": {
+   "estructura": null,
+   "resumen": "métricas de respuestas + aviso de paciencia"
+  },
+  "2026-05-09": {
+   "estructura": "un-dia-conmigo",
+   "resumen": "gancho personal → lectura → humor gym → pagos y calls → humor → resumen de calls ×2 → cena → reflexión"
+  },
+  "2026-05-11": {
+   "estructura": "hace-un-ano",
+   "resumen": "frase gancho → enseñanza visión → historia personal (este de acá soy yo) ×2 → CTA a DM con palabra VIDEO"
+  },
+  "2026-05-12": {
+   "estructura": null,
+   "resumen": "selfie humor → rutina → mejoras ATV → prueba de ingresos → carrusel compartido → anuncio @atvresults"
+  },
+  "2026-05-14": {
+   "estructura": null,
+   "resumen": "foto personal viaje → foto familia → facturación del día → prueba social (Discord) → resultados de clientes → cierre personal"
+  },
+  "2026-05-18": {
+   "estructura": null,
+   "resumen": "video a cámara (primer cuadro) → frase de enseñanza sobre emociones"
+  },
+  "2026-05-19": {
+   "estructura": null,
+   "resumen": "foto personal (sueño del auto) → detalle del auto → reflexión EL TIEMPO CORRE → onboarding nuevo → video YT y miros → DATA WARNING a cámara → oferta Loom+prompt con palabra CLAUDE → prueba de entrega (llega en 1 segundo) "
+  },
+  "2026-05-21": {
+   "estructura": "postales",
+   "resumen": "mapa Florianópolis → escaleras → cartel Eden Club → fachada con descripción → fotos con grupo/menciones"
+  },
+  "2026-05-23": {
+   "estructura": null,
+   "resumen": "foto con texto 2026s → foto en mesa con menciones"
+  },
+  "2026-05-24": {
+   "estructura": null,
+   "resumen": "foto en barco → foto grupal en barco con abanicos Eden Club"
+  },
+  "2026-05-27": {
+   "estructura": "por-que-no-vendes",
+   "resumen": "gancho pregunta → dato de la encuesta → resultados → insight → enseñanza → CTA a DM con palabra"
+  },
+  "2026-05-29": {
+   "estructura": null,
+   "resumen": "clip a cámara con texto de fecha y lugar"
+  },
+  "2026-06-01": {
+   "estructura": "asi-lo-escalamos",
+   "resumen": "vuelta a casa → inversión y resultados de clientes → pago a 5 expertos → 5 reuniones → detalle de cada reunión → resultados → feedback de clientes"
+  },
+  "2026-06-02": {
+   "estructura": "te-lo-dibujo",
+   "resumen": "gancho (bio perfecta) → anotación de la bio → pregunta de seguidor sobre trials reels → su respuesta (quien sabe no prueba) → prueba de reel con +$47.000 → origen de los artículos → CTA DOC → captura de entrega → feedback → artículo 2 + caja de ideas"
+  },
+  "2026-06-04": {
+   "estructura": "lo-que-nadie-muestra",
+   "resumen": "captura de pérdida neta con pregunta → contraste con mes pasado en profit → filosofía de dar/invertir en dos tipos de jugadores"
+  },
+  "2026-06-06": {
+   "estructura": "rompo-la-objecion",
+   "resumen": "foto sin texto → caso de cliente +$100.000 → 400 respuestas → problema chats→agendas → oferta ARCHIVO → feedback del archivo 1 → promesa de 50 archivos"
+  },
+  "2026-06-07": {
+   "estructura": null,
+   "resumen": "foto de libro → relato de hipnosis → app de hipnosis (game changer) "
+  },
+  "2026-06-08": {
+   "estructura": "asi-lo-escalamos",
+   "resumen": "anuncio de viaje → gancho 'hace 1 mes' → paso 1 → paso 2 → SOPs → paso 3 → resultado $175k en 70 días → vida que vive hoy"
+  },
+  "2026-06-09": {
+   "estructura": "por-que-no-vendes",
+   "resumen": "gancho 'no conoces la psicología de tu avatar' → 70% de ventas por historias → hacen sentir → 2.000 historias → CTA VIDEO"
+  },
+  "2026-06-11": {
+   "estructura": "hace-un-ano",
+   "resumen": "contexto (videollamada con mentor) → anécdota del pago de $45k → remate irónico → promesas y resultado → logro de 170k → cómo lo hizo (3 reels, 1 youtube, 3 CTA) → reflexión sobre demostrar → enseñanza (se paga por creencias) → meme/respuesta a comentario → humor Claude"
+  },
+  "2026-06-12": {
+   "estructura": null,
+   "resumen": "caja de preguntas abierta"
+  },
+  "2026-06-13": {
+   "estructura": "me-preguntaron",
+   "resumen": "respuesta personal → respuesta con datos de márgenes → respuesta filosófica → respuesta de enseñanza sobre equipo → respuesta sobre inversión con capturas → prueba social de wins en Discord (x4) → cierre de proceso"
+  },
+  "2026-06-15": {
+   "estructura": "asi-lo-escalamos",
+   "resumen": "contexto de mañana (6am, 8am) → gancho “este tipo lleva +1 año comprándome” → caso: creador de 7000 seguidores → +120k sin ads → ads que fallan con otra persona → ads que traccionan → pasa a DWY → prueba de 11.5k → dedicatoria"
+  },
+  "2026-06-16": {
+   "estructura": "por-que-no-vendes",
+   "resumen": "gancho (“sabés demasiado”) → el cerebro duda → más información, menos acción → cerebro se frena → diferencia entre los que avanzan → necesita certeza (procesos propios) → pasos que llevaron a 170k → CTA a DM con palabra"
+  },
+  "2026-06-17": {
+   "estructura": null,
+   "resumen": "gancho (“vamos de nuevo…”) → comienza nueva temporada → resumen de 50 días en Europa → patrón 2024/2025/2026… → meses de trabajo → seguí empujando"
+  },
+  "2026-06-18": {
+   "estructura": "te-estamos-buscando",
+   "resumen": "gancho selfie espejo → presentación de Emi con prueba → misiones → reclutamiento de editores con link"
+  },
+  "2026-06-20": {
+   "estructura": null,
+   "resumen": "POV viaje → ubicación París → métricas del POV y reflexión del tiempo → prueba de equipo sin él → proceso/SOP → CTA responder DOC"
+  },
+  "2026-06-21": {
+   "estructura": "postales",
+   "resumen": "foto ambiente → foto ambiente → video selfie sin texto"
+  },
+  "2026-06-22": {
+   "estructura": "un-dia-conmigo",
+   "resumen": "rutina 10am → deepwork → comida → no hay atajos → ser constante → analogía cuerpo/negocio → checklist 'nada más'"
+  },
+  "2026-06-23": {
+   "estructura": null,
+   "resumen": "foto de trabajo en hotel → video selfie 'que locura'"
+  },
+  "2026-06-25": {
+   "estructura": null,
+   "resumen": "llegada Barcelona → prueba de facturación → prueba de clientes → mapa → promesa y casos → más clientes top → POV auto alquilado"
+  },
+  "2026-06-26": {
+   "estructura": null,
+   "resumen": "POV caminando hacia autos → texto de la relación → link en bio"
+  },
+  "2026-06-27": {
+   "estructura": null,
+   "resumen": "POV enfoque → reflexión preocupación → presiones y cabeza fría"
+  },
+  "2026-06-29": {
+   "estructura": "un-dia-conmigo",
+   "resumen": "rutina del día → call 1-1 → call equipo → calls clientes → modo largo plazo → consistencia sin ads → avanzar despacio → conclusión orgánico+ads"
+  },
+  "2026-06-30": {
+   "estructura": null,
+   "resumen": "gancho personal (plata en 12h) → anécdota humor (mentor lo reta por no postear) → confesión (no cumplí pero días récord) → captura de pantalla de reels (sin texto) → fragmento de video 'mi mensaje.' → anuncio de curso gratis pero no para todos"
+  },
+  "2026-07-01": {
+   "estructura": "cayo-un-pago",
+   "resumen": "prueba de caja ($37k/day) → gym/pasos → balance del mes malo → intención por pieza de contenido → enseñanza (medir para entender) → antes/ahora (2 reels, +$170k) → documento Volumen 02 → CTA 'DOC' por DM"
+  },
+  "2026-07-03": {
+   "estructura": null,
+   "resumen": "foto ambiente (Marbella) → video 'storytelling:' → POV manejando → video 'parte 2:' → video 'parte 3:' → video 'conclusión:'"
+  },
+  "2026-07-05": {
+   "estructura": "anuncio-con-cupos",
+   "resumen": "lifestyle (manejando) → 6am → llegada a Madrid → reflexión sobre invertir $10k en aprender en persona → anuncio del evento El Encuentro Ibiza → CTA a DM 'ibiza'"
+  },
+  "2026-07-06": {
+   "estructura": "ronda-de-casos",
+   "resumen": "lifestyle (vida increíble) → evento 10am → mensaje 'no necesitabas más' → proceso (entregables + looms + estrategias 1a1) → caso Juano $40k → caso $70k → caso Bautista $27k + webinar → claridad/cash collected/conformidad → reflexión larga de 2am"
+  },
+  "2026-07-08": {
+   "estructura": null,
+   "resumen": "POV cliente cuello de botella → looms + 1-1 con @pat.hlosta → caso con growth de @_littleboy (antes) → resultados x2 en 12 días → anuncio de software → win de cliente en Bali → reflexión de dar/recibir"
+  },
+  "2026-07-09": {
+   "estructura": null,
+   "resumen": "gancho personal → ingresos del día → comprobante de pago → respuesta de miembro → frase mindset → update de cliente con $44k → más buenas noticias/moto → frase mindset"
+  },
+  "2026-07-11": {
+   "estructura": "por-unica-vez",
+   "resumen": "gancho personal → promesa $170k sin ads/webinars → plataforma 11h → CTA ACCESO → aclaración del filtro de 4 preguntas → foto"
+  },
+  "2026-07-12": {
+   "estructura": null,
+   "resumen": "foto → aviso paciencia 75% de accesos → caja de preguntas de país"
+  },
+  "2026-07-13": {
+   "estructura": "un-dia-conmigo",
+   "resumen": "1am → equipo trasnochando → clase marketing → portal de clientes → pago Binance → 4 sistemas → sistemas a clientes → reflexión sobre el equipo → reunión"
+  },
+  "2026-07-14": {
+   "estructura": "postales",
+   "resumen": "carrusel de ubicaciones (Brasil, Córdoba, BA, vuelo, París) → viajen → Marbella → Madrid → CTA vlog"
+  },
+  "2026-07-15": {
+   "estructura": null,
+   "resumen": "captura de chat del equipo → facepalm"
+  },
+  "2026-07-16": {
+   "estructura": null,
+   "resumen": "humor pantalla → wins publicadas → win de cliente → pregunta si/no con dashboard → cierre humorístico"
+  },
+  "2026-07-17": {
+   "estructura": "por-que-no-vendes",
+   "resumen": "gancho texto → enseñanza bases → prueba $170k en 28 días → contexto 250 reels → contexto 110 videos → CTA a DM con palabra"
+  },
+  "2026-07-19": {
+   "estructura": null,
+   "resumen": "foto personal única"
+  },
+  "2026-07-21": {
+   "estructura": null,
+   "resumen": "contexto Londres → prueba clienta $74k → POV → prueba 7 negocios escalados → bases → documento → feedback → CTA a DM con palabra"
+  },
+  "2026-07-22": {
+   "estructura": "postales",
+   "resumen": "foto emoji → selfie oscura → foto con policías"
+  },
+  "2026-07-23": {
+   "estructura": null,
+   "resumen": "presentación Nick → humor del día → ticket $35k → humor → enseñanza marketing+ventas → prueba social clientes Boost"
+  },
+  "2026-07-24": {
+   "estructura": null,
+   "resumen": "anécdota personal → video bici → POV humor → enseñanza criterio de compra → prueba social repost cliente"
+  },
+  "2026-07-25": {
+   "estructura": null,
+   "resumen": "momento personal → amigo Cartier → recuerdo 2023 → prueba $30k a $150k → onboarding DFY → gratitud → anuncio aumento precios + CTA INFO"
+  },
+  "2026-07-27": {
+   "estructura": "anuncio-con-cupos",
+   "resumen": "gancho POV → enseñanza viajes con equipo → meme → enseñanza tiempo → enseñanza valor → anuncio aumento 72h + CTA INFO"
+  },
+  "2026-07-28": {
+   "estructura": null,
+   "resumen": "selfie ubicación → house tour humor"
+  },
+  "2026-07-29": {
+   "estructura": null,
+   "resumen": "anuncio de llegada → foto de grupo → gratitud personal → sold out como indicador → récord de casos de éxito con roadmap → link a call 1H"
+  },
+  "2026-07-30": {
+   "estructura": null,
+   "resumen": "título del evento → día 1 → cliente $17M → cliente $30k a $160k → humor con el coach → cierre de gratitud"
+  },
+  "2026-08-01": {
+   "estructura": "un-dia-conmigo",
+   "resumen": "último día → timeline hora por hora (9am, 10am, 12pm, 2pm, 6pm Q&A) → 12 roadmaps entregados → 9pm y 10pm cena → barco → reflexión de visión → invitación a ser parte de la historia"
+  },
+  "2026-08-03": {
+   "estructura": "anuncio-con-cupos",
+   "resumen": "pregunta gancho → relato de visión → 'es tu historia también' → clientes con facturación → 10 roadmaps → plataforma QR → adelanto de video → próxima parada Bariloche → CTA responde 'evento'"
+  },
+  "2026-08-05": {
+   "estructura": "anuncio-con-cupos",
+   "resumen": "provocación ($100.000/mes) → proceso de armado → valor de los roadmaps con facturaciones de asistentes → disposición a ir más allá → hacerlo por única vez → oferta de roadmap con palabra ROADMAP"
+  },
+  "2026-08-06": {
+   "estructura": null,
+   "resumen": "gancho vlog Europa → humor/team → gasto → anécdota → resultado del día con chat + cumpleaños → prueba de crecimiento (selfie) → reflexión con cifras del mes"
+  },
+  "2026-08-07": {
+   "estructura": null,
+   "resumen": "texto largo de balance personal → fotos del Cartier → reloj puesto → agradecimiento al equipo → cierre 'next'"
+  },
+  "2026-08-10": {
+   "estructura": "cayo-un-pago",
+   "resumen": "prueba (métricas sin estar presente) → contexto (no subo contenido a diario) → problema (24/7) → problema (todo pasa por vos) → solución (organigrama) → sistema Backbone → reflexión → CTA a DM con palabra"
+  },
+  "2026-08-12": {
+   "estructura": "anuncio-con-cupos",
+   "resumen": "gancho (nueva misión) → historia personal → prueba (director de ventas reportó $15k) → contexto del viaje → plan con ROAS → enseñanza sobre misión → anuncio con CTA a DM con palabra"
+  },
+  "2026-08-13": {
+   "estructura": null,
+   "resumen": "prueba (webinar 1.7k en vivo) → plan mes 1/mes 2 → caso de cliente con chat → posicionamiento del cliente → agendas"
+  },
+  "2026-08-14": {
+   "estructura": "lo-que-nadie-muestra",
+   "resumen": "gancho con métricas y signos de pregunta → bienvenida a nuevos clientes con sus casos → día de calls con 134k → call de onboarding → balance de gratitud → corrección 137k → reflexión sobre lo importante"
+  },
+  "2026-08-15": {
+   "estructura": "lo-que-nadie-muestra",
+   "resumen": "gancho (ayer hicimos $17.2k pero no es lo importante) → dashboard de cobros pendientes → matemática de upsells y recompras"
+  },
+  "2026-08-16": {
+   "estructura": "postales",
+   "resumen": "foto personal 11am → foto con amigos 1pm → selfie 'top dia' (vlog sin CTA)"
+  },
+  "2026-08-19": {
+   "estructura": null,
+   "resumen": "video 'otro evento más' → foto del evento → anécdota (Ibiza, 12 roadmaps) → video de YouTube + CTA palabra 'video'"
+  },
+  "2026-08-20": {
+   "estructura": "por-unica-vez",
+   "resumen": "foto esquiando ('ya hice esto...') → prueba social en DMs ('tendré que volver a hacerlo') → lista de lo que NO hizo para escalar a $170k → pilares de ATV con prueba → CTA palabra 'ACCESO'"
+  },
+  "2026-08-21": {
+   "estructura": "postales",
+   "resumen": "video 'día 2' → foto en la montaña → selfie 'pisteando' con mención → cena grupal → foto nocturna con capa Eden Club (vlog sin CTA)"
+  },
+  "2026-08-23": {
+   "estructura": null,
+   "resumen": "foto trabajando 'otro evento más' → foto del grupo → balance 30 días (2 eventos, 6 países) → foto de escritorio → descanso y plan de mudarse a escalar el biz"
+  },
+  "2026-08-24": {
+   "estructura": "te-lo-dibujo",
+   "resumen": "tres niveles de reels e ingresos → prueba social de cliente (Gian 30k en 20 días) → 'yo promedio 4 reels/mes y hago $170k' → enseñanza visual de hook y body → CTA a DM con palabra 'DOCS'"
+  },
+  "2026-08-25": {
+   "estructura": null,
+   "resumen": "café 'los días están siendo buenos' → deepwork con prueba de Iñaki ($18k upfront) → 'solo hicimos un cambio' → Cris -$5k a +$45k con 3 cambios → Oriol $20k en 25 días → cierre 'mañana les tiro más' (sin CTA)"
+  },
+  "2026-08-26": {
+   "estructura": "te-lo-dibujo",
+   "resumen": "gancho 'vas a seguir ahí hasta que entiendas que...' → lista de objetivos donde uno solo es el culpable → revela que es contenido → malos leads/ads/refunds son consecuencia del contenido → CTA palabra 'VIDEO'"
+  },
+  "2026-08-27": {
+   "estructura": null,
+   "resumen": "prueba de métricas del video → mensajes de Discord con data → intro de 2 temas (research) → caso del canal con 6.8k → idea adaptada → explicación de Maite"
+  },
+  "2026-08-31": {
+   "estructura": null,
+   "resumen": "foto personal de mudanza → prueba de caja y equipo → confesión de meta no cumplida → promesa al equipo (9am) → sesión con clientes (11am) → plan de septiembre → aura content como prueba → captura de formulario"
+  },
+  "2026-09-01": {
+   "estructura": "hace-un-ano",
+   "resumen": "gancho de preguntas (y si no?) → anécdota personal ($30k/mes, 14 hs diarias) → CTA a DM con palabra 'video' → video de YouTube nuevo como prueba/entrega"
+  },
+  "2026-09-03": {
+   "estructura": "te-lo-dibujo",
+   "resumen": "gancho provocador (trabajé menos, x4 de cc) → prueba de ingresos con collage de contenido → objeción/error del lector (1 reel diario, sin chats) → enseñanza del camino de compra → revelación del patrón → CTA 'DOC'"
+  },
+  "2026-09-07": {
+   "estructura": "ronda-de-casos",
+   "resumen": "gancho 'clientes vienen demasiado bien' → caja de cobros pendientes → pruebas de clientes (chat Juano, director de ventas, Killian, Álvaro y Olga, humor con Juan) → felicitación con menciones → manifiesto de compromiso → cierre 'simplifiquen' sin CTA"
+  },
+  "2026-09-08": {
+   "estructura": "te-estamos-buscando",
+   "resumen": "repost de respuesta de seguidor (prueba social) → convocatoria de reclutamiento con condiciones → CTA a DM con palabra 'PUESTO'"
+  },
+  "2026-09-09": {
+   "estructura": "por-unica-vez",
+   "resumen": "gancho 'nunca hice lo que voy a hacer' → adelanto de documento de contenido (enseñanza) → video 'te voy a dar mis sops' → CTA a DM con palabra 'ACCESO'"
+  },
+  "2026-09-10": {
+   "estructura": null,
+   "resumen": "foto de cajas → video del baño con vista nocturna"
+  },
+  "2026-09-11": {
+   "estructura": "rompo-la-objecion",
+   "resumen": "meme Batman → frase motivacional → tres excusas en negro → clientes que las rompen (3 de 3) → excusas de inversión → clientes que las rompen → frase en pantalla de celular → video batipatrullando"
+  },
+  "2026-09-13": {
+   "estructura": null,
+   "resumen": "gancho con captura de doc → Juan a cámara con la promesa → cierre a cámara sin texto"
+  },
+  "2026-09-14": {
+   "estructura": "un-dia-conmigo",
+   "resumen": "pov del día → clase con CTA 'responde CLASE' → reflexión personal de cambio → 1a1 con resultado → deepwork con clientes → prueba de entrega de la clase por DM → métricas propias → 5 casos de clientes (beatncourt, Juano, Olga, Gianluca, Cris)"
+  },
+  "2026-09-16": {
+   "estructura": "te-estamos-buscando",
+   "resumen": "gancho 'TE ESTAMOS BUSCANDO' con roles → meme Batman/Robin con link → beneficios de entrar (viajes, +$200k en programas, entorno) con link"
+  },
+  "2026-09-17": {
+   "estructura": null,
+   "resumen": "texto largo sobre mediocridad y no presentarse con un loom → bolsa de trabajo con pocos y los mejores"
+  },
+  "2026-09-21": {
+   "estructura": "cuenta-regresiva",
+   "resumen": "gancho personal (ya no publico) → prueba de pagos de $10k/day → giro a resultados de clientes → collage de pruebas → texto largo de manifiesto → teaser del lunes 28"
+  },
+  "2026-09-22": {
+   "estructura": "cuenta-regresiva",
+   "resumen": "captura de mensajes del teaser → meme humor → reflexión personal con recibo de $7.5k → reservas de nueva offer + CTA a responder 'info'"
+  },
+  "2026-09-23": {
+   "estructura": "ronda-de-casos",
+   "resumen": "gancho de resultado → 3 clientes con cifras → 4º cliente con chat → call filtrada con CTA a DM 'CALL' → mensaje de cliente + calendario lleno → anuncio evento lunes 28"
+  },
+  "2026-09-27": {
+   "estructura": null,
+   "resumen": "video pov personal de preparación"
+  },
+  "2026-09-28": {
+   "estructura": null,
+   "resumen": "humor de clase → link ACCESO a SOPs de la clase de hoy 6pm → selfie → métricas de la historia y orgánico vs ads → agradecimiento por 88% de retención → cierre 'valió la pena'"
+  },
+  "2026-09-30": {
+   "estructura": "asi-lo-escalamos",
+   "resumen": "gancho 'proceso de onboarding de $15k' → pasos 1-2 (pago y mail) → paso 3 video de bienvenida → pasos 4-5 formulario y call 1-1 → paso 6 roadmap → consejo a cámara → paso 7 entregables → paso 8 script DFY validado → paso 9 setting → resumen de 7 días → testimonio de cliente feliz"
+  },
+  "2026-10-02": {
+   "estructura": null,
+   "resumen": "foto de manejo → Juan a cámara con referentes → caso de cliente $10k a $100k → advertencia sobre anuncios → CTA responde 'video'"
+  },
+  "2026-10-05": {
+   "estructura": "ronda-de-casos",
+   "resumen": "gancho personal (I'm back) → viaje/familia/baticueva → prueba de facturación del mes → anuncio de clientes rumbo a $100k → 5 wins de clientes de Discord/WhatsApp con antes/después → video 'confianza = $'"
+  },
+  "2026-10-07": {
+   "estructura": "cayo-un-pago",
+   "resumen": "pov casa 100k → gancho 'no hacés 100k' con pago entrante → pov te pagan 5k → fuera del meme con razones y prueba → CTA responde VIDEO"
+  },
+  "2026-10-10": {
+   "estructura": null,
+   "resumen": "video del abuelo tocando guitarra → foto de homenaje → captura del mensaje del abuelo"
+  },
+  "2026-10-12": {
+   "estructura": "hace-un-ano",
+   "resumen": "por primera vez fuera del negocio → viaje → días difíciles y gracias → bienvenida a clientes nuevos → reflexión 'nadie te recuerda' → continuación → video propio → CTA responde VIDEO"
+  },
+  "2026-10-13": {
+   "estructura": null,
+   "resumen": "capturas de DMs de clientes (prueba social) → enseñanza sobre cuándo termina la venta → DM de cliente → fotos de rutina sin texto (caja, cocina, laptop)"
+  },
+  "2026-10-14": {
+   "estructura": "me-preguntaron",
+   "resumen": "gancho personal (librería) → giro 'y lo encontré' → preguntas reales de clientes (objeciones/dolores) → presentación de los 4 playbooks → prueba de contenido (+$250k de info) → CTA a DM con palabra '4'"
+  },
+  "2026-10-16": {
+   "estructura": "por-que-no-vendes",
+   "resumen": "historia personal de infancia → enseñanza 'negocio a mi modo' → video → 'te va a funcionar? sí y no' → video del embudo análisis×acción → conclusión x2 en cash → CTA a DM con la palabra '1' (recurso de clase + SOP)"
+  },
+  "2026-10-19": {
+   "estructura": null,
+   "resumen": "prueba de facturación del día → setup de grabación $25k/día → gancho en video 'nunca vas a escalar a $100k/mes' → corte/aclaración → pilares (salud, familia, clientes, resultados)"
+  }
+ }
+}

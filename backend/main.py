@@ -42,7 +42,7 @@ from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
 from src.controllers.clientes_controller import service as clientes_service
-from src.services import narrativa_services
+from src.services import estructuras_services, narrativa_services
 from src.services import (activacion_ia_services, audiencia_services, cerebro_services, daily_services, instagram_services, theo_services,
                           llamadas_services, pedidos_services, youtube_services)
 
@@ -76,6 +76,7 @@ async def lifespan(_app: FastAPI):
     IntegrantesServices().ensure_defaults()
     daily_services.ensure_equipo()
     theo_services.ensure_envios()
+    estructuras_services.sembrar()  # la base de estructuras de historias, si todavía no está
     stop = threading.Event()
     threading.Thread(target=_precalentar_cartera, args=(stop,), daemon=True, name="precalentador").start()
     # En la Mac se apagan (TAREAS_AUTOMATICAS=0 en el .env local): comparten con producción el
@@ -100,6 +101,8 @@ async def lifespan(_app: FastAPI):
     threading.Thread(target=audiencia_services.iniciar_scheduler, args=(stop,), daemon=True, name="audiencia").start()
     # Los lunes, la revisión de la narrativa de Juan con lo que publicó la semana anterior.
     threading.Thread(target=narrativa_services.iniciar_scheduler, args=(stop,), daemon=True, name="narrativa").start()
+    # Los lunes, las estructuras de historias de Juan aprenden de las historias nuevas.
+    threading.Thread(target=estructuras_services.iniciar_scheduler, args=(stop,), daemon=True, name="estructuras").start()
     yield
     stop.set()
 

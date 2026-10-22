@@ -83,7 +83,7 @@ def init_db() -> None:
     # Migraciones SQLite ligeras ANTES de generate_mapping (Pony check_tables).
     from src.services.auth_services import (ensure_conversacion_columns, ensure_equipo_roles_column, ensure_idea_usuario_column,
                                             ensure_integracion_columns,
-                                            ensure_pitch_setting_columns, ensure_reunion_crm_columns,
+                                            ensure_pitch_setting_columns, ensure_pizarra_columns, ensure_reunion_crm_columns,
                                             ensure_reunion_usuario_column, ensure_theo_columns,
                                             ensure_usuario_equipo_columns,
                                             ensure_usuario_rol_column,
@@ -105,6 +105,7 @@ def init_db() -> None:
     ensure_integracion_columns()
     ensure_webinar_columns()
     ensure_equipo_roles_column()
+    ensure_pizarra_columns()
 
     if db.entities:
         db.generate_mapping(create_tables=True)
