@@ -856,6 +856,24 @@ class AjusteAudiencia(db.Entity):
     actualizado_at = Optional(datetime, nullable=True)
 
 
+class LineaPagosDoc(db.Entity):
+    """Las notas y los ajustes a mano de la línea de pagos de Mauri, compartidos por el equipo.
+
+    La línea nació como un artifact que guardaba en colecciones (`notes`, `ajustes`) con un
+    documento por cliente ("c<id>"); se respeta esa forma para no tocar su código.
+    """
+
+    _table_ = _tabla("linea_pagos_docs", "LineaPagosDoc")
+
+    id = PrimaryKey(int, auto=True)
+    coleccion = Required(str)
+    doc_id = Required(str)
+    datos = Required(LongStr)                 # JSON tal cual lo manda la página
+    actualizado_por = Optional(str, nullable=True)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    composite_key(coleccion, doc_id)
+
+
 class ReporteDireccion(db.Entity):
     """El reporte de dirección: un período cualquiera, las áreas elegidas, la hoja entera.
 

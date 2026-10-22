@@ -8683,3 +8683,6 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .home-ventas-persona.sin .home-ventas-persona-cash { color: var(--text-2); }
 .home-ventas-persona-datos { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-2); }
 .home-ventas-persona-datos b { color: var(--text); font-weight: 600; }
+/* Línea de pagos: la página de Mauri ocupa todo el alto disponible. */
+.linea-pagos { height: calc(100vh - 110px); min-height: 520px; border-radius: var(--radius); overflow: hidden; }
+.linea-pagos-marco { width: 100%; height: 100%; border: 0; display: block; background: #fff; }

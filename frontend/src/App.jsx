@@ -58,6 +58,7 @@ import Outcomes from './pages/fulfillment/Outcomes.jsx';
 import FulfillmentOps from './pages/fulfillment/FulfillmentOps.jsx';
 import Resumen from './pages/fulfillment/Resumen.jsx';
 import Retencion from './pages/fulfillment/Retencion.jsx';
+import LineaPagos from './pages/fulfillment/LineaPagos.jsx';
 import EquipoVentas from './pages/EquipoVentas.jsx';
 import { useRol } from './lib/RolContext.jsx';
 import {
@@ -199,6 +200,7 @@ export default function App() {
               <Route path="outcomes" element={<Outcomes />} />
               <Route path="pendientes" element={<Pendientes />} />
               <Route path="canales" element={<Canales />} />
+              <Route path="linea-pagos" element={<LineaPagos />} />
               <Route path="canales/:categoria/:canal" element={<Canales />} />
               <Route path="chats" element={<Chats />} />
               <Route path="chats/:categoria/:canal" element={<Chats />} />
