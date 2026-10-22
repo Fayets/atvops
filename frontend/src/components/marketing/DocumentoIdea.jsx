@@ -11,7 +11,7 @@ const ESPERA_MS = 1200;
 
 const leer = (el) => (el?.innerText || '').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' ');
 
-export default function DocumentoIdea({ g, llamada, onGuardar, onAprobar, onOtra, onCerrar }) {
+export default function DocumentoIdea({ g, llamada, onGuardar, onAprobar, onDescartar, onCerrar }) {
   const tituloRef = useRef(null);
   const detalleRef = useRef(null);
   const guardadoRef = useRef({ titulo: g.titulo || '', detalle: g.detalle || '' });
@@ -87,7 +87,7 @@ export default function DocumentoIdea({ g, llamada, onGuardar, onAprobar, onOtra
         <div className="dc-acciones">
           {!aprobada && (
             <>
-              <button type="button" className="btn ghost" disabled={ocupado} onClick={() => hacer(onOtra)}>Otra idea</button>
+              <button type="button" className="btn ghost" disabled={ocupado} onClick={() => hacer(onDescartar)}>Descartar</button>
               <button type="button" className="btn primary" disabled={ocupado} onClick={() => hacer(onAprobar)}>Aprobar</button>
             </>
           )}

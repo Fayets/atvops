@@ -206,28 +206,32 @@ function RevisionNarrativa({ onAplicado }) {
   );
 }
 
-function PanelGeneral({ g, llamada, onGenerar, onAbrir }) {
-  if (!g) {
-    return (
-      <div className="pz-sec">
-        <span className="pz-k">Idea general</span>
-        {llamada?.estado === 'armando' ? <p className="pz-dim">Claude está leyendo la llamada…</p> : (
-          <>
-            {llamada?.error && <p className="pz-error">{llamada.error}</p>}
-            <div className="pz-botones"><button type="button" className="btn primary" onClick={onGenerar}>Sacar idea general</button></div>
-          </>
-        )}
-      </div>
-    );
-  }
+function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
+  const armando = llamada?.estado === 'armando';
   return (
     <div className="pz-sec">
-      <span className="pz-k">Idea general{g.estado === 'aprobada' ? ' · aprobada' : ''}</span>
-      <button type="button" className="pz-docprev" onClick={onAbrir}>
-        <span className="dc-icono" aria-hidden="true" />
-        <span><b>{g.titulo}</b>{g.dolor && <span className="pz-dim">{g.dolor}</span>}</span>
-      </button>
-      <div className="pz-botones"><button type="button" className="btn primary" onClick={onAbrir}>Abrir</button></div>
+      <span className="pz-k">Ideas generales{generales.length ? ` · ${generales.length}` : ''}</span>
+      {armando && <p className="pz-dim">Claude está leyendo la llamada…</p>}
+      {!armando && llamada?.error && <p className="pz-error">{llamada.error}</p>}
+      <div className="pz-variantes">
+        {generales.map((x) => (
+          <button key={x.id} type="button" className={`pz-docprev${x.id === elegida ? ' sel' : ''}`} onClick={() => onAbrir(x.id)}>
+            <span className="dc-icono" aria-hidden="true" />
+            <span>
+              <b>{x.titulo}</b>
+              {x.dolor && <span className="pz-dim">{x.dolor}</span>}
+              {x.estado === 'aprobada' && <span className="pz-st aprobada">Aprobada</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+      {!armando && (
+        <div className="pz-botones">
+          <button type="button" className={`btn${generales.length ? ' ghost' : ' primary'}`} onClick={onGenerar}>
+            {generales.length ? 'Otras ideas' : 'Sacar ideas'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -313,7 +317,8 @@ export default function Pizarra() {
   const [storyElegida, setStoryElegida] = useState(null);
   const [ctxVersion, setCtxVersion] = useState(0); // sube cuando la revisión semanal cambia la narrativa
   const [doc, setDoc] = useState(null); // el cuadro de contexto abierto como documento
-  const [ideaAbierta, setIdeaAbierta] = useState(false); // la idea general abierta como documento
+  const [ideaAbierta, setIdeaAbierta] = useState(null); // id de la idea general abierta como documento
+  const [generalId, setGeneralId] = useState(null); // la idea aprobada que sigue por el mapa
   const [aviso, setAviso] = useState('');
   const [escala, setEscala] = useState(1);
   const marcoRef = useRef(null);
@@ -340,7 +345,10 @@ export default function Pizarra() {
   }, []);
   useEffect(() => { traerLlamada(llamadaId); }, [llamadaId, traerLlamada]);
 
-  const g = llamada?.generales?.at(-1) || null;
+  const generales = llamada?.generales || [];
+  const aprobadasGen = generales.filter((x) => x.estado === 'aprobada');
+  // Lo que sigue en el mapa (variantes, vault, secuencias) es de la idea aprobada elegida.
+  const g = aprobadasGen.find((x) => x.id === generalId) || aprobadasGen.at(-1) || null;
   const variantes = g ? Object.values(g.variantes).flat() : [];
   const armando = llamada?.estado === 'armando' || g?.variantesEstado === 'armando' || variantes.some((v) => v.secuenciasEstado === 'armando');
 
@@ -371,8 +379,8 @@ export default function Pizarra() {
     uno: llamada?.tipo === '1a1' ? 'hecho' : 'listo',
     clase: llamada?.tipo === 'clase' ? 'hecho' : 'listo',
     fathom: llamada ? 'hecho' : 'off',
-    claude: !llamada ? 'off' : llamada.estado === 'armando' ? 'armando' : g ? 'hecho' : 'listo',
-    general: !g ? 'off' : g.estado === 'aprobada' ? 'hecho' : 'listo',
+    claude: !llamada ? 'off' : llamada.estado === 'armando' ? 'armando' : generales.length ? 'hecho' : 'listo',
+    general: g ? 'hecho' : generales.length ? 'listo' : 'off',
     yt: canalEstado('yt'), reel: canalEstado('reel'), story: canalEstado('story'),
     ytAprob: aprobadas('yt').length ? 'hecho' : 'off',
     reelAprob: aprobadas('reel').length ? 'hecho' : 'off',
@@ -386,7 +394,7 @@ export default function Pizarra() {
     fathom: llamada ? llamada.titulo : null,
     claude: estado.claude === 'armando' ? 'leyendo…' : null,
     narrativa: base.narrativaPendientes ? `${base.narrativaPendientes} cambio${base.narrativaPendientes > 1 ? 's' : ''} propuesto${base.narrativaPendientes > 1 ? 's' : ''}` : null,
-    general: g ? g.titulo : null,
+    general: g ? g.titulo : generales.length ? `${generales.length} idea${generales.length > 1 ? 's' : ''}` : null,
     yt: g?.variantes?.yt?.length ? `${g.variantes.yt.length} ideas` : null,
     reel: g?.variantes?.reel?.length ? `${g.variantes.reel.length} ideas` : null,
     story: g?.variantes?.story?.length ? `${g.variantes.story.length} ideas` : null,
@@ -398,7 +406,6 @@ export default function Pizarra() {
   const tocar = (k) => {
     if (CONTEXTO.includes(k)) { setPanel(null); setDoc(k); return; }
     if (estado[k] === 'off' || estado[k] === 'prox') return;
-    if (k === 'general') { setPanel(null); setIdeaAbierta(true); return; }
     if (k === 'uno' || k === 'clase') { setPanel({ cargar: k === 'uno' ? '1a1' : 'clase' }); return; }
     setPanel(k);
   };
@@ -412,9 +419,11 @@ export default function Pizarra() {
   const cargada = async (l) => { await traerBase(true); setLlamadaId(l.id); setPanel('claude'); };
   const guardarContexto = async (clave, texto) => { const ctx = await pizarraGuardarContexto(clave, texto); setBase((b) => ({ ...b, contexto: ctx })); };
   const generarGeneral = () => accion(() => pizarraGenerarGeneral(llamada.id));
-  const guardarGeneral = async (cambios) => { setLlamada(await pizarraEditarGeneral(g.id, cambios)); };
-  const aprobarGeneral = async () => { await accion(() => pizarraAprobarGeneral(g.id)); setIdeaAbierta(false); };
-  const otraGeneral = async () => { setIdeaAbierta(false); setPanel('claude'); await generarGeneral(); };
+  const abierta = generales.find((x) => x.id === ideaAbierta) || null;
+  const guardarGeneral = async (cambios) => { setLlamada(await pizarraEditarGeneral(abierta.id, cambios)); };
+  const aprobarGeneral = async () => { const id = abierta.id; await accion(() => pizarraAprobarGeneral(id)); setGeneralId(id); setIdeaAbierta(null); };
+  const descartarGeneral = async () => { const id = abierta.id; setIdeaAbierta(null); await accion(() => pizarraEditarGeneral(id, { estado: 'descartada' })); };
+  const abrirGeneral = (id) => { if (generales.find((x) => x.id === id)?.estado === 'aprobada') setGeneralId(id); setIdeaAbierta(id); };
   const cambioVariante = (id, cambios) => accion(() => pizarraActualizarVariante(id, cambios));
   const armar = (id, obj) => { setStoryElegida(id); accion(() => pizarraGenerarSecuencias(id, obj)); };
   const panelClave = typeof panel === 'string' ? panel : null;
@@ -426,7 +435,7 @@ export default function Pizarra() {
     setAviso('');
     try {
       await pizarraBorrarLlamada(llamada.id, aprobada);
-      setLlamadaId(null); setLlamada(null); setPanel(null); setIdeaAbierta(false);
+      setLlamadaId(null); setLlamada(null); setPanel(null); setIdeaAbierta(null);
       traerBase(true);
     } catch (e) { setAviso(e.message); }
   };
@@ -434,7 +443,7 @@ export default function Pizarra() {
   return (
     <div className="page page-ancha pz">
       <div className="pz-barra">
-        <select id="pz-llamada" className="pz-select" aria-label="Llamada" value={llamadaId ?? ''} onChange={(e) => { setLlamadaId(Number(e.target.value) || null); setPanel(null); }}>
+        <select id="pz-llamada" className="pz-select" aria-label="Llamada" value={llamadaId ?? ''} onChange={(e) => { setLlamadaId(Number(e.target.value) || null); setPanel(null); setGeneralId(null); }}>
           <option value="">{base.llamadas.length ? 'Elegí una llamada' : 'Sin llamadas cargadas'}</option>
           {base.llamadas.map((l) => <option key={l.id} value={l.id}>{l.tipo === 'clase' ? 'Clase · ' : '1 a 1 · '}{l.titulo}</option>)}
         </select>
@@ -486,7 +495,7 @@ export default function Pizarra() {
                 <div className="pz-botones"><button type="button" className="btn ghost" onClick={borrarLlamada}>Borrar llamada</button></div>
               </div>
             )}
-            {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral g={g} llamada={llamada} onGenerar={generarGeneral} onAbrir={() => { setPanel(null); setIdeaAbierta(true); }} />}
+            {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral generales={generales} elegida={g?.id} llamada={llamada} onGenerar={generarGeneral} onAbrir={abrirGeneral} />}
             {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}
             {(panelClave === 'ytAprob' || panelClave === 'reelAprob') && <PanelVariantes canal={panelClave === 'ytAprob' ? 'yt' : 'reel'} g={g} soloAprobadas onVariante={cambioVariante} />}
             {panelClave === 'storySec' && <PanelSecuencias g={g} elegida={storyConSec?.id} onElegir={setStoryElegida} onArmar={armar} />}
@@ -501,15 +510,15 @@ export default function Pizarra() {
         </section>
       )}
 
-      {ideaAbierta && g && (
+      {abierta && (
         <DocumentoIdea
-          key={g.id}
-          g={g}
+          key={abierta.id}
+          g={abierta}
           llamada={llamada}
           onGuardar={guardarGeneral}
           onAprobar={aprobarGeneral}
-          onOtra={otraGeneral}
-          onCerrar={() => setIdeaAbierta(false)}
+          onDescartar={descartarGeneral}
+          onCerrar={() => setIdeaAbierta(null)}
         />
       )}
 

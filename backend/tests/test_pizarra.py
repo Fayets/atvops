@@ -131,3 +131,14 @@ def test_la_cita_casi_textual_entra_con_las_palabras_de_la_llamada():
 
 def test_una_cita_parecida_en_el_tema_pero_inventada_no_entra():
     assert p.validar_general(_idea("vos no tenés que vender horas, tenés que vender la implementación completa de un sistema"), p.segmentos(LARGA)) is None
+
+
+def test_de_una_llamada_salen_hasta_5_ideas_sin_repetir_frase_ni_colar_inventadas():
+    segs = p.segmentos(FATHOM)
+    buena = _idea("un servicio es malo hasta cuando das un sobreservicio")
+    otra = {**_idea("el servicio bueno es el servicio que está adecuado para la persona"), "titulo": "El servicio a medida"}
+    inventada = _idea("el sobreservicio es lo peor que le podés hacer a un cliente")
+    ideas = p.validar_generales({"ideas": [buena, inventada, buena, otra]}, segs)
+    assert [i["titulo"] for i in ideas] == ["Al osito no le das una ballena", "El servicio a medida"]
+    assert len(p.validar_generales({"ideas": [buena] * 3 + [otra] * 3}, segs)) == 2
+    assert p.validar_generales({"ideas": []}, segs) == []

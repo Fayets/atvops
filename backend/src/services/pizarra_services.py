@@ -454,10 +454,10 @@ Escribís como habla Juan: español rioplatense, directo, de vos, sin clickbait 
 SYSTEM_GENERAL = MARCA + """
 
 Juan saca sus mejores ideas de contenido de sus 1 a 1 y clases. Te paso la transcripción de una y lo fijo de la marca.
-Tu trabajo: encontrar LA idea general más fuerte del video. Una sola: la que más contenido puede dar en YouTube, Reels e historias, y que más sirve a la narrativa.
+Tu trabajo: encontrar los temas que habló Juan en la llamada que pueden ser una idea general de contenido: algo que dé para YouTube, Reels e historias y que sirva a la narrativa. Hasta %(n)s, de la más fuerte a la más floja, y cada una de un tema distinto. Si la llamada no da para %(n)s, devolvé las que haya: nunca rellenes.
 
-Reglas:
-- La idea se apoya en UNA frase que dijo Juan. Copiala TEXTUAL de la transcripción, sin corregirla ni resumirla, entre 8 y 40 palabras. Nunca uses frases del cliente ni de otra persona del equipo.
+Reglas para cada idea:
+- Se apoya en UNA frase que dijo Juan. Copiala TEXTUAL de la transcripción, sin corregirla ni resumirla, entre 8 y 40 palabras. Nunca uses frases del cliente ni de otra persona del equipo.
 - Nada de datos del cliente (nombre, facturación, negocio): el contenido es de Juan para su audiencia.
 - "titulo": la idea en una frase corta, como la diría Juan.
 - "detalle": en 2 a 4 frases, qué sostiene la idea y por qué le importa a la audiencia.
@@ -465,7 +465,9 @@ Reglas:
 - No repitas las ideas que te paso como ya usadas.
 
 Devolvé SOLO un objeto JSON, sin texto antes ni después:
-{"titulo": "...", "detalle": "...", "dolor": "...", "cita": "..."}"""
+{"ideas": [{"titulo": "...", "detalle": "...", "dolor": "...", "cita": "..."}]}""" % {"n": 5}
+
+IDEAS_POR_LLAMADA = 5
 
 SYSTEM_VARIANTES = MARCA + """
 
@@ -505,6 +507,21 @@ def validar_general(data: dict, segs: list[dict]) -> dict | None:
         return None
     return {"titulo": titulo, "detalle": _limpio(data.get("detalle"), 1500) or None,
             "dolor": _limpio(data.get("dolor"), 200) or None, "cita": lugar["texto"][:600], "minuto": lugar["ts"]}
+
+
+def validar_generales(data: dict, segs: list[dict]) -> list[dict]:
+    """Las ideas que se pueden guardar, sin dos apoyadas en la misma frase."""
+    items = data.get("ideas") if isinstance(data.get("ideas"), list) else [data]
+    salida, citas = [], set()
+    for item in items:
+        idea = validar_general(item, segs) if isinstance(item, dict) else None
+        if idea is None or _norm(idea["cita"]) in citas:
+            continue
+        citas.add(_norm(idea["cita"]))
+        salida.append(idea)
+        if len(salida) == IDEAS_POR_LLAMADA:
+            break
+    return salida
 
 
 def validar_variantes(data: dict) -> dict[str, list[dict]]:
@@ -556,7 +573,8 @@ def _claude(system: str, prompt: str, max_tokens: int = 4000) -> dict:
 # --- idea general
 
 def generar_general(llamada_id: int) -> dict:
-    """Propone la idea general del video. Si había una propuesta sin aprobar, la reemplaza."""
+    """Propone hasta 5 ideas generales del video. Las propuestas sin aprobar se reemplazan;
+    las aprobadas quedan y no se repiten."""
     with db_session:
         ll = PizarraLlamada.get(id=llamada_id)
         if ll is None:
@@ -575,20 +593,21 @@ def _generar_general(llamada_id: int) -> None:
                   + ("\n\n# Ideas generales ya usadas de esta llamada\n" + "\n".join(f"- {t}" for t in usadas) if usadas else "")
                   + f"\n\n# La llamada ({'1 a 1' if ll.tipo == '1a1' else 'clase grupal'}): {ll.titulo}\n{_recortar(ll.transcripcion)}")
         segs = segmentos(ll.transcripcion)
-    idea = validar_general(_claude(SYSTEM_GENERAL, prompt, 2000), segs)
-    if idea is None:  # una segunda vuelta, avisándole qué falló
-        prompt += ("\n\n# Ojo\nLa frase que elegiste antes no está tal cual en la transcripción o no la dijo "
-                   f"{VOCERO}. Elegí una frase que diga {VOCERO} y copiala letra por letra de una de sus líneas.")
-        idea = validar_general(_claude(SYSTEM_GENERAL, prompt, 2000), segs)
+    ideas = validar_generales(_claude(SYSTEM_GENERAL, prompt, 6000), segs)
+    if not ideas:  # una segunda vuelta, avisándole qué falló
+        prompt += ("\n\n# Ojo\nLas frases que elegiste antes no están tal cual en la transcripción o no las dijo "
+                   f"{VOCERO}. Elegí frases que diga {VOCERO} y copialas letra por letra de sus líneas.")
+        ideas = validar_generales(_claude(SYSTEM_GENERAL, prompt, 6000), segs)
     with db_session:
         ll = PizarraLlamada[llamada_id]
-        if idea is None:
-            ll.estado, ll.error = "error", "Claude no encontró una frase de Juan en esta llamada para apoyar la idea. Revisá que en la transcripción figure quién habla."
+        if not ideas:
+            ll.estado, ll.error = "error", "Claude no encontró frases de Juan en esta llamada para apoyar las ideas. Revisá que en la transcripción figure quién habla."
             return
         for g in list(ll.generales):
             if g.estado == "propuesta":
                 g.estado = "descartada"
-        PizarraGeneral(llamada=ll, **idea)
+        for idea in ideas:
+            PizarraGeneral(llamada=ll, **idea)
         ll.estado, ll.error = "lista", None
 
 
@@ -604,6 +623,10 @@ def editar_general(general_id: int, cambios: dict) -> dict:
             g.titulo, g.editada = t, True
         if "detalle" in cambios:
             g.detalle, g.editada = _limpio(cambios["detalle"], 1500) or None, True
+        if cambios.get("estado") in ("propuesta", "descartada"):
+            if g.estado == "aprobada":
+                raise HTTPException(status_code=409, detail="La idea ya está aprobada.")
+            g.estado = cambios["estado"]
         llamada_id = g.llamada.id
     return detalle(llamada_id)
 

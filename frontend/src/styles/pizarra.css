@@ -160,6 +160,8 @@
 .pz-docprev { display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%; padding: 12px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--surface); cursor: pointer; font: inherit; color: var(--text); }
 .pz-docprev:hover { border-color: var(--text-3); }
+.pz-docprev.sel { border-color: var(--ok, #1e8e3e); box-shadow: inset 0 0 0 1px var(--ok, #1e8e3e); }
+.pz-docprev .pz-st { align-self: flex-start; }
 .pz-docprev > span:last-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 @media (max-width: 1240px) {
   .dc-mesa { flex-direction: column; align-items: center; }
