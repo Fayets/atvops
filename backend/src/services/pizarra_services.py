@@ -491,7 +491,7 @@ Tu trabajo: encontrar los temas que habló Juan en la llamada que pueden ser una
 Reglas para cada idea:
 - Se apoya en UNA frase que dijo Juan. Copiala TEXTUAL de la transcripción, sin corregirla ni resumirla, entre 8 y 40 palabras. Nunca uses frases del cliente ni de otra persona del equipo.
 - Nada de datos del cliente (nombre, facturación, negocio): el contenido es de Juan para su audiencia.
-- "titulo": un pedazo TEXTUAL de lo que dijo Juan en la llamada, de 4 a 14 palabras seguidas, copiado tal cual (puede ser parte de la cita o de otra frase suya sobre el mismo tema). Elegí el pedazo que más pega, el que Juan usaría para abrir una historia (mirá "Cómo abre Juan una idea"). No lo reescribas, no lo resumas, no le agregues nada: si no está dicho así en la transcripción, no sirve.
+- "titulo": la idea titulada como titula Juan lo que publica. Mirá "Cómo titula Juan": son sus títulos reales de este año, con las vistas. Copiá esa forma (el largo, las minúsculas, los números en $ y /mes, "te explico", "pov:", la acusación, la pregunta, la promesa con número) y preferí la de los que más vistas tuvieron. Hasta 14 palabras, sobre lo que dijo en la cita, con palabras suyas. NUNCA "concepto: explicación" ni tono de titular de blog o de curso.
 - "detalle": de 2 a 4 frases escritas por Juan en primera persona, con su voz, contándole a su audiencia la idea y por qué le importa. Nada de "Juan cuenta que…" ni tercera persona: es él el que escribe.
 - "dolor": a qué dolor de la audiencia apunta. Si coincide con uno de la lista, usá ese texto (es una etiqueta interna, no se publica).
 - No repitas las ideas que te paso como ya usadas.
@@ -510,9 +510,9 @@ Tu trabajo: bajarla a variantes por canal. Todas cuentan la misma idea general, 
 
 "titulo" y "detalle" los escribe JUAN, no un estratega: con su voz tal cual la mide "Cómo escribe Juan" (minúsculas, puntuación, muletillas, palabras suyas) y en primera persona, como si le tirara la idea a su equipo por el chat. Nada de lenguaje de brief ni de agencia: prohibido "arranca con", "muestro", "cierro con", "la secuencia", "el objetivo es", "el espectador", "se presenta". Las frases que van en pantalla, dichas como él las diría. Nunca pongas el nombre de la estructura en el título.
 
-- yt: %(n)s ideas de video de YouTube. "titulo": el título del video. "detalle": el ángulo y qué se lleva el que lo mira, en 1 o 2 frases.
-- reel: %(n)s ideas de reel. "titulo": el gancho (lo primero que se dice o se lee), como abre Juan (ver "Cómo abre Juan una idea"). "detalle": de qué va, en 1 o 2 frases.
-- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": la primera historia, como abre Juan (ver "Cómo abre Juan una idea"). "detalle": cómo la armaría Juan contado por él, siguiendo los pasos de la estructura, con las frases que van en pantalla y la palabra que pide al final.
+- yt: %(n)s ideas de video de YouTube. "titulo": el título del video, como los títulos de YouTube de "Cómo titula Juan". "detalle": el ángulo y qué se lleva el que lo mira, en 1 o 2 frases.
+- reel: %(n)s ideas de reel. "titulo": el gancho (lo primero que se dice o se lee), como arrancan los reels de "Cómo titula Juan". "detalle": de qué va, en 1 o 2 frases.
+- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": la primera historia, como abren las historias de "Cómo titula Juan". "detalle": cómo la armaría Juan contado por él, siguiendo los pasos de la estructura, con las frases que van en pantalla y la palabra que pide al final.
 
 Devolvé SOLO un objeto JSON, sin texto antes ni después:
 {"yt": [{"titulo": "...", "detalle": "..."}], "reel": [...], "story": [{"titulo": "...", "detalle": "...", "estructura": "clave"}]}"""
@@ -551,17 +551,16 @@ TITULO_PALABRAS = (4, 14)
 
 
 def titulo_de_juan(titulo: str, cita: str, segs: list[dict]) -> str:
-    """El título son palabras que Juan dijo, no una imitación de su voz.
-
-    Franco (22-10-2026): aun pidiéndole "escribí como Juan", los títulos sonaban a IA. Así
-    que el título tiene que estar en la transcripción, dicho por Juan, igual que la cita. Si
-    el que propuso Claude no está, sale del arranque de la cita, cortado en la primera pausa.
-    """
+    """El título que queda. Si Claude devolvió uno vacío o que no tiene largo de título, sale
+    del arranque de la cita, cortado en la primera pausa: siempre son palabras de Juan."""
     minimo, maximo = TITULO_PALABRAS
     if minimo <= len(titulo.split()) <= maximo:
         lugar = ubicar_cita(titulo, segs)
         if lugar is not None and es_del_vocero(lugar["quien"], segs):
             return lugar["texto"].strip(" ,.;:").lower()
+        # Desde que se guía por sus títulos publicados ("Cómo titula Juan"), el título puede
+        # no estar dicho tal cual en la llamada: vale si tiene el largo de un título suyo.
+        return titulo.strip()
     primera = re.split(r"[.;:?!]|,\s", cita, maxsplit=1)[0].split()
     if len(primera) < minimo:
         primera = cita.split()
@@ -913,8 +912,16 @@ def guia_secuencias() -> str:
 
 
 def ganchos_juan() -> str:
-    """Cómo abre Juan una idea en sus historias: el tono de los títulos."""
-    nota = _nota_cerebro("ganchos-juan.md")
+    """Cómo titula Juan: lo que publicó este año (reels, YouTube, historias), en vivo. La nota
+    fija de aperturas queda solo para cuando todavía no hay nada sincronizado."""
+    from src.services import titulos_juan_services
+
+    try:
+        vivo = titulos_juan_services.bloque()
+    except Exception as e:  # noqa: BLE001
+        logger.info("Pizarra: no se pudieron leer los títulos de Juan: %s", str(e)[:160])
+        vivo = ""
+    nota = vivo or _nota_cerebro("ganchos-juan.md")
     return ("\n\n" + nota) if nota else ""
 
 

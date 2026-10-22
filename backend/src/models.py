@@ -874,6 +874,22 @@ class LineaPagosDoc(db.Entity):
     composite_key(coleccion, doc_id)
 
 
+class AperturaHistoria(db.Entity):
+    """La primera historia de cada secuencia de Juan, leída una vez: así titula Juan.
+
+    Las historias se guardan como imagen; para aprender de cómo abre sus secuencias hay que
+    leer el texto. Se lee una sola vez por secuencia (cuesta una llamada a Claude) y queda.
+    """
+
+    _table_ = _tabla("aperturas_historias", "AperturaHistoria")
+
+    id = PrimaryKey(int, auto=True)
+    ig_id = Required(str, unique=True)        # la primera pieza de la secuencia
+    fecha = Required(date, index=True)        # el día de la secuencia, en Argentina
+    texto = Optional(str, nullable=True)      # "" si la historia no tenía texto
+    leida_at = Required(datetime, default=datetime.utcnow)
+
+
 class ReporteDireccion(db.Entity):
     """El reporte de dirección: un período cualquiera, las áreas elegidas, la hoja entera.
 

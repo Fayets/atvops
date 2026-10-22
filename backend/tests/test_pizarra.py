@@ -140,10 +140,16 @@ def test_de_una_llamada_salen_hasta_5_ideas_sin_repetir_frase_ni_colar_inventada
             "titulo": "qué le tenés que dar al osito chiquito"}
     inventada = _idea("el sobreservicio es lo peor que le podés hacer a un cliente")
     ideas = p.validar_generales({"ideas": [buena, inventada, buena, otra]}, segs)
-    # El título son palabras de Juan: el inventado ("al osito no le das una ballena") no está
-    # en la llamada y cae al arranque de su frase; el que dijo, queda tal cual lo dijo.
-    assert [i["titulo"] for i in ideas] == ["un servicio es malo hasta cuando das un sobreservicio",
+    # El título se escribe como titula Juan (no tiene que estar dicho tal cual); si está en la
+    # llamada, queda con sus palabras exactas.
+    assert [i["titulo"] for i in ideas] == ["Al osito no le das una ballena",
                                             "¿qué le tenés que dar al osito chiquito?"]
+    # Sin título usable, sale del arranque de la frase de Juan.
+    sin_titulo = {**buena, "titulo": ""}
+    assert p.validar_generales({"ideas": [sin_titulo]}, segs) == []  # sin título no hay idea
+    largo = {**buena, "titulo": " ".join(["palabra"] * 20)}
+    assert p.validar_generales({"ideas": [largo]}, segs)[0]["titulo"] == \
+        "un servicio es malo hasta cuando das un sobreservicio"
     assert len(p.validar_generales({"ideas": [buena] * 3 + [otra] * 3}, segs)) == 2
     assert p.validar_generales({"ideas": []}, segs) == []
 

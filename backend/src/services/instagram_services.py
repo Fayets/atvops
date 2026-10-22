@@ -488,6 +488,13 @@ def iniciar_scheduler(stop: threading.Event) -> None:
                 chats_reels_services.sincronizar()
             except Exception as e:  # noqa: BLE001
                 logger.warning("Chats de reels: %s", str(e)[:200])
+            try:
+                # La pizarra aprende de cómo abre Juan cada secuencia nueva.
+                from src.services import titulos_juan_services
+
+                titulos_juan_services.leer_aperturas_nuevas()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Aperturas de historias: %s", str(e)[:200])
         except Exception as e:  # noqa: BLE001
             logger.warning("Sincronización de Instagram falló: %s", str(e)[:200])
         stop.wait(espera)
