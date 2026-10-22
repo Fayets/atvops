@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 
 from decouple import config
@@ -24,6 +25,7 @@ ESQUEMA = config("CLASSROOM_SCHEMA", default="classroom")
 ADMIN_ID = config("PIZARRA_VOZ_ADMIN_ID", default=0, cast=int)
 CACHE_S = 3600
 MAX_EJEMPLOS = 16
+_RUIDO = re.compile(r"https?://|(^|\s)@\w")
 
 _cache: dict = {"en": 0.0, "voz": None}
 
@@ -63,7 +65,8 @@ def _leer() -> dict | None:
     if ids:
         por_id = {r["id"]: r["texto"] for r in _consultar(
             'SELECT id, texto FROM "{esquema}"."mensajes_canal" WHERE id = ANY(%s) AND NOT borrado', (ids,))}
-        ejemplos = [por_id[i] for i in ids if por_id.get(i)][:MAX_EJEMPLOS]
+        # Links y @menciones son de chat, no de cómo escribe: confunden a Claude.
+        ejemplos = [por_id[i] for i in ids if por_id.get(i) and not _RUIDO.search(por_id[i])][:MAX_EJEMPLOS]
     return {"nombre": f["nombre"], "mensajes": f["mensajes_analizados"],
             "rasgos": json.loads(f["rasgos_json"] or "{}"), "ejemplos": ejemplos}
 
