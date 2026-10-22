@@ -98,26 +98,78 @@ def segmentos(texto: str) -> list[dict]:
     return segs
 
 
+def _palabras(segs: list[dict]) -> list[tuple[str, int, int, str]]:
+    """Cada palabra de la transcripción: (normalizada, tramo, n.º de palabra, como está escrita)."""
+    salida, j = [], 0
+    for k, s in enumerate(segs):
+        for palabra in s["texto"].split():
+            for n in _norm(palabra).split():
+                salida.append((n, k, j, palabra))
+            j += 1
+    return salida
+
+
+def _literal(palabras: list[tuple[str, int, int, str]]) -> str:
+    """El texto tal como está en la transcripción, sin repetir la palabra original cuando
+    se partió en dos al normalizarla ("1.000" → "1 000")."""
+    out, previo = [], None
+    for _n, _k, j, original in palabras:
+        if j != previo:
+            out.append(original)
+        previo = j
+    return " ".join(out)
+
+
 def ubicar_cita(cita: str, segs: list[dict]) -> dict | None:
-    """Dónde está la cita en la transcripción: {ts, quien}, o None si no está tal cual.
+    """Dónde está la cita en la transcripción: {ts, quien, texto}, o None si no está.
     Se compara sin tildes, mayúsculas ni puntuación; una cita puede cruzar dos tramos
-    seguidos de la misma persona."""
-    buscada = _norm(cita)
-    if len(buscada) < 12:
+    seguidos de la misma persona. Si no está tal cual, vale el tramo casi idéntico (Claude
+    suele sacar una muletilla o un "eh") y la cita que queda es la de la transcripción."""
+    buscada = _norm(cita).split()
+    if len(" ".join(buscada)) < 12:
         return None
-    unido, inicios = "", []
-    for s in segs:
-        inicios.append(len(unido))
-        unido += _norm(s["texto"]) + " "
-    pos = unido.find(buscada)
-    if pos < 0:
+    palabras = _palabras(segs)
+    tokens = [w[0] for w in palabras]
+    n = len(buscada)
+    tramo = None
+    for i in range(len(tokens) - n + 1):
+        if tokens[i:i + n] == buscada:
+            tramo = (i, i + n)
+            break
+    if tramo is None:
+        tramo = _casi_igual(buscada, tokens)
+    if tramo is None:
         return None
-    i = max(k for k, ini in enumerate(inicios) if ini <= pos)
-    fin = pos + len(buscada)
-    tramo = [s for k, s in enumerate(segs) if inicios[k] < fin and k >= i]
-    if len({s["quien"] for s in tramo}) > 1:
+    elegidas = palabras[tramo[0]:tramo[1]]
+    if len({segs[k]["quien"] for _n, k, _j, _o in elegidas}) > 1:
         return None  # pegó frases de dos personas
-    return {"ts": segs[i]["ts"], "quien": segs[i]["quien"]}
+    primero = segs[elegidas[0][1]]
+    return {"ts": primero["ts"], "quien": primero["quien"], "texto": _literal(elegidas)}
+
+
+PARECIDO_MIN = 0.85
+
+
+def _casi_igual(buscada: list[str], tokens: list[str]) -> tuple[int, int] | None:
+    """El tramo de la transcripción que más se parece a la cita, si se parece lo suficiente."""
+    from collections import Counter
+    from difflib import SequenceMatcher
+
+    n = len(buscada)
+    if n < 4 or len(tokens) < n - 2:
+        return None
+    meta = Counter(buscada)
+    mejor, donde = 0.0, None
+    for i in range(0, max(1, len(tokens) - n + 3)):
+        ventana = tokens[i:i + n]
+        if sum((Counter(ventana) & meta).values()) < n * PARECIDO_MIN:
+            continue  # filtro rápido: ni comparten las palabras
+        for largo in range(max(1, n - 3), n + 4):
+            cand = tokens[i:i + largo]
+            r = SequenceMatcher(None, cand, buscada, autojunk=False).ratio()
+            if r > mejor:
+                mejor, donde = r, (i, i + len(cand))
+    return donde if mejor >= PARECIDO_MIN else None
 
 
 def es_del_vocero(quien: str | None, segs: list[dict]) -> bool:
@@ -452,7 +504,7 @@ def validar_general(data: dict, segs: list[dict]) -> dict | None:
         logger.info("Pizarra: idea general descartada (%s): %r", "cita de otro" if lugar else "cita no encontrada", cita[:120])
         return None
     return {"titulo": titulo, "detalle": _limpio(data.get("detalle"), 1500) or None,
-            "dolor": _limpio(data.get("dolor"), 200) or None, "cita": cita, "minuto": lugar["ts"]}
+            "dolor": _limpio(data.get("dolor"), 200) or None, "cita": lugar["texto"][:600], "minuto": lugar["ts"]}
 
 
 def validar_variantes(data: dict) -> dict[str, list[dict]]:
@@ -524,10 +576,14 @@ def _generar_general(llamada_id: int) -> None:
                   + f"\n\n# La llamada ({'1 a 1' if ll.tipo == '1a1' else 'clase grupal'}): {ll.titulo}\n{_recortar(ll.transcripcion)}")
         segs = segmentos(ll.transcripcion)
     idea = validar_general(_claude(SYSTEM_GENERAL, prompt, 2000), segs)
+    if idea is None:  # una segunda vuelta, avisándole qué falló
+        prompt += ("\n\n# Ojo\nLa frase que elegiste antes no está tal cual en la transcripción o no la dijo "
+                   f"{VOCERO}. Elegí una frase que diga {VOCERO} y copiala letra por letra de una de sus líneas.")
+        idea = validar_general(_claude(SYSTEM_GENERAL, prompt, 2000), segs)
     with db_session:
         ll = PizarraLlamada[llamada_id]
         if idea is None:
-            ll.estado, ll.error = "error", "La idea no traía una frase de Juan que esté tal cual en la llamada. Probá de nuevo."
+            ll.estado, ll.error = "error", "Claude no encontró una frase de Juan en esta llamada para apoyar la idea. Revisá que en la transcripción figure quién habla."
             return
         for g in list(ll.generales):
             if g.estado == "propuesta":

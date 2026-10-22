@@ -115,3 +115,19 @@ def test_se_elige_la_grabacion_que_arranco_a_esa_hora():
             "recording_files": [{"recording_start": "2026-10-19T14:44:10Z", "file_type": "TRANSCRIPT"}]}
     assert p.elegir_grabacion([otra, esta], inicio)["topic"] == "1 a 1"
     assert p.elegir_grabacion([otra], inicio) is None
+
+
+LARGA = """[00:20:01] Juan Cruz Carrizo: Mirá, eh, lo que pasa es que vos estás vendiendo horas y no estás vendiendo la implementación del sistema completo.
+[00:20:09] Cliente: Claro, tiene sentido.
+"""
+
+
+def test_la_cita_casi_textual_entra_con_las_palabras_de_la_llamada():
+    idea = p.validar_general(_idea("lo que pasa es que vos estás vendiendo horas y no estás vendiendo la implementación del sistema"), p.segmentos(LARGA))
+    assert idea is not None and idea["minuto"] == "20:01"
+    idea = p.validar_general(_idea("Mirá, lo que pasa es que estás vendiendo horas y no estás vendiendo la implementación del sistema completo"), p.segmentos(LARGA))
+    assert idea["cita"] == "Mirá, eh, lo que pasa es que vos estás vendiendo horas y no estás vendiendo la implementación del sistema completo."
+
+
+def test_una_cita_parecida_en_el_tema_pero_inventada_no_entra():
+    assert p.validar_general(_idea("vos no tenés que vender horas, tenés que vender la implementación completa de un sistema"), p.segmentos(LARGA)) is None
