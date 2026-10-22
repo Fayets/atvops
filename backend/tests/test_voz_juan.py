@@ -38,3 +38,10 @@ def test_sin_classroom_la_pizarra_sigue_sin_voz(monkeypatch):
     monkeypatch.setattr(v, "_leer", falla)
     assert v.bloque() == ""
     assert "Cómo escribe Juan" not in p._contexto_texto({k: {"texto": "x"} for k in p.CONTEXTO})
+
+
+def test_lo_que_juan_le_corrige_al_tab_del_classroom_llega_a_la_pizarra():
+    rasgos = {**VOZ["rasgos"], "correcciones": {"aceptadas": 12, "largo_vs_ia": 0.6, "saca": ["genial", "increíble"], "saca_punto_final_pct": 80}}
+    reglas = v.describir(rasgos)
+    assert "escribí más corto" in reglas and '"genial"' in reglas and "saca el punto final" in reglas
+    assert "escribí más corto" not in v.describir({**VOZ["rasgos"], "correcciones": {"aceptadas": 2, "largo_vs_ia": 0.6}})

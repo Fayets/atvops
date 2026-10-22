@@ -23,7 +23,7 @@ logger = logging.getLogger("atv_ops.voz_juan")
 ESQUEMA = config("CLASSROOM_SCHEMA", default="classroom")
 # Qué cuenta del classroom es Juan. Sin configurar, la de nombre "Juan…" con más mensajes medidos.
 ADMIN_ID = config("PIZARRA_VOZ_ADMIN_ID", default=0, cast=int)
-CACHE_S = 3600
+CACHE_S = 600                     # el classroom aprende cada 10 min: la pizarra va al mismo ritmo
 MAX_EJEMPLOS = 16
 _RUIDO = re.compile(r"https?://|(^|\s)@\w")
 
@@ -115,7 +115,34 @@ def describir(r: dict) -> str:
         reglas.append("palabras muy suyas: " + ", ".join(r["palabras_propias"][:8]))
     if r.get("abreviaturas"):
         reglas.append("abrevia: " + ", ".join(r["abreviaturas"][:6]))
+    reglas += _reglas_de_correcciones(r.get("correcciones") or {})
     return "; ".join(reglas) + "."
+
+
+def _reglas_de_correcciones(c: dict) -> list[str]:
+    """Lo que Juan le corrige siempre a la IA en el Tab del classroom (medido allá en código).
+    Mismo criterio que el classroom: recién con 3 sugerencias aceptadas dice algo."""
+    if not c or c.get("aceptadas", 0) < 3:
+        return []
+    reglas = []
+    largo = c.get("largo_vs_ia")
+    if largo and largo <= 0.8:
+        reglas.append(f"cuando la IA le propone algo, lo recorta (deja más o menos el {round(largo * 100)} %): escribí más corto")
+    elif largo and largo >= 1.25:
+        reglas.append("cuando la IA le propone algo, lo alarga: no te quedes corto")
+    if c.get("saca"):
+        reglas.append("nunca uses estas palabras (las saca cada vez que la IA las pone): " + ", ".join(f'"{w}"' for w in c["saca"][:8]))
+    if c.get("agrega"):
+        reglas.append("suele agregar: " + ", ".join(f'"{w}"' for w in c["agrega"][:8]))
+    if (c.get("saca_emojis_pct") or 0) >= 60:
+        reglas.append("saca los emojis que le propone la IA")
+    if (c.get("saca_signos_apertura_pct") or 0) >= 60:
+        reglas.append("saca los ¿ y ¡ de apertura")
+    if (c.get("saca_punto_final_pct") or 0) >= 60:
+        reglas.append("saca el punto final")
+    if (c.get("pasa_a_minuscula_pct") or 0) >= 60:
+        reglas.append("cambia la mayúscula del principio por minúscula")
+    return reglas
 
 
 def bloque() -> str:
