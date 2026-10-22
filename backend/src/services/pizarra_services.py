@@ -491,9 +491,9 @@ Tu trabajo: encontrar los temas que habló Juan en la llamada que pueden ser una
 Reglas para cada idea:
 - Se apoya en UNA frase que dijo Juan. Copiala TEXTUAL de la transcripción, sin corregirla ni resumirla, entre 8 y 40 palabras. Nunca uses frases del cliente ni de otra persona del equipo.
 - Nada de datos del cliente (nombre, facturación, negocio): el contenido es de Juan para su audiencia.
-- "titulo": la idea en una frase corta, escrita como la escribiría Juan.
+- "titulo": la idea como Juan la abriría en una historia o un reel. Mirá "Cómo abre Juan una idea": frase corta (hasta 12 palabras), directa, en minúscula, que pega (una acusación, una pregunta, un número, un pov). NUNCA "concepto: explicación" con dos puntos ni tono de titular de blog o de curso.
 - "detalle": de 2 a 4 frases escritas por Juan en primera persona, con su voz, contándole a su audiencia la idea y por qué le importa. Nada de "Juan cuenta que…" ni tercera persona: es él el que escribe.
-- "dolor": a qué dolor de la audiencia apunta. Si coincide con uno de la lista, usá ese texto.
+- "dolor": a qué dolor de la audiencia apunta. Si coincide con uno de la lista, usá ese texto (es una etiqueta interna, no se publica).
 - No repitas las ideas que te paso como ya usadas.
 - Si te paso "Dibujos de Juan en esta llamada": cuando Juan dibuja es porque está explicando algo importante. Si un dibujo explica algo que sirve a la marca, una de las ideas sale de ese momento, con una frase que Juan dijo mientras dibujaba.
 
@@ -511,8 +511,8 @@ Tu trabajo: bajarla a variantes por canal. Todas cuentan la misma idea general, 
 "titulo" y "detalle" los escribe JUAN, no un estratega: con su voz tal cual la mide "Cómo escribe Juan" (minúsculas, puntuación, muletillas, palabras suyas) y en primera persona, como si le tirara la idea a su equipo por el chat. Nada de lenguaje de brief ni de agencia: prohibido "arranca con", "muestro", "cierro con", "la secuencia", "el objetivo es", "el espectador", "se presenta". Las frases que van en pantalla, dichas como él las diría. Nunca pongas el nombre de la estructura en el título.
 
 - yt: %(n)s ideas de video de YouTube. "titulo": el título del video. "detalle": el ángulo y qué se lleva el que lo mira, en 1 o 2 frases.
-- reel: %(n)s ideas de reel. "titulo": el gancho (lo primero que se dice o se lee). "detalle": de qué va, en 1 o 2 frases.
-- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": de qué va, como lo diría Juan. "detalle": cómo la armaría Juan contado por él, siguiendo los pasos de la estructura, con las frases que van en pantalla y la palabra que pide al final.
+- reel: %(n)s ideas de reel. "titulo": el gancho (lo primero que se dice o se lee), como abre Juan (ver "Cómo abre Juan una idea"). "detalle": de qué va, en 1 o 2 frases.
+- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": la primera historia, como abre Juan (ver "Cómo abre Juan una idea"). "detalle": cómo la armaría Juan contado por él, siguiendo los pasos de la estructura, con las frases que van en pantalla y la palabra que pide al final.
 
 Devolvé SOLO un objeto JSON, sin texto antes ni después:
 {"yt": [{"titulo": "...", "detalle": "..."}], "reel": [...], "story": [{"titulo": "...", "detalle": "...", "estructura": "clave"}]}"""
@@ -523,7 +523,7 @@ def _contexto_texto(ctx: dict) -> str:
                "diferenciales": "Diferenciales de la marca", "narrativa": "Narrativa actual"}
     texto = "\n\n".join(f"## {nombres[k]}\n{(ctx[k]['texto'] or '(todavía no cargado)').strip()}" for k in CONTEXTO)
     voz = voz_juan.bloque()  # del cerebro del classroom: todo lo que escribe la pizarra va en la voz de Juan
-    return texto + ("\n\n" + voz if voz else "")
+    return texto + ("\n\n" + voz if voz else "") + ganchos_juan()
 
 
 def _recortar(texto: str) -> str:
@@ -876,15 +876,25 @@ Devolvé SOLO un objeto JSON, sin texto antes ni después:
 {"palabra": "NIVELES" | null, "secuencias": {"corta": [[bloque, ...], ...], "media": [...], "larga": [...]}}"""
 
 
-def guia_secuencias() -> str:
-    """La guía editable del cerebro; si todavía no se sembró, la del repo."""
+def _nota_cerebro(nombre: str) -> str:
+    """Una nota de marketing del cerebro (la editable); si todavía no se sembró, la del repo."""
     from src.services.cerebro_services import CEREBRO_DIR, SEMILLA_DIR
 
     for base in (CEREBRO_DIR, SEMILLA_DIR):
-        ruta = base / "marketing" / "secuencias-historias.md"
+        ruta = base / "marketing" / nombre
         if ruta.exists():
             return ruta.read_text(encoding="utf-8")
     return ""
+
+
+def guia_secuencias() -> str:
+    return _nota_cerebro("secuencias-historias.md")
+
+
+def ganchos_juan() -> str:
+    """Cómo abre Juan una idea en sus historias: el tono de los títulos."""
+    nota = _nota_cerebro("ganchos-juan.md")
+    return ("\n\n" + nota) if nota else ""
 
 
 def _dibujos_texto(lista: list[dict], de_la_idea: list[dict] | None = None) -> str:

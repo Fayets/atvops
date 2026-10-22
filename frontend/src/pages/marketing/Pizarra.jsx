@@ -275,7 +275,7 @@ function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
             <span className="dc-icono" aria-hidden="true" />
             <span>
               <b>{x.titulo}</b>
-              {x.dolor && <span className="pz-dim">{x.dolor}</span>}
+              {x.detalle && <span className="pz-dim pz-dos-lineas">{x.detalle}</span>}
               {x.conDibujo && <span className="pz-tag">con dibujo</span>}
               {x.estado === 'aprobada' && <span className="pz-st aprobada">Aprobada</span>}
             </span>
