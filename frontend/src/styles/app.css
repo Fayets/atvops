@@ -8683,6 +8683,133 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .home-ventas-persona.sin .home-ventas-persona-cash { color: var(--text-2); }
 .home-ventas-persona-datos { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-2); }
 .home-ventas-persona-datos b { color: var(--text); font-weight: 600; }
-/* Línea de pagos: la página de Mauri ocupa todo el alto disponible. */
-.linea-pagos { height: calc(100vh - 110px); min-height: 520px; border-radius: var(--radius); overflow: hidden; }
-.linea-pagos-marco { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+/* ---------------------------------------------------------------- línea de pagos */
+/* Los grupos de Mauri con los colores de Ops: A está activo (ok), B se venció (warn),
+   C se fue por vencimiento (info), señas y sin grupo no opinan (off). Las barras van en
+   tinte claro para que el nombre se lea encima; D y E son marcas de alerta alrededor. Los
+   programas son series: distinguen, no juzgan. */
+.lp {
+  --lp-a: var(--ok); --lp-b: var(--warn); --lp-c: var(--info); --lp-gris: var(--off);
+  --lp-a-f: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  --lp-b-f: color-mix(in srgb, var(--warn) 24%, var(--surface));
+  --lp-c-f: color-mix(in srgb, var(--info) 18%, var(--surface));
+  --lp-gris-f: color-mix(in srgb, var(--off) 22%, var(--surface));
+  --lp-a-f2: color-mix(in srgb, var(--ok) 42%, var(--surface));
+  --lp-b-f2: color-mix(in srgb, var(--warn) 50%, var(--surface));
+  --lp-marca: var(--alert);
+  --lp-nota: var(--info);
+  --lp-boost: var(--s2); --lp-mentoria: var(--s1); --lp-entry: #7c6cf0; --lp-mid: #d4a03c; --lp-advantage: var(--s3);
+  --lp-carril: var(--surface-2);
+  --lp-fuera: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  gap: var(--space-4);
+}
+.lp .dim { color: var(--text-3); }
+.lp-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.lp-filtro { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lp-filtro .lab-k { margin-right: 2px; }
+.lp-filtro .chip { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s; }
+.lp-filtro .chip:hover { color: var(--text); border-color: var(--border); }
+.lp-filtro .chip.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+/* Sobre el chip oscuro el punto grafito de Mentoría desaparecía: un aro claro lo despega. */
+.lp-filtro .chip.active .lp-punto { box-shadow: 0 0 0 1.5px var(--surface); }
+.lp-cuenta { font-size: 11px; opacity: 0.6; }
+.lp-punto { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--c, var(--text-3)); display: inline-block; }
+.lp-muestra-marca { width: 14px; height: 9px; border-radius: 3px; flex: none; border: 2px solid var(--lp-marca); }
+.lp-muestra-marca.E { border-style: dashed; }
+.lp-meta { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; }
+
+/* El escenario: cada capa se corre con transform, nada se re-dibuja al arrastrar. */
+.lp-escenario { position: relative; height: calc(100vh - 300px); min-height: 460px; background: var(--surface);
+  border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; touch-action: none;
+  cursor: grab; user-select: none; contain: layout paint; }
+.lp-escenario.arrastrando { cursor: grabbing; }
+.lp-escenario:focus-visible { outline-offset: -2px; }
+.lp-capa { position: absolute; left: 0; top: 0; will-change: transform; }
+.lp-capa svg { display: block; overflow: visible; }
+.lp-capa.sin-puntero { pointer-events: none; }
+.lp-escenario svg text { font-family: var(--font); }
+.lp-item { cursor: pointer; }
+.lp-titulo { pointer-events: auto; }
+.lp-cabecera { position: absolute; left: 0; right: 0; top: 0; height: 50px; background: var(--surface);
+  border-bottom: 1px solid var(--border-soft); overflow: hidden; pointer-events: none; }
+.lp-anio { position: absolute; left: 0; top: 2px; padding: 0 8px 0 10px; font-size: 12px; font-weight: 600; color: var(--text); background: var(--surface); }
+.lp-zoom { position: absolute; right: 10px; top: 10px; display: flex; gap: 4px; z-index: 3; }
+.lp-zoom .btn { background: var(--surface); }
+.lp-ir-ficha { position: absolute; right: 10px; top: 60px; z-index: 3; }
+.lp-tip { position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 2px;
+  max-width: 290px; padding: 9px 11px; font-size: 12px; line-height: 1.4; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(28, 25, 23, 0.12); }
+.lp-tip b { font-size: 13.5px; font-weight: 600; }
+.lp-tip-grupo { font-weight: 600; }
+.lp-marca-txt { color: var(--alert); }
+.lp-warn { color: var(--warn); font-size: 12.5px; margin: 0; }
+
+/* El panel de abajo: resumen, ficha y ajustes. */
+.lp-panel { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); scroll-margin-top: var(--space-4); }
+.lp-panel > :not(.tabs) { width: 100%; }
+.lp-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: var(--space-4); align-items: start; }
+.lp-resumen .full { grid-column: 1 / -1; }
+.lp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
+.lp-kpi { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; background: var(--surface);
+  border: 1px solid var(--border-soft); border-left: 3px solid var(--c); border-radius: var(--radius); }
+.lp-kpi b { font-size: 24px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+.lp-kpi span { font-size: 12px; color: var(--text-2); }
+.lp-kpi small { font-size: 11.5px; color: var(--text-3); }
+.lp table.data th, .lp table.data td { padding: 8px 14px; }
+.lp table.data th.right { text-align: right; }
+.lp table.data tr.lp-apagada td { opacity: 0.4; }
+.lp-grupo { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.lp-grupo::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.lp-filas { display: flex; flex-direction: column; }
+.lp-fila { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.lp-fila > span:first-child { color: var(--text-2); }
+.lp-fila > span:last-child { text-align: right; }
+.lp-detalle { margin-top: var(--space-3); display: flex; flex-direction: column; gap: 6px; }
+.lp-detalle summary, .lp-lista summary { cursor: pointer; font-size: 13px; color: var(--text-2); }
+.lp-detalle .lab-k { display: block; margin-top: 8px; }
+.lp-lista { padding: var(--space-3) var(--space-4); gap: 8px; }
+.lp-lista summary { font-weight: 600; color: var(--text); font-size: 13.5px; }
+.lp-lista .lab-k { display: block; margin-top: 8px; }
+.lp-por-programa { display: block; font-size: 12px; margin: 8px 0 4px; }
+.lp-nombres { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.lp-nombre { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; font-size: 12px; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 6px; }
+.lp-nombre:hover { border-color: var(--border); background: var(--surface-3); }
+.lp-nombre .dim { font-size: 11px; }
+.lp-vacio { font-size: 12.5px; margin: 6px 0 0; }
+
+.lp-ficha { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-5); align-items: start;
+  padding: var(--space-5); background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); }
+@media (max-width: 1100px) { .lp-ficha { grid-template-columns: minmax(0, 1fr); } }
+.lp-col { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.lp-col input[type='search'] { width: 100%; }
+.lp-clientes { display: flex; flex-direction: column; max-height: 520px; overflow: auto; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
+.lp-clientes button { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px;
+  text-align: left; font-size: 13px; border-bottom: 1px solid var(--border-soft); }
+.lp-clientes button:last-child { border-bottom: 0; }
+.lp-clientes button:hover { background: var(--surface-2); }
+.lp-clientes button.activo { background: var(--surface-3); }
+.lp-clientes button .dim { font-size: 11px; white-space: nowrap; }
+.lp-clientes-nombre { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lp-clientes-nombre > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-con-nota { width: 6px; height: 6px; border-radius: 50%; background: var(--lp-nota); flex: none; }
+.lp-ficha-nombre { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 8px; }
+.lp-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.lp-avance { display: flex; align-items: center; gap: 10px; }
+.lp-avance .bar { flex: 1; }
+.lp-avance .dim { font-size: 11.5px; }
+.lp-avisos { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; }
+.lp-ficha-orig { font-size: 12px; margin: 4px 0 10px; }
+.lp-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lp-form .campo input, .lp-form .campo select { min-width: 0; }
+.lp-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.lp-aviso { font-size: 12px; color: var(--text-3); }
+.lp-aviso.mal { color: var(--alert); }
+.lp-nueva-nota { width: 100%; margin-top: 6px; resize: vertical; min-height: 64px; }
+.lp-notas { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.lp-nota { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.lp-nota > .dim { font-size: 11px; }
+.lp-nota p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.lp-nota textarea { width: 100%; resize: vertical; }
+.lp-nota .lp-acciones { margin-top: 2px; }

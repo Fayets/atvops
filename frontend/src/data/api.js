@@ -3235,3 +3235,37 @@ export async function pizarraGenerarSecuencias(id, objetivos) {
 export async function pizarraGuardarContexto(clave, texto) {
   return pedir(`/api/pizarra/contexto/${clave}`, { method: 'PUT', headers: JSON_H, body: JSON.stringify({ texto }) });
 }
+
+/* ---------------------------------------------------------------- línea de pagos */
+
+/** La línea de pagos de Mauri: vigencia y pagos de cada cliente, armada con Clients en vivo. */
+export async function getLineaPagos(refrescar = false) {
+  return pedir(`/api/linea-pagos${refrescar ? '?refrescar=true' : ''}`);
+}
+
+/** Las notas o los ajustes compartidos: [{ id: 'c<clienteId>', data }]. */
+export async function getLineaPagosDocs(coleccion) {
+  // Siempre fresco: lo que cargó otra persona tiene que aparecer en la vuelta siguiente,
+  // no un minuto después por el caché.
+  return pedir(`/api/linea-pagos/${coleccion}?refrescar=true`);
+}
+
+// El PUT y el DELETE responden 204 sin cuerpo y pedir() siempre lee JSON: ese error de
+// lectura no es un fallo del guardado.
+const sinCuerpo = (e) => {
+  if (!(e instanceof SyntaxError)) throw e;
+  invalidarCache();
+  return null;
+};
+
+export async function guardarLineaPagosDoc(coleccion, id, data) {
+  return pedir(`/api/linea-pagos/${coleccion}/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).catch(sinCuerpo);
+}
+
+export async function borrarLineaPagosDoc(coleccion, id) {
+  return pedir(`/api/linea-pagos/${coleccion}/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(sinCuerpo);
+}
