@@ -152,13 +152,17 @@ def test_los_bocetos_aceptan_las_flechas_marcas_y_graficos_de_juan():
         {"tipo": "imagen", "texto": "captura de la bio", "marcas": ["autoridad", "promesa", 3, ""]},
         {"tipo": "diagrama", "texto": "curiosidad → chats → agendas → ventas", "ciclo": True},
         {"tipo": "diagrama", "texto": "un solo paso"},
-        {"tipo": "grafico", "texto": "curva de retención: el body cae"},
+        {"tipo": "grafico", "forma": "barras", "datos": [{"etiqueta": "90%", "valor": "90%"}, {"etiqueta": "10%", "valor": 10}], "texto": "tu esfuerzo"},
+        {"tipo": "grafico", "texto": "dos barras dibujadas a mano: una enorme y una chica"},
     ]]}}
     corta = p.validar_secuencias(data)["corta"][0]
     assert [b["tipo"] for b in corta] == ["texto", "flecha", "flecha", "imagen", "diagrama", "grafico"]
     assert corta[2]["color"] == "roja"  # un color que no es de Juan vuelve al rojo
     assert corta[3]["marcas"] == ["autoridad", "promesa"]
     assert corta[4] == {"tipo": "diagrama", "texto": "curiosidad → chats → agendas → ventas", "ciclo": True}
+    assert corta[5] == {"tipo": "grafico", "forma": "barras", "texto": "tu esfuerzo",
+                        "datos": [{"etiqueta": "90%", "valor": 90.0}, {"etiqueta": "10%", "valor": 10.0}]}
+    assert len(corta) == 6  # el gráfico descripto en texto, sin datos, no entra
 
 
 def test_el_titulo_de_una_idea_de_historias_no_repite_el_nombre_de_la_estructura():
@@ -220,3 +224,12 @@ def test_si_el_dibujo_de_juan_tiene_que_ver_va_en_cada_secuencia_en_lugar_del_di
 def test_un_dibujo_que_no_tiene_que_ver_con_la_idea_no_se_fuerza():
     sec = {"corta": [[{"tipo": "texto", "tamano": "g", "texto": "algo"}]], "media": [], "larga": []}
     assert p.asegurar_dibujos(sec, [PLANTA], IDEA)["corta"] == [[{"tipo": "texto", "tamano": "g", "texto": "algo"}]]
+
+
+def test_el_dibujo_que_juan_hizo_cerca_de_la_frase_de_la_idea_es_de_esa_idea_aunque_no_compartan_palabras():
+    otra_idea = "la regla 90-10: potenciá lo que ya vende y testeá al costado"
+    planta = {**PLANTA, "segundo": 1893}
+    assert p.dibujos_de_la_idea([planta], otra_idea, cerca_de=1600) == [planta]   # a 5 minutos
+    assert p.dibujos_de_la_idea([planta], otra_idea, cerca_de=4200) == []         # a 38 minutos
+    sec = {"corta": [[{"tipo": "texto", "tamano": "g", "texto": "algo"}, {"tipo": "imagen", "texto": "foto de noche"}]], "media": [], "larga": []}
+    assert p.asegurar_dibujos(sec, [planta], otra_idea, cerca_de=1600)["corta"][0][1]["dibujo"] == 4

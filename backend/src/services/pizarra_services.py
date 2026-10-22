@@ -839,7 +839,7 @@ Cada historia es una lista de bloques, en el orden en que se ven de arriba a aba
 - {"tipo": "imagen", "texto": "...", "marcas": ["...", "..."]}  — qué imagen va ahí, dicho para que el equipo la busque o la arme: "captura del chat de un cliente con su resultado", "mockup del documento", "meme 3 doritos después", "selfie de Juan a cámara de noche". "marcas" (opcional, hasta 5): las etiquetas rojas con flecha que Juan dibuja sobre partes de la captura.
 - {"tipo": "flecha", "color": "roja" | "blanca", "texto": "..."}  — la flecha dibujada a mano. "texto" (opcional): hacia dónde apunta ("a la palabra", "al sticker", "a mí").
 - {"tipo": "diagrama", "texto": "paso → paso → paso", "ciclo": true | false}  — el diagrama dibujado a mano con flechas rojas; "ciclo" si vuelve al principio.
-- {"tipo": "grafico", "texto": "..."}  — el gráfico dibujado a mano en rojo (curva de retención, antes y después, barras): qué muestra.
+- {"tipo": "grafico", "forma": "barras" | "linea" | "curva", "datos": [{"etiqueta": "90%", "valor": 90}, {"etiqueta": "10%", "valor": 10}], "texto": "título corto (opcional)"}  — el gráfico que Juan dibuja a mano en rojo, con los datos: el boceto lo dibuja. "barras" para comparar (90/10, antes y después), "linea" para un crecimiento en el tiempo, "curva" para una retención (hook alto, body que cae). Entre 2 y 8 datos, con valores numéricos. Nunca describas el gráfico en texto: mandá los datos.
 
 Los recursos visuales son de Juan, no decoración: usalos como los usa él (están en la guía), no en todas las historias.
 
@@ -861,17 +861,19 @@ def guia_secuencias() -> str:
     return ""
 
 
-def _dibujos_texto(lista: list[dict]) -> str:
+def _dibujos_texto(lista: list[dict], de_la_idea: list[dict] | None = None) -> str:
     """Los dibujos que Juan hizo en la llamada, con lo que estaba diciendo, para usar de imagen."""
     if not lista:
         return ""
+    ids = {d["id"] for d in de_la_idea or []}
     filas = "\n".join(f"- dibujo {d['id']} (minuto {d['minuto']}): muestra: {d.get('descripcion') or 'sin describir'}. Lo que decía: \"{d['dicho'][:500]}\""
                        for d in lista)
     return ("\n\n# Dibujos que Juan hizo en la pizarra durante esta llamada (capturas reales)\n" + filas
             + "\nOBLIGATORIO: si un dibujo tiene que ver con la idea, cada una de las tres secuencias usa al menos uno, de imagen: "
               "{\"tipo\": \"imagen\", \"dibujo\": id, \"texto\": qué muestra}. Va en la historia donde se explica eso y REEMPLAZA "
               "cualquier diagrama, gráfico o mockup que harías para mostrar lo mismo: lo que dibujó Juan vale más que un dibujo nuevo. "
-              "Es la captura real: no la describas como algo a buscar. Podés sumarle \"marcas\" (etiquetas rojas) encima.")
+              "Es la captura real: no la describas como algo a buscar. Podés sumarle \"marcas\" (etiquetas rojas) encima."
+            + (f"\nTienen que ver con esta idea (Juan los dibujó mientras la explicaba): dibujo {', '.join(str(i) for i in sorted(ids))}. Usalos." if ids else ""))
 
 
 _VACIAS = set("de la el los las un una y o que en a con por para es no se lo al del su tu te me mi yo vos como mas más".split())
@@ -885,7 +887,23 @@ def _texto_historia(h: list[dict]) -> str:
     return " ".join(str(b.get("texto") or "") for b in h)
 
 
-def asegurar_dibujos(secuencias: dict[str, list[list[dict]]], de_la_llamada: list[dict], idea: str) -> dict:
+DIBUJO_CERCA_S = 600  # un dibujo hecho a menos de 10 min de la frase de la idea es de esa idea
+
+
+def dibujos_de_la_idea(de_la_llamada: list[dict], idea: str, cerca_de: int | None) -> list[dict]:
+    """Los dibujos que tienen que ver con la idea: los que Juan hizo cerca del minuto de la
+    frase de donde salió, o los que comparten palabras con ella."""
+    clave_idea = _palabras_clave(idea)
+    salida = []
+    for d in de_la_llamada:
+        cerca = cerca_de is not None and d.get("segundo") is not None and abs(d["segundo"] - cerca_de) <= DIBUJO_CERCA_S
+        comunes = len(_palabras_clave(f"{d.get('descripcion') or ''} {d.get('dicho') or ''}") & clave_idea)
+        if cerca or comunes >= DIBUJO_MIN_COINCIDENCIAS:
+            salida.append(d)
+    return salida
+
+
+def asegurar_dibujos(secuencias: dict[str, list[list[dict]]], de_la_llamada: list[dict], idea: str, cerca_de: int | None = None) -> dict:
     """Si un dibujo de Juan tiene que ver con la idea y una secuencia no usa ninguno, lo pone
     el código: Claude a veces dibuja su propio diagrama en vez de usar el de Juan.
     Va en el diagrama o gráfico que lo imitaba; si no hay, en el hueco de imagen de la
@@ -894,7 +912,7 @@ def asegurar_dibujos(secuencias: dict[str, list[list[dict]]], de_la_llamada: lis
         return secuencias
     clave_idea = _palabras_clave(idea)
     puntaje = {d["id"]: len(_palabras_clave(f"{d.get('descripcion') or ''} {d.get('dicho') or ''}") & clave_idea) for d in de_la_llamada}
-    utiles = [d for d in de_la_llamada if puntaje[d["id"]] >= DIBUJO_MIN_COINCIDENCIAS]
+    utiles = dibujos_de_la_idea(de_la_llamada, idea, cerca_de)
     if not utiles:
         return secuencias
     for largo, historias in secuencias.items():
@@ -922,6 +940,26 @@ def asegurar_dibujos(secuencias: dict[str, list[list[dict]]], de_la_llamada: lis
     return secuencias
 
 
+FORMAS_GRAFICO = ("barras", "linea", "curva")
+
+
+def _grafico(b: dict) -> dict | None:
+    """Un gráfico con datos que el boceto pueda dibujar; sin datos válidos no entra."""
+    forma = b.get("forma") if b.get("forma") in FORMAS_GRAFICO else None
+    datos = []
+    for x in b.get("datos") or []:
+        if not isinstance(x, dict):
+            continue
+        try:
+            valor = float(str(x.get("valor")).replace("%", "").replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        datos.append({"etiqueta": _limpio(x.get("etiqueta"), 20), "valor": valor})
+    if not forma or not 2 <= len(datos) <= 8:
+        return None
+    return {"tipo": "grafico", "forma": forma, "datos": datos, "texto": _limpio(b.get("texto"), 40)}
+
+
 def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None) -> dict[str, list[list[dict]]]:
     """Las secuencias con bloques de tipos y tamaños fijos. Una secuencia más larga que su rango
     se corta; una más corta queda, pero sin historias vacías."""
@@ -936,7 +974,7 @@ def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None) -> 
                 if not isinstance(b, dict):
                     continue
                 texto = str(b.get("texto") or "").strip()[:500]
-                if not texto and b.get("tipo") != "flecha" and not (b.get("tipo") == "imagen" and b.get("dibujo") is not None):
+                if not texto and b.get("tipo") not in ("flecha", "grafico") and not (b.get("tipo") == "imagen" and b.get("dibujo") is not None):
                     continue
                 tipo = b.get("tipo")
                 if tipo == "imagen":
@@ -956,7 +994,9 @@ def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None) -> 
                     if len(pasos) >= 2:
                         bloques.append({"tipo": "diagrama", "texto": " → ".join(pasos), "ciclo": bool(b.get("ciclo"))})
                 elif tipo == "grafico":
-                    bloques.append({"tipo": "grafico", "texto": _limpio(texto, 160)})
+                    graf = _grafico(b)
+                    if graf:
+                        bloques.append(graf)
                 else:
                     tam = b.get("tamano") if b.get("tamano") in TAMANOS else "n"
                     bloques.append({"tipo": "texto", "tamano": tam, "texto": "\n".join(" ".join(l.split()) for l in texto.splitlines())})
@@ -993,15 +1033,16 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
         g = v.general
         de_la_llamada = dibujos.para_ia(g.llamada.id)
         idea = f"{g.titulo} {g.detalle or ''} {g.cita or ''} {v.titulo} {v.detalle or ''}"
+        cerca_de = dibujos._segundos(g.minuto)
         prompt = ("# Guía: cómo arma Juan sus secuencias\n" + guia_secuencias()
                   + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx)
                   + f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
                   + f"\n\n# La idea de historias aprobada\n{v.titulo}\n{v.detalle or ''}"
                   + _estructura_texto(todas.get(v.estructura or ""))
-                  + _dibujos_texto(de_la_llamada)
+                  + _dibujos_texto(de_la_llamada, dibujos_de_la_idea(de_la_llamada, idea, cerca_de))
                   + "\n\n# Objetivo de cada secuencia\n" + "\n".join(f"- {l}: {OBJETIVOS[objetivos[l]]}" for l in LARGOS))
     secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000), {d["id"]: d["src"] for d in de_la_llamada})
-    secuencias = asegurar_dibujos(secuencias, de_la_llamada, idea)
+    secuencias = asegurar_dibujos(secuencias, de_la_llamada, idea, cerca_de)
     with db_session:
         v = PizarraVariante[variante_id]
         for s in list(v.secuencias):

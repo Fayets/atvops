@@ -59,14 +59,56 @@ function Diagrama({ texto, ciclo }) {
   );
 }
 
-function Grafico({ texto }) {
+/** El gráfico con sus datos, dibujado a mano en rojo: barras, línea o curva. */
+function Grafico({ forma, datos, texto }) {
+  if (!forma || !datos?.length) {
+    // Las secuencias viejas traían el gráfico solo descripto.
+    return <div className="bc-grafico"><span>{texto}</span></div>;
+  }
+  const W = 140; const H = 84; const x0 = 10; const y0 = 66; const alto = 50; const ancho = W - x0 - 8;
+  const max = Math.max(...datos.map((d) => d.valor), 1);
+  const y = (v) => y0 - (Math.max(v, 0) / max) * alto;
+  const paso = ancho / datos.length;
+  const xs = datos.map((_, i) => x0 + paso * i + paso / 2);
+  let trazo = null;
+  if (forma === 'barras') {
+    const b = Math.min(26, paso * 0.62);
+    trazo = datos.map((d, i) => (
+      // eslint-disable-next-line react/no-array-index-key
+      <g key={i}>
+        <path d={`M${xs[i] - b / 2} ${y0} L${xs[i] - b / 2 + 0.8} ${y(d.valor)} L${xs[i] + b / 2 - 0.6} ${y(d.valor) + 0.6} L${xs[i] + b / 2} ${y0}`} className="bc-g-barra" />
+        <text x={xs[i]} y={y(d.valor) - 3} className="bc-g-valor">{d.etiqueta}</text>
+      </g>
+    ));
+  } else {
+    const pts = datos.map((d, i) => [xs[i], y(d.valor)]);
+    const d = forma === 'curva'
+      ? pts.reduce((acc, [px, py], i) => {
+        if (i === 0) return `M${px} ${py}`;
+        const [qx, qy] = pts[i - 1]; const m = (qx + px) / 2;
+        return `${acc} C${m} ${qy}, ${m} ${py}, ${px} ${py}`;
+      }, '')
+      : `M${pts.map(([px, py]) => `${px} ${py}`).join(' L')}`;
+    trazo = (
+      <>
+        <path d={d} className="bc-g-linea" />
+        {pts.map(([px, py], i) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <g key={i}>
+            {forma === 'linea' && <circle cx={px} cy={py} r="1.8" className="bc-g-punto" />}
+            <text x={px} y={py - 4} className="bc-g-valor">{datos[i].etiqueta}</text>
+          </g>
+        ))}
+      </>
+    );
+  }
   return (
     <div className="bc-grafico">
-      <svg viewBox="0 0 80 44" aria-hidden="true">
-        <path d="M6 4 L 6 38 L 76 38" fill="none" strokeWidth="2" strokeLinecap="round" />
-        <path d="M9 10 C 20 12, 24 26, 36 28 S 60 30, 72 33" fill="none" strokeWidth="2.4" strokeLinecap="round" />
+      <svg viewBox={`0 0 ${W} ${H}`} aria-label={texto || 'gráfico'}>
+        <path d={`M${x0} 8 L${x0 - 0.5} ${y0} L${W - 4} ${y0 + 0.6}`} className="bc-g-eje" />
+        {trazo}
       </svg>
-      <span>{texto}</span>
+      {texto && <span>{texto}</span>}
     </div>
   );
 }
@@ -104,7 +146,7 @@ function Historia({ bloques, n }) {
           if (b.tipo === 'imagen') return <Hueco key={i} texto={b.texto} marcas={b.marcas} src={b.src} />;
           if (b.tipo === 'flecha') return <Flecha key={i} color={b.color} texto={b.texto} />;
           if (b.tipo === 'diagrama') return <Diagrama key={i} texto={b.texto} ciclo={b.ciclo} />;
-          if (b.tipo === 'grafico') return <Grafico key={i} texto={b.texto} />;
+          if (b.tipo === 'grafico') return <Grafico key={i} forma={b.forma} datos={b.datos} texto={b.texto} />;
           return <p key={i} className={`bc-t ${b.tamano}`}><Texto texto={b.texto} /></p>;
           /* eslint-enable react/no-array-index-key */
         })}

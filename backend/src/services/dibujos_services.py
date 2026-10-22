@@ -352,5 +352,6 @@ def para_ia(llamada_id: int) -> list[dict]:
         ll = PizarraLlamada.get(id=llamada_id)
         if ll is None:
             return []
-        return [{"id": d.id, "minuto": minuto(d.segundo), "dicho": d.dicho or "", "src": d.archivo, "descripcion": d.descripcion or ""}
+        return [{"id": d.id, "segundo": d.segundo, "minuto": minuto(d.segundo), "dicho": d.dicho or "", "src": d.archivo,
+                 "descripcion": d.descripcion or ""}
                 for d in sorted(ll.dibujos, key=lambda d: d.segundo) if d.estado == "visible"]
