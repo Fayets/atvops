@@ -650,7 +650,16 @@ def _dibujos_para_ideas(llamada_id: int) -> str:
         f"- minuto {d['minuto']}: {d['descripcion'] or 'sin describir'}. Mientras dibujaba decía: \"{d['dicho'][:400]}\"" for d in lista)
 
 
+ESPERA_DIBUJOS_S = 900  # cuánto esperan las ideas a que termine la búsqueda de dibujos
+
+
 def _generar_general(llamada_id: int) -> None:
+    # Si los dibujos se están buscando, las ideas los esperan: una idea puede salir de un dibujo.
+    import time
+
+    limite = time.time() + ESPERA_DIBUJOS_S
+    while dibujos.buscando(llamada_id) and time.time() < limite:
+        time.sleep(5)
     ctx = contexto()
     voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
     with db_session:

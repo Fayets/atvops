@@ -255,7 +255,7 @@ function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
   return (
     <div className="pz-sec">
       <span className="pz-k">Ideas generales{generales.length ? ` · ${generales.length}` : ''}</span>
-      {armando && <p className="pz-dim">Claude está leyendo la llamada…</p>}
+      {armando && <p className="pz-dim">{llamada?.dibujosEstado === 'buscando' ? 'Esperando los dibujos del video…' : 'Claude está leyendo la llamada…'}</p>}
       {!armando && llamada?.error && <p className="pz-error">{llamada.error}</p>}
       <div className="pz-variantes">
         {generales.map((x) => (
