@@ -677,13 +677,15 @@ def actualizar_variante(variante_id: int, cambios: dict, por: str | None) -> dic
     return detalle(llamada_id)
 
 
-def borrar(llamada_id: int) -> dict:
+def borrar(llamada_id: int, forzar: bool = False) -> dict:
+    """Borra la llamada con todo lo que salió de ella. Si ya tiene una idea aprobada (y quizás
+    variantes en el vault), solo con `forzar`: lo confirma quien la borra."""
     with db_session:
         ll = PizarraLlamada.get(id=llamada_id)
         if ll is None:
             raise HTTPException(status_code=404, detail="Esa llamada no está en la pizarra.")
-        if any(g.estado == "aprobada" for g in ll.generales):
-            raise HTTPException(status_code=409, detail="Tiene una idea general aprobada: no se borra.")
+        if not forzar and any(g.estado == "aprobada" for g in ll.generales):
+            raise HTTPException(status_code=409, detail="Tiene una idea general aprobada: confirmá que se borra con todo lo que salió de ella.")
         for g in list(ll.generales):
             for v in list(g.variantes):
                 for s in list(v.secuencias):

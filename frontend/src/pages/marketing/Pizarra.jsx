@@ -418,6 +418,18 @@ export default function Pizarra() {
   const cambioVariante = (id, cambios) => accion(() => pizarraActualizarVariante(id, cambios));
   const armar = (id, obj) => { setStoryElegida(id); accion(() => pizarraGenerarSecuencias(id, obj)); };
   const panelClave = typeof panel === 'string' ? panel : null;
+  const borrarLlamada = async () => {
+    const enVault = (llamada.generales || []).flatMap((x) => Object.values(x.variantes || {}).flat()).filter((v) => v.estado === 'aprobada').length;
+    const aprobada = llamada.generales?.some((x) => x.estado === 'aprobada');
+    const extra = enVault ? (enVault > 1 ? `\n\nSe borran también las ${enVault} ideas del vault que salieron de esta llamada.` : '\n\nSe borra también la idea del vault que salió de esta llamada.') : aprobada ? '\n\nSe borra también su idea general aprobada.' : '';
+    if (!window.confirm(`¿Borrar la llamada "${llamada.titulo}"?${extra}`)) return;
+    setAviso('');
+    try {
+      await pizarraBorrarLlamada(llamada.id, aprobada);
+      setLlamadaId(null); setLlamada(null); setPanel(null); setIdeaAbierta(false);
+      traerBase(true);
+    } catch (e) { setAviso(e.message); }
+  };
 
   return (
     <div className="page page-ancha pz">
@@ -426,6 +438,7 @@ export default function Pizarra() {
           <option value="">{base.llamadas.length ? 'Elegí una llamada' : 'Sin llamadas cargadas'}</option>
           {base.llamadas.map((l) => <option key={l.id} value={l.id}>{l.tipo === 'clase' ? 'Clase · ' : '1 a 1 · '}{l.titulo}</option>)}
         </select>
+        {llamada && <button type="button" className="btn ghost" onClick={borrarLlamada}>Borrar</button>}
         <span className="pz-sep" />
         {aviso && <span className="pz-error">{aviso}</span>}
         <Link to="/marketing/vault" className="btn">Vault de ideas</Link>
@@ -470,9 +483,7 @@ export default function Pizarra() {
                 <b>{llamada.titulo}</b>
                 <span className="pz-dim">{[llamada.fecha, llamada.minutos ? `${llamada.minutos} min` : null].filter(Boolean).join(' · ')}</span>
                 {llamada.url && <a href={llamada.url} target="_blank" rel="noreferrer" className="pz-link">Ver grabación</a>}
-                {!llamada.generales?.some((x) => x.estado === 'aprobada') && (
-                  <div className="pz-botones"><button type="button" className="btn ghost" onClick={async () => { await accion(() => pizarraBorrarLlamada(llamada.id)); setLlamadaId(null); setPanel(null); traerBase(true); }}>Borrar llamada</button></div>
-                )}
+                <div className="pz-botones"><button type="button" className="btn ghost" onClick={borrarLlamada}>Borrar llamada</button></div>
               </div>
             )}
             {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral g={g} llamada={llamada} onGenerar={generarGeneral} onAbrir={() => { setPanel(null); setIdeaAbierta(true); }} />}

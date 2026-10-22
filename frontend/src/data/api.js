@@ -3211,8 +3211,8 @@ export async function pizarraSubirArchivos(archivos, tipo) {
   body.append('tipo', tipo);
   return pedir('/api/pizarra/llamadas/archivos', { method: 'POST', body });
 }
-export async function pizarraBorrarLlamada(id) {
-  return pedir(`/api/pizarra/llamadas/${id}`, { method: 'DELETE' });
+export async function pizarraBorrarLlamada(id, forzar = false) {
+  return pedir(`/api/pizarra/llamadas/${id}${forzar ? '?forzar=true' : ''}`, { method: 'DELETE' });
 }
 export async function pizarraGenerarGeneral(llamadaId) {
   return pedir(`/api/pizarra/llamadas/${llamadaId}/general`, { method: 'POST' });

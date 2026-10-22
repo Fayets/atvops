@@ -57,8 +57,8 @@ async def subir(archivos: list[UploadFile] = File(...), tipo: str = Form("1a1"),
 
 
 @router.delete("/llamadas/{llamada_id}")
-def borrar(llamada_id: int, _user: dict = Depends(_puede)):
-    return pizarra.borrar(llamada_id)
+def borrar(llamada_id: int, forzar: bool = False, _user: dict = Depends(_puede)):
+    return pizarra.borrar(llamada_id, forzar)
 
 
 @router.post("/llamadas/{llamada_id}/general")
