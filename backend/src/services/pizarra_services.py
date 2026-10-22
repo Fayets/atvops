@@ -435,7 +435,8 @@ def _dict_llamada(ll: PizarraLlamada, completa: bool = False) -> dict:
     if completa:
         d["generales"] = [_dict_general(g) for g in sorted(ll.generales, key=lambda g: g.id) if g.estado != "descartada"]
         d["dibujosEstado"], d["dibujosError"] = dibujos.estado(ll)
-        d["dibujos"] = [{"id": x.id, "minuto": dibujos.minuto(x.segundo), "src": x.archivo, "dicho": x.dicho, "estado": x.estado}
+        d["dibujos"] = [{"id": x.id, "minuto": dibujos.minuto(x.segundo), "src": x.archivo, "dicho": x.dicho, "estado": x.estado,
+                         "descripcion": x.descripcion}
                         for x in sorted(ll.dibujos, key=lambda x: x.segundo)]
     return d
 
@@ -492,6 +493,7 @@ Devolvé SOLO un objeto JSON, sin texto antes ni después:
 {"ideas": [{"titulo": "...", "detalle": "...", "dolor": "...", "cita": "..."}]}""" % {"n": 5}
 
 IDEAS_POR_LLAMADA = 5
+DIBUJO_MIN_COINCIDENCIAS = 2  # palabras en común entre el dibujo y la idea para que "tenga que ver"
 
 SYSTEM_VARIANTES = MARCA + """
 
@@ -863,9 +865,61 @@ def _dibujos_texto(lista: list[dict]) -> str:
     """Los dibujos que Juan hizo en la llamada, con lo que estaba diciendo, para usar de imagen."""
     if not lista:
         return ""
-    filas = "\n".join(f"- dibujo {d['id']} (minuto {d['minuto']}): lo que decía: \"{d['dicho'][:500]}\"" for d in lista)
+    filas = "\n".join(f"- dibujo {d['id']} (minuto {d['minuto']}): muestra: {d.get('descripcion') or 'sin describir'}. Lo que decía: \"{d['dicho'][:500]}\""
+                       for d in lista)
     return ("\n\n# Dibujos que Juan hizo en la pizarra durante esta llamada (capturas reales)\n" + filas
-            + "\nSi uno sirve para una historia, usalo de imagen: {\"tipo\": \"imagen\", \"dibujo\": id, \"texto\": qué muestra}. Es la captura real: no lo describas como algo a buscar.")
+            + "\nOBLIGATORIO: si un dibujo tiene que ver con la idea, cada una de las tres secuencias usa al menos uno, de imagen: "
+              "{\"tipo\": \"imagen\", \"dibujo\": id, \"texto\": qué muestra}. Va en la historia donde se explica eso y REEMPLAZA "
+              "cualquier diagrama, gráfico o mockup que harías para mostrar lo mismo: lo que dibujó Juan vale más que un dibujo nuevo. "
+              "Es la captura real: no la describas como algo a buscar. Podés sumarle \"marcas\" (etiquetas rojas) encima.")
+
+
+_VACIAS = set("de la el los las un una y o que en a con por para es no se lo al del su tu te me mi yo vos como mas más".split())
+
+
+def _palabras_clave(texto: str) -> set[str]:
+    return {w for w in _norm(texto).split() if len(w) > 2 and w not in _VACIAS}
+
+
+def _texto_historia(h: list[dict]) -> str:
+    return " ".join(str(b.get("texto") or "") for b in h)
+
+
+def asegurar_dibujos(secuencias: dict[str, list[list[dict]]], de_la_llamada: list[dict], idea: str) -> dict:
+    """Si un dibujo de Juan tiene que ver con la idea y una secuencia no usa ninguno, lo pone
+    el código: Claude a veces dibuja su propio diagrama en vez de usar el de Juan.
+    Va en el diagrama o gráfico que lo imitaba; si no hay, en el hueco de imagen de la
+    historia que más se le parece; si tampoco, se suma a esa historia."""
+    if not de_la_llamada:
+        return secuencias
+    clave_idea = _palabras_clave(idea)
+    puntaje = {d["id"]: len(_palabras_clave(f"{d.get('descripcion') or ''} {d.get('dicho') or ''}") & clave_idea) for d in de_la_llamada}
+    utiles = [d for d in de_la_llamada if puntaje[d["id"]] >= DIBUJO_MIN_COINCIDENCIAS]
+    if not utiles:
+        return secuencias
+    for largo, historias in secuencias.items():
+        if not historias or any(b.get("dibujo") for h in historias for b in h):
+            continue
+        texto_sec = _palabras_clave(" ".join(_texto_historia(h) for h in historias))
+        mejor = max(utiles, key=lambda d: (len(_palabras_clave(f"{d.get('descripcion') or ''} {d.get('dicho') or ''}") & texto_sec), puntaje[d["id"]]))
+        bloque = {"tipo": "imagen", "texto": (mejor.get("descripcion") or "el dibujo de Juan en la llamada")[:200],
+                  "dibujo": mejor["id"], "src": mejor["src"]}
+        pistas = _palabras_clave(f"{mejor.get('descripcion') or ''} {mejor.get('dicho') or ''}")
+        # 1) el diagrama o gráfico que hacía de dibujo
+        lugar = next(((i, j) for i, h in enumerate(historias) for j, b in enumerate(h) if b.get("tipo") in ("diagrama", "grafico")), None)
+        if lugar is None:
+            # 2) el hueco de imagen de la historia que más se parece al dibujo
+            candidatos = [(len(_palabras_clave(_texto_historia(h)) & pistas), i, j) for i, h in enumerate(historias)
+                          for j, b in enumerate(h) if b.get("tipo") == "imagen" and not b.get("src")]
+            if candidatos:
+                _, i, j = max(candidatos)
+                lugar = (i, j)
+        if lugar is not None:
+            historias[lugar[0]][lugar[1]] = bloque
+        else:
+            i = max(range(len(historias)), key=lambda k: len(_palabras_clave(_texto_historia(historias[k])) & pistas))
+            historias[i].append(bloque)
+    return secuencias
 
 
 def validar_secuencias(data: dict, dibujos_ok: dict[int, str] | None = None) -> dict[str, list[list[dict]]]:
@@ -932,9 +986,13 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
     voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
     todas = estructuras.activas()
     with db_session:
+        llamada_id = PizarraVariante[variante_id].general.llamada.id
+    dibujos.completar_descripciones(llamada_id)  # fuera de la sesión: llama a Claude
+    with db_session:
         v = PizarraVariante[variante_id]
         g = v.general
         de_la_llamada = dibujos.para_ia(g.llamada.id)
+        idea = f"{g.titulo} {g.detalle or ''} {g.cita or ''} {v.titulo} {v.detalle or ''}"
         prompt = ("# Guía: cómo arma Juan sus secuencias\n" + guia_secuencias()
                   + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx)
                   + f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
@@ -943,6 +1001,7 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
                   + _dibujos_texto(de_la_llamada)
                   + "\n\n# Objetivo de cada secuencia\n" + "\n".join(f"- {l}: {OBJETIVOS[objetivos[l]]}" for l in LARGOS))
     secuencias = validar_secuencias(_claude(SYSTEM_SECUENCIAS, prompt, 8000), {d["id"]: d["src"] for d in de_la_llamada})
+    secuencias = asegurar_dibujos(secuencias, de_la_llamada, idea)
     with db_session:
         v = PizarraVariante[variante_id]
         for s in list(v.secuencias):

@@ -230,6 +230,7 @@ def ensure_pizarra_columns() -> None:
     _agregar_columnas("pizarra_variantes", "PizarraVariante", [("estructura", "TEXT")])
     # Los dibujos de Juan en la llamada se buscan en el video.
     _agregar_columnas("pizarra_llamadas", "PizarraLlamada", [("dibujos_estado", "TEXT"), ("dibujos_error", "TEXT")])
+    _agregar_columnas("pizarra_dibujos", "PizarraDibujo", [("descripcion", "TEXT")])
 
 
 def ensure_reunion_crm_columns() -> None:

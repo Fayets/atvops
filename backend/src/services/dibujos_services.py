@@ -261,12 +261,14 @@ def _buscar(llamada_id: int) -> None:
                 # Lo que decía mientras lo dibujaba: desde que apareció el tablero hasta el cuadro elegido.
                 dicho = dicho_en(transcripcion, t, antes=int(t - inicio) + 60, despues=15) if t - inicio < 600 else dicho_en(transcripcion, inicio + 90, antes=90, despues=60)
                 nuevos.append((int(t), f"/uploads/pizarra/dibujos/{llamada_id}/{destino.name}", dicho))
+        descripciones = describir([CARPETA / str(llamada_id) / Path(a).name for _, a, _ in nuevos])
         with db_session:
             ll = PizarraLlamada[llamada_id]
             for d in list(ll.dibujos):
                 d.delete()
             for seg, archivo, dicho in nuevos:
-                PizarraDibujo(llamada=ll, segundo=seg, archivo=archivo, dicho=dicho or None)
+                PizarraDibujo(llamada=ll, segundo=seg, archivo=archivo, dicho=dicho or None,
+                              descripcion=descripciones.get(Path(archivo).name))
             ll.dibujos_estado, ll.dibujos_error = "listos", None
         logger.info("Dibujos: llamada %s, %s trozos mirados, %s dibujos", llamada_id, len(elegidos), len(nuevos))
     except Exception as e:  # noqa: BLE001 — queda escrito en la llamada
@@ -277,6 +279,46 @@ def _buscar(llamada_id: int) -> None:
                 ll.dibujos_estado, ll.dibujos_error = "error", str(e)[:300]
     finally:
         _en_curso.discard(llamada_id)
+
+
+SYSTEM_DESCRIBIR = """Te paso capturas de una llamada de Juan Carrizo (ATV) en las que dibuja en una pizarra (Miro).
+Leelas con la herramienta Read, una por una. Para cada una decí en una línea QUÉ dibujó, con los números y las palabras que se leen tal cual: "embudo en rojo: 2000 → 1000 R → 1600 chats → 1000 conv → 30 agendas → 20 cierres → $12k/cc", "una planta: la idea = 21k, semillas en la maceta, 30%/40%". Ignorá la barra del navegador, las herramientas de Miro y la cámara de Zoom. No interpretes ni opines.
+Devolvé SOLO un objeto JSON: {"dibujos": [{"archivo": "nombre.jpg", "que": "..."}]}"""
+
+
+def describir(fotos: list[Path]) -> dict[str, str]:
+    """Qué muestra cada dibujo, en una línea. Si Claude no está, quedan sin descripción."""
+    fotos = [f for f in fotos if f.exists()]
+    if not fotos:
+        return {}
+    from src.services import narrativa_services as nv
+
+    try:
+        data = nv._claude("Capturas:\n" + "\n".join(str(f) for f in fotos), [str(f) for f in fotos],
+                          system=SYSTEM_DESCRIBIR, carpeta=CARPETA)
+    except Exception as e:  # noqa: BLE001 — sin descripción igual sirven
+        logger.info("Dibujos: no se pudieron describir: %s", str(e)[:200])
+        return {}
+    nombres = {f.name for f in fotos}
+    return {str(x.get("archivo")): " ".join(str(x.get("que") or "").split())[:400]
+            for x in data.get("dibujos") or [] if isinstance(x, dict) and x.get("archivo") in nombres and x.get("que")}
+
+
+def completar_descripciones(llamada_id: int) -> None:
+    """Describe los dibujos que todavía no tienen descripción (los encontrados antes de que
+    existiera este paso)."""
+    with db_session:
+        ll = PizarraLlamada.get(id=llamada_id)
+        faltan = [d for d in ll.dibujos if d.estado == "visible" and not d.descripcion] if ll else []
+        rutas = {d.id: CARPETA / str(llamada_id) / Path(d.archivo).name for d in faltan}
+    if not rutas:
+        return
+    hechas = describir(list(rutas.values()))
+    with db_session:
+        for dib_id, ruta in rutas.items():
+            d = PizarraDibujo.get(id=dib_id)
+            if d is not None and hechas.get(ruta.name):
+                d.descripcion = hechas[ruta.name]
 
 
 def buscando(llamada_id: int) -> bool:
@@ -310,5 +352,5 @@ def para_ia(llamada_id: int) -> list[dict]:
         ll = PizarraLlamada.get(id=llamada_id)
         if ll is None:
             return []
-        return [{"id": d.id, "minuto": minuto(d.segundo), "dicho": d.dicho or "", "src": d.archivo}
+        return [{"id": d.id, "minuto": minuto(d.segundo), "dicho": d.dicho or "", "src": d.archivo, "descripcion": d.descripcion or ""}
                 for d in sorted(ll.dibujos, key=lambda d: d.segundo) if d.estado == "visible"]

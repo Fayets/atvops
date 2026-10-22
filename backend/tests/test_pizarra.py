@@ -195,3 +195,28 @@ def test_si_nadie_en_la_transcripcion_es_juan_no_entra_ninguna_frase():
     segs = p.segmentos("[00:01:00] Ana: el contenido no me trae clientes de verdad nunca\n[00:02:00] Pedro: a mí tampoco me pasa eso")
     assert p.validar_general(_idea("el contenido no me trae clientes de verdad nunca"), segs) is None
     assert p.quienes_hablan(segs) == ["Ana", "Pedro"]
+
+
+EMBUDO = {"id": 3, "src": "/uploads/pizarra/dibujos/5/2283.jpg", "minuto": "38:03",
+          "descripcion": "embudo en rojo: 2000 → 1000 R → 1600 chats → 1000 conversaciones → 30 agendas → 20 cierres",
+          "dicho": "si quieren hacer 30k cuántas conversaciones tienen que abrir este mes"}
+PLANTA = {"id": 4, "src": "/uploads/pizarra/dibujos/5/1893.jpg", "minuto": "31:33",
+          "descripcion": "una planta: la idea = 21k, semillas en la maceta", "dicho": "las semillas son ideas que se riegan"}
+IDEA = "tu facturación es consecuencia de números: cuántas conversaciones y chats abrís por semana"
+
+
+def test_si_el_dibujo_de_juan_tiene_que_ver_va_en_cada_secuencia_en_lugar_del_diagrama_inventado():
+    sec = {"corta": [[{"tipo": "texto", "tamano": "g", "texto": "tu orgánico no es predecible"}],
+                     [{"tipo": "texto", "tamano": "n", "texto": "armé el cálculo de chats"}, {"tipo": "imagen", "texto": "mockup del cálculo de chats"}]],
+           "media": [[{"tipo": "texto", "tamano": "n", "texto": "agarrá tu mejor mes"},
+                      {"tipo": "diagrama", "texto": "cash collected → llamadas → agendas → conversaciones → chats", "ciclo": False}]],
+           "larga": [[{"tipo": "texto", "tamano": "n", "texto": "Gianluca"}, {"tipo": "imagen", "texto": "x", "dibujo": 3, "src": "y"}]]}
+    out = p.asegurar_dibujos(sec, [EMBUDO, PLANTA], IDEA)
+    assert out["media"][0][1]["dibujo"] == 3                     # reemplazó el diagrama que lo imitaba
+    assert out["corta"][1][1]["dibujo"] == 3                     # fue al hueco de la historia del cálculo
+    assert [b.get("dibujo") for b in out["larga"][0]] == [None, 3]  # la que ya tenía uno queda igual
+
+
+def test_un_dibujo_que_no_tiene_que_ver_con_la_idea_no_se_fuerza():
+    sec = {"corta": [[{"tipo": "texto", "tamano": "g", "texto": "algo"}]], "media": [], "larga": []}
+    assert p.asegurar_dibujos(sec, [PLANTA], IDEA)["corta"] == [[{"tipo": "texto", "tamano": "g", "texto": "algo"}]]

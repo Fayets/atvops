@@ -188,7 +188,7 @@ def _prompt(narrativa: str, semana: dict, desde: date, hasta: date) -> str:
     return "\n\n".join(partes)
 
 
-def _claude(prompt: str, fotos: list[str], system: str | None = None) -> dict:
+def _claude(prompt: str, fotos: list[str], system: str | None = None, carpeta: Path | None = None) -> dict:
     """Con API, las fotos van en el mensaje; con el CLI, Claude las lee con Read.
     `system` lo usa también la revisión de estructuras de historias."""
     system = system or SYSTEM
@@ -206,7 +206,7 @@ def _claude(prompt: str, fotos: list[str], system: str | None = None) -> dict:
            "--no-session-persistence", "--strict-mcp-config", "--system-prompt", system]
     if fotos:
         # Solo puede leer: ni escribir ni ejecutar nada.
-        cmd += ["--tools", "Read", "--allowedTools", "Read", "--add-dir", str(DATA_DIR / "ig")]
+        cmd += ["--tools", "Read", "--allowedTools", "Read", "--add-dir", str(carpeta or DATA_DIR / "ig")]
     else:
         cmd += ["--tools", ""]
     env = dict(os.environ, DISABLE_AUTOUPDATER="1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")

@@ -1122,6 +1122,7 @@ class PizarraDibujo(db.Entity):
     segundo = Required(int)                         # dónde está en el video
     archivo = Required(str)                         # /uploads/pizarra/dibujos/…
     dicho = Optional(LongStr, nullable=True)        # lo que decía Juan alrededor de ese momento
+    descripcion = Optional(LongStr, nullable=True)  # qué muestra el dibujo, leído una vez por Claude
     estado = Required(str, default="visible")       # visible | descartado
     creado_at = Required(datetime, default=datetime.utcnow)
 
