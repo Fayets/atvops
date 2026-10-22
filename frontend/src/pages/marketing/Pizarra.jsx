@@ -264,6 +264,7 @@ function PanelGeneral({ generales, elegida, llamada, onGenerar, onAbrir }) {
             <span>
               <b>{x.titulo}</b>
               {x.dolor && <span className="pz-dim">{x.dolor}</span>}
+              {x.conDibujo && <span className="pz-tag">con dibujo</span>}
               {x.estado === 'aprobada' && <span className="pz-st aprobada">Aprobada</span>}
             </span>
           </button>

@@ -423,7 +423,14 @@ def _dict_general(g: PizarraGeneral) -> dict:
         "variantesEstado": "armando" if f"variantes:{g.id}" in _en_curso else g.variantes_estado,
         "error": g.error,
         "variantes": {c: [_dict_variante(v) for v in sorted(g.variantes, key=lambda v: v.id) if v.canal == c] for c in CANALES},
+        # Hay un dibujo de Juan pegado a la frase de esta idea: va a caer en sus secuencias.
+        "conDibujo": _con_dibujo(g),
     }
+
+
+def _con_dibujo(g: PizarraGeneral) -> bool:
+    cerca = dibujos._segundos(g.minuto)
+    return cerca is not None and any(d.estado == "visible" and abs(d.segundo - cerca) <= DIBUJO_CERCA_S for d in g.llamada.dibujos)
 
 
 def _dict_llamada(ll: PizarraLlamada, completa: bool = False) -> dict:
@@ -488,6 +495,7 @@ Reglas para cada idea:
 - "detalle": de 2 a 4 frases escritas por Juan en primera persona, con su voz, contándole a su audiencia la idea y por qué le importa. Nada de "Juan cuenta que…" ni tercera persona: es él el que escribe.
 - "dolor": a qué dolor de la audiencia apunta. Si coincide con uno de la lista, usá ese texto.
 - No repitas las ideas que te paso como ya usadas.
+- Si te paso "Dibujos de Juan en esta llamada": cuando Juan dibuja es porque está explicando algo importante. Si un dibujo explica algo que sirve a la marca, una de las ideas sale de ese momento, con una frase que Juan dijo mientras dibujaba.
 
 Devolvé SOLO un objeto JSON, sin texto antes ni después:
 {"ideas": [{"titulo": "...", "detalle": "...", "dolor": "...", "cita": "..."}]}""" % {"n": 5}
@@ -634,6 +642,14 @@ def generar_general(llamada_id: int) -> dict:
     return detalle(llamada_id)
 
 
+def _dibujos_para_ideas(llamada_id: int) -> str:
+    lista = dibujos.para_ia(llamada_id)
+    if not lista:
+        return ""
+    return "\n\n# Dibujos de Juan en esta llamada\n" + "\n".join(
+        f"- minuto {d['minuto']}: {d['descripcion'] or 'sin describir'}. Mientras dibujaba decía: \"{d['dicho'][:400]}\"" for d in lista)
+
+
 def _generar_general(llamada_id: int) -> None:
     ctx = contexto()
     voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
@@ -642,6 +658,7 @@ def _generar_general(llamada_id: int) -> None:
         usadas = [g.titulo for g in ll.generales]
         prompt = ("# Lo fijo de la marca\n" + _contexto_texto(ctx)
                   + ("\n\n# Ideas generales ya usadas de esta llamada\n" + "\n".join(f"- {t}" for t in usadas) if usadas else "")
+                  + _dibujos_para_ideas(llamada_id)
                   + f"\n\n# La llamada ({'1 a 1' if ll.tipo == '1a1' else 'clase grupal'}): {ll.titulo}\n{_recortar(ll.transcripcion)}")
         segs = segmentos(ll.transcripcion)
     ideas = validar_generales(_claude(SYSTEM_GENERAL, prompt, 6000), segs)
