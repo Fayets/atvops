@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Bocetos, { OBJETIVO } from '../../components/marketing/Bocetos.jsx';
+import DocumentoContexto from '../../components/marketing/DocumentoContexto.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   getPizarra, getPizarraLlamada, pizarraActualizarVariante, pizarraAprobarGeneral, pizarraBorrarLlamada,
@@ -204,27 +205,6 @@ function RevisionNarrativa({ onAplicado }) {
   );
 }
 
-function PanelContexto({ clave, valor, onGuardar }) {
-  const [texto, setTexto] = useState(valor?.texto || '');
-  const [estado, setEstado] = useState('');
-  useEffect(() => { setTexto(valor?.texto || ''); setEstado(''); }, [clave]); // eslint-disable-line react-hooks/exhaustive-deps
-  const guardar = async () => {
-    setEstado('guardando');
-    try { await onGuardar(clave, texto); setEstado('ok'); } catch (e) { setEstado(e.message); }
-  };
-  return (
-    <div className="pz-sec">
-      <span className="pz-k">{NODOS[clave].label}</span>
-      <textarea id={`pz-ctx-${clave}`} className="pz-ctx-texto" rows={clave === 'narrativa' ? 10 : 16} value={texto} onChange={(e) => { setTexto(e.target.value); setEstado(''); }} />
-      <div className="pz-botones">
-        <button type="button" className="btn primary" disabled={estado === 'guardando' || texto === (valor?.texto || '')} onClick={guardar}>Guardar</button>
-        {estado === 'ok' && <span className="pz-ok">Guardado</span>}
-        {estado && !['ok', 'guardando'].includes(estado) && <span className="pz-error">{estado}</span>}
-      </div>
-    </div>
-  );
-}
-
 function PanelGeneral({ g, llamada, onGenerar, onCambio }) {
   const [titulo, setTitulo] = useState(g?.titulo || '');
   const [detalle, setDetalle] = useState(g?.detalle || '');
@@ -350,6 +330,7 @@ export default function Pizarra() {
   const [panel, setPanel] = useState(null); // clave de nodo, o {cargar: tipo}
   const [storyElegida, setStoryElegida] = useState(null);
   const [ctxVersion, setCtxVersion] = useState(0); // sube cuando la revisión semanal cambia la narrativa
+  const [doc, setDoc] = useState(null); // el cuadro de contexto abierto como documento
   const [aviso, setAviso] = useState('');
   const [escala, setEscala] = useState(1);
   const marcoRef = useRef(null);
@@ -432,6 +413,7 @@ export default function Pizarra() {
   };
 
   const tocar = (k) => {
+    if (CONTEXTO.includes(k)) { setPanel(null); setDoc(k); return; }
     if (estado[k] === 'off' || estado[k] === 'prox') return;
     if (k === 'uno' || k === 'clase') { setPanel({ cargar: k === 'uno' ? '1a1' : 'clase' }); return; }
     setPanel(k);
@@ -507,8 +489,6 @@ export default function Pizarra() {
                 )}
               </div>
             )}
-            {panelClave === 'narrativa' && <RevisionNarrativa onAplicado={(ctx) => { setBase((b) => ({ ...b, contexto: ctx })); setCtxVersion((v) => v + 1); traerBase(true); }} />}
-            {CONTEXTO.includes(panelClave) && <PanelContexto key={`${panelClave}-${ctxVersion}`} clave={panelClave} valor={base.contexto[panelClave]} onGuardar={guardarContexto} />}
             {(panelClave === 'claude' || panelClave === 'general') && <PanelGeneral g={g} llamada={llamada} onGenerar={generarGeneral} onCambio={cambioGeneral} />}
             {CANAL_DE[panelClave] && <PanelVariantes canal={panelClave} g={g} onVariante={cambioVariante} onRegenerar={() => accion(() => pizarraRegenerarVariantes(g.id))} />}
             {(panelClave === 'ytAprob' || panelClave === 'reelAprob') && <PanelVariantes canal={panelClave === 'ytAprob' ? 'yt' : 'reel'} g={g} soloAprobadas onVariante={cambioVariante} />}
@@ -522,6 +502,18 @@ export default function Pizarra() {
           <div className="pz-bocetos-h"><span className="pz-k">Secuencias</span><b>{storyConSec.titulo}</b></div>
           <Bocetos secuencias={storyConSec.secuencias} />
         </section>
+      )}
+
+      {doc && (
+        <DocumentoContexto
+          key={`${doc}-${ctxVersion}`}
+          titulo={NODOS[doc].label}
+          valor={base.contexto[doc]}
+          onGuardar={(texto) => guardarContexto(doc, texto)}
+          onCerrar={() => setDoc(null)}
+          flecha={doc === 'objeciones'}
+          margen={doc === 'narrativa' ? <RevisionNarrativa onAplicado={(ctx) => { setBase((b) => ({ ...b, contexto: ctx })); setCtxVersion((v) => v + 1); traerBase(true); }} /> : null}
+        />
       )}
     </div>
   );
