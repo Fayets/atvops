@@ -3189,3 +3189,49 @@ export async function asignarRolesVentas(username, roles) {
     body: JSON.stringify({ roles }),
   });
 }
+
+/* ------------------------------------------------------- pizarra de contenido */
+
+const JSON_H = { 'Content-Type': 'application/json' };
+export async function getPizarra(refrescar = false) {
+  return pedir(`/api/pizarra${refrescar ? '?refrescar=true' : ''}`);
+}
+export async function getPizarraLlamada(id, refrescar = false) {
+  return pedir(`/api/pizarra/llamadas/${id}${refrescar ? '?refrescar=true' : ''}`);
+}
+export async function getPizarraVault(refrescar = false) {
+  return pedir(`/api/pizarra/vault${refrescar ? '?refrescar=true' : ''}`);
+}
+export async function pizarraCrearLlamada({ link, texto, titulo, tipo }) {
+  return pedir('/api/pizarra/llamadas', { method: 'POST', headers: JSON_H, body: JSON.stringify({ link, texto, titulo, tipo }) });
+}
+export async function pizarraSubirArchivos(archivos, tipo) {
+  const body = new FormData();
+  [...archivos].forEach((a) => body.append('archivos', a));
+  body.append('tipo', tipo);
+  return pedir('/api/pizarra/llamadas/archivos', { method: 'POST', body });
+}
+export async function pizarraBorrarLlamada(id) {
+  return pedir(`/api/pizarra/llamadas/${id}`, { method: 'DELETE' });
+}
+export async function pizarraGenerarGeneral(llamadaId) {
+  return pedir(`/api/pizarra/llamadas/${llamadaId}/general`, { method: 'POST' });
+}
+export async function pizarraEditarGeneral(id, cambios) {
+  return pedir(`/api/pizarra/generales/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify(cambios) });
+}
+export async function pizarraAprobarGeneral(id) {
+  return pedir(`/api/pizarra/generales/${id}/aprobar`, { method: 'POST' });
+}
+export async function pizarraRegenerarVariantes(id) {
+  return pedir(`/api/pizarra/generales/${id}/variantes`, { method: 'POST' });
+}
+export async function pizarraActualizarVariante(id, cambios) {
+  return pedir(`/api/pizarra/variantes/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify(cambios) });
+}
+export async function pizarraGenerarSecuencias(id, objetivos) {
+  return pedir(`/api/pizarra/variantes/${id}/secuencias`, { method: 'POST', headers: JSON_H, body: JSON.stringify({ objetivos }) });
+}
+export async function pizarraGuardarContexto(clave, texto) {
+  return pedir(`/api/pizarra/contexto/${clave}`, { method: 'PUT', headers: JSON_H, body: JSON.stringify({ texto }) });
+}

@@ -37,6 +37,7 @@ from src.controllers.audiencia_controller import router as audiencia_router
 from src.controllers.daily_controller import router as daily_router
 from src.controllers.theo_controller import router as theo_router
 from src.controllers.linea_pagos_controller import router as linea_pagos_router
+from src.controllers.pizarra_controller import router as pizarra_router
 from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
@@ -212,6 +213,8 @@ app.include_router(audiencia_router, prefix="/api/audiencia", tags=["audiencia"]
 app.include_router(daily_router, prefix="/api/daily", tags=["daily"])
 app.include_router(theo_router, prefix="/api/theo", tags=["theo"])
 app.include_router(linea_pagos_router, prefix="/api/linea-pagos", tags=["linea-pagos"])
+# Las ideas de contenido que salen de las llamadas de Juan.
+app.include_router(pizarra_router, prefix="/api/pizarra", tags=["pizarra"])
 
 FOTOS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(Path(__file__).resolve().parent / "data")), name="uploads")

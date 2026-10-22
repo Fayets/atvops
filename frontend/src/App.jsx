@@ -16,6 +16,8 @@ import HomeMarketingPage from './pages/HomeMarketingPage.jsx';
 import HomeVentasPage from './pages/HomeVentasPage.jsx';
 import ContenidoPage from './pages/marketing/ContenidoPage.jsx';
 import Audiencia from './pages/marketing/Audiencia.jsx';
+import Pizarra from './pages/marketing/Pizarra.jsx';
+import VaultIdeas from './pages/marketing/VaultIdeas.jsx';
 import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
 import MarketingOpsPage from './pages/MarketingOpsPage.jsx';
@@ -211,6 +213,8 @@ export default function App() {
               <Route path="calendario" element={<ContenidoPage vista="calendario" />} />
               <Route path="reels" element={<ContenidoPage vista="reels" />} />
               <Route path="audiencia" element={<Audiencia />} />
+              <Route path="pizarra" element={<Pizarra />} />
+              <Route path="vault" element={<VaultIdeas />} />
               <Route path="historias" element={<ContenidoPage vista="historias" />} />
               <Route path="youtube" element={<ContenidoPage vista="youtube" />} />
             </Route>

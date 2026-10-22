@@ -117,7 +117,8 @@ def cli_o_api_disponible() -> bool:
     return via_api() or cli_disponible()
 
 
-def _invocar_api(system_prompt: str, user_prompt: str, modelo: str) -> tuple[str, dict]:
+def _invocar_api(system_prompt: str, user_prompt: str, modelo: str, max_tokens: int = 4000,
+                 timeout_s: int = TIMEOUT_S) -> tuple[str, dict]:
     global _cliente_api
     import anthropic
 
@@ -125,7 +126,7 @@ def _invocar_api(system_prompt: str, user_prompt: str, modelo: str) -> tuple[str
         _cliente_api = anthropic.Anthropic(api_key=API_KEY, timeout=TIMEOUT_S, max_retries=2)
     t = time.perf_counter()
     msg = _cliente_api.messages.create(
-        model=modelo, max_tokens=4000, system=system_prompt,
+        model=modelo, max_tokens=max_tokens, system=system_prompt, timeout=timeout_s,
         messages=[{"role": "user", "content": user_prompt}],
     )
     duracion_ms = int((time.perf_counter() - t) * 1000)
@@ -140,10 +141,11 @@ def _invocar_api(system_prompt: str, user_prompt: str, modelo: str) -> tuple[str
     }
 
 
-def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | None = None) -> tuple[str, dict]:
+def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | None = None,
+                         max_tokens: int = 4000, timeout_s: int = TIMEOUT_S) -> tuple[str, dict]:
     """Devuelve (texto_de_respuesta, meta con tokens y costo). Por API si hay clave; si no, `claude -p`."""
     if via_api():
-        return _invocar_api(system_prompt, user_prompt, modelo or MODELO)
+        return _invocar_api(system_prompt, user_prompt, modelo or MODELO, max_tokens, timeout_s)
     cmd = [
         CLAUDE_BIN, "-p",
         "--model", modelo or MODELO,
@@ -157,7 +159,7 @@ def invocar_claude_texto(system_prompt: str, user_prompt: str, modelo: str | Non
     ]
     env = dict(os.environ, DISABLE_AUTOUPDATER="1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")
     t = time.perf_counter()
-    proc = subprocess.run(cmd, input=user_prompt, capture_output=True, text=True, timeout=TIMEOUT_S, env=env)
+    proc = subprocess.run(cmd, input=user_prompt, capture_output=True, text=True, timeout=timeout_s, env=env)
     duracion_ms = int((time.perf_counter() - t) * 1000)
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or proc.stdout or "").strip()[:400] or f"exit {proc.returncode}")

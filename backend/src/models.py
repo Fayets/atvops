@@ -1079,3 +1079,93 @@ class ReelCta(db.Entity):
     palabra = Optional(str, nullable=True)   # si tiene CTA: la palabra que cuenta
     por = Optional(str, nullable=True)
     at = Required(datetime, default=datetime.utcnow)
+
+
+# ------------------------------------------------------------------ pizarra de contenido
+#
+# El flujo del Miro de Juan: una llamada (1 a 1 o clase grupal) + lo fijo de la marca →
+# Claude → idea general (editable, se aprueba) → variantes por canal → las aprobadas van al
+# vault de ideas. De una variante de historias aprobada salen las 3 secuencias.
+
+class PizarraLlamada(db.Entity):
+    """Una llamada de Juan que marketing carga cuando necesita ideas. La transcripción se
+    guarda entera para validar cada cita."""
+
+    _table_ = _tabla("pizarra_llamadas", "PizarraLlamada")
+
+    id = PrimaryKey(int, auto=True)
+    tipo = Required(str, default="1a1")             # 1a1 | clase
+    titulo = Required(str)
+    fecha = Optional(date, nullable=True)
+    fuente = Required(str, default="pegada")        # fathom | archivo | pegada
+    url = Optional(str, nullable=True)
+    transcripcion = Required(LongStr)
+    estado = Required(str, default="nueva", index=True)  # nueva | armando | lista | error
+    error = Optional(str, nullable=True)
+    creado_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    generales = Set("PizarraGeneral")
+
+
+class PizarraGeneral(db.Entity):
+    """La idea general que sale del video, con la frase de Juan que la sostiene. Se edita
+    y se aprueba; recién aprobada salen las variantes por canal."""
+
+    _table_ = _tabla("pizarra_generales", "PizarraGeneral")
+
+    id = PrimaryKey(int, auto=True)
+    llamada = Required(PizarraLlamada)
+    titulo = Required(str)
+    detalle = Optional(LongStr, nullable=True)
+    dolor = Optional(str, nullable=True)
+    cita = Optional(LongStr, nullable=True)
+    minuto = Optional(str, nullable=True)           # lo saca el código de la transcripción
+    editada = Required(bool, default=False)
+    estado = Required(str, default="propuesta")     # propuesta | aprobada | descartada
+    variantes_estado = Required(str, default="nada")  # nada | armando | listas | error
+    error = Optional(str, nullable=True)
+    aprobada_por = Optional(str, nullable=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    variantes = Set("PizarraVariante")
+
+
+class PizarraVariante(db.Entity):
+    """Una idea concreta para un canal. Las aprobadas forman el vault de ideas."""
+
+    _table_ = _tabla("pizarra_variantes", "PizarraVariante")
+
+    id = PrimaryKey(int, auto=True)
+    general = Required(PizarraGeneral)
+    canal = Required(str)                           # yt | reel | story
+    titulo = Required(str)
+    detalle = Optional(LongStr, nullable=True)
+    estado = Required(str, default="propuesta")     # propuesta | aprobada | descartada
+    decidido_por = Optional(str, nullable=True)
+    decidido_at = Optional(datetime, nullable=True)
+    secuencias = Set("PizarraSecuencia")
+
+
+class PizarraSecuencia(db.Entity):
+    """Una secuencia de historias armada desde una variante aprobada: corta, media o larga,
+    historia por historia."""
+
+    _table_ = _tabla("pizarra_secuencias", "PizarraSecuencia")
+
+    id = PrimaryKey(int, auto=True)
+    variante = Required(PizarraVariante)
+    largo = Required(str)                           # corta | media | larga
+    objetivo = Optional(str, nullable=True)         # palabra | ensenar | mostrar | objecion
+    historias_json = Required(LongStr, default="[]")
+    creado_at = Required(datetime, default=datetime.utcnow)
+
+
+class PizarraContexto(db.Entity):
+    """Lo fijo que acompaña cada llamada: dolores, diferenciales, objeciones y narrativa.
+    Texto libre que escribe marketing."""
+
+    _table_ = _tabla("pizarra_contexto", "PizarraContexto")
+
+    clave = PrimaryKey(str)
+    texto = Optional(LongStr, nullable=True)
+    editado_por = Optional(str, nullable=True)
+    editado_at = Optional(datetime, nullable=True)

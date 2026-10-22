@@ -48,6 +48,9 @@ const NAV = [
       { to: '/marketing/audiencia', label: 'Audiencia' },
       { to: '/marketing/historias', label: 'Historias' },
       { to: '/marketing/youtube', label: 'YouTube' },
+      // Las ideas de contenido que salen de las llamadas de Juan.
+      { to: '/marketing/pizarra', label: 'Pizarra', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
+      { to: '/marketing/vault', label: 'Vault de ideas', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
     ],
   },
   { to: '/ads', icon: 'ads', label: 'Ads', grupo: 'Áreas' },
