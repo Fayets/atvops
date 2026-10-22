@@ -31,6 +31,7 @@ from pony.orm import db_session, flush
 
 from src.models import PizarraContexto, PizarraGeneral, PizarraLlamada, PizarraSecuencia, PizarraVariante
 from src.services import activacion_ia_services as ia
+from src.services import voz_juan_services as voz_juan
 
 logger = logging.getLogger("atv_ops.pizarra")
 
@@ -449,7 +450,8 @@ def vault() -> dict:
 # ------------------------------------------------------------------ IA
 
 MARCA = """Sos el estratega de contenido de ATV (Aumenta Tu Valor), la marca de Juan Carrizo. ATV ayuda a dueños de negocios de servicios y marcas personales a escalar.
-Escribís como habla Juan: español rioplatense, directo, de vos, sin clickbait vacío, sin emojis, sin frases de manual de marketing."""
+Escribís como Juan, en primera persona, como si lo escribiera él: español rioplatense, directo, de vos, sin clickbait vacío, sin frases de manual de marketing. Si te paso "Cómo escribe Juan", esa es la voz: sus palabras, sus muletillas y su forma de explicar mandan sobre cualquier estilo tuyo.
+Le hablás al dueño de un negocio que ya factura, en términos de negocio (cash collected, margen, close rate, carga operativa, equipo); nunca a la persona ni con el lifestyle como argumento."""
 
 SYSTEM_GENERAL = MARCA + """
 
@@ -459,8 +461,8 @@ Tu trabajo: encontrar los temas que habló Juan en la llamada que pueden ser una
 Reglas para cada idea:
 - Se apoya en UNA frase que dijo Juan. Copiala TEXTUAL de la transcripción, sin corregirla ni resumirla, entre 8 y 40 palabras. Nunca uses frases del cliente ni de otra persona del equipo.
 - Nada de datos del cliente (nombre, facturación, negocio): el contenido es de Juan para su audiencia.
-- "titulo": la idea en una frase corta, como la diría Juan.
-- "detalle": en 2 a 4 frases, qué sostiene la idea y por qué le importa a la audiencia.
+- "titulo": la idea en una frase corta, escrita como la escribiría Juan.
+- "detalle": de 2 a 4 frases escritas por Juan en primera persona, con su voz, contándole a su audiencia la idea y por qué le importa. Nada de "Juan cuenta que…" ni tercera persona: es él el que escribe.
 - "dolor": a qué dolor de la audiencia apunta. Si coincide con uno de la lista, usá ese texto.
 - No repitas las ideas que te paso como ya usadas.
 
@@ -485,7 +487,9 @@ Devolvé SOLO un objeto JSON, sin texto antes ni después:
 def _contexto_texto(ctx: dict) -> str:
     nombres = {"dolores": "Dolores de la audiencia", "objeciones": "Objeciones de la audiencia",
                "diferenciales": "Diferenciales de la marca", "narrativa": "Narrativa actual"}
-    return "\n\n".join(f"## {nombres[k]}\n{(ctx[k]['texto'] or '(todavía no cargado)').strip()}" for k in CONTEXTO)
+    texto = "\n\n".join(f"## {nombres[k]}\n{(ctx[k]['texto'] or '(todavía no cargado)').strip()}" for k in CONTEXTO)
+    voz = voz_juan.bloque()  # del cerebro del classroom: todo lo que escribe la pizarra va en la voz de Juan
+    return texto + ("\n\n" + voz if voz else "")
 
 
 def _recortar(texto: str) -> str:
@@ -586,6 +590,7 @@ def generar_general(llamada_id: int) -> dict:
 
 def _generar_general(llamada_id: int) -> None:
     ctx = contexto()
+    voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
     with db_session:
         ll = PizarraLlamada[llamada_id]
         usadas = [g.titulo for g in ll.generales]
@@ -657,6 +662,7 @@ def regenerar_variantes(general_id: int) -> dict:
 
 def _generar_variantes(general_id: int) -> None:
     ctx = contexto()
+    voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
     with db_session:
         g = PizarraGeneral[general_id]
         aprobadas = [f"- ({v.canal}) {v.titulo}" for v in g.variantes if v.estado == "aprobada"]
@@ -810,6 +816,7 @@ def generar_secuencias(variante_id: int, objetivos: dict | None = None) -> dict:
 
 def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
     ctx = contexto()
+    voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
     with db_session:
         v = PizarraVariante[variante_id]
         g = v.general
