@@ -95,6 +95,12 @@ def guardar_contexto(clave: str, payload: dict = Body(...), user: dict = Depends
     return pizarra.guardar_contexto(clave, str((payload or {}).get("texto") or ""), user.get("username"))
 
 
+@router.delete("/variantes/{variante_id}")
+def borrar_variante(variante_id: int, _user: dict = Depends(_puede)):
+    """Borra la idea y sus secuencias."""
+    return pizarra.borrar_variante(variante_id)
+
+
 @router.post("/variantes/{variante_id}/secuencias")
 def generar_secuencias(variante_id: int, payload: dict = Body(default={}), _user: dict = Depends(_puede)):
     """Corta, media y larga de una idea de historias aprobada. `objetivos` opcional por largo."""

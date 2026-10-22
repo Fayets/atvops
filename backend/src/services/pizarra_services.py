@@ -699,6 +699,18 @@ def _generar_variantes(general_id: int) -> None:
 
 # --- variantes
 
+def borrar_variante(variante_id: int) -> dict:
+    """Borra una idea con sus secuencias. Desde el vault: se va para siempre."""
+    with db_session:
+        v = PizarraVariante.get(id=variante_id)
+        if v is None:
+            raise HTTPException(status_code=404, detail="Esa idea no existe.")
+        for s in list(v.secuencias):
+            s.delete()
+        v.delete()
+    return {"ok": True}
+
+
 def actualizar_variante(variante_id: int, cambios: dict, por: str | None) -> dict:
     with db_session:
         v = PizarraVariante.get(id=variante_id)

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Bocetos from '../../components/marketing/Bocetos.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
-import { getPizarraVault, pizarraActualizarVariante } from '../../data/api.js';
+import { getPizarraVault, pizarraActualizarVariante, pizarraBorrarVariante } from '../../data/api.js';
 import '../../styles/pizarra.css';
 
 /**
@@ -28,6 +28,12 @@ export default function VaultIdeas() {
 
   const ideas = datos.ideas.filter((i) => !canal || i.canal === canal);
   const sacar = async (id) => { await pizarraActualizarVariante(id, { estado: 'propuesta' }); traer(); };
+  const borrar = async (i) => {
+    const n = i.secuencias.length;
+    const sec = n > 1 ? ` y sus ${n} secuencias` : n === 1 ? ' y su secuencia' : '';
+    if (!window.confirm(`¿Borrar la idea "${i.titulo}"${sec}?`)) return;
+    try { await pizarraBorrarVariante(i.id); setAbierta(null); traer(); } catch (e) { window.alert(e.message); }
+  };
 
   return (
     <div className="page vt">
@@ -62,7 +68,10 @@ export default function VaultIdeas() {
                   <span className="pz-dim">{i.llamada.tipo === 'clase' ? 'Clase grupal' : '1 a 1'} · {i.llamada.titulo}</span>
                 </div>
                 {i.secuencias.length > 0 && <Bocetos secuencias={i.secuencias} />}
-                <div className="pz-botones"><button type="button" className="btn ghost sm" onClick={() => sacar(i.id)}>Sacar del vault</button></div>
+                <div className="pz-botones">
+                  <button type="button" className="btn ghost sm" onClick={() => sacar(i.id)}>Sacar del vault</button>
+                  <button type="button" className="btn ghost sm" onClick={() => borrar(i)}>Borrar</button>
+                </div>
               </div>
             )}
           </article>

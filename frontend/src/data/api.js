@@ -3229,6 +3229,9 @@ export async function pizarraRegenerarVariantes(id) {
 export async function pizarraActualizarVariante(id, cambios) {
   return pedir(`/api/pizarra/variantes/${id}`, { method: 'PATCH', headers: JSON_H, body: JSON.stringify(cambios) });
 }
+export async function pizarraBorrarVariante(id) {
+  return pedir(`/api/pizarra/variantes/${id}`, { method: 'DELETE' });
+}
 export async function pizarraGenerarSecuencias(id, objetivos) {
   return pedir(`/api/pizarra/variantes/${id}/secuencias`, { method: 'POST', headers: JSON_H, body: JSON.stringify({ objetivos }) });
 }
