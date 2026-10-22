@@ -477,9 +477,11 @@ SYSTEM_VARIANTES = MARCA + """
 Te paso una idea general aprobada por Juan (con la frase de la llamada de donde salió), un tramo de la llamada y lo fijo de la marca.
 Tu trabajo: bajarla a variantes por canal. Todas cuentan la misma idea general, cada una con un ángulo distinto, para que la narrativa sea una sola.
 
+"titulo" y "detalle" los escribe JUAN, no un estratega: con su voz tal cual la mide "Cómo escribe Juan" (minúsculas, puntuación, muletillas, palabras suyas) y en primera persona, como si le tirara la idea a su equipo por el chat. Nada de lenguaje de brief ni de agencia: prohibido "arranca con", "muestro", "cierro con", "la secuencia", "el objetivo es", "el espectador", "se presenta". Las frases que van en pantalla, dichas como él las diría. Nunca pongas el nombre de la estructura en el título.
+
 - yt: %(n)s ideas de video de YouTube. "titulo": el título del video. "detalle": el ángulo y qué se lleva el que lo mira, en 1 o 2 frases.
 - reel: %(n)s ideas de reel. "titulo": el gancho (lo primero que se dice o se lee). "detalle": de qué va, en 1 o 2 frases.
-- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": de qué va la secuencia. "detalle": cómo baja la idea a esa estructura: con qué arranca y qué le pide a la gente al final.
+- story: %(n)s ideas de secuencia de historias. Cada una se arma sobre UNA de las "Estructuras de historias de Juan" que te paso: son las que Juan usa de verdad, sacadas de sus secuencias; no inventes otras. Usá estructuras distintas entre las ideas cuando la idea lo permita, y preferí las que más respuestas traen si le sirven a la idea. "estructura": la clave. "titulo": de qué va, como lo diría Juan. "detalle": cómo la armaría Juan contado por él, siguiendo los pasos de la estructura, con las frases que van en pantalla y la palabra que pide al final.
 
 Devolvé SOLO un objeto JSON, sin texto antes ni después:
 {"yt": [{"titulo": "...", "detalle": "..."}], "reel": [...], "story": [{"titulo": "...", "detalle": "...", "estructura": "clave"}]}"""
@@ -529,9 +531,17 @@ def validar_generales(data: dict, segs: list[dict]) -> list[dict]:
     return salida
 
 
-def validar_variantes(data: dict, estructuras: set[str] | None = None) -> dict[str, list[dict]]:
+def _sin_nombre_de_estructura(titulo: str, nombre: str | None) -> str:
+    """"Te lo dibujo: de los chats al cash" → "de los chats al cash": la estructura ya se ve aparte."""
+    if not nombre or ":" not in titulo:
+        return titulo
+    antes, despues = titulo.split(":", 1)
+    return despues.strip() if _norm(antes) == _norm(nombre) and despues.strip() else titulo
+
+
+def validar_variantes(data: dict, estructuras: dict | set | None = None) -> dict[str, list[dict]]:
     """Las variantes que se pueden guardar. Una idea de historias sin una estructura real
-    de Juan (de las activas) no entra."""
+    de Juan (de las activas) no entra. `estructuras`: {clave: {"nombre": …}} o solo las claves."""
     salida = {}
     for canal in CANALES:
         items = data.get(canal) if isinstance(data.get(canal), list) else []
@@ -544,6 +554,8 @@ def validar_variantes(data: dict, estructuras: set[str] | None = None) -> dict[s
                 if i.get("estructura") not in estructuras:
                     continue
                 item["estructura"] = i["estructura"]
+                info = estructuras.get(i["estructura"]) if isinstance(estructuras, dict) else None
+                item["titulo"] = _sin_nombre_de_estructura(item["titulo"], (info or {}).get("nombre"))
             salida[canal].append(item)
     return salida
 
@@ -674,7 +686,7 @@ def regenerar_variantes(general_id: int) -> dict:
 def _generar_variantes(general_id: int) -> None:
     ctx = contexto()
     voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
-    catalogo, claves = estructuras.catalogo_texto(), set(estructuras.activas())
+    catalogo, claves = estructuras.catalogo_texto(), estructuras.activas()
     with db_session:
         g = PizarraGeneral[general_id]
         aprobadas = [f"- ({v.canal}) {v.titulo}" for v in g.variantes if v.estado == "aprobada"]

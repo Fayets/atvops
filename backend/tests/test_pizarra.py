@@ -159,3 +159,10 @@ def test_los_bocetos_aceptan_las_flechas_marcas_y_graficos_de_juan():
     assert corta[2]["color"] == "roja"  # un color que no es de Juan vuelve al rojo
     assert corta[3]["marcas"] == ["autoridad", "promesa"]
     assert corta[4] == {"tipo": "diagrama", "texto": "curiosidad → chats → agendas → ventas", "ciclo": True}
+
+
+def test_el_titulo_de_una_idea_de_historias_no_repite_el_nombre_de_la_estructura():
+    est = {"te-lo-dibujo": {"nombre": "Te lo dibujo"}}
+    v = p.validar_variantes({"story": [{"titulo": "Te lo dibujo: de los chats al cash collected", "detalle": "x", "estructura": "te-lo-dibujo"},
+                                       {"titulo": "ojo: esto no es ads", "detalle": "x", "estructura": "te-lo-dibujo"}]}, est)
+    assert [i["titulo"] for i in v["story"]] == ["de los chats al cash collected", "ojo: esto no es ads"]
