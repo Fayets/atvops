@@ -627,7 +627,8 @@ def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
     for d in range(5):
         f = semana + timedelta(days=d)
         c = cierres.get(f)
-        estado = "futuro" if d > corte else ("ok" if c and c.a_tiempo else "tarde" if c else "falta")
+        # Guardada es guardada, a la hora que sea: "cargada tarde" no le servía a nadie (Franco, 23-10-2026).
+        estado = "futuro" if d > corte else ("ok" if c else "falta")
         dias.append({"fecha": f.isoformat(), "estado": estado, "hora": c.guardado_at.strftime("%H:%M") if c else None})
     despl = []
     for t in tareas:

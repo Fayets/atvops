@@ -16,6 +16,8 @@ const ESTADO = {
   frenado: ['off', 'No se mandó'],
 };
 
+// Las dos de la daily las arma Ops: tienen grupo y plantilla editables.
+const DAILYS = ['daily_aviso', 'daily'];
 const hora = (iso) => (iso ? iso.slice(11, 16) : '');
 const dia = (iso) => {
   if (!iso) return 'En cola';
@@ -119,6 +121,7 @@ function Mensajes({ vista }) {
             <div className="th-filtros">
               <select value={envio} onChange={(e) => setEnvio(e.target.value)} aria-label="Envío">
                 <option value="">Todos los envíos</option>
+                <option value="daily_aviso">Recordatorio de cerrar la daily</option>
                 <option value="daily">Daily completada</option>
                 <option value="llamadas">Resultado de cada llamada</option>
                 <option value="landing">Landing sin registros</option>
@@ -236,7 +239,7 @@ function Detalle({ m, onCambio }) {
       </div>
       <div className="th-nota">
         {pendiente && (m.se_arma_al_salir
-          ? <><b>Se arma a las 23:00</b> con quién guardó su daily hasta ese momento. Si lo editás queda fijo y ya no se actualiza solo.</>
+          ? <><b>Se arma a las {hora(m.sale_at)}</b> con quién guardó su daily hasta ese momento. Si lo editás queda fijo y ya no se actualiza solo.</>
           : <><b>Editar cambia solo este envío.</b> Para cambiar todos los que vienen, editá la plantilla en Envíos automáticos.</>)}
         {m.estado === 'enviado' && <><b>Lo que ya salió no se puede cambiar desde acá:</b> WhatsApp no deja que Theo edite lo que mandó. Si hay un error, mandá una corrección.</>}
         {m.estado === 'frenado' && <>Lo frenó {m.frenado_por ?? 'alguien'} antes de que saliera.</>}
@@ -278,7 +281,7 @@ function Envios() {
               <span className="th-chip">{e.fuente}</span>
               {e.ia ? <span className="th-chip ia">Escribe la IA</span> : <span className="th-chip">Sin IA</span>}
               {e.plantilla && <span className="th-chip">Plantilla editable</span>}
-              {!e.grupo_jid && e.clave === 'daily' && <Pill tone="alert">Falta el grupo</Pill>}
+              {!e.grupo_jid && DAILYS.includes(e.clave) && <Pill tone="alert">Falta el grupo</Pill>}
               <button type="button" className="btn ghost sm" onClick={() => setSel(e.clave)}>Ver →</button>
             </div>
           </div>
@@ -294,7 +297,7 @@ function EnvioDetalle({ e, onGuardado }) {
   const [grupo, setGrupo] = useState(e.grupo ?? '');
   const [jid, setJid] = useState(e.grupo_jid ?? '');
   const [estado, setEstado] = useState('');
-  const editable = e.clave === 'daily'; // las llamadas salen por avisar-llamadas.py, con su grupo fijo
+  const editable = DAILYS.includes(e.clave); // las llamadas salen por avisar-llamadas.py, con su grupo fijo
 
   async function etiquetar() {
     try {

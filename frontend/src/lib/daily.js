@@ -41,6 +41,22 @@ export function banda(pct) {
 
 export const BANDA_TEXTO = { ok: 'Cumplió', warn: 'A medias', alert: 'No cumplió', off: 'Sin datos' };
 
+/** Cumplimiento de un solo día: de lo que vencía ese día, cuánto está hecho. */
+export function cumplimientoDia(semana, dia) {
+  const d = semana?.dias?.[dia];
+  if (!d) return null;
+  let due = 0;
+  let done = 0;
+  for (const t of semana.tareas) {
+    if (!vence(t, dia)) continue;
+    const m = t.marcas[d.fecha];
+    if (m?.estado === 'no_aplica') continue;
+    due += 1;
+    if (m?.estado === 'hecha') done += 1;
+  }
+  return due ? Math.round((done / due) * 100) : null;
+}
+
 /** Cumplimiento a hoy de una semana propia: lo que vencía y lo abierto que ya se cerró. */
 export function cumplimiento(semana) {
   if (!semana) return null;

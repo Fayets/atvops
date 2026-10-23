@@ -45,6 +45,9 @@ Caja 2: $caja_2"""
 FORMATO_LLAMADAS = "Las llamadas de hoy de cada closer, con el comando de la skill atv-closer."
 REINTENTOS = 3
 HORA_DAILY = (23, 30)
+# Las dos de la daily, las arma Ops con la lista del momento: el aviso de 22:30 (todavía
+# hay tiempo de cerrarla) y el checkeo de 23:30 (Franco, 23-10-2026).
+HORAS_DAILY = {"daily_aviso": (22, 30), "daily": HORA_DAILY}
 
 # La semana de Theo, como la planificó Franco: grupo → qué sale cada día y a qué hora.
 # Días 0=domingo … 6=sábado. "rastreo": "ops" = sale por la cola de Ops (se sabe si salió);
@@ -53,6 +56,8 @@ PROGRAMA = (
     ("ATV 500K", [
         {"clave": "recordatorio_semana", "nombre": "Recordatorio de preparar objetivos semanales",
          "dias": [0], "hora": None, "rastreo": "registro"},
+        {"clave": "daily_aviso", "nombre": "Recordatorio de cerrar la daily", "dias": [1, 2, 3, 4, 5], "hora": "22:30",
+         "rastreo": "ops"},
         {"clave": "daily", "nombre": "Checkeo de daily", "dias": [1, 2, 3, 4, 5], "hora": "23:30", "rastreo": "ops"},
     ]),
     ("Sales", [
@@ -71,6 +76,8 @@ PROGRAMA = (
 
 # (clave, nombre, cuándo, grupo, jid, plantilla, la arma Ops)
 ENVIOS = (
+    ("daily_aviso", "Recordatorio de cerrar la daily", "Lunes a viernes · 22:30", "ATV 500K", None,
+     "Recordatorio · {dia} {fecha}\nA las 23:30 se cierra: el que todavía no guardó su daily, que lo haga ahora.\n\n{lista}"),
     ("daily", "Checkeo de daily", "Lunes a viernes · 23:30", "ATV 500K", None,
      "Daily completada · {dia} {fecha}\n\n{lista}"),
     ("llamadas", "Resultado de cada llamada", "Apenas llega el reporte de Fathom (cada 10 min)",
@@ -86,6 +93,7 @@ ENVIOS = (
 # Lo que muestra la pantalla de cada envío.
 DETALLE = {
     "daily": {"fuente": "ATV Ops · Daily", "ia": False, "variables": ["{dia}", "{fecha}", "{lista}"]},
+    "daily_aviso": {"fuente": "ATV Ops · Daily", "ia": False, "variables": ["{dia}", "{fecha}", "{lista}"]},
     "llamadas": {"fuente": "Fathom → ATV Ops", "ia": True,
                  "nota": "El texto lo escribe la IA con la grabación. Cada reporte se puede editar o frenar antes de que salga."},
     "landing": {"fuente": "Tracking de landings", "ia": False,
@@ -100,8 +108,11 @@ def ensure_envios() -> None:
         for clave, nombre, cuando, grupo, jid, plantilla in ENVIOS:
             e = TheoEnvio.get(clave=clave)
             if e is None:
-                TheoEnvio(clave=clave, nombre=nombre, cuando=cuando, grupo_nombre=grupo, grupo_jid=jid,
-                          plantilla=plantilla, activo=True)
+                # Uno nuevo de un grupo que ya existe hereda su ID de WhatsApp y si etiqueta.
+                hermano = next((x for x in list(TheoEnvio.select()) if x.grupo_nombre == grupo and x.grupo_jid), None)
+                TheoEnvio(clave=clave, nombre=nombre, cuando=cuando, grupo_nombre=grupo,
+                          grupo_jid=jid or (hermano.grupo_jid if hermano else None),
+                          etiquetar=bool(hermano and hermano.etiquetar), plantilla=plantilla, activo=True)
             else:
                 # El nombre, el horario y el grupo los define el código; el ID del grupo, no.
                 e.nombre, e.cuando, e.grupo_nombre = nombre, cuando, grupo
@@ -125,8 +136,8 @@ def _texto_daily(m: TheoMensaje, etiquetar: bool = False) -> str:
     datos = daily_services.theo(fecha)
     lista = "\n".join(f"{'@' + p['whatsapp'] if etiquetar and p.get('whatsapp') else p['nombre']} "
                       f"{'✅' if p['completada'] else '❌'}" for p in datos["personas"])
-    e = TheoEnvio.get(clave="daily")
-    plantilla = (e.plantilla if e and e.plantilla else ENVIOS[0][5])
+    e = TheoEnvio.get(clave=m.envio)
+    plantilla = (e.plantilla if e and e.plantilla else next(x[5] for x in ENVIOS if x[0] == m.envio))
     return (plantilla.replace("{dia}", daily_services.DIAS[fecha.weekday()])
             .replace("{fecha}", fecha.strftime("%d/%m")).replace("{lista}", lista))
 
@@ -134,7 +145,7 @@ def _texto_daily(m: TheoMensaje, etiquetar: bool = False) -> str:
 def _texto(m: TheoMensaje) -> str:
     if m.texto:
         return m.texto
-    if m.envio == "daily":
+    if m.envio in HORAS_DAILY:
         return _texto_daily(m)
     return ""
 
@@ -164,7 +175,7 @@ def _texto_final(m: TheoMensaje, e: TheoEnvio | None) -> str:
     etiquetar = _etiqueta(m, e)
     if m.texto:
         texto = m.texto
-    elif m.envio == "daily":
+    elif m.envio in HORAS_DAILY:
         texto = _texto_daily(m, etiquetar)
     else:
         texto = ""
@@ -182,19 +193,21 @@ def _a_la_vista(texto: str) -> str:
 
 
 def _asegurar_daily() -> None:
-    """Deja en la cola la daily de hoy, si es día hábil y el envío está prendido."""
+    """Deja en la cola las dos de la daily de hoy (aviso y checkeo), si es día hábil y el
+    envío está prendido."""
     ahora = daily_services.ahora()
     hoy = ahora.date()
     if hoy.weekday() >= 5:
         return
-    e = TheoEnvio.get(clave="daily")
-    if e is None or not e.activo:
-        return
-    clave = f"daily:{hoy.isoformat()}"
-    if TheoMensaje.get(clave=clave) is None:
-        sale = datetime.combine(hoy, datetime.min.time()).replace(hour=HORA_DAILY[0], minute=HORA_DAILY[1])
-        TheoMensaje(clave=clave, envio="daily", grupo_nombre=e.grupo_nombre, grupo_jid=e.grupo_jid,
-                    sale_at=sale, expira_at=sale + timedelta(minutes=59))
+    for envio, (hh, mm) in HORAS_DAILY.items():
+        e = TheoEnvio.get(clave=envio)
+        if e is None or not e.activo:
+            continue
+        clave = f"{envio}:{hoy.isoformat()}"
+        if TheoMensaje.get(clave=clave) is None:
+            sale = datetime.combine(hoy, datetime.min.time()).replace(hour=hh, minute=mm)
+            TheoMensaje(clave=clave, envio=envio, grupo_nombre=e.grupo_nombre, grupo_jid=e.grupo_jid,
+                        sale_at=sale, expira_at=sale + timedelta(minutes=59))
 
 
 def _vencer() -> None:
@@ -227,7 +240,7 @@ def _msg_dict(m: TheoMensaje, envios: dict) -> dict:
         "id": f"m-{m.id}", "envio": m.envio, "envio_nombre": e.nombre if e else m.envio,
         "grupo": m.grupo_nombre or (e.grupo_nombre if e else None), "sin_grupo": not jid,
         "texto": _texto(m), "vista": _a_la_vista(_texto_final(m, e)), "etiquetar": _etiqueta(m, e),
-        "se_arma_al_salir": m.estado == "pendiente" and not m.texto and m.envio == "daily",
+        "se_arma_al_salir": m.estado == "pendiente" and not m.texto and m.envio in HORAS_DAILY,
         "estado": m.estado, "sale_at": _iso(m.sale_at), "enviado_at": _iso(m.enviado_at),
         "error": m.error, "editado_por": m.editado_por, "frenado_por": m.frenado_por,
         "ia": False, "mandar_ahora": m.estado in ("pendiente", "fallido"),
@@ -459,7 +472,7 @@ def actualizar_envio(clave: str, datos: dict, quien: str) -> dict:
         if datos.get("etiquetar") is not None:
             e.etiquetar = bool(datos["etiquetar"])
         if datos.get("plantilla") is not None:
-            if e.clave != "daily":
+            if e.clave not in HORAS_DAILY:
                 raise HTTPException(status_code=400, detail="Este envío no tiene plantilla: el texto lo arma otro sistema.")
             if "{lista}" not in datos["plantilla"]:
                 raise HTTPException(status_code=400, detail="La plantilla tiene que llevar {lista}: es la lista de quién completó.")
@@ -615,7 +628,7 @@ def _celda(it: dict, d: date, ahora: datetime, por_envio_dia: dict, llamadas_dia
             return {**out, "estado": "enviado", "detalle": detalle}
         # Hoy todavía pueden estar por tomarse o esperando a Fathom; un día que pasó, falta.
         return {**out, "estado": "pendiente" if d == ahora.date() else "no_salio", "detalle": detalle}
-    if it["clave"] == "daily" and d < daily_services.INICIO:
+    if it["clave"] in HORAS_DAILY and d < daily_services.INICIO:
         return {**out, "estado": "sin_registro", "detalle": "la daily arrancó el 19/10"}
     ms = por_envio_dia.get((it["clave"], d), [])
     for estado in ("enviado", "fallido", "frenado", "pendiente"):

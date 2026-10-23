@@ -9,7 +9,7 @@ import {
   guardarDiaDaily,
 } from '../data/api.js';
 import {
-  abierta, BANDA_TEXTO, banda, cumplimiento, DIAS, fechaCorta, nombreDe, sumarDias, vence,
+  abierta, BANDA_TEXTO, banda, cumplimiento, cumplimientoDia, DIAS, fechaCorta, nombreDe, sumarDias, vence,
 } from '../lib/daily.js';
 import '../styles/daily.css';
 
@@ -114,7 +114,7 @@ function SemanaCompleta({ data }) {
 function estadoDia(d) {
   if (d.futuro) return '';
   if (!d.guardado_at) return 'falta';
-  return d.a_tiempo ? 'ok' : 'tarde';
+  return 'ok';
 }
 
 function DiaDaily({ data, dia, setDia, onGuardado }) {
@@ -204,14 +204,17 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       return !v?.estado || (v.estado !== 'hecha' && !v.motivo.trim());
     }).length;
   // El porcentaje se mueve a medida que marcás, antes de guardar: lo marcado pisa lo guardado de ese día.
-  const pct = cumplimiento({
+  const conLoMarcado = {
     ...data,
     tareas: data.tareas.map((t) => {
       const v = draft[t.id];
       return v?.estado ? { ...t, marcas: { ...t.marcas, [fecha]: { ...(t.marcas[fecha] ?? {}), estado: v.estado } } } : t;
     }),
-  });
-  const b = banda(pct);
+  };
+  const pctSemana = cumplimiento(conLoMarcado);
+  const pctDia = cumplimientoDia(conLoMarcado, dia);
+  const bSemana = banda(pctSemana);
+  const bDia = banda(pctDia);
 
   function poner(id, estado) {
     setDraft((s) => ({ ...s, [id]: { ...s[id], estado: s[id]?.estado === estado ? null : estado } }));
@@ -293,7 +296,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
               <i>{x.futuro ? (() => {
                 const adelantadas = data.tareas.filter((t) => t.marcas[x.fecha]).length;
                 return adelantadas ? `${adelantadas} adelantada${adelantadas > 1 ? 's' : ''}` : 'Todavía no llegó';
-              })() : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : e === 'tarde' ? 'Cargada tarde' : '✕ Sin guardar'}</i>
+              })() : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : '✕ Sin guardar'}</i>
               {x.es_hoy && <em>Hoy</em>}
             </button>
           );
@@ -330,12 +333,18 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
           )}
         </Card>
         <div className="dl-side">
-          <Card title="Cumplimiento a hoy">
-            <div className="dl-pct">
-              <b style={{ color: `var(--${b === 'off' ? 'text-3' : b})` }}>{pct == null ? '—' : `${pct}%`}</b>
-              <Pill tone={b}>{BANDA_TEXTO[b]}</Pill>
+          <Card title="Cumplimiento">
+            <div className="dl-pcts">
+              {[[d.es_hoy ? 'Hoy' : `El ${DIAS[dia]}`, pctDia, bDia], ['La semana', pctSemana, bSemana]].map(([label, valor, tono]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <div className="dl-pct">
+                    <b style={{ color: `var(--${tono === 'off' ? 'text-3' : tono})` }}>{valor == null ? '—' : `${valor}%`}</b>
+                    <Pill tone={tono}>{BANDA_TEXTO[tono]}</Pill>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p>Cuenta lo que vencía hasta hoy.</p>
           </Card>
           <button type="button" className="btn primary dl-guardar" disabled={guardando || falta > 0} onClick={guardar}>
             {guardando ? 'Guardando…' : d.futuro ? 'Guardar' : 'Guardar daily'}

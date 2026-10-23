@@ -63,8 +63,7 @@ export default function Backbone() {
             ))}
           </div>
           <div className="bb-legend">
-            <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--ok)" /></svg>Daily a tiempo</span>
-            <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--warn)" /></svg>Cargada tarde</span>
+            <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--ok)" /></svg>Daily guardada</span>
             <span><svg width="10" height="10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="2" fill="var(--surface)" stroke="var(--alert)" /></svg>Sin daily</span>
           </div>
         </div>
@@ -353,7 +352,7 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
           {p.dias.map((d, i) => (
             <div key={d.fecha} className={d.estado}>
               <b>{DIAS_CORTOS[i]} {fechaCorta(d.fecha)}</b>
-              {d.estado === 'futuro' ? '—' : d.estado === 'falta' ? '✕' : d.estado === 'tarde' ? `tarde` : d.hora}
+              {d.estado === 'futuro' ? '—' : d.estado === 'falta' ? '✕' : d.hora}
             </div>
           ))}
         </div>

@@ -93,15 +93,12 @@ def test_theo_cuenta_quien_guardo_no_quien_hizo_todo():
     assert all(p["nombre"] != "Juan" for p in t["personas"])
 
 
-def test_un_dia_viejo_guardado_despues_queda_tarde():
+def test_un_dia_viejo_guardado_despues_cuenta_como_guardado():
     s = d.ver_semana("maite", LUNES)
     d.guardar_dia("maite", LUNES, _marcar_todo(s, LUNES))
-    with db_session:
-        c = d.CierreDaily.get(usuario="maite", fecha=LUNES)
-        assert c.a_tiempo is False
     b = d.backbone(LUNES)
     maite = next(p for p in b["personas"] if p["username"] == "maite")
-    assert maite["dias"][0]["estado"] == "tarde"
+    assert maite["dias"][0]["estado"] == "ok"  # ya no existe "cargada tarde"
 
 
 def test_backbone_marca_la_entrega_cortada():
@@ -477,7 +474,8 @@ def test_la_grilla_de_theo_pinta_lo_que_salio(theo_listo, monkeypatch):
     assert g["desde"] == "2026-10-18"  # arranca el domingo
     atv = next(f for f in g["filas"] if f["grupo"] == "ATV 500K")
     jueves = atv["dias"][4]["items"]
-    assert [(x["clave"], x["estado"]) for x in jueves] == [("daily", "enviado")]
+    assert dict((x["clave"], x["estado"]) for x in jueves)["daily"] == "enviado"
+    assert [x["clave"] for x in jueves] == ["daily_aviso", "daily"]
     assert atv["dias"][5]["items"][0]["estado"] in ("programado", "pendiente")  # el viernes todavía no salió
     assert atv["dias"][0]["items"][0]["estado"] == "sin_registro"  # el domingo lo manda Theo solo
     health = next(f for f in g["filas"] if f["grupo"] == "Health")
@@ -559,7 +557,7 @@ def test_empezar_de_cero_borra_y_cuenta_desde_ahora(theo_listo, monkeypatch):
     r = th.empezar_de_cero("franco")
     assert r["borrados"] >= 1
     # Solo queda la daily de esta noche, que se programa sola.
-    assert [m["envio"] for m in th.listar("pendientes")["mensajes"]] == ["daily"]
+    assert sorted(m["envio"] for m in th.listar("pendientes")["mensajes"]) == ["daily", "daily_aviso"]
     assert th.listar("enviados")["mensajes"] == []
     from src.models import TheoAjuste
     with db_session:
@@ -634,3 +632,11 @@ def test_guardado_parcial_no_cierra_el_dia(monkeypatch):
     s = d.guardar_dia("cris", date(2026, 10, 21), [{"tarea_id": t["id"], "estado": None}], parcial=True)
     assert "2026-10-21" not in next(x for x in s["tareas"] if x["id"] == t["id"])["marcas"]
     d.borrar_tarea("cris", t["id"])
+
+
+def test_a_las_2230_sale_el_aviso_con_quien_falta(theo_listo, monkeypatch):
+    monkeypatch.setattr(d, "ahora", lambda: datetime(2026, 10, 23, 22, 31))
+    sale = [m for m in th.cola() if m["envio"] == "daily_aviso"]
+    assert len(sale) == 1 and sale[0]["jid"].endswith("@g.us")
+    assert sale[0]["texto"].startswith("Recordatorio · viernes 23/10") and "❌" in sale[0]["texto"]
+    assert not [m for m in th.cola() if m["envio"] == "daily"]  # el checkeo sigue esperando a las 23:30
