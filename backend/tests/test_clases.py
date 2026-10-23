@@ -68,6 +68,17 @@ def test_ir_redirige_al_link_y_cuenta_una_vez_por_dia(base):
     assert llamada["clics"] == 2
 
 
+def test_quien_abre_tres_playbooks_es_una_sola_persona(base):
+    """Los clics pueden ser más que la gente: el que se baja los tres playbooks cuenta una vez."""
+    c.sembrar(None)
+    serie = c.publico()["series"][0]
+    for pb in serie["playbooks"]:
+        c.destino(pb["slug"], "sesionunodeprueba")
+
+    t = c.listar(30)["totales"]
+    assert t["clics"] == 3 and t["personas"] == 1
+
+
 def test_una_persona_que_recarga_es_una_sola_visita(base):
     c.sembrar(None)
     for _ in range(5):
@@ -81,7 +92,7 @@ def test_las_visitas_no_se_mezclan_con_los_chats_de_instagram(base):
     Acá, sin nadie en la página, todo tiene que dar cero."""
     c.sembrar(None)
     t = c.listar(30)["totales"]
-    assert t == {"visitas": 0, "clics": 0, "llamadas": 0, "playbooks": 0}
+    assert t == {"visitas": 0, "personas": 0, "clics": 0, "llamadas": 0, "playbooks": 0}
 
 
 def test_una_sesion_inventada_no_cuenta(base):

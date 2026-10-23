@@ -202,6 +202,13 @@ def _eventos(desde: date) -> list[tuple]:
     return [tuple(f) for f in db.select(f'SELECT "recurso", "tipo", "dia" FROM {t} WHERE "dia" >= $desde')]
 
 
+def _personas(desde: date) -> int:
+    """Cuánta gente distinta abrió algo: una persona que baja tres playbooks es una."""
+    t = _tabla("clases_eventos", "ClaseEvento")
+    fila = db.select(f'SELECT count(DISTINCT "sesion") FROM {t} WHERE "dia" >= $desde')
+    return int(fila[0] or 0) if fila else 0
+
+
 def _visitas(desde: date) -> list[tuple]:
     """(día, cuántas). Agrupado en la base: una fila por día en vez de una por persona."""
     t = _tabla("clases_visitas", "ClaseVisita")
@@ -268,7 +275,7 @@ def listar(dias: int = 30) -> dict:
             "series": series,
             "serieVisitas": serie_visitas,
             "totales": {
-                "visitas": visitas, "clics": clics,
+                "visitas": visitas, "personas": _personas(desde), "clics": clics,
                 "llamadas": vistas_llamada, "playbooks": clics - vistas_llamada,
             },
         }

@@ -5,8 +5,10 @@ import Pill from '../../components/ui/Pill.jsx';
 import Tabs from '../../components/ui/Tabs.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import EditorLanding from '../../components/marketing/EditorLanding.jsx';
+import { MetricasClases, SeriesClases } from '../../components/marketing/Clases.jsx';
+import Spark from '../../components/marketing/Spark.jsx';
 import {
-  crearRecurso, editarRecurso, getRecursos, guardarAjustesRecursos,
+  crearRecurso, editarRecurso, getClases, getRecursos, guardarAjustesRecursos,
 } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 import '../../styles/recursos.css';
@@ -19,27 +21,18 @@ import '../../styles/recursos.css';
  * El recorrido de cada uno junta los chats del reel (Instagram) con lo que mide la landing.
  */
 
-const VISTAS = [{ value: 'landing', label: 'Landing' }, { value: 'metricas', label: 'Métricas' }, { value: 'biblioteca', label: 'Biblioteca' }];
+const VISTAS = [
+  { value: 'clases', label: 'Clases' },
+  { value: 'landing', label: 'Landing' },
+  { value: 'metricas', label: 'Métricas' },
+  { value: 'biblioteca', label: 'Biblioteca' },
+];
 const PERIODOS = [{ value: '7', label: '7 días' }, { value: '30', label: '30 días' }, { value: '90', label: '90 días' }];
 const n = (v) => (v == null ? '—' : Number(v).toLocaleString('es-AR'));
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
 const corta = (iso) => (iso ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}` : '');
 const entregados = (m) => m.descargas + m.whatsapp;
 
-function Spark({ serie }) {
-  const w = 72, h = 22;
-  const mx = Math.max(...serie, 1);
-  const pts = serie.map((v, i) => [(i / Math.max(serie.length - 1, 1)) * w, h - 1.5 - (v / mx) * (h - 4)]);
-  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
-  const [lx, ly] = pts[pts.length - 1] || [0, h];
-  return (
-    <svg className="rec-spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <path d={`${d} L${w} ${h} L0 ${h}Z`} fill="var(--s1)" fillOpacity="0.07" />
-      <path d={d} fill="none" stroke="var(--s1)" strokeWidth="1.3" />
-      <circle cx={lx} cy={ly} r="2" fill="var(--s1)" />
-    </svg>
-  );
-}
 
 /** Chats (barras) y visitas (línea) por día, a la misma escala. */
 function Diario({ chats, visitas, desde, hasta }) {
@@ -174,16 +167,20 @@ function Ajustes({ ajustes, onClose, onGuardado }) {
 }
 
 export default function Recursos() {
-  const [vista, setVista] = useState('landing');
+  const [vista, setVista] = useState('clases');
   const [dias, setDias] = useState('30');
   const [version, setVersion] = useState(0);
   const { data, loading, error } = useResource(() => getRecursos(dias), [dias, version]);
+  const { data: clases } = useResource(() => getClases(dias), [dias, version]);
   const [sel, setSel] = useState(null);
   const [editando, setEditando] = useState(null);
+  const [claseEditando, setClaseEditando] = useState(null);
+  const [serieEditando, setSerieEditando] = useState(null);
   const [ajustes, setAjustes] = useState(false);
   const recargar = () => setVersion((v) => v + 1);
 
   const recursos = useMemo(() => data?.recursos || [], [data]);
+  const series = useMemo(() => clases?.series || [], [clases]);
   const elegido = recursos.find((r) => r.id === sel) || recursos[0];
 
   const tot = useMemo(() => recursos.reduce((a, r) => {
@@ -202,11 +199,35 @@ export default function Recursos() {
       <header className="page-head">
         <Tabs value={vista} onChange={setVista} options={VISTAS} />
         <div className="page-head-actions">
-          {vista === 'metricas' && <Tabs value={dias} onChange={setDias} options={PERIODOS} />}
-          <button type="button" className="btn" onClick={() => setAjustes(true)}>WhatsApp</button>
-          <button type="button" className="btn primary" onClick={() => setEditando({})}>Nuevo recurso</button>
+          {(vista === 'metricas' || vista === 'clases') && <Tabs value={dias} onChange={setDias} options={PERIODOS} />}
+          {vista === 'clases' ? (
+            <>
+              <button type="button" className="btn" onClick={() => setSerieEditando({})}>Nueva serie</button>
+              {!!series.length && (
+                <button type="button" className="btn primary" onClick={() => setClaseEditando({})}>Nuevo recurso</button>
+              )}
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn" onClick={() => setAjustes(true)}>WhatsApp</button>
+              <button type="button" className="btn primary" onClick={() => setEditando({})}>Nuevo recurso</button>
+            </>
+          )}
         </div>
       </header>
+
+      {vista === 'clases' && (<>
+        <MetricasClases series={series} totales={clases?.totales} />
+        <SeriesClases
+          series={series}
+          pagina={clases?.pagina}
+          recargar={recargar}
+          editando={claseEditando}
+          setEditando={setClaseEditando}
+          serieEditando={serieEditando}
+          setSerieEditando={setSerieEditando}
+        />
+      </>)}
 
       {vista === 'landing' && <EditorLanding recursos={recursos.filter((r) => r.activo || r.destacado)} onPublicado={recargar} />}
 

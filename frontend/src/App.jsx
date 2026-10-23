@@ -18,7 +18,6 @@ import ContenidoPage from './pages/marketing/ContenidoPage.jsx';
 import Audiencia from './pages/marketing/Audiencia.jsx';
 import Pizarra from './pages/marketing/Pizarra.jsx';
 import VaultIdeas from './pages/marketing/VaultIdeas.jsx';
-import Clases from './pages/marketing/Clases.jsx';
 import Recursos from './pages/marketing/Recursos.jsx';
 import Login from './pages/Login.jsx';
 import Marketing from './pages/Marketing.jsx';
@@ -218,7 +217,6 @@ export default function App() {
               <Route path="pizarra" element={<Pizarra />} />
               <Route path="vault" element={<VaultIdeas />} />
               <Route path="recursos" element={<Recursos />} />
-              <Route path="clases" element={<Clases />} />
               <Route path="historias" element={<ContenidoPage vista="historias" />} />
               <Route path="youtube" element={<ContenidoPage vista="youtube" />} />
             </Route>

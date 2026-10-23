@@ -53,8 +53,6 @@ const NAV = [
       { to: '/marketing/vault', label: 'Vault de ideas', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
       // Lo que Juan regala en los reels: la landing del momento, la biblioteca y cómo le va a cada uno.
       { to: '/marketing/recursos', label: 'Recursos', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
-      // Las clases de Juan: lo que se ve en recursos.atvos.io.
-      { to: '/marketing/clases', label: 'Clases', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
     ],
   },
   { to: '/ads', icon: 'ads', label: 'Ads', grupo: 'Áreas' },
