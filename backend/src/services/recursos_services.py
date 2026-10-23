@@ -23,7 +23,7 @@ from fastapi import HTTPException
 from pony.orm import db_session
 
 from src.db import DB_SCHEMA, ES_POSTGRES, db
-from src.models import ChatReel, PublicacionIg, Recurso, RecursoEvento, RecursosAjuste
+from src.models import ChatReel, PublicacionIg, PublicacionYt, Recurso, RecursoEvento, RecursosAjuste, RecursosLanding
 from src.services.chats_reels_services import normalizar
 
 TIPOS = ("visita", "play", "p25", "p50", "p75", "p100", "descarga", "whatsapp")
@@ -105,6 +105,43 @@ def _publico(r: Recurso, con_video: bool) -> dict:
     return d
 
 
+def _media_publica(c: RecursosLanding | None, r: Recurso) -> dict:
+    """Lo que necesita la landing para mostrar el video elegido. Sin configuración de la
+    landing (o de antes del editor), cae al video cargado en el recurso."""
+    tipo = c.media_tipo if c and c.media_id else None
+    mid = (c.media_id or "") if c else ""
+    if tipo == "youtube":
+        p = PublicacionYt.get(yt_id=mid)
+        return {"tipo": "youtube", "id": mid, "poster": (p.thumbnail if p else "") or None}
+    if tipo == "reel":
+        p = PublicacionIg.get(ig_id=mid)
+        m = re.search(r"/(?:reel|p)/([A-Za-z0-9_-]+)", (p.permalink if p else "") or "")
+        return {"tipo": "reel", "codigo": m.group(1) if m else None, "poster": (p.thumbnail if p else "") or None}
+    if tipo == "secuencia":
+        return {"tipo": "secuencia", "historias": _historias_del_dia(mid)}
+    if tipo in ("loom", "vimeo"):
+        return {"tipo": tipo, **(_link_video(mid) or {})}
+    yt = youtube_id(r.video_url)
+    if yt:
+        return {"tipo": "youtube", "id": yt, "poster": None}
+    return {"tipo": "link", "url": r.video_url} if r.video_url else {"tipo": "ninguno"}
+
+
+def _con_landing(d: dict, r: Recurso) -> dict:
+    c = RecursosLanding.get(id=1)
+    if c is not None and c.recurso_id != r.id:
+        c = None
+    d.update({
+        "etiqueta": (c.etiqueta if c else None) or "Video + recurso",
+        "titular": (c.titular if c else None) or d["titular"],
+        "bajada": (c.bajada if c else None) or None,
+        "boton": (c.boton if c else None) or None,
+        "duracion": (c.duracion if c else None) or d.get("duracion"),
+        "media": _media_publica(c, r),
+    })
+    return d
+
+
 def publico() -> dict:
     """Lo que ven la landing y la biblioteca. El destacado primero; nunca el link del documento."""
     with db_session:
@@ -116,7 +153,7 @@ def publico() -> dict:
         if destacado:
             lista.insert(0, destacado)
         return {
-            "destacado": _publico(destacado, True) if destacado else None,
+            "destacado": _con_landing(_publico(destacado, True), destacado) if destacado else None,
             "recursos": [_publico(r, False) for r in lista],
         }
 
@@ -401,3 +438,114 @@ def destacar(recurso_id: int, datos: dict, quien: str | None) -> dict:
         _aplicar(r, datos)
         r.actualizado_at, r.actualizado_por = datetime.utcnow(), quien
         return _admin(r)
+
+
+# ------------------------------------------------------------------ editor de la landing
+
+def _link_video(url: str | None) -> dict | None:
+    """Loom o Vimeo a partir del link que se pega. None si no es ninguno de los dos."""
+    u = str(url or "").strip()
+    m = re.search(r"loom\.com/(?:share|embed)/([a-f0-9]{16,40})", u)
+    if m:
+        return {"tipo": "loom", "id": m.group(1)}
+    m = re.search(r"vimeo\.com/(?:video/)?(\d{5,12})(?:/([a-f0-9]{6,20}))?", u)
+    if m:
+        h = m.group(2) or (re.search(r"[?&]h=([a-f0-9]{6,20})", u) or [None, None])[1]
+        return {"tipo": "vimeo", "id": m.group(1), "h": h}
+    return None
+
+
+def _dia_de(p: PublicacionIg) -> str:
+    return (p.publicado_at - timedelta(hours=3)).date().isoformat()
+
+
+def _historias_del_dia(fecha: str) -> list[dict]:
+    from src.services.instagram_services import video_historia
+
+    filas = sorted([p for p in list(PublicacionIg.select()) if p.tipo == "historia" and _dia_de(p) == fecha],
+                   key=lambda p: p.publicado_at)
+    return [{"id": p.ig_id, "imagen": p.thumbnail or None, "video": video_historia(p.ig_id) or None} for p in filas]
+
+
+def contenido_elegible() -> dict:
+    """Lo que se puede poner en la landing: videos de YouTube, reels y secuencias de historias."""
+    from src.services.instagram_services import video_historia
+
+    with db_session:
+        yts = sorted(list(PublicacionYt.select()), key=lambda p: p.publicado_at, reverse=True)[:40]
+        igs = list(PublicacionIg.select())
+        reels = sorted([p for p in igs if p.tipo == "reel"], key=lambda p: p.publicado_at, reverse=True)[:40]
+        corte = (_hoy() - timedelta(days=45)).isoformat()
+        dias: dict[str, list] = {}
+        for p in sorted([p for p in igs if p.tipo == "historia"], key=lambda p: p.publicado_at):
+            d = _dia_de(p)
+            if d >= corte:
+                dias.setdefault(d, []).append(p)
+
+        def vistas(p):
+            try:
+                m = json.loads(p.metricas or "{}")
+            except ValueError:
+                return None
+            return m.get("vistas") or m.get("views") or m.get("plays")
+
+        return {
+            "youtube": [{"id": p.yt_id, "titulo": p.titulo, "duracion": p.duracion_seg, "imagen": p.thumbnail or None,
+                         "fecha": p.publicado_at.date().isoformat(), "vistas": vistas(p)} for p in yts],
+            "reels": [{"id": p.ig_id, "caption": (p.caption or "")[:200], "imagen": p.thumbnail or None,
+                       "fecha": _dia_de(p), "palabra": p.keyword or None, "vistas": vistas(p)} for p in reels],
+            "secuencias": [{"fecha": d, "historias": [{"id": p.ig_id, "imagen": p.thumbnail or None,
+                                                       "video": video_historia(p.ig_id) or None} for p in ps]}
+                           for d, ps in sorted(dias.items(), reverse=True)],
+        }
+
+
+def landing() -> dict:
+    with db_session:
+        c = RecursosLanding.get(id=1)
+        if c is None:
+            r = next((x for x in list(Recurso.select()) if x.destacado), None)
+            return {"recursoId": r.id if r else None, "mediaTipo": "youtube", "mediaId": None, "etiqueta": None,
+                    "titular": (r.titular if r else None), "bajada": None, "boton": None, "duracion": r.duracion if r else None}
+        return {"recursoId": c.recurso_id, "mediaTipo": c.media_tipo, "mediaId": c.media_id, "etiqueta": c.etiqueta,
+                "titular": c.titular, "bajada": c.bajada, "boton": c.boton, "duracion": c.duracion,
+                "actualizadoAt": c.actualizado_at.isoformat(), "actualizadoPor": c.actualizado_por}
+
+
+_MEDIOS = ("youtube", "reel", "secuencia", "loom", "vimeo")
+
+
+def guardar_landing(datos: dict, quien: str | None) -> dict:
+    """Publica lo que armó marketing: el video, el texto y el recurso que se lleva (que pasa a
+    ser el destacado, con su entrega y su link)."""
+    tipo = str(datos.get("mediaTipo") or "")
+    mid = str(datos.get("mediaId") or "").strip()
+    if tipo not in _MEDIOS or not mid:
+        raise HTTPException(status_code=400, detail="Elegí qué video se ve en la landing.")
+    if tipo in ("loom", "vimeo"):
+        link = _link_video(mid)
+        if link is None:
+            raise HTTPException(status_code=400, detail="Ese link no es de Loom ni de Vimeo.")
+        tipo = link["tipo"]
+    try:
+        recurso_id = int(datos.get("recursoId"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Elegí qué recurso se lleva.")
+    if not str(datos.get("titular") or "").strip():
+        raise HTTPException(status_code=400, detail="Falta el titular.")
+    with db_session:
+        if tipo == "youtube" and not PublicacionYt.get(yt_id=mid):
+            raise HTTPException(status_code=400, detail="Ese video de YouTube no está en Ops.")
+        if tipo == "reel" and not PublicacionIg.get(ig_id=mid):
+            raise HTTPException(status_code=400, detail="Ese reel no está en Ops.")
+        if tipo == "secuencia" and not _historias_del_dia(mid):
+            raise HTTPException(status_code=400, detail="No hay historias guardadas de ese día.")
+    destacar(recurso_id, {k: datos[k] for k in ("entrega", "link") if k in datos}, quien)
+    corto = lambda k, n: (str(datos.get(k) or "").strip()[:n] or None)  # noqa: E731
+    with db_session:
+        c = RecursosLanding.get(id=1) or RecursosLanding(id=1)
+        c.recurso_id, c.media_tipo, c.media_id = recurso_id, tipo, mid[:600]
+        c.etiqueta, c.titular, c.bajada = corto("etiqueta", 60), corto("titular", 200), corto("bajada", 400)
+        c.boton, c.duracion = corto("boton", 60), corto("duracion", 12)
+        c.actualizado_at, c.actualizado_por = datetime.utcnow(), quien
+    return landing()

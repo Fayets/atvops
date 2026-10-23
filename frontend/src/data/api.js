@@ -3334,3 +3334,12 @@ export async function importarReelsRecursos() {
 export async function guardarAjustesRecursos(datos) {
   return pedir('/api/recursos/ajustes', _json('PUT', datos));
 }
+export async function getRecursosContenido() {
+  return pedir('/api/recursos/contenido');
+}
+export async function getRecursosLanding() {
+  return pedir('/api/recursos/landing');
+}
+export async function guardarRecursosLanding(datos) {
+  return pedir('/api/recursos/landing', _json('PUT', datos));
+}

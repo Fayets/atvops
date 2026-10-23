@@ -1377,3 +1377,23 @@ class RecursosAjuste(db.Entity):
     whatsapp = Required(str, default="5491162626702")
     mensaje = Required(str, default="Hola Juan, quiero el recurso {palabra}")
     actualizado_por = Optional(str, nullable=True)
+
+
+class RecursosLanding(db.Entity):
+    """Lo que muestra recursos.atvos.io/video: qué video, qué texto y qué recurso se lleva.
+    Una sola fila. El video puede ser de YouTube, un reel, una secuencia de historias o un
+    link de Loom o Vimeo."""
+
+    _table_ = _tabla("recursos_landing", "RecursosLanding")
+
+    id = PrimaryKey(int)                            # siempre 1
+    recurso_id = Optional(int, nullable=True)
+    media_tipo = Required(str, default="youtube")   # youtube | reel | secuencia | loom | vimeo
+    media_id = Optional(str, nullable=True)         # yt_id | ig_id del reel | AAAA-MM-DD | url
+    etiqueta = Optional(str, nullable=True)
+    titular = Optional(str, nullable=True)          # lo que va entre *asteriscos* sale en rojo
+    bajada = Optional(str, nullable=True)           # lo que va entre **dobles** sale en negrita
+    boton = Optional(str, nullable=True)
+    duracion = Optional(str, nullable=True)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_por = Optional(str, nullable=True)

@@ -91,3 +91,38 @@ def test_la_palabra_no_se_repite(base):
     _nuevo("pruebarecF")
     with pytest.raises(HTTPException):
         _nuevo("PruebaRecF")
+
+
+def test_links_de_loom_y_vimeo():
+    assert rs._link_video("https://www.loom.com/share/3f2a9c0d1e2b4a5f8c7d6e5f4a3b2c1d?sid=x") == \
+        {"tipo": "loom", "id": "3f2a9c0d1e2b4a5f8c7d6e5f4a3b2c1d"}
+    assert rs._link_video("https://vimeo.com/123456789") == {"tipo": "vimeo", "id": "123456789", "h": None}
+    assert rs._link_video("https://vimeo.com/123456789/abc123def0") == {"tipo": "vimeo", "id": "123456789", "h": "abc123def0"}
+    assert rs._link_video("https://player.vimeo.com/video/123456789?h=abc123def0") == \
+        {"tipo": "vimeo", "id": "123456789", "h": "abc123def0"}
+    assert rs._link_video("https://youtube.com/watch?v=x") is None
+
+
+def test_la_landing_publica_video_texto_y_recurso(base):
+    from src.models import RecursosLanding
+
+    with db_session:
+        previa = RecursosLanding.get(id=1)
+        guardada = previa.to_dict() if previa else None
+    a = _nuevo("pruebarecG", link="https://docs.google.com/g")
+    try:
+        with pytest.raises(HTTPException):
+            rs.guardar_landing({"mediaTipo": "loom", "mediaId": "https://youtube.com/x", "recursoId": a["id"], "titular": "x"}, "t")
+        rs.guardar_landing({"mediaTipo": "vimeo", "mediaId": "https://vimeo.com/123456789", "recursoId": a["id"],
+                            "titular": "Hola *rojo*", "bajada": "**Mirá** esto", "boton": "Bajalo", "entrega": "regalo"}, "t")
+        d = rs.publico()["destacado"]
+        assert d["slug"] == "pruebarecg" and d["titular"] == "Hola *rojo*" and d["boton"] == "Bajalo"
+        assert d["media"] == {"tipo": "vimeo", "id": "123456789", "h": None} and d["entrega"] == "regalo"
+    finally:
+        with db_session:
+            fila = RecursosLanding.get(id=1)
+            if guardada is None and fila:
+                fila.delete()
+            elif guardada:
+                guardada.pop("id")
+                fila.set(**guardada)

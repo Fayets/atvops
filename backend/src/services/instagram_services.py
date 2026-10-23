@@ -121,6 +121,44 @@ def _bajar_foto(url: str, ig_id: str) -> str:
         return ""
 
 
+TOPE_VIDEO = 120 * 1024 * 1024
+
+
+def video_historia(ig_id: str) -> str:
+    """La ruta pública del video guardado de una historia, o "" si no hay."""
+    destino = FOTOS / f"{ig_id}.mp4"
+    return f"/uploads/ig/{ig_id}.mp4" if destino.exists() and destino.stat().st_size > 0 else ""
+
+
+def _bajar_video(url: str, ig_id: str) -> str:
+    """Guarda el video de una historia (desde el 22-10-2026, para mostrar secuencias en la
+    landing de recursos). Instagram borra la historia a las 24 h y el enlace vence antes:
+    si no se baja en la pasada, se pierde. Se escribe a un .part y se renombra al terminar,
+    así un corte no deja un video a medias que parezca bueno."""
+    if not url or video_historia(ig_id):
+        return video_historia(ig_id)
+    destino = FOTOS / f"{ig_id}.mp4"
+    parcial = destino.with_suffix(".part")
+    try:
+        FOTOS.mkdir(parents=True, exist_ok=True)
+        pedido = urllib.request.Request(url, headers={"User-Agent": "atv-ops"})
+        total = 0
+        with urllib.request.urlopen(pedido, timeout=90) as r, open(parcial, "wb") as f:
+            while bloque := r.read(1024 * 256):
+                total += len(bloque)
+                if total > TOPE_VIDEO:
+                    raise ValueError("el video pasa el tope")
+                f.write(bloque)
+        if total == 0:
+            raise ValueError("vino vacío")
+        parcial.rename(destino)
+        return video_historia(ig_id)
+    except Exception as e:  # noqa: BLE001
+        parcial.unlink(missing_ok=True)
+        logger.info("No se pudo bajar el video de la historia %s: %s", ig_id, str(e)[:120])
+        return ""
+
+
 # "Comentá DOCUMENTO", "escribime GUIA": la palabra que dispara el bot va en mayúsculas
 # dentro del propio caption. Leerla de ahí es lo que evita cargarla a mano reel por reel.
 # El verbo va sin distinguir mayúsculas; la palabra clave, no: es la que está gritada.
@@ -230,6 +268,8 @@ def sincronizar() -> dict:
         historias += 1
         if _guardar("historia", h, _insights(token, h["id"], METRICAS_HISTORIA)):
             nuevas_historias += 1
+        if str(h.get("media_type") or "").upper() == "VIDEO":
+            _bajar_video(h.get("media_url") or "", h["id"])
 
     # Reels: se refrescan los recientes, que son los que todavía se mueven.
     corte = datetime.now(AR_TZ).replace(tzinfo=None) - timedelta(days=DIAS_REFRESCO)

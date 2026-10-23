@@ -37,6 +37,22 @@ def guardar_ajustes(payload: dict = Body(...), user: dict = Depends(_puede)):
     return recursos.guardar_ajustes(payload or {}, user.get("username"))
 
 
+@router.get("/contenido")
+def contenido(_user: dict = Depends(_puede)):
+    """Videos de YouTube, reels y secuencias de historias que se pueden poner en la landing."""
+    return recursos.contenido_elegible()
+
+
+@router.get("/landing")
+def ver_landing(_user: dict = Depends(_puede)):
+    return recursos.landing()
+
+
+@router.put("/landing")
+def guardar_landing(payload: dict = Body(...), user: dict = Depends(_puede)):
+    return recursos.guardar_landing(payload or {}, user.get("username"))
+
+
 @router.put("/{recurso_id}")
 def editar(recurso_id: int, payload: dict = Body(...), user: dict = Depends(_puede)):
     return recursos.editar(recurso_id, payload or {}, user.get("username"))

@@ -4,8 +4,9 @@ import Modal from '../../components/ui/Modal.jsx';
 import Pill from '../../components/ui/Pill.jsx';
 import Tabs from '../../components/ui/Tabs.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
+import EditorLanding from '../../components/marketing/EditorLanding.jsx';
 import {
-  crearRecurso, destacarRecurso, editarRecurso, getRecursos, guardarAjustesRecursos, importarReelsRecursos,
+  crearRecurso, editarRecurso, getRecursos, guardarAjustesRecursos, importarReelsRecursos,
 } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 import '../../styles/recursos.css';
@@ -18,7 +19,7 @@ import '../../styles/recursos.css';
  * El recorrido de cada uno junta los chats del reel (Instagram) con lo que mide la landing.
  */
 
-const LANDING = 'https://recursos.atvos.io/video';
+const VISTAS = [{ value: 'landing', label: 'Landing' }, { value: 'metricas', label: 'Métricas' }, { value: 'biblioteca', label: 'Biblioteca' }];
 const PERIODOS = [{ value: '7', label: '7 días' }, { value: '30', label: '30 días' }, { value: '90', label: '90 días' }];
 const n = (v) => (v == null ? '—' : Number(v).toLocaleString('es-AR'));
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
@@ -86,62 +87,6 @@ function Recorrido({ r }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function EnLanding({ recursos, onGuardado }) {
-  const actual = recursos.find((r) => r.destacado);
-  const [id, setId] = useState(actual?.id ?? recursos[0]?.id ?? '');
-  const elegido = recursos.find((r) => r.id === Number(id));
-  const desde = (r) => ({
-    videoUrl: r?.videoUrl || '', duracion: r?.duracion || '', entrega: r?.entrega || 'whatsapp', link: r?.link || '',
-  });
-  const [form, setForm] = useState(() => desde(elegido));
-  const [estado, setEstado] = useState({ ocupado: false, error: '', ok: '' });
-
-  if (!elegido) return null;
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  async function publicar(e) {
-    e.preventDefault();
-    setEstado({ ocupado: true, error: '', ok: '' });
-    try {
-      await destacarRecurso(elegido.id, form);
-      setEstado({ ocupado: false, error: '', ok: `${elegido.palabra} está en la landing.` });
-      onGuardado();
-    } catch (err) {
-      setEstado({ ocupado: false, error: err.message, ok: '' });
-    }
-  }
-
-  return (
-    <Card title="En la landing" actions={actual ? <Pill tone="info" dot>{actual.palabra}</Pill> : null}>
-      <form className="rec-form" onSubmit={publicar}>
-        <label className="campo"><span>Recurso</span>
-          <select value={id} onChange={(e) => { setId(e.target.value); setForm(desde(recursos.find((r) => r.id === Number(e.target.value)))); setEstado({ ocupado: false, error: '', ok: '' }); }}>
-            {recursos.map((r) => <option key={r.id} value={r.id}>{r.palabra} · {r.titulo}</option>)}
-          </select>
-        </label>
-        <div className="rec-dos der">
-          <label className="campo"><span>Video</span><input value={form.videoUrl || ''} onChange={set('videoUrl')} placeholder="youtube.com/watch?v=…" /></label>
-          <label className="campo"><span>Duración</span><input value={form.duracion || ''} onChange={set('duracion')} placeholder="23:18" /></label>
-        </div>
-        <div className="campo"><span>Entrega</span>
-          <div className="rec-toggle" role="group" aria-label="Entrega">
-            <button type="button" aria-pressed={form.entrega === 'regalo'} onClick={() => setForm((f) => ({ ...f, entrega: 'regalo' }))}>Se descarga directo</button>
-            <button type="button" aria-pressed={form.entrega !== 'regalo'} onClick={() => setForm((f) => ({ ...f, entrega: 'whatsapp' }))}>Se pide por WhatsApp</button>
-          </div>
-        </div>
-        {form.entrega === 'regalo' && (
-          <label className="campo"><span>Link del recurso</span><input value={form.link || ''} onChange={set('link')} placeholder="docs.google.com/document/d/…/copy" /></label>
-        )}
-        <button className="btn primary" type="submit" disabled={estado.ocupado}>
-          {estado.ocupado ? 'Publicando…' : actual?.id === elegido.id ? 'Guardar cambios' : 'Publicar en la landing'}
-        </button>
-        {estado.error && <p className="rec-msg alert">{estado.error}</p>}
-        {estado.ok && <p className="rec-msg ok">{estado.ok} <a href={LANDING} target="_blank" rel="noreferrer">Ver landing</a></p>}
-      </form>
-    </Card>
   );
 }
 
@@ -229,6 +174,7 @@ function Ajustes({ ajustes, onClose, onGuardado }) {
 }
 
 export default function Recursos() {
+  const [vista, setVista] = useState('landing');
   const [dias, setDias] = useState('30');
   const [version, setVersion] = useState(0);
   const { data, loading, error } = useResource(() => getRecursos(dias), [dias, version]);
@@ -263,8 +209,9 @@ export default function Recursos() {
     <div className="page rec">
       <header className="page-head">
         <h1>Recursos</h1>
+        <Tabs value={vista} onChange={setVista} options={VISTAS} />
         <div className="page-head-actions">
-          <Tabs value={dias} onChange={setDias} options={PERIODOS} />
+          {vista === 'metricas' && <Tabs value={dias} onChange={setDias} options={PERIODOS} />}
           {sinRecurso.length > 0 && (
             <button type="button" className="btn" onClick={importar} disabled={importando}>
               {importando ? 'Trayendo…' : `Traer ${sinRecurso.length} reel${sinRecurso.length === 1 ? '' : 's'} con palabra`}
@@ -275,6 +222,39 @@ export default function Recursos() {
         </div>
       </header>
 
+      {vista === 'landing' && <EditorLanding recursos={recursos.filter((r) => r.activo || r.destacado)} onPublicado={recargar} />}
+
+      {vista === 'biblioteca' && (
+        <Card title="Biblioteca" flush>
+          <div className="rec-tabla">
+            <table className="data">
+              <thead><tr><th>Recurso</th><th>Tema</th><th>Reel</th><th>Entrega</th><th>Dónde</th><th /></tr></thead>
+              <tbody>
+                {recursos.map((r) => (
+                  <tr key={r.id} className={r.activo ? '' : 'rec-off'}>
+                    <td><div className="rec-nombre"><b>{r.palabra}</b><span className="dim">{r.titulo}</span></div></td>
+                    <td className="dim">{r.tema || '—'}</td>
+                    <td className="dim num">{r.reel ? corta(r.reel.fecha) : '—'}</td>
+                    <td className="dim">{r.destacado ? (r.entrega === 'regalo' ? 'Se descarga' : 'WhatsApp') : 'WhatsApp'}</td>
+                    <td>{r.destacado ? <Pill tone="info" dot>Landing</Pill> : r.activo ? <Pill tone="plain">Biblioteca</Pill> : <Pill tone="off">Oculto</Pill>}</td>
+                    <td className="right">
+                      {!r.destacado && (
+                        <button type="button" className="btn ghost" onClick={() => editarRecurso(r.id, { activo: !r.activo }).then(recargar)}>
+                          {r.activo ? 'Ocultar' : 'Mostrar'}
+                        </button>
+                      )}
+                      <button type="button" className="btn ghost" onClick={() => setEditando(r)}>Editar</button>
+                    </td>
+                  </tr>
+                ))}
+                {!recursos.length && <tr><td colSpan={6} className="dim rec-vacio">Todavía no hay recursos. Traé los reels con palabra o cargá uno nuevo.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {vista === 'metricas' && (<>
       <section className="rec-kpis card">
         <div><span className="kpi-label">Chats por palabra</span><span className="rec-v num">{n(tot.chats)}</span><span className="dim">{n(tot.chatsViejos)} de recursos de la biblioteca</span></div>
         <div><span className="kpi-label">Visitas</span><span className="rec-v num">{n(tot.visitas)}</span><span className="dim">{pct(tot.visitas, tot.chats)} de los chats</span></div>
@@ -319,7 +299,6 @@ export default function Recursos() {
         </Card>
 
         <div className="rec-lado">
-          {recursos.length > 0 && <EnLanding recursos={recursos.filter((r) => r.activo || r.destacado)} onGuardado={recargar} />}
           {elegido && (
             <Card
               title={elegido.titulo}
@@ -343,6 +322,7 @@ export default function Recursos() {
           )}
         </div>
       </div>
+      </>)}
 
       {editando && <Editor recurso={editando} reels={data.reelsSinRecurso || []} onClose={() => setEditando(null)} onGuardado={recargar} />}
       {ajustes && <Ajustes ajustes={data.ajustes} onClose={() => setAjustes(false)} onGuardado={recargar} />}
