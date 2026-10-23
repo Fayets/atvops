@@ -1236,6 +1236,12 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         semanas.append({"semana": ini.isoformat(), "label": ini.strftime("%d/%m"), **_bloque(de_la_semana, ahora)})
 
     # Por closer y por setter (sobre el mes elegido)
+    # Las señas de meses anteriores que se cerraron en el mes elegido: son cierres de este mes.
+    diferidos_mes = cierres_diferidos(inicio_mes, fin_mes)
+    dif_por_closer: dict[str, list[dict]] = {}
+    for d in diferidos_mes:
+        dif_por_closer.setdefault(_persona(d["closer"], "closer"), []).append(d)
+
     def _agrupar(campo: str) -> list[dict]:
         grupos: dict[str, list[dict]] = {}
         for l in del_mes:
@@ -1243,6 +1249,14 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         # Con detalle: en el home del director cada número de un closer se abre y muestra
         # las llamadas que lo arman, igual que el total del equipo.
         salida = [{"nombre": k, **_bloque(v, ahora, detalle=(campo == "closer"))} for k, v in grupos.items()]
+        if campo == "closer":
+            # Las señas de antes que cerraron este mes, del closer que las cerró.
+            por_nombre = {x["nombre"]: x for x in salida}
+            for nombre, difs in dif_por_closer.items():
+                base = por_nombre.get(nombre) or {"nombre": nombre, **_bloque([], ahora, detalle=True)}
+                if nombre not in por_nombre:
+                    salida.append(base)
+                base.update(_con_cierres_de_sena(base, difs))
         return sorted(salida, key=lambda x: (-x["cashUsd"], -x["cierres"]))
 
     # Reportes diarios cargados por el equipo
@@ -1331,7 +1345,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     dias_mes = (fin_mes - inicio_mes).days
     dia_hoy = min(max((hoy - inicio_mes).days + 1, 1), dias_mes)
 
-    actual = _bloque(del_mes, ahora, detalle=True)
+    actual = _con_cierres_de_sena(_bloque(del_mes, ahora, detalle=True), diferidos_mes)
     previo = _bloque(previos, ahora)
     data = {
         "generadoAt": datetime.now(AR_TZ).isoformat(),

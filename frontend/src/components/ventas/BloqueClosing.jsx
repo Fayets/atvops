@@ -147,6 +147,10 @@ export default function BloqueClosing({ data = {} }) {
   const showFragil = d.sinReportar > resueltas / 3;
   const senas = d.senas ?? 0;
   const cierres = d.cierres ?? 0;
+  // Las señas de meses anteriores que se cerraron en este: cuentan como cierres del mes.
+  const deSena = d.cierresDeSena ?? 0;
+  const conSena = deSena ? ` (${deSena} ${deSena === 1 ? 'era seña' : 'eran seña'})` : '';
+  const masSenas = deSena ? ` + ${deSena} ${deSena === 1 ? 'seña anterior cerrada' : 'señas anteriores cerradas'}` : '';
   const shows = d.shows ?? 0;
 
   function abrirTajada(t) {
@@ -175,7 +179,7 @@ export default function BloqueClosing({ data = {} }) {
       titulo: 'Close rate',
       explicacion: 'Cierres sobre shows. Las señas no entran: la venta todavía no está hecha.',
       valor: d.closeRate == null ? '—' : `${formatValue(d.closeRate, 'num')}%`,
-      pie: `${cierres} cierres sobre ${shows} shows`,
+      pie: `${cierres} cierres${conSena} sobre ${shows} shows`,
       secciones,
     });
   }
@@ -200,7 +204,7 @@ export default function BloqueClosing({ data = {} }) {
       titulo: 'Cash collected',
       explicacion: 'Lo que entró de verdad este mes: cierres y señas.',
       valor: formatValue(d.cashUsd ?? 0, 'usd'),
-      pie: `de ${d.ventas ?? 0} ventas`,
+      pie: `de ${d.ventas ?? 0} ventas${masSenas}`,
       secciones: [{
         titulo: `Ventas (${d.ventas ?? 0})`,
         leads: d.ventasDetalle ?? [],
@@ -259,7 +263,7 @@ export default function BloqueClosing({ data = {} }) {
       titulo: 'PIF por estado',
       explicacion: 'Qué proporción de las ventas figura Cerrado y no Seña. Es lo que cargó el closer.',
       valor: d.pifPorEstado == null ? '—' : `${formatValue(d.pifPorEstado, 'num')}%`,
-      pie: `${cierres} de ${d.ventas ?? 0} figuran Cerrado`,
+      pie: `${cierres - deSena} de ${d.ventas ?? 0} figuran Cerrado`,
       secciones: [
         {
           titulo: `Cerrado (${cierres})`,
@@ -281,7 +285,7 @@ export default function BloqueClosing({ data = {} }) {
         <Kpi
           titulo="Close rate"
           valor={d.closeRate == null ? '—' : `${formatValue(d.closeRate, 'num')}%`}
-          pie={`${cierres} cierres sobre ${shows} shows${
+          pie={`${cierres} cierres${conSena} sobre ${shows} shows${
             senas ? ` · ${senas} ${senas === 1 ? 'seña' : 'señas'} no cuentan` : ' · solo Cerrado'
           }`}
           onVer={verCloseRate}
@@ -295,7 +299,7 @@ export default function BloqueClosing({ data = {} }) {
         <Kpi
           titulo="Cash collected"
           valor={formatValue(d.cashUsd ?? 0, 'usd')}
-          pie={`de ${d.ventas ?? 0} ventas · lo que entró de verdad`}
+          pie={`de ${d.ventas ?? 0} ventas${masSenas} · lo que entró de verdad`}
           onVer={verCash}
         />
         <Kpi
@@ -324,7 +328,7 @@ export default function BloqueClosing({ data = {} }) {
           <div className="pif-n dim">{d.pifPorEstado == null ? '—' : `${formatValue(d.pifPorEstado, 'num')}%`}</div>
           <div className="pif-detalle">
             por estado
-            <span className="dim">{cierres} de {d.ventas ?? 0} figuran Cerrado</span>
+            <span className="dim">{cierres - deSena} de {d.ventas ?? 0} figuran Cerrado</span>
           </div>
         </button>
         <div className="pif-nota">
