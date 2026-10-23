@@ -51,6 +51,8 @@ const NAV = [
       // Las ideas de contenido que salen de las llamadas de Juan.
       { to: '/marketing/pizarra', label: 'Pizarra', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
       { to: '/marketing/vault', label: 'Vault de ideas', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
+      // Lo que Juan regala en los reels: la landing del momento, la biblioteca y cómo le va a cada uno.
+      { to: '/marketing/recursos', label: 'Recursos', roles: ['marketing', 'admin', 'founder', 'operaciones'] },
     ],
   },
   { to: '/ads', icon: 'ads', label: 'Ads', grupo: 'Áreas' },

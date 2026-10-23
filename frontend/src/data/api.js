@@ -3312,3 +3312,25 @@ export async function guardarLineaPagosDoc(coleccion, id, data) {
 export async function borrarLineaPagosDoc(coleccion, id) {
   return pedir(`/api/linea-pagos/${coleccion}/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(sinCuerpo);
 }
+
+/* ------------------------------------------------------- recursos de Juan */
+
+export async function getRecursos(dias = 30) {
+  return pedir(`/api/recursos?dias=${dias}`);
+}
+const _json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+export async function crearRecurso(datos) {
+  return pedir('/api/recursos', _json('POST', datos));
+}
+export async function editarRecurso(id, datos) {
+  return pedir(`/api/recursos/${id}`, _json('PUT', datos));
+}
+export async function destacarRecurso(id, datos) {
+  return pedir(`/api/recursos/${id}/destacar`, _json('POST', datos));
+}
+export async function importarReelsRecursos() {
+  return pedir('/api/recursos/importar-reels', { method: 'POST' });
+}
+export async function guardarAjustesRecursos(datos) {
+  return pedir('/api/recursos/ajustes', _json('PUT', datos));
+}

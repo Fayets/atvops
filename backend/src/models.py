@@ -1320,3 +1320,60 @@ class PizarraContexto(db.Entity):
     texto = Optional(LongStr, nullable=True)
     editado_por = Optional(str, nullable=True)
     editado_at = Optional(datetime, nullable=True)
+
+
+# ------------------------------------------------------------------ recursos de Juan
+#
+# Lo que Juan regala en los reels ("comentá ONBOARDING y te lo mando"). Uno está en la
+# landing (recursos.atvos.io/video) y ahí puede descargarse directo; el resto vive en la
+# biblioteca y solo se pide por WhatsApp. Marketing lo maneja desde Ops.
+
+class Recurso(db.Entity):
+    _table_ = _tabla("recursos", "Recurso")
+
+    id = PrimaryKey(int, auto=True)
+    slug = Required(str, unique=True)               # la palabra normalizada: "onboarding"
+    palabra = Required(str)                         # como se muestra: "ONBOARDING"
+    titulo = Required(str)
+    # El titular grande de la landing. Lo que va entre *asteriscos* sale en rojo.
+    titular = Optional(str, nullable=True)
+    tema = Optional(str, nullable=True)
+    gancho = Optional(str, nullable=True)           # el texto sobre la miniatura
+    video_url = Optional(str, nullable=True)
+    duracion = Optional(str, nullable=True)
+    entrega = Required(str, default="whatsapp")     # regalo | whatsapp (solo cuenta en la landing)
+    link = Optional(str, nullable=True)             # el documento: nunca sale por la API pública
+    reel_id = Optional(str, nullable=True, index=True)
+    destacado = Required(bool, default=False)
+    activo = Required(bool, default=True)           # si se ve en la biblioteca
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_por = Optional(str, nullable=True)
+    eventos = Set("RecursoEvento")
+
+
+class RecursoEvento(db.Entity):
+    """Lo que pasa en la landing y la biblioteca. Una fila por persona (sesión del navegador),
+    tipo y día: recargar la página no suma visitas."""
+
+    _table_ = _tabla("recursos_eventos", "RecursoEvento")
+
+    id = PrimaryKey(int, auto=True)
+    recurso = Required(Recurso)
+    tipo = Required(str, index=True)                # visita | play | p25 | p50 | p75 | p100 | descarga | whatsapp
+    origen = Required(str, default="landing")       # landing | biblioteca
+    sesion = Required(str, index=True)
+    dia = Required(date, index=True)
+    at = Required(datetime, default=datetime.utcnow)
+    composite_key(recurso, tipo, sesion, dia)
+
+
+class RecursosAjuste(db.Entity):
+    """El WhatsApp al que llegan los pedidos y el mensaje que se precarga."""
+
+    _table_ = _tabla("recursos_ajustes", "RecursosAjuste")
+
+    id = PrimaryKey(int)                            # siempre 1
+    whatsapp = Required(str, default="5491162626702")
+    mensaje = Required(str, default="Hola Juan, quiero el recurso {palabra}")
+    actualizado_por = Optional(str, nullable=True)
