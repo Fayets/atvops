@@ -126,3 +126,11 @@ def test_la_landing_publica_video_texto_y_recurso(base):
             elif guardada:
                 guardada.pop("id")
                 fila.set(**guardada)
+
+
+def test_los_recursos_salen_solos_de_los_reels_y_no_se_duplican(base):
+    rs.sincronizar(forzar=True)
+    antes = len(rs.publico()["recursos"])
+    assert rs.sincronizar(forzar=True) == []
+    assert len(rs.publico()["recursos"]) == antes
+    assert rs.sincronizar() == []   # dentro de los 10 minutos ni lo intenta

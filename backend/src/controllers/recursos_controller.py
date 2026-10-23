@@ -26,12 +26,6 @@ def crear(payload: dict = Body(...), user: dict = Depends(_puede)):
     return recursos.crear(payload or {}, user.get("username"))
 
 
-@router.post("/importar-reels")
-def importar_reels(user: dict = Depends(_puede)):
-    """Un recurso por cada reel con palabra que todavía no tenga uno."""
-    return recursos.importar_reels(user.get("username"))
-
-
 @router.put("/ajustes")
 def guardar_ajustes(payload: dict = Body(...), user: dict = Depends(_puede)):
     return recursos.guardar_ajustes(payload or {}, user.get("username"))

@@ -144,6 +144,7 @@ def _con_landing(d: dict, r: Recurso) -> dict:
 
 def publico() -> dict:
     """Lo que ven la landing y la biblioteca. El destacado primero; nunca el link del documento."""
+    _sincronizar_seguro()
     with db_session:
         # Del reel más nuevo al más viejo; los que no tienen reel, por cuándo se cargaron.
         fechas = {p.ig_id: p.publicado_at for p in list(PublicacionIg.select()) if p.tipo == "reel"}
@@ -252,6 +253,7 @@ def _dia_ar(v) -> date:
 
 def listar(dias: int = 30) -> dict:
     """Todos los recursos con su recorrido en el período y la serie diaria de chats y visitas."""
+    _sincronizar_seguro()
     dias = max(7, min(int(dias or 30), 180))
     hasta = _hoy()
     desde = hasta - timedelta(days=dias - 1)
@@ -346,22 +348,65 @@ def _titulo_de(caption: str, palabra: str) -> str:
     return (primera[:1].upper() + primera[1:])[:110]
 
 
-def importar_reels(quien: str | None) -> dict:
-    """Crea un recurso por cada reel con palabra que no tenga uno. Título sacado del texto
-    del reel; marketing lo ajusta después."""
+# Los textos de los 9 primeros recursos, los que Franco aprobó en la maqueta (22-10-2026):
+# (título, titular, texto sobre la miniatura, tema). Se aplican al crearse el recurso.
+TEXTOS_INICIALES = {
+    "4": ("Cómo hago $2M al año trabajando 4h por día", "Cómo hago *$2M al año* trabajando solo 4h/día",
+          "2 llamadas = $200k", "Agenda y tiempo"),
+    "info": ("Por qué cobrar por tu tiempo te pone techo", "Tu tiempo es un *problema* para el dinero",
+             "Tu tiempo no escala", "Oferta"),
+    "formulario": ("El formulario que hace que lleguen convencidos", "El formulario que hace que *lleguen convencidos*",
+                   "Llegan así de convencidos", "Ventas"),
+    "onboarding": ("Mi proceso de onboarding de 7 días", "Mi onboarding de *7 días* que hace que me paguen más",
+                   "7 días = clientes que renuevan", "Fulfillment"),
+    "clase": ("La clase: una sola acción que mueve el negocio", "Cómo alterar tu realidad con *una sola acción*",
+              "Una acción > cien tareas", "Productividad"),
+    "doc": ("Análisis de mis mejores reels", "Hice *$200k* haciendo que se obsesionen con mi contenido",
+            "Los patrones de mis mejores reels", "Contenido"),
+    "lecciones": ("Las lecciones que me sacaron de $30k/mes", "Me quedé estancado en *$30k/mes* por no entender esto",
+                  "Estancado en $30k/mes", "Contenido"),
+    "documento": ("No tenés 10 problemas: tenés uno y es marketing", "No tenés 10 problemas, *tenés 1*",
+                  "Se llama marketing", "Marketing"),
+}
+
+
+_ULTIMA_SYNC = 0.0
+
+
+def _sincronizar_seguro() -> None:
+    # Que un problema leyendo los reels nunca deje sin landing ni sin tablero.
+    try:
+        sincronizar()
+    except Exception as e:  # noqa: BLE001
+        import logging
+        logging.getLogger("atv_ops.recursos").warning("No se pudieron crear los recursos de los reels: %s", str(e)[:200])
+
+
+def sincronizar(forzar: bool = False) -> list[str]:
+    """Un recurso por cada reel con palabra que todavía no tenga uno. Nadie tiene que traerlos:
+    corre solo cuando se abre Recursos o la biblioteca, como mucho una vez cada 10 minutos.
+
+    Solo los que ya abrieron chats: una palabra entre comillas que nadie comenta puede ser una
+    frase citada. Esos se cargan a mano eligiendo el reel. Un recurso oculto no se vuelve a
+    crear: su palabra y su reel ya existen."""
+    global _ULTIMA_SYNC
+    import time
+
+    if not forzar and time.monotonic() - _ULTIMA_SYNC < 600:
+        return []
+    _ULTIMA_SYNC = time.monotonic()
     nuevos = []
-    # Solo los que ya abrieron chats: una palabra entre comillas sin nadie que la comente puede
-    # ser una frase citada. Esos se cargan a mano eligiendo el reel.
     for reel in [x for x in reels_sin_recurso() if x["chats"] > 0]:
         palabra = reel["palabra"]
         with db_session:
             if Recurso.get(slug=palabra):
                 continue
-            r = Recurso(slug=palabra, palabra=palabra.upper(), titulo=_titulo_de(reel.get("caption"), palabra),
-                        reel_id=reel["id"], actualizado_por=quien)
-            r.flush()
-            nuevos.append(r.slug)
-    return {"creados": nuevos}
+            titulo, titular, gancho, tema = TEXTOS_INICIALES.get(palabra) or (
+                _titulo_de(reel.get("caption"), palabra), None, None, None)
+            Recurso(slug=palabra, palabra=palabra.upper(), titulo=titulo, titular=titular, gancho=gancho,
+                    tema=tema, reel_id=reel["id"], actualizado_por="instagram").flush()
+            nuevos.append(palabra)
+    return nuevos
 
 
 _EDITABLES = {

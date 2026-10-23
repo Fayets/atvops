@@ -136,7 +136,7 @@ export default function EditorLanding({ recursos, onPublicado }) {
   const actual = useResource(() => getRecursosLanding(), []);
   if (contenido.error || actual.error) return <ErrorState error={contenido.error || actual.error} />;
   if (!contenido.data || !actual.data) return <SkeletonBlock height={520} />;
-  if (!recursos.length) return <p className="dim lnd-vacio">Primero traé los reels con palabra o cargá un recurso: la landing necesita algo para entregar.</p>;
+  if (!recursos.length) return <p className="dim lnd-vacio">Todavía no hay recursos: aparecen solos cuando alguien comenta la palabra de un reel, o cargá uno con Nuevo recurso.</p>;
   return <Formulario contenido={contenido.data} inicial={actual.data} recursos={recursos} onPublicado={onPublicado} />;
 }
 

@@ -6,7 +6,7 @@ import Tabs from '../../components/ui/Tabs.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import EditorLanding from '../../components/marketing/EditorLanding.jsx';
 import {
-  crearRecurso, editarRecurso, getRecursos, guardarAjustesRecursos, importarReelsRecursos,
+  crearRecurso, editarRecurso, getRecursos, guardarAjustesRecursos,
 } from '../../data/api.js';
 import { useResource } from '../../lib/hooks.js';
 import '../../styles/recursos.css';
@@ -181,7 +181,6 @@ export default function Recursos() {
   const [sel, setSel] = useState(null);
   const [editando, setEditando] = useState(null);
   const [ajustes, setAjustes] = useState(false);
-  const [importando, setImportando] = useState(false);
   const recargar = () => setVersion((v) => v + 1);
 
   const recursos = useMemo(() => data?.recursos || [], [data]);
@@ -195,28 +194,15 @@ export default function Recursos() {
     return a;
   }, { chats: 0, visitas: 0, play: 0, p50: 0, descargas: 0, whatsapp: 0, chatsViejos: 0 }), [recursos]);
 
-  async function importar() {
-    setImportando(true);
-    try { await importarReelsRecursos(); recargar(); } finally { setImportando(false); }
-  }
-
   if (loading && !data) return <div className="page"><SkeletonBlock height={420} /></div>;
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
-
-  const sinRecurso = (data.reelsSinRecurso || []).filter((x) => x.chats > 0);
 
   return (
     <div className="page rec">
       <header className="page-head">
-        <h1>Recursos</h1>
         <Tabs value={vista} onChange={setVista} options={VISTAS} />
         <div className="page-head-actions">
           {vista === 'metricas' && <Tabs value={dias} onChange={setDias} options={PERIODOS} />}
-          {sinRecurso.length > 0 && (
-            <button type="button" className="btn" onClick={importar} disabled={importando}>
-              {importando ? 'Trayendo…' : `Traer ${sinRecurso.length} reel${sinRecurso.length === 1 ? '' : 's'} con palabra`}
-            </button>
-          )}
           <button type="button" className="btn" onClick={() => setAjustes(true)}>WhatsApp</button>
           <button type="button" className="btn primary" onClick={() => setEditando({})}>Nuevo recurso</button>
         </div>
@@ -247,7 +233,7 @@ export default function Recursos() {
                     </td>
                   </tr>
                 ))}
-                {!recursos.length && <tr><td colSpan={6} className="dim rec-vacio">Todavía no hay recursos. Traé los reels con palabra o cargá uno nuevo.</td></tr>}
+                {!recursos.length && <tr><td colSpan={6} className="dim rec-vacio">Todavía no hay reels con palabra. Cuando alguien comente la de un reel, el recurso aparece acá solo.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -291,7 +277,7 @@ export default function Recursos() {
                   );
                 })}
                 {!recursos.length && (
-                  <tr><td colSpan={9} className="dim rec-vacio">Todavía no hay recursos. Traé los reels con palabra o cargá uno nuevo.</td></tr>
+                  <tr><td colSpan={9} className="dim rec-vacio">Todavía no hay reels con palabra. Cuando alguien comente la de un reel, el recurso aparece acá solo.</td></tr>
                 )}
               </tbody>
             </table>

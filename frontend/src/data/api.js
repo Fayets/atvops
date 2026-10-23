@@ -3328,9 +3328,6 @@ export async function editarRecurso(id, datos) {
 export async function destacarRecurso(id, datos) {
   return pedir(`/api/recursos/${id}/destacar`, _json('POST', datos));
 }
-export async function importarReelsRecursos() {
-  return pedir('/api/recursos/importar-reels', { method: 'POST' });
-}
 export async function guardarAjustesRecursos(datos) {
   return pedir('/api/recursos/ajustes', _json('PUT', datos));
 }
