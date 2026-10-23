@@ -1397,3 +1397,90 @@ class RecursosLanding(db.Entity):
     duracion = Optional(str, nullable=True)
     actualizado_at = Required(datetime, default=datetime.utcnow)
     actualizado_por = Optional(str, nullable=True)
+
+
+class ClasesPagina(db.Entity):
+    """Los textos de recursos.atvos.io: el título, la bajada y la nota de cada número.
+    Los números (cuántas llamadas, cuántos playbooks, cuántas horas) se cuentan solos."""
+
+    _table_ = _tabla("clases_pagina", "ClasesPagina")
+
+    id = PrimaryKey(int)                            # siempre 1
+    titulo = Required(str, default="Fathoms + Playbooks")
+    autor = Required(str, default="Por Juan Carrizo · @juanxcarrizo")
+    bajada = Optional(LongStr, nullable=True)       # lo que va entre *asteriscos* sale en rojo
+    nota_llamadas = Optional(str, nullable=True)
+    nota_playbooks = Optional(str, nullable=True)
+    nota_contenido = Optional(str, nullable=True)
+    cta_titulo = Required(str, default="¿Querés que esto lo instalemos con vos?")
+    cta_texto = Optional(LongStr, nullable=True)
+    instagram = Optional(str, nullable=True)        # el link del DM del pie
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_por = Optional(str, nullable=True)
+
+
+class ClaseSerie(db.Entity):
+    """Una serie de la landing: una llamada completa y los playbooks que salen de ella."""
+
+    _table_ = _tabla("clases_series", "ClaseSerie")
+
+    id = PrimaryKey(int, auto=True)
+    slug = Required(str, unique=True)
+    numero = Required(int)                          # el 01..06 que se ve en la página
+    titulo = Required(str)
+    activa = Required(bool, default=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_por = Optional(str, nullable=True)
+    recursos = Set("ClaseRecurso")
+
+
+class ClaseRecurso(db.Entity):
+    """Lo que se mira o se baja: la llamada de Fathom o un playbook en PDF.
+    El link nunca viaja en el JSON público: se llega por /ir, que además cuenta el clic."""
+
+    _table_ = _tabla("clases_recursos", "ClaseRecurso")
+
+    id = PrimaryKey(int, auto=True)
+    slug = Required(str, unique=True)
+    serie = Required(ClaseSerie)
+    tipo = Required(str)                            # llamada | playbook
+    orden = Required(int, default=1)
+    titulo = Required(str)
+    descripcion = Optional(LongStr, nullable=True)
+    url = Required(str)
+    minutos = Optional(int, nullable=True)          # llamadas
+    paginas = Optional(int, nullable=True)          # playbooks
+    portada = Optional(str, nullable=True)          # archivo en /uploads/clases
+    activo = Required(bool, default=True)
+    creado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_at = Required(datetime, default=datetime.utcnow)
+    actualizado_por = Optional(str, nullable=True)
+    eventos = Set("ClaseEvento")
+    composite_key(serie, tipo, orden)
+
+
+class ClaseEvento(db.Entity):
+    """Un clic en una llamada o en un playbook. Una fila por persona, recurso y día."""
+
+    _table_ = _tabla("clases_eventos", "ClaseEvento")
+
+    id = PrimaryKey(int, auto=True)
+    recurso = Required(ClaseRecurso)
+    tipo = Required(str, index=True)                # ver | abrir
+    sesion = Required(str, index=True)
+    dia = Required(date, index=True)
+    at = Required(datetime, default=datetime.utcnow)
+    composite_key(recurso, tipo, sesion, dia)
+
+
+class ClaseVisita(db.Entity):
+    """Quién entró a la página. Una fila por persona y día: recargar no suma."""
+
+    _table_ = _tabla("clases_visitas", "ClaseVisita")
+
+    id = PrimaryKey(int, auto=True)
+    sesion = Required(str, index=True)
+    dia = Required(date, index=True)
+    at = Required(datetime, default=datetime.utcnow)
+    composite_key(sesion, dia)

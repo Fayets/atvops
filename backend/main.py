@@ -38,6 +38,7 @@ from src.controllers.daily_controller import router as daily_router
 from src.controllers.theo_controller import router as theo_router
 from src.controllers.linea_pagos_controller import router as linea_pagos_router
 from src.controllers.pizarra_controller import router as pizarra_router
+from src.controllers.clases_controller import router as clases_router
 from src.controllers.recursos_controller import router as recursos_router
 from src.controllers.recursos_publicos_controller import router as recursos_publicos_router
 from src.db import init_db
@@ -223,6 +224,7 @@ app.include_router(theo_router, prefix="/api/theo", tags=["theo"])
 app.include_router(linea_pagos_router, prefix="/api/linea-pagos", tags=["linea-pagos"])
 # Las ideas de contenido que salen de las llamadas de Juan.
 app.include_router(pizarra_router, prefix="/api/pizarra", tags=["pizarra"])
+app.include_router(clases_router, prefix="/api/clases", tags=["recursos"])
 app.include_router(recursos_router, prefix="/api/recursos", tags=["recursos"])
 app.include_router(recursos_publicos_router, prefix="/api/recursos-publicos", tags=["recursos"])
 

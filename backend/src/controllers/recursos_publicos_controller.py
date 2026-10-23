@@ -12,6 +12,7 @@ import json
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import RedirectResponse
 
+from src.services import clases_services as clases
 from src.services import recursos_services as recursos
 
 router = APIRouter()
@@ -35,6 +36,30 @@ async def evento(request: Request):
         recursos.registrar(str(datos.get("slug") or ""), str(datos.get("tipo") or ""),
                            str(datos.get("origen") or ""), str(datos.get("sesion") or ""))
     return Response(status_code=204)
+
+
+@router.get("/clases")
+def clases_publicas(response: Response):
+    """Las series de Juan: llamadas y playbooks. Sin los links: se llega por /clases/{slug}/ir."""
+    response.headers["Cache-Control"] = "public, max-age=15"
+    return clases.publico()
+
+
+@router.post("/clases/visita", status_code=204)
+async def clases_visita(request: Request):
+    try:
+        datos = json.loads((await request.body())[:2000] or b"{}")
+    except ValueError:
+        return Response(status_code=204)
+    if isinstance(datos, dict):
+        clases.registrar_visita(str(datos.get("sesion") or ""))
+    return Response(status_code=204)
+
+
+@router.get("/clases/{slug}/ir")
+def clases_ir(slug: str, s: str = ""):
+    """Redirige a la llamada o al playbook y cuenta el clic, aunque se abra en otra pestaña."""
+    return RedirectResponse(clases.destino(slug, s), status_code=302, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/{slug}/descargar")

@@ -3340,3 +3340,33 @@ export async function getRecursosLanding() {
 export async function guardarRecursosLanding(datos) {
   return pedir('/api/recursos/landing', _json('PUT', datos));
 }
+
+/* ------------------------------------------- clases de Juan (recursos.atvos.io) */
+
+export async function getClases(dias = 30) {
+  return pedir(`/api/clases?dias=${dias}`);
+}
+export async function guardarClasesPagina(datos) {
+  return pedir('/api/clases/pagina', _json('PUT', datos));
+}
+export async function sembrarClases() {
+  return pedir('/api/clases/sembrar', _json('POST', {}));
+}
+export async function crearClaseSerie(datos) {
+  return pedir('/api/clases/series', _json('POST', datos));
+}
+export async function editarClaseSerie(id, datos) {
+  return pedir(`/api/clases/series/${id}`, _json('PUT', datos));
+}
+export async function borrarClaseSerie(id) {
+  return pedir(`/api/clases/series/${id}`, { method: 'DELETE' });
+}
+export async function crearClaseRecurso(datos) {
+  return pedir('/api/clases/recursos', _json('POST', datos));
+}
+export async function editarClaseRecurso(id, datos) {
+  return pedir(`/api/clases/recursos/${id}`, _json('PUT', datos));
+}
+export async function borrarClaseRecurso(id) {
+  return pedir(`/api/clases/recursos/${id}`, { method: 'DELETE' });
+}
