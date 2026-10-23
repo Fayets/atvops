@@ -2,7 +2,7 @@
 Recursos de Juan: lo que regala en los reels y cómo le va a cada uno.
 
 Un recurso nace de un reel con palabra ("comentá ONBOARDING"). Uno solo está destacado: es el
-que muestra recursos.atvos.io/video, con su video, y ahí marketing elige si se descarga directo
+que muestra la raíz de recursos.atvos.io, con su video, y ahí marketing elige si se descarga directo
 o se pide por WhatsApp. Los demás quedan en la biblioteca y se piden siempre por WhatsApp: el
 link del documento solo sale del server cuando el recurso está destacado y es de regalo, así que
 por la biblioteca no hay forma de llegar a él.

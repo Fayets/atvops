@@ -1325,7 +1325,7 @@ class PizarraContexto(db.Entity):
 # ------------------------------------------------------------------ recursos de Juan
 #
 # Lo que Juan regala en los reels ("comentá ONBOARDING y te lo mando"). Uno está en la
-# landing (recursos.atvos.io/video) y ahí puede descargarse directo; el resto vive en la
+# landing (la raíz de recursos.atvos.io) y ahí puede descargarse directo; el resto vive en la
 # biblioteca y solo se pide por WhatsApp. Marketing lo maneja desde Ops.
 
 class Recurso(db.Entity):
@@ -1380,7 +1380,7 @@ class RecursosAjuste(db.Entity):
 
 
 class RecursosLanding(db.Entity):
-    """Lo que muestra recursos.atvos.io/video: qué video, qué texto y qué recurso se lleva.
+    """Lo que muestra recursos.atvos.io: qué video, qué texto y qué recurso se lleva.
     Una sola fila. El video puede ser de YouTube, un reel, una secuencia de historias o un
     link de Loom o Vimeo."""
 

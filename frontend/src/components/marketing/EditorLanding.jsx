@@ -4,12 +4,12 @@ import { getRecursosContenido, getRecursosLanding, guardarRecursosLanding } from
 import { useResource } from '../../lib/hooks.js';
 
 /**
- * El editor de recursos.atvos.io/video: qué se ve (un video de YouTube, un reel, una secuencia
+ * El editor de recursos.atvos.io: qué se ve (un video de YouTube, un reel, una secuencia
  * de historias o un link de Loom/Vimeo), qué dice y qué recurso se lleva. A la derecha, la
  * landing como la va a ver la gente, en vivo.
  */
 
-const LANDING = 'https://recursos.atvos.io/video';
+const LANDING = 'https://recursos.atvos.io';
 const FUENTES = [['youtube', 'YouTube'], ['reel', 'Reels'], ['secuencia', 'Secuencias'], ['link', 'Loom o Vimeo']];
 const dur = (s) => { const n = Number(s) || 0; return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`; };
 const fd = (iso) => (iso ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}` : '');
@@ -303,7 +303,7 @@ function Formulario({ contenido, inicial, recursos, onPublicado }) {
 
       <aside className="lnd-prev">
         <div className="lnd-prev-h">
-          <b>Así se ve</b><span className="dim">recursos.atvos.io/video</span>
+          <b>Así se ve</b><span className="dim">recursos.atvos.io</span>
           <div className="lnd-seg lnd-dev" role="tablist">
             <button type="button" role="tab" aria-selected={dispositivo === 'pc'} onClick={() => setDispositivo('pc')}>Compu</button>
             <button type="button" role="tab" aria-selected={dispositivo === 'cel'} onClick={() => setDispositivo('cel')}>Celular</button>

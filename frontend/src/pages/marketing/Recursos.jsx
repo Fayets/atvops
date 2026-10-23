@@ -14,7 +14,7 @@ import '../../styles/recursos.css';
 /**
  * Recursos de Juan: lo que regala en los reels ("comentá ONBOARDING").
  *
- * Uno está en la landing pública (recursos.atvos.io/video) y marketing elige si se descarga
+ * Uno está en la landing pública (recursos.atvos.io) y marketing elige si se descarga
  * directo o se pide por WhatsApp; el resto vive en la biblioteca y se pide siempre por WhatsApp.
  * El recorrido de cada uno junta los chats del reel (Instagram) con lo que mide la landing.
  */
