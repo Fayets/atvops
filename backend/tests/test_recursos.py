@@ -23,9 +23,17 @@ def base():
                     for e in list(r.eventos):
                         e.delete()
                     r.delete()
+    # Destacar uno de prueba le saca el lugar al de verdad: se devuelve al terminar.
+    with db_session:
+        antes = next((r.id for r in list(Recurso.select()) if r.destacado), None)
     limpiar()
     yield
     limpiar()
+    if antes is not None:
+        with db_session:
+            r = Recurso.get(id=antes)
+            if r is not None:
+                r.destacado = True
 
 
 def _nuevo(palabra, **extra):
