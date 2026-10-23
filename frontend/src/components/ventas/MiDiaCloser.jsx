@@ -191,6 +191,10 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
   const esSena = (l) => (l.resultado || '').toLowerCase().trim().startsWith('se');
   const cerradas = ventas.filter((l) => !esSena(l));
   const senas = ventas.filter(esSena);
+  // Las señas de meses anteriores que se cerraron en este: son cierres de este mes.
+  const senasCerradas = (data?.cierresDiferidos ?? []).map((d) => ({
+    ...d, id: `sena-${d.id}`, prospecto: `${d.prospecto} · era seña${d.fechaAt ? ` del ${fecha(d.fechaAt)}` : ''}`,
+  }));
   const dinero = (l) => formatValue(l.cashUsd ?? 0, 'usd');
   const ver = (titulo, explicacion, lista, columna, encabezado) => () =>
     setDetalle({ titulo, explicacion, llamadas: lista, columna, encabezado });
@@ -217,7 +221,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           onVer={ver('Sin cargar', 'Llamadas que ya pasaron y todavía no tienen resultado.', delMes.filter((l) => l.estado === 'sin_reportar'), (l) => `hace ${l.diasDesde} d`, 'Antigüedad')} />
         <Kpi label="Cash cobrado" valor={formatValue(mes.cashUsd ?? 0, 'usd')}
           nota={mes.saldoUsd ? `${formatValue(mes.saldoUsd, 'usd')} por cobrar` : 'este mes'}
-          onVer={ver('Cash cobrado', 'Lo que efectivamente pagó cada cliente que cerró.', ventas, dinero, 'Cash')} />
+          onVer={ver('Cash cobrado', 'Lo que efectivamente pagó cada cliente que cerró.', [...ventas, ...senasCerradas], dinero, 'Cash')} />
         <Kpi label="Facturación" valor={formatValue(mes.facturacionUsd ?? 0, 'usd')}
           nota={`${mes.cierresDelMes ?? mes.cierres ?? 0} ventas · AOV ${formatValue(mes.aovUsd ?? 0, 'usd')}`}
           onVer={ver('Facturación', 'El precio del programa que compró cada uno.', ventas, (l) => `${l.programa || 'sin programa'} · ${formatValue(l.facturacionUsd ?? 0, 'usd')}`, 'Programa')} />
@@ -235,20 +239,20 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
         <Kpi
           label="Close rate"
           valor={pct(mes.closeRate)}
-          nota={`${mes.cierresDelMes ?? mes.cierres ?? 0} ${(mes.cierresDelMes ?? mes.cierres) === 1 ? 'cerrada' : 'cerradas'} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}${mes.cierresDeSena ? ` · +${mes.cierresDeSena} ${mes.cierresDeSena === 1 ? 'seña anterior cerrada' : 'señas anteriores cerradas'}` : ''}`}
+          nota={`${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cerrada' : 'cerradas'}${mes.cierresDeSena ? ` (${mes.cierresDeSena} ${mes.cierresDeSena === 1 ? 'era seña' : 'eran seña'})` : ''} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
           onVer={() => setDetalle({
             titulo: 'Close rate',
-            explicacion: 'Las ventas cerradas sobre las llamadas que sí se presentaron. La seña no cuenta como cierre: la venta todavía no está hecha, pero si cierra sube el rate.',
+            explicacion: 'Las ventas cerradas sobre las llamadas que sí se presentaron. La seña no cuenta como cierre hasta que se cierra; una seña de otro mes que se cerró en este, sí.',
             resumen: [
               { label: 'Close rate', valor: pct(mes.closeRate),
-                nota: `${cerradas.length} sobre ${mes.shows ?? shows.length} shows` },
+                nota: `${cerradas.length + senasCerradas.length} sobre ${mes.shows ?? shows.length} shows` },
               { label: 'Proyectado', tenue: true, tono: 'var(--brand-hi)',
                 valor: pct(mes.closeRateProyectado
-                  ?? (shows.length ? Math.round(((cerradas.length + senas.length) / shows.length) * 1000) / 10 : null)),
+                  ?? (shows.length ? Math.round(((cerradas.length + senasCerradas.length + senas.length) / shows.length) * 1000) / 10 : null)),
                 nota: senas.length ? `si cierran las ${senas.length} ${senas.length === 1 ? 'seña' : 'señas'}` : 'sin señas abiertas' },
             ],
             grupos: [
-              { titulo: 'Cerradas', llamadas: cerradas, columna: dinero, encabezado: 'Cash',
+              { titulo: 'Cerradas', llamadas: [...cerradas, ...senasCerradas], columna: dinero, encabezado: 'Cash',
                 vacio: 'Todavía no cerró ninguna.' },
               { titulo: 'Señas', llamadas: senas, columna: dinero, encabezado: 'Cash',
                 nota: 'Plata que entró con la venta a medio hacer.',
@@ -256,8 +260,8 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
             ],
           })} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
-          nota={`${formatValue((mes.cashUsd ?? 0) - (mes.cashDiferidoUsd ?? 0), 'usd')} de cash sobre ${mes.cierresDelMes ?? mes.cierres ?? 0} ${(mes.cierresDelMes ?? mes.cierres) === 1 ? 'cierre' : 'cierres'}`}
-          onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', ventas.filter((l) => l.estado === 'cierre'), dinero, 'Cash')} />
+          nota={`${formatValue(mes.cashUsd ?? 0, 'usd')} de cash sobre ${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cierre' : 'cierres'}`}
+          onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', [...cerradas, ...senasCerradas], dinero, 'Cash')} />
       </div>
 
       <CalendarioReal onCambio={onCambio} syncKey={syncKey} nombres={data?.nombresCrm ?? (data?.closer ? [data.closer] : [])} />

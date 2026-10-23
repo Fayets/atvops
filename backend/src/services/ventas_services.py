@@ -1736,9 +1736,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
 def _con_cierres_de_sena(b: dict, diferidos: list[dict]) -> dict:
     """Suma al bloque las señas de meses anteriores que terminaron de cerrar en el período.
 
-    Son cierres de este mes —el closer los cerró ahora— y su plata entró ahora, pero la
-    llamada fue en otro mes: cuentan en cierres y en cash, no en el close rate, que mide las
-    llamadas del período contra sus shows (Franco, 22-10-2026: "Nick tiene 2 y no se ven").
+    Son cierres de este mes —el closer los cerró ahora— y su plata entró ahora: cuentan en
+    cierres, en cash y en el close rate (Franco, 22-10-2026: "Nick tiene 2 y no se ven").
     """
     b = {**b, "cierresDeSena": len(diferidos), "cashDeSenaUsd": round(sum(d["cashUsd"] for d in diferidos), 2)}
     if not diferidos:
@@ -1746,6 +1745,8 @@ def _con_cierres_de_sena(b: dict, diferidos: list[dict]) -> dict:
     b["cierres"] += len(diferidos)
     b["cashUsd"] = round(b["cashUsd"] + b["cashDeSenaUsd"], 2)
     b["averageSaleUsd"] = round(b["cashUsd"] / b["cierres"], 2) if b["cierres"] else 0
+    if b.get("shows"):
+        b["closeRate"] = round(b["cierres"] / b["shows"] * 100, 1)
     filas = [{"id": f"sena-{d['id']}", "nombre": d["prospecto"] or "Sin nombre", "closer": _persona(d["closer"], "closer"),
               "fecha": (d["fechaAt"] or "")[:10] or None, "pagoUsd": d["cashUsd"], "deudaUsd": 0.0,
               "programa": d["programa"], "resultado": "Cerrado", "estado": f"Cerrado · era seña de {(d['fechaAt'] or '')[:7]}"}
@@ -1855,8 +1856,8 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict],
         "sinReportar": sum(1 for x in medibles if x["estado"] == "sin_reportar"),
         "shows": shows,
         "noShows": no_shows,
-        # Los cierres del mes incluyen las señas de antes que se cerraron ahora; el close
-        # rate sigue midiendo solo las llamadas del mes (cierresDelMes).
+        # Los cierres del mes incluyen las señas de antes que se cerraron ahora (cierresDeSena),
+        # y cuentan en el close rate; cierresDelMes son solo las llamadas del mes.
         "cierres": len(cerradas) + len(diferidos or []),
         "cierresDelMes": len(cerradas),
         "cierresDeSena": len(diferidos or []),
@@ -1869,18 +1870,19 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict],
         "saldoUsd": round(sum(x["saldoUsd"] for x in ventas), 2),
         "showRate": round(shows / evaluables * 100, 1) if evaluables else None,
         "noShowRate": round(no_shows / evaluables * 100, 1) if evaluables else None,
-        "closeRate": round(len(cerradas) / shows * 100, 1) if shows else None,
+        # Las señas de antes cerradas este mes también son cierres del mes (Franco, 22-10-2026).
+        "closeRate": round((len(cerradas) + len(diferidos or [])) / shows * 100, 1) if shows else None,
         # Si las señas del mes terminan de cerrar: (cierres + señas) / shows. Es el techo
         # del mes, no un resultado: sirve para ver cuánto hay todavía sobre la mesa.
         "closeRateProyectado": (
-            round((len(cerradas) + len(senas)) / shows * 100, 1) if shows else None
+            round((len(cerradas) + len(diferidos or []) + len(senas)) / shows * 100, 1) if shows else None
         ),
         # AOV: el cash cobrado dividido por la cantidad de cierres. La seña no es un
         # cierre, así que no entra al divisor: si entrara, dos señas chicas bajarían el
         # promedio de una venta que todavía no está hecha.
         # El AOV y el promedio se miden sobre las ventas del mes, sin lo diferido: ese
         # cash no tiene una llamada de este mes que lo divida.
-        "aovUsd": round((cash - cash_diferido) / len(cerradas), 2) if cerradas else 0,
+        "aovUsd": round(cash / (len(cerradas) + len(diferidos or [])), 2) if (cerradas or diferidos) else 0,
         "cashPromedioUsd": round((cash - cash_diferido) / len(ventas), 2) if ventas else 0,
     }
 
