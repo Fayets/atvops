@@ -82,7 +82,9 @@ export function segmentoGeneralDesdeBloque(b) {
   const shows = b.shows ?? 0;
   const noShows = b.noShows ?? 0;
   const sinReportar = b.sinReportar ?? 0;
-  const cierres = b.cierres ?? 0;
+  // Las tasas miden las llamadas del período: las señas de antes cerradas ahora no entran.
+  const deSena = b.cierresDeSena ?? 0;
+  const cierres = (b.cierres ?? 0) - deSena;
   const ventas = b.ventas ?? 0;
   const cash = b.cashUsd ?? 0;
   const pasadas = shows + noShows + sinReportar;

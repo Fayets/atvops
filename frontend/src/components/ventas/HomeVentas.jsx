@@ -129,7 +129,7 @@ function Equipo({ porCloser, sinAsignar, onVer }) {
     label: c.nombre,
     value: c.cashUsd,
     format: 'usd',
-    detalle: `${c.cierres} cierres · ${c.senas} señas · ${c.agendados} agendas`,
+    detalle: `${c.cierres} cierres${c.cierresDeSena ? ` (${c.cierresDeSena} de seña anterior)` : ''} · ${c.senas} señas · ${c.agendados} agendas`,
     fuente: {
       explicacion: 'El cash de las ventas que cerró en el período, llamada por llamada.',
       secciones: [
@@ -156,7 +156,7 @@ function Equipo({ porCloser, sinAsignar, onVer }) {
             </header>
             <div className="home-ventas-persona-cash num">{formatValue(c.cashUsd || 0, 'usd')}</div>
             <div className="home-ventas-persona-datos">
-              <span><b className="num">{c.cierres}</b> cierres</span>
+              <span><b className="num">{c.cierres}</b> cierres{c.cierresDeSena ? <span className="dim"> ({c.cierresDeSena} de seña)</span> : null}</span>
               <span><b className="num">{c.senas}</b> señas</span>
               <span><b className="num">{c.agendados}</b> agendas</span>
               <span><b className="num">{c.closeRate == null ? '--' : `${String(c.closeRate).replace('.', ',')}%`}</b> close rate</span>

@@ -1733,6 +1733,29 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     }
 
 
+def _con_cierres_de_sena(b: dict, diferidos: list[dict]) -> dict:
+    """Suma al bloque las señas de meses anteriores que terminaron de cerrar en el período.
+
+    Son cierres de este mes —el closer los cerró ahora— y su plata entró ahora, pero la
+    llamada fue en otro mes: cuentan en cierres y en cash, no en el close rate, que mide las
+    llamadas del período contra sus shows (Franco, 22-10-2026: "Nick tiene 2 y no se ven").
+    """
+    b = {**b, "cierresDeSena": len(diferidos), "cashDeSenaUsd": round(sum(d["cashUsd"] for d in diferidos), 2)}
+    if not diferidos:
+        return b
+    b["cierres"] += len(diferidos)
+    b["cashUsd"] = round(b["cashUsd"] + b["cashDeSenaUsd"], 2)
+    b["averageSaleUsd"] = round(b["cashUsd"] / b["cierres"], 2) if b["cierres"] else 0
+    filas = [{"id": f"sena-{d['id']}", "nombre": d["prospecto"] or "Sin nombre", "closer": _persona(d["closer"], "closer"),
+              "fecha": (d["fechaAt"] or "")[:10] or None, "pagoUsd": d["cashUsd"], "deudaUsd": 0.0,
+              "programa": d["programa"], "resultado": "Cerrado", "estado": f"Cerrado · era seña de {(d['fechaAt'] or '')[:7]}"}
+             for d in diferidos]
+    for clave in ("cierresDetalle", "ventasDetalle"):
+        if clave in b:
+            b[clave] = list(b[clave]) + filas
+    return b
+
+
 def director(desde: date, hasta: date, programa: str | None = None, closer: str | None = None) -> dict:
     """El home del director de ventas para cualquier período: hoy, semana, mes, año o rango.
 
@@ -1762,15 +1785,24 @@ def director(desde: date, hasta: date, programa: str | None = None, closer: str 
     for l in leads:
         grupos.setdefault(_persona(l.get("closer"), "closer"), []).append(l)
     closers = equipo_services.nombres("closer")
-    por_closer = [{"nombre": n, **_bloque(grupos.get(n, []), ahora, detalle=True)} for n in closers]
+    # Las señas de antes que cerraron en el período, de quien las cerró.
+    diferidos = [d for d in cierres_diferidos(desde, fin)
+                 if not programa or _norm(d["programa"]) == _norm(programa)]
+    dif_de: dict[str, list[dict]] = {}
+    for d in diferidos:
+        dif_de.setdefault(_persona(d["closer"], "closer"), []).append(d)
+    por_closer = [{"nombre": n, **_con_cierres_de_sena(_bloque(grupos.get(n, []), ahora, detalle=True), dif_de.get(n, []))}
+                  for n in closers]
     # Lo que no tiene closer cargado también trajo plata: se muestra aparte, no se reparte.
     sin_asignar = [l for k, v in grupos.items() if k not in closers for l in v]
+    dif_sin = [d for k, v in dif_de.items() if k not in closers for d in v]
     elegidas = grupos.get(closer, []) if closer else leads
     return {
         "desde": desde.isoformat(), "hasta": hasta.isoformat(),
-        "actual": _bloque(elegidas, ahora, detalle=True),
+        "actual": _con_cierres_de_sena(_bloque(elegidas, ahora, detalle=True), dif_de.get(closer, []) if closer else diferidos),
         "porCloser": por_closer,
-        "sinAsignar": _bloque(sin_asignar, ahora, detalle=True) if sin_asignar else None,
+        "sinAsignar": (_con_cierres_de_sena(_bloque(sin_asignar, ahora, detalle=True), dif_sin)
+                       if sin_asignar or dif_sin else None),
         "closers": closers,
         "programas": [p["nombre"] for p in programas()],
         "generadoAt": datetime.now(AR_TZ).isoformat(),
@@ -1823,7 +1855,11 @@ def _metricas_closer(del_mes: list[dict], ventas: list[dict],
         "sinReportar": sum(1 for x in medibles if x["estado"] == "sin_reportar"),
         "shows": shows,
         "noShows": no_shows,
-        "cierres": len(cerradas),
+        # Los cierres del mes incluyen las señas de antes que se cerraron ahora; el close
+        # rate sigue midiendo solo las llamadas del mes (cierresDelMes).
+        "cierres": len(cerradas) + len(diferidos or []),
+        "cierresDelMes": len(cerradas),
+        "cierresDeSena": len(diferidos or []),
         "senas": len(senas),
         "ventas": len(ventas),
         "cashUsd": cash,

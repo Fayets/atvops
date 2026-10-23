@@ -219,7 +219,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
           nota={mes.saldoUsd ? `${formatValue(mes.saldoUsd, 'usd')} por cobrar` : 'este mes'}
           onVer={ver('Cash cobrado', 'Lo que efectivamente pagó cada cliente que cerró.', ventas, dinero, 'Cash')} />
         <Kpi label="Facturación" valor={formatValue(mes.facturacionUsd ?? 0, 'usd')}
-          nota={`${mes.cierres ?? 0} ventas · AOV ${formatValue(mes.aovUsd ?? 0, 'usd')}`}
+          nota={`${mes.cierresDelMes ?? mes.cierres ?? 0} ventas · AOV ${formatValue(mes.aovUsd ?? 0, 'usd')}`}
           onVer={ver('Facturación', 'El precio del programa que compró cada uno.', ventas, (l) => `${l.programa || 'sin programa'} · ${formatValue(l.facturacionUsd ?? 0, 'usd')}`, 'Programa')} />
       </div>
 
@@ -235,7 +235,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
         <Kpi
           label="Close rate"
           valor={pct(mes.closeRate)}
-          nota={`${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cerrada' : 'cerradas'} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}`}
+          nota={`${mes.cierresDelMes ?? mes.cierres ?? 0} ${(mes.cierresDelMes ?? mes.cierres) === 1 ? 'cerrada' : 'cerradas'} sobre ${mes.shows ?? 0} shows${mes.senas ? ` · ${mes.senas} con seña` : ''}${mes.cierresDeSena ? ` · +${mes.cierresDeSena} ${mes.cierresDeSena === 1 ? 'seña anterior cerrada' : 'señas anteriores cerradas'}` : ''}`}
           onVer={() => setDetalle({
             titulo: 'Close rate',
             explicacion: 'Las ventas cerradas sobre las llamadas que sí se presentaron. La seña no cuenta como cierre: la venta todavía no está hecha, pero si cierra sube el rate.',
@@ -256,7 +256,7 @@ export default function MiDiaCloser({ data, onCambio, syncKey = 0 }) {
             ],
           })} />
         <Kpi label="AOV" valor={formatValue(mes.aovUsd ?? 0, 'usd')}
-          nota={`${formatValue(mes.cashUsd ?? 0, 'usd')} de cash sobre ${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cierre' : 'cierres'}`}
+          nota={`${formatValue((mes.cashUsd ?? 0) - (mes.cashDiferidoUsd ?? 0), 'usd')} de cash sobre ${mes.cierresDelMes ?? mes.cierres ?? 0} ${(mes.cierresDelMes ?? mes.cierres) === 1 ? 'cierre' : 'cierres'}`}
           onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', ventas.filter((l) => l.estado === 'cierre'), dinero, 'Cash')} />
       </div>
 
