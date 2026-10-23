@@ -1768,6 +1768,18 @@ def _con_cierres_de_sena(b: dict, diferidos: list[dict]) -> dict:
     for clave in ("cierresDetalle", "ventasDetalle"):
         if clave in b:
             b[clave] = list(b[clave]) + filas
+    # La disposición también: si no, el mismo tablero dice 7 cierres arriba y 4 en la barra.
+    disp = b.get("disposiciones")
+    if disp and disp.get("tajadas"):
+        tajadas = [dict(t) for t in disp["tajadas"]]
+        total = disp.get("total", 0) + len(diferidos)
+        for t in tajadas:
+            if t["disposicion"] == "Cerrado":
+                t["n"] += len(diferidos)
+                if "leads" in t:
+                    t["leads"] = list(t["leads"]) + filas
+            t["pct"] = round(t["n"] / total * 100, 1) if total else 0.0
+        b["disposiciones"] = {**disp, "total": total, "tajadas": tajadas}
     return b
 
 

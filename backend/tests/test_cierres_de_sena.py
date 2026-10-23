@@ -6,7 +6,10 @@ from src.services import ventas_services as v
 
 def _bloque():
     return {"cierres": 1, "shows": 18, "cashUsd": 5000.0, "averageSaleUsd": 5000.0, "closeRate": 5.6,
-            "cierresDetalle": [{"id": "1"}], "ventasDetalle": [{"id": "1"}]}
+            "cierresDetalle": [{"id": "1"}], "ventasDetalle": [{"id": "1"}],
+            "disposiciones": {"total": 10, "sinReportar": 0, "tajadas": [
+                {"disposicion": "Cerrado", "n": 1, "pct": 10.0, "leads": [{"id": "1"}]},
+                {"disposicion": "Seguimiento", "n": 9, "pct": 90.0, "leads": []}]}}
 
 
 def test_las_senas_cerradas_suman_cierres_cash_y_close_rate(monkeypatch):
@@ -21,6 +24,9 @@ def test_las_senas_cerradas_suman_cierres_cash_y_close_rate(monkeypatch):
     assert b["closeRate"] == 16.7
     assert b["averageSaleUsd"] == 2800.0
     assert [x["nombre"] for x in b["ventasDetalle"][1:]] == ["Dani", "Arturo"]
+    cerrado, seguimiento = b["disposiciones"]["tajadas"]
+    assert b["disposiciones"]["total"] == 12 and cerrado["n"] == 3 and len(cerrado["leads"]) == 3
+    assert cerrado["pct"] == 25.0 and seguimiento["pct"] == 75.0
 
 
 def test_sin_senas_anteriores_el_bloque_no_cambia():
