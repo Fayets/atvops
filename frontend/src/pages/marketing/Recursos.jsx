@@ -4,7 +4,6 @@ import Modal from '../../components/ui/Modal.jsx';
 import Pill from '../../components/ui/Pill.jsx';
 import Tabs from '../../components/ui/Tabs.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
-import EditorLanding from '../../components/marketing/EditorLanding.jsx';
 import { MetricasClases, PrevistaClases, SeriesClases } from '../../components/marketing/Clases.jsx';
 import Spark from '../../components/marketing/Spark.jsx';
 import {
@@ -16,14 +15,15 @@ import '../../styles/recursos.css';
 /**
  * Recursos de Juan: lo que regala en los reels ("comentá ONBOARDING").
  *
- * Uno está en la landing pública (recursos.atvos.io) y marketing elige si se descarga
- * directo o se pide por WhatsApp; el resto vive en la biblioteca y se pide siempre por WhatsApp.
- * El recorrido de cada uno junta los chats del reel (Instagram) con lo que mide la landing.
+ * Acá también se cargan las clases de Juan, que son lo que muestra recursos.atvos.io.
+ *
+ * De los recursos por palabra, el destacado se puede descargar directo desde la biblioteca; el
+ * resto se pide siempre por WhatsApp. El recorrido de cada uno junta los chats del reel
+ * (Instagram) con lo que midió la página mientras existió.
  */
 
 const VISTAS = [
   { value: 'clases', label: 'Clases' },
-  { value: 'landing', label: 'Video' },
   { value: 'metricas', label: 'Métricas' },
   { value: 'biblioteca', label: 'Biblioteca' },
 ];
@@ -32,7 +32,6 @@ const n = (v) => (v == null ? '—' : Number(v).toLocaleString('es-AR'));
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
 const corta = (iso) => (iso ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}` : '');
 const entregados = (m) => m.descargas + m.whatsapp;
-
 
 /** Chats (barras) y visitas (línea) por día, a la misma escala. */
 function Diario({ chats, visitas, desde, hasta }) {
@@ -111,7 +110,7 @@ function Editor({ recurso, reels, onClose, onGuardado }) {
           <label className="campo"><span>Palabra</span><input value={f.palabra} onChange={set('palabra')} required /></label>
           <label className="campo"><span>Título</span><input value={f.titulo} onChange={set('titulo')} required /></label>
         </div>
-        <label className="campo"><span>Titular de la landing · lo que va entre *asteriscos* sale en rojo</span>
+        <label className="campo"><span>Titular · lo que va entre *asteriscos* sale en rojo</span>
           <input value={f.titular} onChange={set('titular')} placeholder="Cómo hago *$2M al año* trabajando solo 4h/día" />
         </label>
         <div className="rec-dos">
@@ -234,8 +233,6 @@ export default function Recursos() {
         </div>
       </>)}
 
-      {vista === 'landing' && <EditorLanding recursos={recursos.filter((r) => r.activo || r.destacado)} onPublicado={recargar} />}
-
       {vista === 'biblioteca' && (
         <Card title="Biblioteca" flush>
           <div className="rec-tabla">
@@ -248,7 +245,7 @@ export default function Recursos() {
                     <td className="dim">{r.tema || '—'}</td>
                     <td className="dim num">{r.reel ? corta(r.reel.fecha) : '—'}</td>
                     <td className="dim">{r.destacado ? (r.entrega === 'regalo' ? 'Se descarga' : 'WhatsApp') : 'WhatsApp'}</td>
-                    <td>{r.destacado ? <Pill tone="info" dot>Landing</Pill> : r.activo ? <Pill tone="plain">Biblioteca</Pill> : <Pill tone="off">Oculto</Pill>}</td>
+                    <td>{r.destacado ? <Pill tone="info" dot>Destacado</Pill> : r.activo ? <Pill tone="plain">Biblioteca</Pill> : <Pill tone="off">Oculto</Pill>}</td>
                     <td className="right">
                       {!r.destacado && (
                         <button type="button" className="btn ghost" onClick={() => editarRecurso(r.id, { activo: !r.activo }).then(recargar)}>
@@ -298,7 +295,7 @@ export default function Recursos() {
                       <td className="right num">{pct(m.p50, m.play)}</td>
                       <td className="right num">{m.descargas ? n(m.descargas) : '—'}</td>
                       <td className="right num">{m.whatsapp ? n(m.whatsapp) : '—'}</td>
-                      <td>{r.destacado ? <Pill tone="info" dot>Landing</Pill> : r.activo ? <Pill tone="plain">Biblioteca</Pill> : <Pill tone="off">Oculto</Pill>}</td>
+                      <td>{r.destacado ? <Pill tone="info" dot>Destacado</Pill> : r.activo ? <Pill tone="plain">Biblioteca</Pill> : <Pill tone="off">Oculto</Pill>}</td>
                     </tr>
                   );
                 })}
