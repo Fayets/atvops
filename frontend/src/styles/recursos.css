@@ -118,3 +118,10 @@
 .lnd-cta svg { width: 13px; height: 13px; }
 .lnd-mas { color: var(--p-muted); font-size: 10px; border-bottom: 1px solid var(--p-line); padding-bottom: 1px; }
 .rec-tabla td.right .btn + .btn { margin-left: 6px; }
+
+/* La landing de verdad adentro del panel: se dibuja al ancho real y se achica entera. */
+.lnd-marco { position: relative; overflow: hidden; border-radius: 12px; border: 1px solid var(--border-soft); background: #242321; }
+.lnd-marco iframe { border: 0; display: block; transform-origin: 0 0; }
+/* Las clases: las tablas necesitan aire, así que la vista previa va más angosta. */
+.lnd-grid.clases { grid-template-columns: minmax(0, 1fr) minmax(0, 380px); }
+@media (max-width: 1180px) { .lnd-grid.clases { grid-template-columns: minmax(0, 1fr); } }

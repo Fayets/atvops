@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Modal from '../ui/Modal.jsx';
 import Pill from '../ui/Pill.jsx';
@@ -18,6 +18,64 @@ import {
 const n = (v) => (v == null ? '—' : Number(v).toLocaleString('es-AR'));
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
 const dos = (v) => String(v).padStart(2, '0');
+
+// La página de verdad, en vivo. En local apunta al dev de atv-recursos-mkt.
+const LANDING = window.location.hostname === 'localhost' ? 'http://localhost:5178' : 'https://recursos.atvos.io';
+const ANCHOS = { pc: 1280, cel: 390 };
+
+/** La landing adentro del panel: se ve lo que ve la gente, no una maqueta que se despega. */
+function Prevista({ dispositivo, version }) {
+  const caja = useRef(null);
+  const [ancho, setAncho] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = caja.current;
+    if (!el) return undefined;
+    const medir = () => setAncho(el.clientWidth);
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const w = ANCHOS[dispositivo];
+  const alto = dispositivo === 'cel' ? 780 : 820;
+  const escala = ancho ? Math.min(1, ancho / w) : 0;
+
+  return (
+    <div className="lnd-marco" ref={caja} style={{ height: escala ? alto * escala : 420 }}>
+      {!!escala && (
+        <iframe
+          key={`${dispositivo}-${version}`}
+          title="Así se ve la página de clases"
+          src={LANDING}
+          width={w}
+          height={alto}
+          style={{ transform: `scale(${escala})` }}
+          loading="lazy"
+        />
+      )}
+    </div>
+  );
+}
+
+/** El panel de la derecha: la página en vivo, como en el editor del video. */
+export function PrevistaClases({ version }) {
+  const [dispositivo, setDispositivo] = useState('pc');
+  return (
+    <aside className="lnd-prev">
+      <div className="lnd-prev-h">
+        <b>Así se ve</b>
+        <a className="dim" href={LANDING} target="_blank" rel="noreferrer">recursos.atvos.io</a>
+        <div className="lnd-seg lnd-dev" role="tablist">
+          <button type="button" role="tab" aria-selected={dispositivo === 'pc'} onClick={() => setDispositivo('pc')}>Compu</button>
+          <button type="button" role="tab" aria-selected={dispositivo === 'cel'} onClick={() => setDispositivo('cel')}>Celular</button>
+        </div>
+      </div>
+      <Prevista dispositivo={dispositivo} version={version} />
+    </aside>
+  );
+}
 
 function EditorRecurso({ recurso, series, onClose, onGuardado }) {
   const nuevo = !recurso.id;
@@ -207,15 +265,18 @@ export function SeriesClases({ series, pagina, recargar, editando, setEditando, 
         >
           <div className="rec-tabla">
             <table className="data">
-              <thead><tr><th>Recurso</th><th>Qué es</th><th className="right">Dura</th><th className="right">Clics</th><th>Dónde</th><th /></tr></thead>
+              <thead><tr><th>Recurso</th><th>Qué es</th><th className="right">Clics</th><th /></tr></thead>
               <tbody>
                 {s.recursos.map((r) => (
                   <tr key={r.id} className={r.activo && s.activa ? '' : 'rec-off'}>
                     <td><div className="rec-nombre"><b>{r.titulo}</b><span className="dim">{r.descripcion}</span></div></td>
-                    <td>{r.tipo === 'llamada' ? <Pill tone="info" dot>Llamada</Pill> : <Pill tone="plain">Playbook {dos(r.orden)}</Pill>}</td>
-                    <td className="right dim num">{r.minutos ? `${r.minutos} min` : r.paginas ? `${r.paginas} pág` : '—'}</td>
+                    <td>
+                      <div className="rec-nombre">
+                        {r.tipo === 'llamada' ? <Pill tone="info" dot>Llamada</Pill> : <Pill tone="plain">Playbook {dos(r.orden)}</Pill>}
+                        <span className="dim">{r.minutos ? `${r.minutos} min` : r.paginas ? `${r.paginas} págs.` : ''}</span>
+                      </div>
+                    </td>
                     <td className="right num">{n(r.clics)}</td>
-                    <td>{!s.activa ? <Pill tone="off">Serie oculta</Pill> : r.activo ? <Pill tone="plain">En la página</Pill> : <Pill tone="off">Oculto</Pill>}</td>
                     <td className="right">
                       <button type="button" className="btn ghost" onClick={() => alternar(r)}>{r.activo ? 'Ocultar' : 'Mostrar'}</button>
                       <button type="button" className="btn ghost" onClick={() => setEditando({ ...r, serieId: s.id })}>Editar</button>
@@ -224,7 +285,7 @@ export function SeriesClases({ series, pagina, recargar, editando, setEditando, 
                 ))}
                 {!s.recursos.length && (
                   <tr>
-                    <td colSpan={6} className="dim rec-vacio">
+                    <td colSpan={4} className="dim rec-vacio">
                       Serie vacía.
                       <button type="button" className="btn ghost" onClick={() => borrarClaseSerie(s.id).then(recargar)}>Borrarla</button>
                     </td>

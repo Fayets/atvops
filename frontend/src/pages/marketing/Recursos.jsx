@@ -5,7 +5,7 @@ import Pill from '../../components/ui/Pill.jsx';
 import Tabs from '../../components/ui/Tabs.jsx';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import EditorLanding from '../../components/marketing/EditorLanding.jsx';
-import { MetricasClases, SeriesClases } from '../../components/marketing/Clases.jsx';
+import { MetricasClases, PrevistaClases, SeriesClases } from '../../components/marketing/Clases.jsx';
 import Spark from '../../components/marketing/Spark.jsx';
 import {
   crearRecurso, editarRecurso, getClases, getRecursos, guardarAjustesRecursos,
@@ -23,7 +23,7 @@ import '../../styles/recursos.css';
 
 const VISTAS = [
   { value: 'clases', label: 'Clases' },
-  { value: 'landing', label: 'Landing' },
+  { value: 'landing', label: 'Video' },
   { value: 'metricas', label: 'Métricas' },
   { value: 'biblioteca', label: 'Biblioteca' },
 ];
@@ -218,15 +218,20 @@ export default function Recursos() {
 
       {vista === 'clases' && (<>
         <MetricasClases series={series} totales={clases?.totales} />
-        <SeriesClases
-          series={series}
-          pagina={clases?.pagina}
-          recargar={recargar}
-          editando={claseEditando}
-          setEditando={setClaseEditando}
-          serieEditando={serieEditando}
-          setSerieEditando={setSerieEditando}
-        />
+        <div className="lnd-grid clases">
+          <div className="rec-detalle">
+            <SeriesClases
+              series={series}
+              pagina={clases?.pagina}
+              recargar={recargar}
+              editando={claseEditando}
+              setEditando={setClaseEditando}
+              serieEditando={serieEditando}
+              setSerieEditando={setSerieEditando}
+            />
+          </div>
+          <PrevistaClases version={version} />
+        </div>
       </>)}
 
       {vista === 'landing' && <EditorLanding recursos={recursos.filter((r) => r.activo || r.destacado)} onPublicado={recargar} />}
