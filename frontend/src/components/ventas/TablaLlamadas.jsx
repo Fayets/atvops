@@ -29,6 +29,13 @@ const SIN_CARGAR = {
 const _clave = (t) => (t ?? '').toString().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 const canonico = (valor, estados) => estados.find((e) => _clave(e) === _clave(valor)) ?? '';
+// El tono de un resultado, también de los que ya no se pueden elegir: el CRM los guarda
+// en minúscula ("no contesta") y la tabla tiene que pintarlos como el backend los cuenta.
+const tonoDe = (texto) => {
+  const k = _clave(texto);
+  return Object.keys(TONO_ESTADO).find((e) => _clave(e) === k);
+};
+const conMayuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
 const cuando = (iso) => {
   const d = new Date(iso);
@@ -42,8 +49,15 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
   const [error, setError] = useState(null);
 
   const cargado = canonico(llamada.resultado, estados);
+  // Un resultado que ya no se puede elegir pero que la llamada tiene cargado —"No
+  // contesta", "No tiene la plata"— se sigue mostrando: el backend lo cuenta como no show
+  // o como show, y dejarlo en "Falta cargar" haría que la fila contradiga a las métricas.
+  // No vale para "agendado", que el backend ya clasifica como sin cargar.
+  const legado = (!cargado && (llamada.resultado || '').trim()
+    && !['sin_reportar', 'agendado', 'sin_crm'].includes(llamada.estado))
+    ? llamada.resultado.trim() : '';
   const v = {
-    resultado: cargado, programa: llamada.programa || '', cashUsd: llamada.cashUsd ?? '',
+    resultado: cargado || legado, programa: llamada.programa || '', cashUsd: llamada.cashUsd ?? '',
     ...(borrador ?? {}),
   };
   const esVenta = VENTA.includes(v.resultado);
@@ -86,7 +100,7 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
     }
   };
 
-  const tono = cargado ? (TONO_ESTADO[cargado] ?? 'plain') : 'off';
+  const tono = TONO_ESTADO[tonoDe(cargado || legado)] ?? (cargado || legado ? 'plain' : 'off');
 
   return (
     <>
@@ -101,7 +115,7 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
             <Pill tone="off" dot>descartada</Pill>
           ) : (
             <select
-              className={`sel-estado${cargado ? ` ${tono}` : ''}${SIN_CARGAR[llamada.estado] === 'Falta cargar' ? ' pendiente' : ''}`}
+              className={`sel-estado${cargado || legado ? ` ${tono}` : ''}${!cargado && !legado && SIN_CARGAR[llamada.estado] === 'Falta cargar' ? ' pendiente' : ''}`}
               value={v.resultado}
               disabled={guardando}
               onChange={(e) => {
@@ -111,6 +125,7 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
               }}
             >
               <option value="">{SIN_CARGAR[llamada.estado] ?? 'Falta cargar'}</option>
+              {legado && <option value={legado}>{conMayuscula(legado)}</option>}
               {estados.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
           )}

@@ -1425,9 +1425,13 @@ def estado() -> dict:
 
 # ------------------------------------------------- programas y cierres
 
-ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No tiene la plata", "Lo voy a pensar",
-                   "No show", "No contesta", "Descalificado", "Cancelada", "Re-agenda",
-                   "Agendado", "Descartada")
+# Lo que el closer puede elegir. "No tiene la plata", "Lo voy a pensar", "No contesta" y
+# "Agendado" salieron el 25-10-2026 a pedido de Franco: las dos primeras son seguimiento
+# con otro nombre, "No contesta" es un no show y "Agendado" no es un resultado —la reunión
+# que todavía no pasó ya se llama así sola—. Se sacan de la lista, no de la clasificación:
+# las que quedaron cargadas con esos textos se siguen contando donde contaban.
+ESTADOS_LLAMADA = ("Cerrado", "Seña", "Seguimiento", "No show", "Descalificado",
+                   "Cancelada", "Re-agenda", "Descartada")
 ESTADOS_VENTA = ("Cerrado", "Seña")
 ROLES_PRECIOS = frozenset({"admin", "operaciones", "founder"})
 # Quién puede cargar el resultado de una reunión. El calendario es del equipo: si la

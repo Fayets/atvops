@@ -21,7 +21,12 @@ export function FormResultado({ llamada, programas, estados, equipo = [], onGuar
   // Google ("Ingreso Kariana", "Canceled: Kevin Serna and Aumenta Tu Valor") y así
   // quedan en el registro y en los reportes para siempre.
   const [prospecto, setProspecto] = useState(llamada.prospecto || '');
-  const [resultado, setResultado] = useState(canonico(llamada.resultado, estados));
+  // Lo cargado manda, aunque ya no se pueda elegir: una llamada vieja marcada "No
+  // contesta" tiene que mostrarse así y no en blanco. El chip extra aparece solo en esa.
+  const legado = (canonico(llamada.resultado, estados)
+    || ['sin_reportar', 'agendado', 'sin_crm'].includes(llamada.estado))
+    ? '' : (llamada.resultado || '').trim();
+  const [resultado, setResultado] = useState(canonico(llamada.resultado, estados) || legado);
   const [programa, setPrograma] = useState(llamada.programa || '');
   const [cash, setCash] = useState(llamada.cashUsd || '');
   const [nota, setNota] = useState(llamada.reporte || '');
@@ -76,7 +81,7 @@ export function FormResultado({ llamada, programas, estados, equipo = [], onGuar
         </label>
       ) : null}
       <div className="llamada-estados">
-        {estados.map((e) => (
+        {(legado && !estados.includes(legado) ? [legado, ...estados] : estados).map((e) => (
           <button
             key={e}
             type="button"
