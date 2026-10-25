@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
+import CargarDaily from '../components/daily/CargarDaily.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import {
@@ -50,6 +51,7 @@ export default function Daily() {
   if (!data) return <div className="page"><SkeletonBlock height={420} /></div>;
 
   const sinEmpezar = data.dias.every((d) => d.futuro);
+  const terminada = sumarDias(data.semana, 4) < data.hoy;
   const nav = (
     <div className="dl-weeknav">
       <button type="button" className="btn ghost sm" onClick={() => setSemana(sumarDias(data.semana, -7))}>←</button>
@@ -61,7 +63,15 @@ export default function Daily() {
 
   return (
     <div className="page">
-      <div className="dl-top"><span />{nav}</div>
+      <div className="dl-top">
+        {terminada ? <span /> : (
+          <CargarDaily
+            semana={data.semana}
+            onCargado={(nueva) => { setData(nueva); setError(null); }}
+          />
+        )}
+        {nav}
+      </div>
       <DiaDaily data={data} dia={dia} setDia={setDia} onGuardado={setData} />
     </div>
   );

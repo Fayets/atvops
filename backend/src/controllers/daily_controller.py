@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from src.controllers.auth_controller import get_current_user
 from src.controllers.webhooks_controller import _agente
+from src.services import daily_importar_services as importar
 from src.services import daily_services as svc
 
 router = APIRouter()
@@ -32,6 +33,24 @@ class DiaGuardado(BaseModel):
     fecha: str
     marcas: list[Marca]
     parcial: bool = False
+
+
+class Importacion(BaseModel):
+    """El documento del domingo: su link de Google Docs o su texto pegado."""
+
+    url: str | None = None
+    texto: str | None = None
+
+
+class TareaImportada(BaseModel):
+    texto: str
+    tipo: str = "velocidad"
+    dia: int | None = None
+
+
+class Lote(BaseModel):
+    semana: str
+    tareas: list[TareaImportada]
 
 
 class TareaRolIn(BaseModel):
@@ -87,6 +106,20 @@ def editar(tarea_id: int, body: TareaEdicion, user: dict = Depends(get_current_u
 def borrar(tarea_id: int, user: dict = Depends(get_current_user)):
     svc.borrar_tarea(user["username"], tarea_id)
     return {"ok": True}
+
+
+@router.post("/importar")
+def importar_documento(body: Importacion, user: dict = Depends(get_current_user)):
+    """Lee el documento y propone las tareas repartidas por día. No guarda nada."""
+    return importar.proponer(body.url, body.texto)
+
+
+@router.post("/tareas/lote")
+def agregar_lote(body: Lote, user: dict = Depends(get_current_user)):
+    """Carga la propuesta ya revisada. Devuelve la semana al día, como la ve la pantalla."""
+    semana = svc._parse_fecha(body.semana, "semana")
+    puestas = svc.agregar_tareas(user["username"], semana, [t.model_dump() for t in body.tareas])
+    return {"cargadas": puestas, "semana": svc.ver_semana(user["username"], semana)}
 
 
 @router.put("/dia")

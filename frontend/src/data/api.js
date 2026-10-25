@@ -3044,6 +3044,24 @@ export async function agregarTareaDaily(semana, texto, tipo, dia = null) {
   });
 }
 
+/** Lee el documento del domingo y propone las tareas por día. No guarda nada. */
+export async function importarDaily({ url, texto }) {
+  return pedir('/api/daily/importar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url || null, texto: texto || null }),
+  });
+}
+
+/** Carga de una las tareas ya revisadas. Devuelve cuántas entraron y la semana al día. */
+export async function cargarTareasDaily(semana, tareas) {
+  return pedir('/api/daily/tareas/lote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ semana, tareas }),
+  });
+}
+
 export async function editarTareaDaily(id, cambios) {
   return pedir(`/api/daily/tareas/${id}`, {
     method: 'PATCH',

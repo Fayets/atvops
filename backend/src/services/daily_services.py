@@ -14,7 +14,9 @@ acá, con el motivo que escribió, y en el organigrama de Backbone.
 from __future__ import annotations
 
 import logging
+import re
 import secrets
+import unicodedata
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -551,6 +553,47 @@ def agregar_tarea(username: str, semana: date, texto: str, tipo: str, dia: int |
                         frecuencia="semanal", dia=dia, orden=orden)
         t.flush()  # sin esto el id todavía es None
         return _tarea_dict(t)
+
+
+def agregar_tareas(username: str, semana: date, tareas: list[dict]) -> int:
+    """Carga de una la semana que alguien planificó afuera. Devuelve cuántas entraron.
+
+    Se puede correr de nuevo sin duplicar: una tarea con el mismo texto y el mismo día que
+    ya está en la semana se saltea. El día es parte de la comparación a propósito: "30
+    mensajes de seguimiento" los lunes y los martes son dos tareas, no una repetida.
+    """
+    semana = lunes_de(semana)
+    if semana + timedelta(days=4) < hoy():
+        raise HTTPException(status_code=400, detail="Esa semana ya terminó.")
+    limpias = []
+    for t in tareas or []:
+        texto = (t.get("texto") or "").strip()[:300]
+        tipo = t.get("tipo") if t.get("tipo") in ("velocidad", "desplazamiento") else "velocidad"
+        dia = t.get("dia")
+        dia = dia if isinstance(dia, int) and dia in range(5) else None
+        if texto:
+            limpias.append({"texto": texto, "tipo": tipo, "dia": dia})
+    if not limpias:
+        raise HTTPException(status_code=400, detail="No hay ninguna tarea para cargar.")
+    with db_session:
+        ya = {(t.dia, _clave_texto(t.texto)) for t in _tareas(username, semana)}
+        orden = TareaSemana.select(lambda t: t.usuario == username and t.semana == semana).count()
+        puestas = 0
+        for t in limpias:
+            clave = (t["dia"], _clave_texto(t["texto"]))
+            if clave in ya:
+                continue
+            ya.add(clave)
+            TareaSemana(usuario=username, semana=semana, texto=t["texto"], tipo=t["tipo"],
+                        origen="propia", frecuencia="semanal", dia=t["dia"], orden=orden + puestas)
+            puestas += 1
+        return puestas
+
+
+def _clave_texto(texto: str) -> str:
+    """Para no cargar dos veces lo mismo escrito con otra puntuación o acento."""
+    t = unicodedata.normalize("NFKD", (texto or "").strip()).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", " ", t).strip()
 
 
 def _tarea_propia(username: str, tarea_id: int) -> TareaSemana:
