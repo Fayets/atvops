@@ -1,86 +1,109 @@
+"""Por qué una llamada no aparece en Ventas → Llamadas.
+
+Compara, en un rango de fechas, lo que hay en el Google Calendar de ATV contra lo que hay
+en el registro de llamadas de Ops. No escribe nada: solo mira y explica.
+
+Una reunión entra al registro cuando pasa dos filtros, y acá se ve cuál la frenó:
+  1. Está en el calendario que lee Ops (el de la cuenta de ATV, uno solo). Si se agendó en
+     el calendario personal de alguien, Ops no la ve nunca.
+  2. El título dice "Aumenta Tu Valor" —la marca que pone Calendly—. Una reunión cargada a
+     mano como "Llamada Gabriel" está en el calendario pero Ops la saltea.
+
+La lista "CASI ENTRAN" es la que importa revisar: títulos que hablan de la marca y aun así
+quedan afuera. Así apareció que "Aúmenta" y "Aumento" se estaban perdiendo llamadas
+enteras sin que nada lo dijera.
+
+    docker exec atv-ops-backend python scripts/revisar_llamadas.py --desde 2026-09-29
 """
-Revisa que el registro de llamadas esté sano.
 
-    python scripts/revisar_llamadas.py              # el mes en curso
-    python scripts/revisar_llamadas.py 2026-09      # un mes puntual
+from __future__ import annotations
 
-No escribe nada: solo mira. Sirve para contestar rápido "¿el calendario está bien?" sin
-tener que abrirlo y contar a ojo. Lo que busca es lo que se rompía antes: reuniones
-duplicadas, números de agenda que saltan y llamadas del calendario sin resolver.
-"""
-
+import argparse
+import re
 import sys
-from datetime import date, datetime, timezone
+import unicodedata
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from pony.orm import db_session  # noqa: E402
+
 from src.db import init_db  # noqa: E402
+from src.models import ReunionCrm  # noqa: E402
+from src.services import gcal_services as gcal  # noqa: E402
+from src.services.transcripts_services import AR_TZ  # noqa: E402
 
 
-def main() -> None:
-    init_db()
-    from collections import Counter
+def _clave(texto: str) -> str:
+    t = unicodedata.normalize("NFKD", (texto or "").strip()).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", " ", t).strip()
 
-    from pony.orm import db_session
 
-    from src.models import ReunionCrm
-    from src.services import ventas_services as ventas
-    from src.services.transcripts_services import AR_TZ
-
-    # `strftime("%B")` sale en inglés salvo que el server tenga el locale puesto.
-    MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
-             "agosto", "septiembre", "octubre", "noviembre", "diciembre")
-
-    mes = next((a for a in sys.argv[1:] if not a.startswith("--")), None)
+def main() -> int:
     hoy = date.today()
-    anio, m = (int(mes[:4]), int(mes[5:7])) if mes else (hoy.year, hoy.month)
-    desde = date(anio, m, 1)
-    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--desde", default=(hoy - timedelta(days=45)).isoformat())
+    p.add_argument("--hasta", default=(hoy + timedelta(days=1)).isoformat())
+    a = p.parse_args()
+    desde, hasta = date.fromisoformat(a.desde), date.fromisoformat(a.hasta)
+    init_db()
+
+    cred = gcal.credenciales()
+    # Google quiere el rango con huso horario: sin él contesta 400.
+    eventos = gcal._traer(cred["calendar_id"], cred["service_account_json"],
+                          datetime.combine(desde, time.min, tzinfo=AR_TZ),
+                          datetime.combine(hasta, time.max, tzinfo=AR_TZ))
+    print(f"Calendario: {cred['calendar_id']} ({cred.get('origen', '?')})")
+    print(f"Rango: {desde} a {hasta} — {len(eventos)} eventos\n")
 
     with db_session:
-        todas = list(ReunionCrm.select())
-        repetidos = {k: n for k, n in Counter(r.lead_id for r in todas if r.lead_id).items() if n > 1}
-        print(f"Llamadas guardadas: {len(todas)}")
-        print(f"  con lead del CRM:      {sum(1 for r in todas if r.lead_id)}")
-        print(f"  solo del calendario:   {sum(1 for r in todas if not r.lead_id and r.fuente == 'calendario')}")
-        print(f"  cargadas a mano:       {sum(1 for r in todas if r.fuente == 'manual')}")
-        print(f"  con resultado cargado: {sum(1 for r in todas if (r.resultado or '').strip())}")
-        # `sincronizado_at` se guarda en UTC (datetime.utcnow()): sin convertirlo,
-        # la línea se lee 3 horas adelantada y parece que el sync corrió en el futuro.
-        sincro = [r.sincronizado_at for r in todas if r.sincronizado_at]
-        if sincro:
-            ultimo = max(sincro).replace(tzinfo=timezone.utc).astimezone(AR_TZ)
-            minutos = round((datetime.now(AR_TZ) - ultimo).total_seconds() / 60)
-            cuando = "recién" if minutos < 1 else f"hace {minutos} min" if minutos < 120 else f"hace {minutos // 60} h"
-            print(f"  último sync:           {ultimo:%Y-%m-%d %H:%M} ART ({cuando})")
-        else:
-            print("  último sync:           nunca")
-        if repetidos:
-            print(f"\n  OJO: {len(repetidos)} lead(s) con más de una reunión guardada:")
-            for lead in list(repetidos)[:10]:
-                suyas = [r for r in todas if r.lead_id == lead]
-                print(f"    lead {lead}: " + ", ".join(f"{r.evento_id[:14]} ({r.inicio_at})" for r in suyas))
-            print("    (es normal si son una 1ra y una 2da reunión; no lo es si están a la misma hora)")
+        filas = list(ReunionCrm.select(
+            lambda r: r.inicio_at >= datetime.combine(desde, datetime.min.time())
+            and r.inicio_at < datetime.combine(hasta, datetime.min.time())))
+        por_evento = {r.evento_id: r for r in filas if r.evento_id}
+        por_nombre = {_clave(r.prospecto): r for r in filas if r.prospecto}
 
-    est = ventas.estado_de_las_reuniones(desde, hasta)
-    por_evento = est.get("porEvento") or {}
-    numeros = sorted(x["numeroAgenda"] for x in por_evento.values() if x.get("numeroAgenda"))
-    tope = max(numeros) if numeros else 0
-    saltos = [n for n in range(1, tope + 1) if n not in numeros]
-    repes = sorted({n for n in numeros if numeros.count(n) > 1})
+        sin_marca, fuera, dentro = [], [], []
+        for e in eventos:
+            fecha = e["inicioAt"][:10]
+            titulo = e["titulo"]
+            if not gcal._MARCA.search(titulo):
+                sin_marca.append((fecha, titulo))
+            elif e["id"] in por_evento:
+                dentro.append((fecha, titulo))
+            else:
+                fuera.append((fecha, titulo, _clave(gcal._prospecto(titulo)[0]) in por_nombre))
 
-    print(f"\n{MESES[m - 1].capitalize()} {anio}: {len(por_evento)} reuniones, {len(numeros)} numeradas (1 a {tope})")
-    print(f"  saltos en la numeración: {saltos or 'ninguno'}")
-    print(f"  números repetidos:       {repes or 'ninguno'}")
+        print(f"--- EN EL REGISTRO: {len(dentro)}")
+        print(f"--- EN EL CALENDARIO Y NO EN EL REGISTRO: {len(fuera)}")
+        for f, t, por_nom in fuera:
+            print(f"  {f}  {t}" + ("   (hay una fila con ese nombre, sin el id del evento)" if por_nom else ""))
+        # Lo que dice "valor" y aun así no entra: o es una variante nueva mal tipeada, o
+        # es una reunión interna. Vale la pena mirarlo de a una.
+        casi = [(f, t) for f, t in sin_marca if "valor" in _clave(t)]
+        print(f"\n--- CASI ENTRAN (dicen \"valor\" y Ops igual las saltea): {len(casi)}")
+        for f, t in casi:
+            print(f"  {f}  {t}")
+        print(f"\n--- EN EL CALENDARIO SIN LA MARCA \"Aumenta Tu Valor\": {len(sin_marca)}")
+        print("    (Ops no las lee: son las que se agendaron a mano o con otro link)")
+        for f, t in sin_marca:
+            print(f"  {f}  {t}")
 
-    sin_cargar = [x for x in por_evento.values() if not (x.get("resultado") or "").strip()]
-    print(f"  sin resultado cargado:   {len(sin_cargar)}")
-    if saltos or repes:
-        print("\n  Algo quedó mal. Corré `python scripts/sincronizar_llamadas.py` y volvé a revisar.")
-    else:
-        print("\n  El registro está sano.")
+        solo_ops = [r for r in filas if not r.evento_id or r.evento_id not in {e["id"] for e in eventos}]
+        print(f"\n--- EN EL REGISTRO Y NO EN EL CALENDARIO: {len(solo_ops)}")
+        print("    (cargadas a mano en Ops, o el evento se borró del calendario)")
+        for r in sorted(solo_ops, key=lambda x: x.inicio_at):
+            print(f"  {r.inicio_at.date()}  {r.prospecto}  closer={r.closer or '—'}  id={r.evento_id or '(sin evento)'}")
+
+        print(f"\n--- POR CLOSER en el registro ({len(filas)} llamadas)")
+        por_closer: dict[str, int] = {}
+        for r in filas:
+            por_closer[r.closer or "(sin closer)"] = por_closer.get(r.closer or "(sin closer)", 0) + 1
+        for nombre, n in sorted(por_closer.items(), key=lambda x: -x[1]):
+            print(f"  {n:>4}  {nombre}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

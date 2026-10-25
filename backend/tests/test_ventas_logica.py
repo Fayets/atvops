@@ -105,9 +105,26 @@ def test_bloque_vacio_no_divide_por_cero():
     ("Alejandro & Aumenta Tu Valor", "Alejandro", False),
     ("Aumenta Tu Valor & Michael", "Michael", False),
     ("Rodrigo Soler y Aumenta Tu Valor", "Rodrigo Soler", False),
+    # El título lo tipea una persona y a veces lo escribe mal. Cada una de estas tres se
+    # perdió una llamada real: la reunión estaba en el calendario y Ops no la leía.
+    ("Lina y Oscar & Aúmenta Tu Valor", "Lina y Oscar", False),
+    ("Byron & Aumento Tu Valor", "Byron", False),
+    ("Gabriel & Aumenta tu valor", "Gabriel", False),
 ])
 def test_prospecto_desde_el_titulo(titulo, nombre, segunda):
     assert g._prospecto(titulo) == (nombre, segunda)
+
+
+@pytest.mark.parametrize("titulo", [
+    "Lina y Oscar & Aúmenta Tu Valor", "Byron & Aumento Tu Valor", "Nicolás López and Aumenta Tu Valor",
+])
+def test_la_marca_mal_escrita_igual_es_una_llamada(titulo):
+    assert g._MARCA.search(titulo)
+
+
+@pytest.mark.parametrize("titulo", ["Daily", "Ventas Lucas & Nick", "GYM", "1a1 facu", "Start Marketing & Sales"])
+def test_la_agenda_interna_no_entra_como_llamada(titulo):
+    assert not g._MARCA.search(titulo)
 
 
 def test_clave_persona_iguala_variantes_del_crm_y_del_calendario():

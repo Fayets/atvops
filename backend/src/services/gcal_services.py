@@ -385,10 +385,18 @@ def estado() -> dict:
 # El título de una reunión de ventas siempre nombra a la empresa: "Fulano and Aumenta
 # Tu Valor", "Fulano & Aumenta Tu Valor", "2da reu Fulano and Aumenta Tu Valor".
 # Las internas (Weekly, Ventas Lucas & Nick, 1a1, Reu Boost) no la nombran.
-_MARCA = re.compile(r"aumenta\s+tu\s+valor", re.I)
+# La marca que Calendly le pone al título y que distingue una llamada de venta del resto de
+# la agenda. El título lo termina escribiendo una persona y aparece mal tipeado: sobre 623
+# eventos había tres "Aúmenta" y un "Aumento" (el de Byron, 23-10-2026). Cada uno de esos
+# quedaba invisible para Ops —en el calendario pero fuera del registro de llamadas— y nada
+# lo avisaba, así que la marca acepta la raíz con tildes y con la vocal final cambiada.
+# `scripts/revisar_llamadas.py` lista los títulos que dicen "valor" y aun así no entran:
+# ahí se ve una variante nueva antes de que se pierda otra llamada.
+_ATV = r"[aá][uú]ment[ao]\s+t[uú]\s+val[oó]r"
+_MARCA = re.compile(_ATV, re.I)
 _SEGUNDA = re.compile(r"^\s*(2da|2ª|2°|2\.?a|segunda|tercera|3ra)\s*(reuni[oó]n|reu|call|llamada)?\s*[:\-]?\s*", re.I)
-_COLA_MARCA = re.compile(r"\s*(?:\band\b|\by\b|&|\bcon\b)?\s*aumenta\s+tu\s+valor\s*$", re.I)
-_CABEZA_MARCA = re.compile(r"^\s*aumenta\s+tu\s+valor\s*(?:\band\b|\by\b|&|\bcon\b)?\s*", re.I)
+_COLA_MARCA = re.compile(rf"\s*(?:\band\b|\by\b|&|\bcon\b)?\s*{_ATV}\s*$", re.I)
+_CABEZA_MARCA = re.compile(rf"^\s*{_ATV}\s*(?:\band\b|\by\b|&|\bcon\b)?\s*", re.I)
 
 
 def _prospecto(titulo: str) -> tuple[str, bool]:
