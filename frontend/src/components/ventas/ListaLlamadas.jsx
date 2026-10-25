@@ -1,32 +1,19 @@
 import { useState } from 'react';
-import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
-import { descartarLlamada, guardarResultadoLlamada } from '../../data/api.js';
+import { guardarResultadoLlamada } from '../../data/api.js';
 
 const VENTA = ['Cerrado', 'Seña'];
-const TONO = {
-  cierre: 'ok', show: 'plain', no_show: 'alert', sin_reportar: 'warn', agendado: 'off', descartada: 'off',
-  sin_crm: 'off',
-};
 // El color del estado elegido: verde si vendió, rojo si se cayó, ámbar si sigue vivo.
 const TONO_ESTADO = {
   Cerrado: 'ok', 'Seña': 'ok',
   Seguimiento: 'warn', 'Re-agenda': 'warn', Agendado: 'warn',
   'No show': 'alert', Descalificado: 'alert', Cancelada: 'alert', Descartada: 'alert',
 };
-const LABEL = {
-  cierre: 'venta', show: 'reportada', no_show: 'no show', sin_reportar: 'falta cargar',
-  agendado: 'agendada', descartada: 'descartada', sin_crm: 'solo en el calendario',
-};
-
 // El CRM guarda el resultado en minúscula y a veces sin tilde ("sena", "reagenda"),
 // así que se compara sin tildes ni separadores para encontrar el estado que le corresponde.
 const _clave = (t) => (t ?? '').toString().toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const canonico = (valor, estados) => estados.find((e) => _clave(e) === _clave(valor)) ?? '';
-
-const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
-const dia = (iso) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Formulario de una llamada: qué pasó, qué compró y cuánto dejó. */
 export function FormResultado({ llamada, programas, estados, equipo = [], onGuardado, onCerrar, mes, sinLista }) {
@@ -140,133 +127,6 @@ export function FormResultado({ llamada, programas, estados, equipo = [], onGuar
           {guardando ? 'Guardando…' : 'Guardar'}
         </button>
       </div>
-    </div>
-  );
-}
-
-/** Sacar una llamada de la lista, y devolverla si fue sin querer. */
-function Borrar({ llamada, onGuardado, mes }) {
-  const [confirmando, setConfirmando] = useState(false);
-  const [trabajando, setTrabajando] = useState(false);
-  const [error, setError] = useState(null);
-  const descartada = llamada.estado === 'descartada';
-
-  const mandar = async (recuperar) => {
-    setTrabajando(true);
-    setError(null);
-    try {
-      onGuardado(await descartarLlamada(llamada.id, { recuperar, mes }));
-    } catch (e) {
-      setError(e.message);
-      setTrabajando(false);
-      setConfirmando(false);
-    }
-  };
-
-  if (descartada) {
-    return (
-      <button className="btn sm" onClick={() => mandar(true)} disabled={trabajando} title="Volver a la lista">
-        {trabajando ? '…' : 'Recuperar'}
-      </button>
-    );
-  }
-  if (!confirmando) {
-    return (
-      <button className="btn sm ghost" onClick={() => setConfirmando(true)} title="Sacarla de la lista y de las métricas">
-        Borrar
-      </button>
-    );
-  }
-  return (
-    <span className="llamada-confirmar">
-      <span className="dim">{error || '¿La borro?'}</span>
-      <button className="btn sm alerta" onClick={() => mandar(false)} disabled={trabajando}>
-        {trabajando ? 'Borrando…' : 'Sí'}
-      </button>
-      <button className="btn sm" onClick={() => setConfirmando(false)} disabled={trabajando}>No</button>
-    </span>
-  );
-}
-
-function Llamada({ llamada, programas, estados, abierta, onAbrir, onCerrar, onGuardado, mes }) {
-  // Si el closer ya cargó un estado, se muestra ese; si no, en qué situación está la llamada.
-  // Reunión que está en el calendario y el CRM no tiene: se muestra para que cuente en el
-  // mes, pero no se le puede cargar resultado porque no hay dónde guardarlo.
-  const soloCalendario = llamada.estado === 'sin_crm';
-  const cargado = canonico(llamada.resultado, estados);
-  const etiqueta = cargado || LABEL[llamada.estado] || llamada.estado;
-  const tono = llamada.estado === 'descartada'
-    ? 'off'
-    : (cargado ? (TONO_ESTADO[cargado] ?? 'plain') : (TONO[llamada.estado] ?? 'plain'));
-  return (
-    <div className={`llamada${abierta ? ' abierta' : ''}`}>
-      {/* La tarjeta muestra tres cosas: quién, cuándo y en qué quedó. El resto —origen,
-          setter, programa, cash— aparece al abrirla, que es cuando hace falta. */}
-      <div className="llamada-cab">
-        <div className="llamada-nombre" title={llamada.prospecto}>{llamada.prospecto}</div>
-        <div className="llamada-cuando num">{dia(llamada.fechaAt)} · {hora(llamada.fechaAt)}</div>
-      </div>
-      <div className="llamada-pie">
-        <Pill tone={tono} dot>{etiqueta}</Pill>
-        <div className="llamada-derecha">
-          {llamada.estado !== 'descartada' && (
-            <button className="btn sm" onClick={abierta ? onCerrar : onAbrir}>
-              {abierta ? 'Cerrar' : (!llamada.resultado || soloCalendario || llamada.estado === 'sin_reportar') ? 'Cargar' : 'Editar'}
-            </button>
-          )}
-          <Borrar llamada={llamada} onGuardado={onGuardado} mes={mes} />
-        </div>
-      </div>
-      {abierta && (
-        <div className="llamada-detalle dim">
-          {soloCalendario
-            ? `${llamada.segunda ? 'Segunda reunión' : 'Reunión'} del calendario · se crea en el CRM al cargarle el resultado`
-            : ([llamada.segunda && 'segunda reunión', llamada.facturaHoy && `factura ${llamada.facturaHoy}`,
-                llamada.origen, llamada.setter && `set por ${llamada.setter}`]
-                .filter(Boolean).join(' · ') || 'Sin datos')}
-          {llamada.estado === 'cierre' && (
-            <div className="llamada-venta-resumen">
-              {llamada.programa || 'Sin programa'} · cash {formatValue(llamada.cashUsd, 'usd')}
-              {llamada.saldoUsd > 0 ? ` · debe ${formatValue(llamada.saldoUsd, 'usd')}` : ''}
-              {llamada.facturacionUsd > 0 ? ` · factura ${formatValue(llamada.facturacionUsd, 'usd')}` : ''}
-            </div>
-          )}
-        </div>
-      )}
-      {abierta && (
-        <FormResultado
-          llamada={llamada}
-          programas={programas}
-          estados={estados}
-          onGuardado={onGuardado}
-          onCerrar={onCerrar}
-          mes={mes}
-        />
-      )}
-    </div>
-  );
-}
-
-
-/** Lista de llamadas con su resultado, editable fila por fila. */
-export default function ListaLlamadas({ llamadas, programas, estados, onActualizado, mes }) {
-  const [abierta, setAbierta] = useState(null);
-  if (!llamadas.length) return <div className="empty">No hay llamadas para mostrar.</div>;
-  return (
-    <div className="llamadas">
-      {llamadas.map((l) => (
-        <Llamada
-          key={l.id}
-          llamada={l}
-          programas={programas}
-          estados={estados}
-          abierta={abierta === l.id}
-          onAbrir={() => setAbierta(l.id)}
-          onCerrar={() => setAbierta(null)}
-          onGuardado={(nuevo) => { setAbierta(null); onActualizado(nuevo); }}
-          mes={mes}
-        />
-      ))}
     </div>
   );
 }
