@@ -640,3 +640,35 @@ def test_a_las_2230_sale_el_aviso_con_quien_falta(theo_listo, monkeypatch):
     assert len(sale) == 1 and sale[0]["jid"].endswith("@g.us")
     assert sale[0]["texto"].startswith("Recordatorio · viernes 23/10") and "❌" in sale[0]["texto"]
     assert not [m for m in th.cola() if m["envio"] == "daily"]  # el checkeo sigue esperando a las 23:30
+
+
+def test_cada_uno_carga_su_daily_y_no_se_mezcla(monkeypatch):
+    """Todos cargan a la vez: cada uno ve, marca y borra solo lo suyo."""
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 27))
+    semana, martes = "2026-10-26", "2026-10-27"
+    gente = ["franco", "lucas", "cris", "nick", "maite", "juampi", "ale", "mauri"]
+    mias = {}
+    for u in gente:
+        r = api.post("/api/daily/tareas", headers=_h(u), json={"semana": semana, "texto": f"prueba-aislamiento {u}",
+                                                               "tipo": "velocidad", "dia": 1})
+        assert r.status_code == 200, r.text
+        mias[u] = r.json()["id"]
+    for u in gente:
+        s = api.get(f"/api/daily/semana?semana={semana}", headers=_h(u)).json()
+        textos = [t["texto"] for t in s["tareas"] if t["texto"].startswith("prueba-aislamiento")]
+        assert textos == [f"prueba-aislamiento {u}"], (u, textos)
+        r = api.put("/api/daily/dia", headers=_h(u), json={"fecha": martes, "parcial": True,
+                                                            "marcas": [{"tarea_id": mias[u], "estado": "hecha"}]})
+        assert r.status_code == 200
+    # Nadie puede marcar, editar ni borrar la tarea de otro.
+    otro = mias["nick"]
+    r = api.put("/api/daily/dia", headers=_h("cris"), json={"fecha": martes, "parcial": True,
+                                                             "marcas": [{"tarea_id": otro, "estado": "no"}]})
+    assert r.status_code == 400
+    assert api.patch(f"/api/daily/tareas/{otro}", headers=_h("cris"), json={"texto": "pisada"}).status_code == 404
+    assert api.delete(f"/api/daily/tareas/{otro}", headers=_h("cris")).status_code == 404
+    s = api.get(f"/api/daily/semana?semana={semana}", headers=_h("nick")).json()
+    t = next(x for x in s["tareas"] if x["id"] == otro)
+    assert t["texto"] == "prueba-aislamiento nick" and t["marcas"][martes]["estado"] == "hecha"
+    for u in gente:
+        assert api.delete(f"/api/daily/tareas/{mias[u]}", headers=_h(u)).status_code == 200

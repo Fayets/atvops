@@ -2317,7 +2317,9 @@ export function invalidarCache() {
 
 /** El botón "Actualizar" manda `refrescar=true`: es el mismo recurso, traído a la fuerza. */
 const esRefresco = (path) => /[?&]refrescar=true/.test(path);
-const claveDe = (path) => path.replace(/([?&])refrescar=true&?/, '$1').replace(/[?&]$/, '');
+// La clave lleva la sesión: después de "Salir" y entrar con otra cuenta en la misma pestaña,
+// lo guardado de la anterior (su daily, por ejemplo) no se le puede mostrar a la nueva.
+const claveDe = (path) => `${getToken() ?? ''}|${path.replace(/([?&])refrescar=true&?/, '$1').replace(/[?&]$/, '')}`;
 
 async function pedir(path, options = {}) {
   const metodo = (options.method ?? 'GET').toUpperCase();
