@@ -209,13 +209,15 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="brand">
+      {/* El logo vuelve al inicio, como en cualquier sistema. No va fijo a "/": cada rol
+          tiene su home y el closer no entra a la del admin. */}
+      <NavLink className="brand" to={homeParaRol(rol)} title="Ir al inicio">
         <img className="brand-logo" src="/atv-logo.png" alt="ATV" width={34} height={34} />
         <div>
           <div className="brand-name">ATV Ops</div>
           <div className="brand-sub">Operaciones</div>
         </div>
-      </div>
+      </NavLink>
 
       <nav className="nav">
         {grupos.map((g) => (

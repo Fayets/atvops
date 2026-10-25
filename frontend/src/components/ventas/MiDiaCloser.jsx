@@ -122,7 +122,7 @@ export default function MiDiaCloser({ data }) {
           onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', [...cerradas, ...senasCerradas], dinero, 'Cash')} />
       </div>
 
-      <RendimientoCloser llamadas={delMes} mes={mes} />
+      <RendimientoCloser mes={mes} closer={data?.closer} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 

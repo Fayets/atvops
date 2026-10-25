@@ -33,7 +33,12 @@
   align-items: center;
   gap: 10px;
   padding: 0 8px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
 }
+.brand:hover .brand-name { color: var(--brand-hi); }
+.brand:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .brand-mark {
   width: 28px;
   height: 28px;
@@ -5176,17 +5181,28 @@ button.lista-item:hover { background: var(--surface-2); }
   display: table-cell; padding: var(--space-4) var(--space-5); }
 .tabla-llamadas .llamada-ficha .llamada-detalle { margin-bottom: var(--space-3); }
 
-/* Cómo viene el mes del closer: donde estaba el calendario. */
-.rend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-5); }
-.rend-bloque { min-width: 0; }
-.rend-reparto { list-style: none; margin: var(--space-3) 0 0; padding: 0;
-  display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-2); }
-.rend-reparto li { display: inline-flex; align-items: center; gap: 6px; }
-.rend-reparto i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
-.rend-reparto b { color: var(--text); font-weight: 600; }
-/* El embudo del closer suma una columna: cuánto pasa de un escalón al siguiente. */
-.rend-closer .barra-fila { grid-template-columns: 74px minmax(0, 1fr) 42px 44px; }
-.barra-paso { font-size: 12px; text-align: right; }
+/* Cómo viene el mes contra el anterior: donde estaba el calendario. Una fila por
+   número, el de este mes grande y el del mes pasado al lado, tenue. */
+.comparar { display: grid; gap: 2px; }
+.comparar-cab, .comparar-fila {
+  display: grid; grid-template-columns: minmax(0, 1fr) 104px 104px 96px;
+  align-items: baseline; gap: var(--space-3);
+}
+.comparar-cab { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-3); padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
+.comparar-cab span { text-align: right; }
+.comparar-fila { padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+.comparar-fila:last-child { border-bottom: none; }
+.comparar-label { font-size: 13px; color: var(--text-2); }
+.comparar-valor { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; text-align: right; }
+.comparar-dif { font-size: 12.5px; text-align: right; color: var(--text-3); white-space: nowrap; }
+.comparar-dif.mejor { color: var(--ok); }
+.comparar-dif.peor { color: var(--alert); }
+.comparar-antes { font-size: 13px; text-align: right; }
+@media (max-width: 560px) {
+  .comparar-cab, .comparar-fila { grid-template-columns: minmax(0, 1fr) 84px 84px; }
+  .comparar-cab span:last-child, .comparar-antes { display: none; }
+}
 .llamada-estados { display: flex; flex-wrap: wrap; gap: 6px; }
 .campo-titulo { display: block; font-size: 11.5px; color: var(--text-3); margin-bottom: 6px; }
 /* Metas individuales: una fila por persona, la misma grilla en todas, y una barra que
