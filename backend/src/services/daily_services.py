@@ -67,8 +67,8 @@ TAREAS_ROL = {
     # Las fundamentales de cada rol, como las definió Franco el 25-10-2026: las que se
     # bloquean en la daily. Janner, a definir con Juan.
     "lucas": [
-        ("diaria", None, "Revisión diaria de Discord", None),
-        ("semanal", 0, "Definición de prioridades semanales con el equipo comercial", None),
+        ("diaria", None, "Pasada de Discord", None),
+        ("semanal", 0, "Definición de prioridades semanales con el equipo de ventas", None),
         ("semanal", 4, "Envío del reporte semanal de ventas a Juan", "juan"),
         ("semanal", 4, "Envío de conclusiones de ventas al área de marketing", "ignacio"),
     ],
@@ -77,8 +77,8 @@ TAREAS_ROL = {
         ("semanal", 4, "Envío del reporte semanal de setting a Lucas", "lucas"),
     ],
     "nick": [
-        ("diaria", None, "Ejecución de las llamadas de venta agendadas", None),
-        ("diaria", None, "Revisión diaria de Discord", None),
+        ("diaria", None, "Ejecución de las calls de venta agendadas", None),
+        ("diaria", None, "Pasada de Discord", None),
         ("semanal", 4, "Envío de objeciones y dolores detectados a Lucas", "lucas"),
     ],
     "ignacio": [
@@ -87,39 +87,39 @@ TAREAS_ROL = {
     ],
     "maite": [
         ("diaria", None, "Búsqueda de referencias creativas", None),
-        ("diaria", None, "Revisión diaria de Discord", None),
+        ("diaria", None, "Pasada de Discord", None),
         ("semanal", 4, "Envío de 5 referencias creativas a Ignacio", "ignacio"),
     ],
     "juampi": [
-        ("diaria", None, "Revisión diaria de Discord", None),
+        ("diaria", None, "Pasada de Discord", None),
         ("semanal", 4, "Presentación de la weekly de producto", None),
     ],
     "ale": [
-        ("diaria", None, "Revisión diaria de Discord", None),
+        ("diaria", None, "Pasada de Discord", None),
         ("semanal", 4, "Presentación de la weekly de producto", None),
     ],
     "mauri": [
-        ("diaria", None, "Revisión de Discord y aviso de las 9:00", None),
-        ("diaria", None, "Revisión de Discord y aviso de las 11:00", None),
-        ("diaria", None, "Revisión de Discord y aviso de las 16:00", None),
-        ("diaria", None, "Revisión de Discord y aviso de cierre (19:00 a 20:00)", None),
+        ("diaria", None, "Pasada de Discord 9:00", None),
+        ("diaria", None, "Pasada de Discord 11:00", None),
+        ("diaria", None, "Pasada de Discord 16:00", None),
+        ("diaria", None, "Pasada de Discord 19:00 a 20:00", None),
         ("semanal", 0, "Envío del mensaje de activación semanal a clientes", None),
         ("semanal", 0, "Reporte de clientes con más de 7 días de inactividad", "ale"),
         ("semanal", 3, "Reporte de clientes con más de 7 días de inactividad", "ale"),
     ],
     "franco": [
         ("diaria", None, "Seguimiento del estado de cada área", None),
-        ("diaria", None, "Revisión diaria de Discord", None),
+        ("diaria", None, "Pasada de Discord", None),
         ("semanal", 4, "Presentación de la weekly de producto", None),
     ],
 }
 # Cada vez que se redefinen las de arriba se sube la versión: al arrancar, las plantillas
 # de producción se reemplazan una sola vez por estas (lo editado después a mano en Equipo
 # y roles no se vuelve a pisar).
-VERSION_ROLES = "2026-10-25b"
-# De la versión anterior a esta solo cambió la redacción: se renombra en el lugar (misma
-# tarea, mismas marcas) en vez de reemplazar.
-RENOMBRES_ROL = {"2026-10-25": {
+VERSION_ROLES = "2026-10-25c"
+# Entre versiones que solo cambian la redacción se renombra en el lugar (misma tarea, mismas
+# marcas) en vez de reemplazar. Cada paso: (de, a, texto viejo → texto nuevo).
+_PASOS_ROL = [("2026-10-25", "2026-10-25b", {
     'Pasada de Discord': 'Revisión diaria de Discord',
     'Prioridades de la semana con Nick y Cris': 'Definición de prioridades semanales con el equipo comercial',
     'Reporte semanal de ventas a Juan': 'Envío del reporte semanal de ventas a Juan',
@@ -140,7 +140,30 @@ RENOMBRES_ROL = {"2026-10-25": {
     'Mensaje de activación semanal a clientes': 'Envío del mensaje de activación semanal a clientes',
     'Alerta de clientes con más de 7 días inactivos': 'Reporte de clientes con más de 7 días de inactividad',
     'Pulso de cada área': 'Seguimiento del estado de cada área',
-}}
+}),
+    ("2026-10-25b", "2026-10-25c", {
+    'Revisión diaria de Discord': 'Pasada de Discord',
+    'Revisión de Discord y aviso de las 9:00': 'Pasada de Discord 9:00',
+    'Revisión de Discord y aviso de las 11:00': 'Pasada de Discord 11:00',
+    'Revisión de Discord y aviso de las 16:00': 'Pasada de Discord 16:00',
+    'Revisión de Discord y aviso de cierre (19:00 a 20:00)': 'Pasada de Discord 19:00 a 20:00',
+    'Definición de prioridades semanales con el equipo comercial': 'Definición de prioridades semanales con el equipo de ventas',
+    'Ejecución de las llamadas de venta agendadas': 'Ejecución de las calls de venta agendadas',
+}),
+]
+
+
+def _renombres_desde(version: str | None) -> dict | None:
+    """Texto viejo → texto de VERSION_ROLES, encadenando los pasos desde `version`."""
+    total: dict | None = None
+    for de, a, cambios in _PASOS_ROL:
+        if total is None and de != version:
+            continue
+        total = {k: cambios.get(v, v) for k, v in (total or {}).items()}
+        for k, v in cambios.items():
+            total.setdefault(k, v)
+        version = a
+    return total if version == VERSION_ROLES else None
 
 
 # ------------------------------------------------------------------ fechas
@@ -237,7 +260,7 @@ def _aplicar_version_roles() -> None:
         if a is not None and a.valor == VERSION_ROLES:
             return
         hay = TareaRol.select().count() > 0
-        renombres = RENOMBRES_ROL.get(a.valor) if a is not None else None
+        renombres = _renombres_desde(a.valor) if a is not None else None
         if renombres:
             # La plantilla y lo ya copiado a semanas que no terminaron.
             for r in list(TareaRol.select(lambda r: r.activa)):
