@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Modal from '../ui/Modal.jsx';
+import CalendarioSemana from './CalendarioSemana.jsx';
 import { DIAS, fechaCorta, sumarDias } from '../../lib/daily.js';
 import { cargarTareasDaily, importarDaily } from '../../data/api.js';
 
@@ -7,20 +8,31 @@ import { cargarTareasDaily, importarDaily } from '../../data/api.js';
  * Cargar la semana desde el documento del domingo.
  *
  * Mucha gente ya la escribe afuera —un Google Doc, muchas veces hecho con Claude— y
- * después la copiaba día por día. Acá se pega el link o el texto, se ve el reparto y se
- * carga de una. Lo que quede mal se corrige en la daily como cualquier otra tarea.
+ * después la copiaba día por día. Acá se pega el link o el texto, se elige a qué semana
+ * va, se ve el reparto y se carga de una. Lo que quede mal se corrige en la daily como
+ * cualquier otra tarea.
+ *
+ * La semana se elige en un calendario y no se da por supuesta: el documento del domingo
+ * casi siempre es el de la semana que viene, y la pantalla está parada en la de ahora.
  */
 
 const TIPOS = [['velocidad', 'Velocidad'], ['desplazamiento', 'Desplazamiento']];
 
-export default function CargarDaily({ semana, onCargado }) {
+export default function CargarDaily({ semana, hoy, onCargado }) {
   const [abierto, setAbierto] = useState(false);
+  // A qué semana van. Arranca en la que está en pantalla y se cambia en el calendario.
+  const [destino, setDestino] = useState(semana);
   const [fuente, setFuente] = useState('');
   const [propuesta, setPropuesta] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState(null);
 
   const esLink = /^https?:\/\//i.test(fuente.trim());
+
+  function abrir() {
+    setDestino(semana);
+    setAbierto(true);
+  }
 
   function cerrar() {
     setAbierto(false);
@@ -47,8 +59,8 @@ export default function CargarDaily({ semana, onCargado }) {
     setTrabajando(true);
     setError(null);
     try {
-      const r = await cargarTareasDaily(semana, propuesta.map(({ texto, tipo, dia }) => ({ texto, tipo, dia })));
-      onCargado(r.semana, r.cargadas);
+      const r = await cargarTareasDaily(destino, propuesta.map(({ texto, tipo, dia }) => ({ texto, tipo, dia })));
+      onCargado(destino, r.semana, r.cargadas);
       cerrar();
     } catch (err) {
       setError(err.message);
@@ -66,7 +78,7 @@ export default function CargarDaily({ semana, onCargado }) {
 
   return (
     <>
-      <button type="button" className="btn" onClick={() => setAbierto(true)}>Cargar daily</button>
+      <button type="button" className="btn" onClick={abrir}>Cargar semana</button>
 
       <Modal open={abierto} onClose={cerrar} title="Cargar la semana desde tu documento" wide className="dl-importar">
         {!propuesta ? (
@@ -93,13 +105,14 @@ export default function CargarDaily({ semana, onCargado }) {
           <>
             <div className="dl-imp-cab">
               <b>{propuesta.length} {propuesta.length === 1 ? 'tarea' : 'tareas'}</b>
-              {/* En qué semana entran: el cuadro se abre sobre la que está en pantalla y el
-                  documento del domingo suele ser el de la semana que viene. */}
               <span className="dl-imp-semana">
-                Semana del {fechaCorta(semana)} al {fechaCorta(sumarDias(semana, 6))}
+                Van a la semana del {fechaCorta(destino)} al {fechaCorta(sumarDias(destino, 6))}
               </span>
               <button type="button" className="btn sm ghost" onClick={() => setPropuesta(null)}>Cambiar el documento</button>
             </div>
+            <div className="dl-imp-cols">
+              <CalendarioSemana semana={destino} hoy={hoy} onElegir={setDestino} />
+              <div className="dl-imp-tareas">
             {grupos.map((g) => (
               <section key={g.dia ?? 'semana'} className="dl-imp-dia">
                 <h4>{g.dia === null ? 'Abiertas en la semana' : DIAS[g.dia]}</h4>
@@ -121,6 +134,8 @@ export default function CargarDaily({ semana, onCargado }) {
                 ))}
               </section>
             ))}
+              </div>
+            </div>
             {error && <div className="ronda-evento error">{error}</div>}
             <div className="llamada-acciones">
               <button type="button" className="btn" onClick={cerrar}>Cancelar</button>

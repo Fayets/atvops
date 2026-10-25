@@ -67,7 +67,12 @@ export default function Daily() {
         {terminada ? <span /> : (
           <CargarDaily
             semana={data.semana}
-            onCargado={(nueva) => { setData(nueva); setError(null); }}
+            hoy={data.hoy}
+            onCargado={(destino, nueva) => {
+              // Si se cargaron en otra semana, la pantalla se va con ellas.
+              if (destino !== data.semana) setSemana(destino); else setData(nueva);
+              setError(null);
+            }}
           />
         )}
         {nav}

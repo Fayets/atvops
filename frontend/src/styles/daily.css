@@ -249,7 +249,7 @@
 .dl-imp-cab > b { margin-right: auto; }
 .dl-imp-dia { border-top: 1px solid var(--border-soft); padding: 12px 0 2px; }
 .dl-imp-dia h4 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--text-3); }
-.dl-imp-fila { display: grid; grid-template-columns: minmax(0, 1fr) 132px 138px 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.dl-imp-fila { display: grid; grid-template-columns: minmax(0, 1fr) 126px 134px 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
 .dl-imp-fila input, .dl-imp-fila select {
   background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
   color: var(--text); font: 13px var(--font); padding: 7px 9px; width: 100%;
@@ -264,3 +264,33 @@
 /* En qué semana va a entrar lo que se carga: el documento del domingo suele ser el de la
    semana que viene y el cuadro se abre sobre la que está en pantalla. */
 .dl-imp-semana { font-size: 12.5px; color: var(--text-3); }
+
+/* Calendario para elegir a qué semana van las tareas. La unidad que se toca es la fila
+   entera: la daily carga una semana, no días sueltos. */
+/* Con el calendario al lado, los 720px de .wide dejaban el texto de cada tarea cortado a
+   la mitad. `.wide` va en el selector a propósito: sin él empata en especificidad con la
+   regla de app.css, que se carga después y gana. */
+.modal-card.modal-docs.wide.dl-importar { width: min(1020px, 96vw); }
+.dl-imp-cols { display: grid; grid-template-columns: 244px minmax(0, 1fr); gap: 20px; align-items: start; }
+.dl-imp-tareas { min-width: 0; }
+.dl-cal { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 10px; background: var(--surface-2); position: sticky; top: 0; }
+.dl-cal-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.dl-cal-cab b { font-size: 13px; text-transform: capitalize; }
+.dl-cal-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+.dl-cal-dias span { text-align: center; font-size: 10.5px; color: var(--text-3); }
+.dl-cal-sem {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; width: 100%;
+  border: 1px solid transparent; border-radius: var(--radius-sm); padding: 3px 2px;
+  background: transparent; cursor: pointer; font: inherit; color: inherit;
+}
+.dl-cal-sem span { text-align: center; font-size: 12px; padding: 3px 0; border-radius: 4px; }
+.dl-cal-sem span.fuera { color: var(--text-3); }
+.dl-cal-sem span.hoy { font-weight: 700; box-shadow: inset 0 0 0 1px var(--border); }
+.dl-cal-sem:hover:not(:disabled) { border-color: var(--text-3); }
+.dl-cal-sem.elegida { border-color: var(--text); background: var(--surface); box-shadow: inset 0 0 0 1px var(--text); }
+.dl-cal-sem:disabled { opacity: .4; cursor: not-allowed; }
+
+@media (max-width: 860px) {
+  .dl-imp-cols { grid-template-columns: 1fr; }
+  .dl-cal { position: static; }
+}
