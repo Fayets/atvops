@@ -49,18 +49,22 @@ def main() -> int:
     desde, hasta = date.fromisoformat(a.desde), date.fromisoformat(a.hasta)
     init_db()
 
+    # Los dos lados tienen que cortar en el mismo instante. Cuando el calendario llegaba
+    # al final del último día y el registro al principio, las llamadas de ese día salían
+    # listadas como faltantes aunque estuvieran guardadas.
+    arranca = datetime.combine(desde, time.min)
+    termina = datetime.combine(hasta, time.max)
+
     cred = gcal.credenciales()
     # Google quiere el rango con huso horario: sin él contesta 400.
     eventos = gcal._traer(cred["calendar_id"], cred["service_account_json"],
-                          datetime.combine(desde, time.min, tzinfo=AR_TZ),
-                          datetime.combine(hasta, time.max, tzinfo=AR_TZ))
+                          arranca.replace(tzinfo=AR_TZ), termina.replace(tzinfo=AR_TZ))
     print(f"Calendario: {cred['calendar_id']} ({cred.get('origen', '?')})")
     print(f"Rango: {desde} a {hasta} — {len(eventos)} eventos\n")
 
     with db_session:
         filas = list(ReunionCrm.select(
-            lambda r: r.inicio_at >= datetime.combine(desde, datetime.min.time())
-            and r.inicio_at < datetime.combine(hasta, datetime.min.time())))
+            lambda r: r.inicio_at >= arranca and r.inicio_at <= termina))
         por_evento = {r.evento_id: r for r in filas if r.evento_id}
         por_nombre = {_clave(r.prospecto): r for r in filas if r.prospecto}
 
