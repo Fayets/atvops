@@ -26,7 +26,8 @@ MAX_LARGO = 300
 MAX_TEXTO = 120_000
 
 DIAS = ("lunes", "martes", "miercoles", "jueves", "viernes")
-# Sábado y domingo se leen para poder descartarlos: la daily corre de lunes a viernes.
+# Sábado y domingo se leen aparte: la daily corre de lunes a viernes, pero lo que el
+# documento puso ahí se muestra igual en vez de perderse sin decir nada.
 FINDE = ("sabado", "domingo")
 VELOCIDAD, DESPLAZAMIENTO = "velocidad", "desplazamiento"
 
@@ -123,13 +124,19 @@ def _tipo_de_la_linea(texto: str, por_defecto: str | None) -> tuple[str, str]:
     return por_defecto or VELOCIDAD, texto
 
 
-def leer(texto: str) -> list[dict]:
-    """Las tareas del documento, cada una con su día (o None si está suelta en la semana)."""
+def leer(texto: str) -> tuple[list[dict], list[dict]]:
+    """Las tareas del documento: las de lunes a viernes y, aparte, las del fin de semana.
+
+    Cada una lleva su día (o None si está suelta en la semana). Las del finde salen en su
+    propia lista porque en la daily no tienen dónde ir, y perderlas calladas haría que el
+    documento entre con menos tareas de las que tiene sin que nadie sepa por qué.
+    """
     dia_actual: int | None = None
-    # Un título "Sábado" corta: lo que viene después no entra a la daily.
+    # Un título "Sábado" cambia de lista: lo que viene después no entra a la daily.
     en_finde = False
     tipo_seccion: str | None = None
     tareas: list[dict] = []
+    finde: list[dict] = []
     for cruda in (texto or "").splitlines():
         if not cruda.strip():
             continue
@@ -138,8 +145,6 @@ def leer(texto: str) -> list[dict]:
             en_finde = marca == "finde"
             dia_actual = None if en_finde else marca
             tipo_seccion = None
-            continue
-        if en_finde:
             continue
         t = _tipo_del_titulo(cruda)
         if t:
@@ -157,10 +162,11 @@ def leer(texto: str) -> list[dict]:
             # Antes del primer día, solo las viñetas son tareas: el resto es prosa.
             continue
         tipo, limpio = _tipo_de_la_linea(limpio, tipo_seccion)
-        tareas.append({"dia": dia_actual, "tipo": tipo, "texto": limpio[:MAX_LARGO]})
-        if len(tareas) >= MAX_TAREAS:
+        (finde if en_finde else tareas).append(
+            {"dia": None if en_finde else dia_actual, "tipo": tipo, "texto": limpio[:MAX_LARGO]})
+        if len(tareas) + len(finde) >= MAX_TAREAS:
             break
-    return tareas
+    return tareas, finde
 
 
 # ------------------------------------------------------------------ con Claude
@@ -224,16 +230,20 @@ def proponer(url: str | None, texto: str | None) -> dict:
         crudo = texto_del_documento(url.strip())
     crudo = crudo[:MAX_TEXTO]
 
-    tareas = validar(leer(crudo))
+    crudas, crudas_finde = leer(crudo)
+    tareas = validar(crudas)
+    # Las del finde no entran con día: la daily va de lunes a viernes. Se devuelven aparte
+    # para que la pantalla las muestre y cada uno decida si las deja abiertas en la semana.
+    finde = validar(crudas_finde)
     con_dia = [t for t in tareas if t["dia"] is not None]
     fuente = "documento"
     # Sin ningún título de día el reparto no se puede hacer leyendo: ahí entra Claude.
     if not con_dia:
         de_claude = leer_con_claude(crudo)
         if de_claude:
-            tareas, fuente = de_claude, "claude"
-    if not tareas:
+            tareas, finde, fuente = de_claude, [], "claude"
+    if not tareas and not finde:
         raise HTTPException(
             status_code=400,
             detail="No encontré tareas en el documento. Fijate que tenga los días (Lunes, Martes…) y una viñeta por tarea.")
-    return {"tareas": tareas, "fuente": fuente}
+    return {"tareas": tareas, "finde": finde, "fuente": fuente}
