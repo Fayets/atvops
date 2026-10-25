@@ -67,56 +67,80 @@ TAREAS_ROL = {
     # Las fundamentales de cada rol, como las definió Franco el 25-10-2026: las que se
     # bloquean en la daily. Janner, a definir con Juan.
     "lucas": [
-        ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 0, "Prioridades de la semana con Nick y Cris", None),
-        ("semanal", 4, "Reporte semanal de ventas a Juan", "juan"),
-        ("semanal", 4, "Conclusión de ventas para marketing", "ignacio"),
+        ("diaria", None, "Revisión diaria de Discord", None),
+        ("semanal", 0, "Definición de prioridades semanales con el equipo comercial", None),
+        ("semanal", 4, "Envío del reporte semanal de ventas a Juan", "juan"),
+        ("semanal", 4, "Envío de conclusiones de ventas al área de marketing", "ignacio"),
     ],
     "cris": [
-        ("diaria", None, "Actualizar el sistema de setting", None),
-        ("semanal", 4, "Reporte semanal a Lucas", "lucas"),
+        ("diaria", None, "Actualización del sistema de setting", None),
+        ("semanal", 4, "Envío del reporte semanal de setting a Lucas", "lucas"),
     ],
     "nick": [
-        ("diaria", None, "Llamadas de venta agendadas", None),
-        ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 4, "Objeciones y dolores a Lucas", "lucas"),
+        ("diaria", None, "Ejecución de las llamadas de venta agendadas", None),
+        ("diaria", None, "Revisión diaria de Discord", None),
+        ("semanal", 4, "Envío de objeciones y dolores detectados a Lucas", "lucas"),
     ],
     "ignacio": [
-        ("semanal", 0, "Calendario de la semana cargado", "juan"),
-        ("semanal", 0, "Dirección creativa a Maite", "maite"),
+        ("semanal", 0, "Carga del calendario de contenido semanal", "juan"),
+        ("semanal", 0, "Envío de la dirección creativa semanal a Maite", "maite"),
     ],
     "maite": [
-        ("diaria", None, "Búsqueda de referencias", None),
-        ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 4, "5 referencias a Ignacio", "ignacio"),
+        ("diaria", None, "Búsqueda de referencias creativas", None),
+        ("diaria", None, "Revisión diaria de Discord", None),
+        ("semanal", 4, "Envío de 5 referencias creativas a Ignacio", "ignacio"),
     ],
     "juampi": [
-        ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 4, "Weekly de producto", None),
+        ("diaria", None, "Revisión diaria de Discord", None),
+        ("semanal", 4, "Presentación de la weekly de producto", None),
     ],
     "ale": [
-        ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 4, "Weekly de producto", None),
+        ("diaria", None, "Revisión diaria de Discord", None),
+        ("semanal", 4, "Presentación de la weekly de producto", None),
     ],
     "mauri": [
-        ("diaria", None, "Sweep de Discord y aviso de las 9", None),
-        ("diaria", None, "Sweep de Discord y aviso de las 11", None),
-        ("diaria", None, "Sweep de Discord y aviso de las 16", None),
-        ("diaria", None, "Sweep de Discord y aviso de las 19/20", None),
-        ("semanal", 0, "Mensaje de activación semanal a clientes", None),
-        ("semanal", 0, "Alerta de clientes con más de 7 días inactivos", "ale"),
-        ("semanal", 3, "Alerta de clientes con más de 7 días inactivos", "ale"),
+        ("diaria", None, "Revisión de Discord y aviso de las 9:00", None),
+        ("diaria", None, "Revisión de Discord y aviso de las 11:00", None),
+        ("diaria", None, "Revisión de Discord y aviso de las 16:00", None),
+        ("diaria", None, "Revisión de Discord y aviso de cierre (19:00 a 20:00)", None),
+        ("semanal", 0, "Envío del mensaje de activación semanal a clientes", None),
+        ("semanal", 0, "Reporte de clientes con más de 7 días de inactividad", "ale"),
+        ("semanal", 3, "Reporte de clientes con más de 7 días de inactividad", "ale"),
     ],
     "franco": [
-        ("diaria", None, "Pulso de cada área", None),
-        ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 4, "Weekly de producto", None),
+        ("diaria", None, "Seguimiento del estado de cada área", None),
+        ("diaria", None, "Revisión diaria de Discord", None),
+        ("semanal", 4, "Presentación de la weekly de producto", None),
     ],
 }
 # Cada vez que se redefinen las de arriba se sube la versión: al arrancar, las plantillas
 # de producción se reemplazan una sola vez por estas (lo editado después a mano en Equipo
 # y roles no se vuelve a pisar).
-VERSION_ROLES = "2026-10-25"
+VERSION_ROLES = "2026-10-25b"
+# De la versión anterior a esta solo cambió la redacción: se renombra en el lugar (misma
+# tarea, mismas marcas) en vez de reemplazar.
+RENOMBRES_ROL = {"2026-10-25": {
+    'Pasada de Discord': 'Revisión diaria de Discord',
+    'Prioridades de la semana con Nick y Cris': 'Definición de prioridades semanales con el equipo comercial',
+    'Reporte semanal de ventas a Juan': 'Envío del reporte semanal de ventas a Juan',
+    'Conclusión de ventas para marketing': 'Envío de conclusiones de ventas al área de marketing',
+    'Actualizar el sistema de setting': 'Actualización del sistema de setting',
+    'Reporte semanal a Lucas': 'Envío del reporte semanal de setting a Lucas',
+    'Llamadas de venta agendadas': 'Ejecución de las llamadas de venta agendadas',
+    'Objeciones y dolores a Lucas': 'Envío de objeciones y dolores detectados a Lucas',
+    'Calendario de la semana cargado': 'Carga del calendario de contenido semanal',
+    'Dirección creativa a Maite': 'Envío de la dirección creativa semanal a Maite',
+    'Búsqueda de referencias': 'Búsqueda de referencias creativas',
+    '5 referencias a Ignacio': 'Envío de 5 referencias creativas a Ignacio',
+    'Weekly de producto': 'Presentación de la weekly de producto',
+    'Sweep de Discord y aviso de las 9': 'Revisión de Discord y aviso de las 9:00',
+    'Sweep de Discord y aviso de las 11': 'Revisión de Discord y aviso de las 11:00',
+    'Sweep de Discord y aviso de las 16': 'Revisión de Discord y aviso de las 16:00',
+    'Sweep de Discord y aviso de las 19/20': 'Revisión de Discord y aviso de cierre (19:00 a 20:00)',
+    'Mensaje de activación semanal a clientes': 'Envío del mensaje de activación semanal a clientes',
+    'Alerta de clientes con más de 7 días inactivos': 'Reporte de clientes con más de 7 días de inactividad',
+    'Pulso de cada área': 'Seguimiento del estado de cada área',
+}}
 
 
 # ------------------------------------------------------------------ fechas
@@ -213,6 +237,15 @@ def _aplicar_version_roles() -> None:
         if a is not None and a.valor == VERSION_ROLES:
             return
         hay = TareaRol.select().count() > 0
+        renombres = RENOMBRES_ROL.get(a.valor) if a is not None else None
+        if renombres:
+            # La plantilla y lo ya copiado a semanas que no terminaron.
+            for r in list(TareaRol.select(lambda r: r.activa)):
+                r.texto = renombres.get(r.texto, r.texto)
+            desde = lunes_de(hoy())
+            for t in list(TareaSemana.select(lambda t: t.origen == "rol" and t.semana >= desde)):
+                t.texto = renombres.get(t.texto, t.texto)
+            hay = False  # ya está: no reemplazar
     if hay:  # base nueva: la siembra de abajo ya pone estas
         for username, tareas in TAREAS_ROL.items():
             with db_session:

@@ -53,8 +53,8 @@ def _marcar_todo(semana: dict, fecha: date, estado="hecha", motivo=None):
 def test_la_semana_trae_las_tareas_del_rol():
     s = d.ver_semana("lucas", LUNES)
     textos = [t["texto"] for t in s["tareas"] if t["origen"] == "rol"]
-    assert "Pasada de Discord" in textos
-    assert "Conclusión de ventas para marketing" in textos
+    assert "Revisión diaria de Discord" in textos
+    assert "Envío de conclusiones de ventas al área de marketing" in textos
 
 
 def test_las_del_rol_no_se_borran_y_las_propias_si():
@@ -106,7 +106,7 @@ def test_backbone_marca_la_entrega_cortada(monkeypatch):
     monkeypatch.setattr(d, "hoy", lambda: viernes)
     s = d.ver_semana("cris", LUNES)
     marcas = _marcar_todo(s, viernes)
-    reporte = next(t for t in s["tareas"] if t["texto"].startswith("Reporte semanal a Lucas"))
+    reporte = next(t for t in s["tareas"] if t["texto"].startswith("Envío del reporte semanal de setting a Lucas"))
     for m in marcas:
         if m["tarea_id"] == reporte["id"]:
             m["estado"], m["motivo"] = "no", "Día de muchas agendas"
@@ -397,14 +397,14 @@ def test_el_domingo_backbone_abre_la_semana_que_viene(monkeypatch):
 
 def test_el_detalle_trae_la_semana_entera():
     lucas = next(p for p in d.backbone(LUNES)["personas"] if p["username"] == "lucas")
-    assert any(t["texto"] == "Pasada de Discord" for t in lucas["tareas"])
+    assert any(t["texto"] == "Revisión diaria de Discord" for t in lucas["tareas"])
 
 
 def test_se_adelanta_una_tarea_de_un_dia_que_no_llego():
     """La tarea del viernes hecha el jueves: se marca ya y el viernes aparece hecha."""
     viernes = date(2026, 10, 23)
     s = d.ver_semana("lucas", LUNES)
-    reporte = next(t for t in s["tareas"] if t["texto"] == "Reporte semanal de ventas a Juan")
+    reporte = next(t for t in s["tareas"] if t["texto"] == "Envío del reporte semanal de ventas a Juan")
     r = d.guardar_dia("lucas", viernes, [{"tarea_id": reporte["id"], "estado": "hecha", "motivo": None}])
     t = next(x for x in r["tareas"] if x["id"] == reporte["id"])
     assert t["marcas"]["2026-10-23"]["estado"] == "hecha"
@@ -689,3 +689,21 @@ def test_la_version_nueva_de_roles_reemplaza_la_vieja_una_vez():
     d.guardar_tareas_rol("lucas", [*d.tareas_rol("lucas"), {"texto": "Agregada a mano", "frecuencia": "diaria"}])
     d.ensure_equipo()
     assert "Agregada a mano" in [t["texto"] for t in d.tareas_rol("lucas")]
+
+
+def test_la_nueva_redaccion_renombra_sin_perder_marcas(monkeypatch):
+    from src.models import TareaRol, TareaSemana, TheoAjuste
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 27))
+    vieja, nueva = "Sweep de Discord y aviso de las 9", "Revisión de Discord y aviso de las 9:00"
+    with db_session:
+        r = next(x for x in TareaRol.select(lambda x: x.usuario == "mauri" and x.activa) if x.texto == nueva)
+        r.texto = vieja
+        TheoAjuste.get(clave="version_roles").valor = "2026-10-25"
+    s = d.ver_semana("mauri", date(2026, 10, 26))
+    t = next(x for x in s["tareas"] if x["texto"] == vieja)
+    d.guardar_dia("mauri", date(2026, 10, 27), [{"tarea_id": t["id"], "estado": "hecha"}], parcial=True)
+    d.ensure_equipo()
+    with db_session:
+        ts = TareaSemana[t["id"]]
+        assert ts.texto == nueva and not ts.borrada and ts.marcas.count() == 1
+    assert nueva in [x["texto"] for x in d.tareas_rol("mauri")]
