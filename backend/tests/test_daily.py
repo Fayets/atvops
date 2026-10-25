@@ -707,3 +707,19 @@ def test_la_nueva_redaccion_renombra_sin_perder_marcas(monkeypatch):
         ts = TareaSemana[t["id"]]
         assert ts.texto == nueva and not ts.borrada and ts.marcas.count() == 1
     assert nueva in [x["texto"] for x in d.tareas_rol("mauri")]
+
+
+def test_una_version_que_solo_suma_una_tarea_la_agrega_sin_tocar_las_demas():
+    from src.models import TareaRol, TheoAjuste
+    nueva = "Reporte de las calls del día en el grupo de Sales"
+    with db_session:
+        for r in list(TareaRol.select(lambda r: r.usuario == "nick" and r.activa)):
+            if r.texto == nueva:
+                r.delete()
+        ids_antes = {r.id for r in TareaRol.select(lambda r: r.usuario == "nick" and r.activa)}
+        TheoAjuste.get(clave="version_roles").valor = "2026-10-25c"
+    d.ensure_equipo()
+    with db_session:
+        activas = list(TareaRol.select(lambda r: r.usuario == "nick" and r.activa))
+        assert ids_antes <= {r.id for r in activas}  # las de antes siguen siendo las mismas
+        assert [r.texto for r in activas].count(nueva) == 1

@@ -79,6 +79,7 @@ TAREAS_ROL = {
     "nick": [
         ("diaria", None, "Ejecución de las calls de venta agendadas", None),
         ("diaria", None, "Pasada de Discord", None),
+        ("diaria", None, "Reporte de las calls del día en el grupo de Sales", None),
         ("semanal", 4, "Envío de objeciones y dolores detectados a Lucas", "lucas"),
     ],
     "ignacio": [
@@ -116,7 +117,7 @@ TAREAS_ROL = {
 # Cada vez que se redefinen las de arriba se sube la versión: al arrancar, las plantillas
 # de producción se reemplazan una sola vez por estas (lo editado después a mano en Equipo
 # y roles no se vuelve a pisar).
-VERSION_ROLES = "2026-10-25c"
+VERSION_ROLES = "2026-10-25d"
 # Entre versiones que solo cambian la redacción se renombra en el lugar (misma tarea, mismas
 # marcas) en vez de reemplazar. Cada paso: (de, a, texto viejo → texto nuevo).
 _PASOS_ROL = [("2026-10-25", "2026-10-25b", {
@@ -150,6 +151,8 @@ _PASOS_ROL = [("2026-10-25", "2026-10-25b", {
     'Definición de prioridades semanales con el equipo comercial': 'Definición de prioridades semanales con el equipo de ventas',
     'Ejecución de las llamadas de venta agendadas': 'Ejecución de las calls de venta agendadas',
 }),
+    # Solo suma una tarea (la de Nick): se agrega en el paso, sin texto que renombrar.
+    ("2026-10-25c", "2026-10-25d", {}),
 ]
 
 
@@ -261,13 +264,22 @@ def _aplicar_version_roles() -> None:
             return
         hay = TareaRol.select().count() > 0
         renombres = _renombres_desde(a.valor) if a is not None else None
-        if renombres:
+        if renombres is not None:  # versión conocida (aunque no cambie ningún texto)
             # La plantilla y lo ya copiado a semanas que no terminaron.
             for r in list(TareaRol.select(lambda r: r.activa)):
                 r.texto = renombres.get(r.texto, r.texto)
             desde = lunes_de(hoy())
             for t in list(TareaSemana.select(lambda t: t.origen == "rol" and t.semana >= desde)):
                 t.texto = renombres.get(t.texto, t.texto)
+            # Lo que la versión nueva suma: las que no están todavía en la plantilla activa.
+            for username, tareas in TAREAS_ROL.items():
+                if Usuario.get(username=username) is None:
+                    continue
+                activas = list(TareaRol.select(lambda r: r.usuario == username and r.activa))
+                ya = {(r.texto, r.frecuencia, r.dia) for r in activas}
+                for i, (frec, dia, texto, dest) in enumerate(tareas):
+                    if (texto, frec, dia) not in ya:
+                        TareaRol(usuario=username, texto=texto, frecuencia=frec, dia=dia, destinatario=dest, orden=i)
             hay = False  # ya está: no reemplazar
     if hay:  # base nueva: la siembra de abajo ya pone estas
         for username, tareas in TAREAS_ROL.items():
