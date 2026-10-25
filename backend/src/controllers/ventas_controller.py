@@ -139,6 +139,19 @@ def registrar_resultado(lead_id: str, user: dict = Depends(solo_interno), payloa
         raise HTTPException(status_code=500, detail=f"No se pudo guardar el resultado: {str(e)[:180]}")
 
 
+@router.post("/llamadas/{lead_id}/closer")
+def asignar_closer(lead_id: str, user: dict = Depends(solo_interno), payload: dict = Body(...),
+                   mes: str | None = None, lista: bool = True):
+    """Quién tomó la llamada, sin tener que cargarle el resultado. Vacío la deja sin dueño."""
+    try:
+        return ventas.asignar_closer(lead_id, payload.get("closer") or "", user, mes=mes, con_lista=lista)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló asignar el closer de la llamada %s", lead_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo asignar la llamada: {str(e)[:180]}")
+
+
 @router.post("/llamadas/{lead_id}/cerrar")
 def cerrar_sena(lead_id: str, user: dict = Depends(solo_interno), payload: dict = Body(...),
                 mes: str | None = None, lista: bool = True):

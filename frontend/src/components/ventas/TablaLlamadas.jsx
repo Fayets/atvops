@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FormResultado } from './ListaLlamadas.jsx';
 import Pill from '../ui/Pill.jsx';
 import { formatValue } from '../../lib/format.js';
-import { descartarLlamada, guardarResultadoLlamada } from '../../data/api.js';
+import { asignarCloserLlamada, descartarLlamada, guardarResultadoLlamada } from '../../data/api.js';
 
 /**
  * Las llamadas del closer en una tabla, con el estado editable en la misma fila.
@@ -89,6 +89,20 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
     }
   };
 
+  // Quién tomó la llamada. Va aparte del resultado porque el closer dejó de venir del
+  // CRM: una llamada del calendario nace sin dueño, y hasta que alguien lo diga no cuenta
+  // para nadie. Se puede asignar antes de que la llamada pase.
+  const asignar = async (nombre) => {
+    setGuardando(true);
+    setError(null);
+    try {
+      onGuardado(await asignarCloserLlamada(llamada.id, nombre, mes));
+    } catch (e) {
+      setError(e.message);
+      setGuardando(false);
+    }
+  };
+
   const borrar = async (recuperar) => {
     setGuardando(true);
     setError(null);
@@ -160,6 +174,20 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
           ) : <span className="dim">—</span>}
         </td>
         <td>
+          {/* Sin dueño la llamada no entra en los números de nadie: el selector es para
+              decirlo en el momento, sin abrir la ficha. */}
+          <select
+            className={`sel-estado sel-closer${llamada.closer ? '' : ' pendiente'}`}
+            value={canonico(llamada.closer, equipo) || ''}
+            disabled={guardando || descartada}
+            aria-label={`Quién tomó la llamada de ${llamada.prospecto}`}
+            onChange={(e) => asignar(e.target.value)}
+          >
+            <option value="">¿Quién la tomó?</option>
+            {equipo.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </td>
+        <td>
           {/* Fathom en vez del setter: casi ninguna llamada lo tiene cargado y la
               grabación es lo que el closer abre para escucharse. */}
           {llamada.fathomUrl
@@ -182,7 +210,7 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
       </tr>
       {(error || faltaPrograma) && (
         <tr className="llamada-aviso">
-          <td colSpan={7}>
+          <td colSpan={8}>
             <span className={error ? 'ronda-evento error' : 'dim'}>
               {error || 'Elegí el programa para guardar la venta.'}
             </span>
@@ -191,7 +219,7 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
       )}
       {abierta && (
         <tr className="llamada-ficha">
-          <td colSpan={7}>
+          <td colSpan={8}>
             <div className="llamada-detalle dim">
               {[llamada.soloCalendario && 'solo en el calendario', llamada.segunda && 'segunda reunión',
                 llamada.facturaHoy && `factura ${llamada.facturaHoy}`, llamada.origen,
@@ -229,6 +257,7 @@ export default function TablaLlamadas({ llamadas, programas, estados, equipo = [
             <th>Estado</th>
             <th>Programa</th>
             <th className="right">Cash</th>
+            <th>Closer</th>
             <th>Fathom</th>
             <th />
           </tr>

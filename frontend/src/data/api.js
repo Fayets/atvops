@@ -766,6 +766,16 @@ export async function getMisLlamadas(closer, mes) {
 }
 
 /** El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó. */
+/** Quién tomó la llamada, sin cargarle el resultado. Con el nombre vacío la deja sin dueño. */
+export async function asignarCloserLlamada(leadId, closer, mes) {
+  const q = mes ? `?mes=${encodeURIComponent(mes)}` : '';
+  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/closer${q}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ closer }),
+  });
+}
+
 export async function guardarResultadoLlamada(leadId, payload, mes, { lista = true } = {}) {
   // El id puede ser "cal:<evento>": una reunión del calendario que el backend crea en el CRM al guardar.
   // El mes viaja para que la lista que vuelve sea la del período que se está mirando.

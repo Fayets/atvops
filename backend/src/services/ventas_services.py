@@ -2289,6 +2289,53 @@ def registrar_resultado(lead_id: int | str, datos: dict, usuario: dict, mes: str
     return _lista_despues_de_guardar(usuario, mes) if con_lista else {"guardado": True, "id": int(lead_id)}
 
 
+def asignar_closer(lead_id: int | str, closer: str, usuario: dict, mes: str | None = None,
+                   con_lista: bool = True) -> dict:
+    """Decir quién tomó una llamada, sin cargarle el resultado.
+
+    Hace falta porque el `closer` dejó de venir solo: lo traía el lead del CRM de atv-mkt,
+    que ya no se lee, así que una llamada que entra del calendario nace sin dueño. Mientras
+    hubo un solo closer daba igual —`mis_llamadas` se las adjudicaba a quien mirara—, pero
+    desde que son dos no se adivina, y una llamada sin dueño no cuenta para nadie.
+
+    `registrar_resultado` también escribe el closer, pero exige un resultado válido: la
+    llamada que todavía no pasó, o la que pasó y nadie reportó, no se puede asignar por ahí.
+
+    Con el nombre vacío la llamada vuelve a quedar sin dueño.
+    """
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede asignar llamadas.")
+
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    nombre = str(closer or "").strip()[:120]
+    if nombre:
+        # Solo nombres del equipo: un nombre tipeado a mano no coincide con el que usan las
+        # métricas y la llamada queda contada para nadie, que es el problema que esto arregla.
+        canonico = next((n for n in equipo_services.nombres("closer") if _norm(n) == _norm(nombre)), "")
+        if not canonico:
+            raise HTTPException(status_code=400, detail="Ese nombre no es de ningún closer del equipo.")
+        nombre = canonico
+
+    lead_id, evento_de_la_ficha = _ficha_para(lead_id, usuario)
+    quien = (usuario.get("username") or "")[:80]
+    with db_session:
+        fila = (ReunionCrm.get(evento_id=evento_de_la_ficha) if evento_de_la_ficha else None) \
+            or _fila_del_lead(int(lead_id))
+        if fila is None:
+            raise HTTPException(status_code=404, detail="No encontré esa llamada.")
+        fila.closer = nombre
+        fila.actualizado_por = quien
+        fila.actualizado_at = datetime.utcnow()
+        prospecto = fila.prospecto
+    logger.info("Llamada de %s asignada a %s por %s", prospecto, nombre or "(sin dueño)", quien)
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {
+        "guardado": True, "id": int(lead_id), "closer": nombre}
+
+
 def cerrar_sena(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,
                 con_lista: bool = True) -> dict:
     """Una seña que termina de cerrar meses después.
