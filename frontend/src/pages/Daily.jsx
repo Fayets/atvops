@@ -67,6 +67,13 @@ export default function Daily() {
   );
 }
 
+const LOCK = (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <rect x="3" y="7" width="10" height="7" rx="1.5" />
+    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+  </svg>
+);
+
 /* ------------------------------------------------------------------ daily */
 
 const SEMANA = 5; // la sexta caja: la semana entera, como el documento del domingo
@@ -240,6 +247,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     const v = draft[t.id] ?? { estado: null, motivo: '' };
     const etiquetas = (
       <small>
+        {t.origen === 'rol' && <span className="dl-lock">{LOCK}Rol</span>}
         <span className={`dl-kind ${t.tipo}`}>{t.tipo === 'velocidad' ? 'Velocidad' : 'Desplazamiento'}</span>
         {t.frecuencia === 'mensual' && <span>Del mes</span>}
         {t.destinatario && <span>Entrega a {nombreDe(t.destinatario)}</span>}
@@ -258,9 +266,11 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       <div className="dl-task" key={t.id}>
         <div className="t"><b>{t.texto}</b>{etiquetas}</div>
         <div className="dl-acc">
-        {!terminada && (
+        {/* Las del rol son fijas: no se borran, se marcan (con motivo si no se hicieron). */}
+        {!terminada && t.origen !== 'rol' && (
           <button type="button" className="dl-x" onClick={() => quitar(t)} aria-label={`Quitar ${t.texto}`} title="Quitar tarea">✕</button>
         )}
+        {!terminada && t.origen === 'rol' && <span className="dl-x dl-x-lock" title="Tarea fija del rol">{LOCK}</span>}
         <div className="dl-seg" role="group" aria-label={`Estado de ${t.texto}`}>
           {/* Un día que no llegó se adelanta: lo hiciste antes o no va a aplicar. */}
           {(d.futuro ? [['hecha', 'Hecha']] : [['hecha', 'Hecha'], ['no', 'No la hice']]).map(([k, l]) => (

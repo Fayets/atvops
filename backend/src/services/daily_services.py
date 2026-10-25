@@ -64,81 +64,59 @@ _ORGANIGRAMA_OCT = {"ale": ("juan", "juampi"), "mauri": ("juan", "juampi"), "jan
 # tiene documento todavía: se le cargan desde Backbone → Equipo.
 # (frecuencia, día 0-4 o None, texto, destinatario)
 TAREAS_ROL = {
+    # Las fundamentales de cada rol, como las definió Franco el 25-10-2026: las que se
+    # bloquean en la daily. Janner, a definir con Juan.
     "lucas": [
-        ("diaria", None, "Revisión del pipeline", None),
-        ("diaria", None, "Pasadas de Discord 15:30 y 19:30", None),
+        ("diaria", None, "Pasada de Discord", None),
         ("semanal", 0, "Prioridades de la semana con Nick y Cris", None),
-        ("semanal", 1, "Clase de ventas (Boost y Mentoría, 10:00)", None),
-        ("semanal", None, "Cobro de cuotas y renovaciones con Ale", None),
         ("semanal", 4, "Reporte semanal de ventas a Juan", "juan"),
         ("semanal", 4, "Conclusión de ventas para marketing", "ignacio"),
-        ("mensual", None, "Revisión mensual de métricas con Nick", None),
     ],
     "cris": [
-        ("diaria", None, "Apertura de conversaciones inbound y outbound", None),
-        ("diaria", None, "Calificación de leads antes de pasar a Nick", None),
-        ("diaria", None, "Reporte diario a Lucas antes de las 20:00", "lucas"),
-        ("semanal", 0, "Prioridades de la semana con Lucas", None),
-        ("semanal", None, "Reactivación de chats viejos", None),
+        ("diaria", None, "Actualizar el sistema de setting", None),
         ("semanal", 4, "Reporte semanal a Lucas", "lucas"),
     ],
     "nick": [
         ("diaria", None, "Llamadas de venta agendadas", None),
-        ("diaria", None, "Pasadas de Discord 10:00 y 19:30", None),
-        ("semanal", None, "Seguimiento de leads que no cerraron", None),
-        ("semanal", None, "Revisión de 3 llamadas propias", None),
-        ("semanal", 4, "Transcripts con objeciones y dolores a Lucas", "lucas"),
-        ("mensual", None, "Revisión mensual de métricas con Lucas", None),
+        ("diaria", None, "Pasada de Discord", None),
+        ("semanal", 4, "Objeciones y dolores a Lucas", "lucas"),
     ],
     "ignacio": [
-        ("diaria", None, "Pasadas de Discord 10:00 y 19:30", None),
         ("semanal", 0, "Calendario de la semana cargado", "juan"),
         ("semanal", 0, "Dirección creativa a Maite", "maite"),
-        ("semanal", None, "Trackeo de conversaciones por origen", None),
     ],
     "maite": [
         ("diaria", None, "Búsqueda de referencias", None),
-        ("semanal", None, "Coherencia estética de todos los canales", None),
-        ("semanal", None, "Soporte en grabación y producción", None),
-        ("semanal", 4, "5 referencias y 5 ideas a Ignacio", "ignacio"),
-        ("mensual", None, "Auditoría visual de todos los canales", None),
-    ],
-    "mauri": [
-        ("diaria", None, "Sweep de Discord y aviso de las 9, 11 y 16 h", None),
-        ("diaria", None, "Actualización de ATV Clients", None),
-        ("diaria", None, "Reporte diario en el grupo antes de las 20:00", None),
-        ("semanal", 0, "Mensaje de activación semanal a clientes", None),
-        ("semanal", 3, "Estado de clientes a Juan y Ale", "ale"),
-        ("semanal", None, "Alerta de clientes con más de 7 días inactivos", "ale"),
-    ],
-    "ale": [
-        ("diaria", None, "Pasadas de Discord 10:00, 16:30 y 19:30", None),
-        ("diaria", None, "Upsells y recompras", None),
-        ("diaria", None, "Manejo de quejas", None),
-        ("semanal", 0, "Reporte semanal a Juan", "juan"),
-        ("semanal", None, "Seguimiento de clientes con más de 7 días sin aparecer", None),
-        ("semanal", None, "Cobro de cuotas pendientes", None),
-        ("semanal", 4, "Clase de Cierre de Creadores (11:30)", None),
+        ("diaria", None, "Pasada de Discord", None),
+        ("semanal", 4, "5 referencias a Ignacio", "ignacio"),
     ],
     "juampi": [
-        ("diaria", None, "Pasadas de Discord 12:00, 15:30 y 19:30", None),
-        ("diaria", None, "Disponibilidad para upsells con Ale", None),
-        ("semanal", 2, "Clase de Experto en Infoproductos (11:30)", None),
-        ("semanal", 3, "Clase de Anuncios y Lanzamientos (11:30)", None),
-        ("semanal", None, "Llamadas 1 a 1 con clientes", None),
-        ("semanal", None, "Grabación de clases para Skool", None),
-        ("semanal", None, "Revisión de candidatos a ads con Juan y Ale", None),
+        ("diaria", None, "Pasada de Discord", None),
+        ("semanal", 4, "Weekly de producto", None),
+    ],
+    "ale": [
+        ("diaria", None, "Pasada de Discord", None),
+        ("semanal", 4, "Weekly de producto", None),
+    ],
+    "mauri": [
+        ("diaria", None, "Sweep de Discord y aviso de las 9", None),
+        ("diaria", None, "Sweep de Discord y aviso de las 11", None),
+        ("diaria", None, "Sweep de Discord y aviso de las 16", None),
+        ("diaria", None, "Sweep de Discord y aviso de las 19/20", None),
+        ("semanal", 0, "Mensaje de activación semanal a clientes", None),
+        ("semanal", 0, "Alerta de clientes con más de 7 días inactivos", "ale"),
+        ("semanal", 3, "Alerta de clientes con más de 7 días inactivos", "ale"),
     ],
     "franco": [
-        ("diaria", None, "Leer reportes y chats del equipo", None),
-        ("diaria", None, "Avanzar el proyecto activo", None),
-        ("diaria", None, "Pulso de Discord", None),
-        ("diaria", None, "Revisar calendarios y cuestionar reuniones", None),
-        ("semanal", 0, "Weekly del lunes", None),
-        ("semanal", None, "4 h de estudio de infoproductos", None),
-        ("semanal", 4, "Reporte semanal y alineación con Juan", "juan"),
+        ("diaria", None, "Pulso de cada área", None),
+        ("diaria", None, "Pasada de Discord", None),
+        ("semanal", 4, "Weekly de producto", None),
     ],
 }
+# Cada vez que se redefinen las de arriba se sube la versión: al arrancar, las plantillas
+# de producción se reemplazan una sola vez por estas (lo editado después a mano en Equipo
+# y roles no se vuelve a pisar).
+VERSION_ROLES = "2026-10-25"
 
 
 # ------------------------------------------------------------------ fechas
@@ -213,6 +191,8 @@ def ensure_equipo() -> None:
             u = Usuario.get(username=username)
             if u is not None and u.jefe == antes:
                 u.jefe = ahora
+    _aplicar_version_roles()
+    with db_session:
         for username, tareas in TAREAS_ROL.items():
             if TareaRol.select(lambda t: t.usuario == username).count():
                 continue
@@ -221,6 +201,29 @@ def ensure_equipo() -> None:
                 u.daily = True
             for i, (frec, dia, texto, dest) in enumerate(tareas):
                 TareaRol(usuario=username, texto=texto, frecuencia=frec, dia=dia, destinatario=dest, orden=i)
+
+
+def _aplicar_version_roles() -> None:
+    """Reemplaza una vez las plantillas de rol por las de TAREAS_ROL (ver VERSION_ROLES).
+    Las que salen quedan inactivas, no se borran: las semanas pasadas las siguen mostrando."""
+    from src.models import TheoAjuste
+
+    with db_session:
+        a = TheoAjuste.get(clave="version_roles")
+        if a is not None and a.valor == VERSION_ROLES:
+            return
+        hay = TareaRol.select().count() > 0
+    if hay:  # base nueva: la siembra de abajo ya pone estas
+        for username, tareas in TAREAS_ROL.items():
+            with db_session:
+                if Usuario.get(username=username) is None:
+                    continue
+            guardar_tareas_rol(username, [{"texto": t, "frecuencia": f, "dia": dia, "destinatario": dest}
+                                          for f, dia, t, dest in tareas])
+    with db_session:
+        a = TheoAjuste.get(clave="version_roles") or TheoAjuste(clave="version_roles")
+        a.valor = VERSION_ROLES
+    logger.info("Tareas de rol: versión %s aplicada", VERSION_ROLES)
 
 
 def _persona(u: Usuario) -> dict:
@@ -356,7 +359,7 @@ def guardar_tareas_rol(username: str, tareas: list[dict]) -> list[dict]:
 # Daily libre (19-10-2026): cada uno arma su semana entera. Las tareas fijas de cada rol
 # vuelven cuando Franco defina cuáles son de verdad; hasta entonces no se copian y las que
 # se habían copiado sin marcas se sacan.
-ROL_EN_LA_DAILY = False
+ROL_EN_LA_DAILY = True  # vuelven el 25-10-2026 con las fundamentales de cada rol
 
 
 def _sincronizar_semana(username: str, semana: date) -> None:

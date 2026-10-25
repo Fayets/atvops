@@ -53,7 +53,7 @@ def _marcar_todo(semana: dict, fecha: date, estado="hecha", motivo=None):
 def test_la_semana_trae_las_tareas_del_rol():
     s = d.ver_semana("lucas", LUNES)
     textos = [t["texto"] for t in s["tareas"] if t["origen"] == "rol"]
-    assert "Revisión del pipeline" in textos
+    assert "Pasada de Discord" in textos
     assert "Conclusión de ventas para marketing" in textos
 
 
@@ -101,18 +101,20 @@ def test_un_dia_viejo_guardado_despues_cuenta_como_guardado():
     assert maite["dias"][0]["estado"] == "ok"  # ya no existe "cargada tarde"
 
 
-def test_backbone_marca_la_entrega_cortada():
+def test_backbone_marca_la_entrega_cortada(monkeypatch):
+    viernes = date(2026, 10, 23)
+    monkeypatch.setattr(d, "hoy", lambda: viernes)
     s = d.ver_semana("cris", LUNES)
-    marcas = _marcar_todo(s, JUEVES)
-    reporte = next(t for t in s["tareas"] if t["texto"].startswith("Reporte diario a Lucas"))
+    marcas = _marcar_todo(s, viernes)
+    reporte = next(t for t in s["tareas"] if t["texto"].startswith("Reporte semanal a Lucas"))
     for m in marcas:
         if m["tarea_id"] == reporte["id"]:
             m["estado"], m["motivo"] = "no", "Día de muchas agendas"
-    d.guardar_dia("cris", JUEVES, marcas)
+    d.guardar_dia("cris", viernes, marcas)
     b = d.backbone(LUNES)
     e = next(e for e in b["entregas"] if e["id"] == reporte["id"])
     assert e["de"] == "cris" and e["a"] == "lucas"
-    assert e["estado"] == "alert"  # lunes a miércoles sin daily, jueves no la hizo
+    assert e["estado"] == "alert"  # el viernes no la hizo
 
 
 def test_un_dia_que_no_llego_no_cuenta_como_daily():
@@ -251,6 +253,7 @@ def test_guardar_por_api_valida_motivo():
 
 
 def test_una_abierta_hecha_cuenta_una_vez():
+    d.agregar_tarea("ale", LUNES, "Abierta de prueba", "velocidad", None)
     s = d.ver_semana("ale", LUNES)
     abierta = next(t for t in s["tareas"] if t["frecuencia"] == "semanal" and t["dia"] is None)
     marcas = _marcar_todo(s, JUEVES) + [{"tarea_id": abierta["id"], "estado": "hecha", "motivo": None}]
@@ -394,7 +397,7 @@ def test_el_domingo_backbone_abre_la_semana_que_viene(monkeypatch):
 
 def test_el_detalle_trae_la_semana_entera():
     lucas = next(p for p in d.backbone(LUNES)["personas"] if p["username"] == "lucas")
-    assert any(t["texto"] == "Revisión del pipeline" for t in lucas["tareas"])
+    assert any(t["texto"] == "Pasada de Discord" for t in lucas["tareas"])
 
 
 def test_se_adelanta_una_tarea_de_un_dia_que_no_llego():
@@ -672,3 +675,17 @@ def test_cada_uno_carga_su_daily_y_no_se_mezcla(monkeypatch):
     assert t["texto"] == "prueba-aislamiento nick" and t["marcas"][martes]["estado"] == "hecha"
     for u in gente:
         assert api.delete(f"/api/daily/tareas/{mias[u]}", headers=_h(u)).status_code == 200
+
+
+def test_la_version_nueva_de_roles_reemplaza_la_vieja_una_vez():
+    from src.models import TareaRol, TheoAjuste
+    with db_session:
+        TareaRol(usuario="lucas", texto="Revisión del pipeline", frecuencia="diaria", orden=99)
+        TheoAjuste.get(clave="version_roles").valor = "vieja"
+    d.ensure_equipo()
+    activas = [t["texto"] for t in d.tareas_rol("lucas")]
+    assert activas == [t for _, _, t, _ in d.TAREAS_ROL["lucas"]]
+    # Ya aplicada: lo que se edite a mano después no se vuelve a pisar.
+    d.guardar_tareas_rol("lucas", [*d.tareas_rol("lucas"), {"texto": "Agregada a mano", "frecuencia": "diaria"}])
+    d.ensure_equipo()
+    assert "Agregada a mano" in [t["texto"] for t in d.tareas_rol("lucas")]
