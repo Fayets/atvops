@@ -45,7 +45,7 @@ EQUIPO = (
     ("lucas", "Lucas", "ventas", "Director de Ventas", "ventas", "juan", ["lucasruarte688@gmail.com"], 10),
     ("cris", "Cris", "setter", "Setter", "ventas", "lucas", ["songercristian@gmail.com"], 11),
     ("nick", "Nick", "closer", "Closer", "ventas", "lucas", ["nicolasaliagachl@gmail.com"], 12),
-    ("ignacio", "Ignacio", "marketing", "Director de Marketing", "marketing", "juan", [], 20),
+    ("ignacio", "Ignacio", "marketing", "Director de Marketing", "marketing", "juan", ["ignacioaburto.business@gmail.com"], 20),
     ("maite", "Maite", "marketing", "Directora Creativa", "marketing", "juan", ["maiteatv1@gmail.com"], 21),
     ("janner", "Janner", "marketing", "Head de Contenido", "marketing", "maite,ignacio", [], 22),
     ("juampi", "Juampi", "csm", "Director de Producto", "producto", "juan", ["juanpablotoledo2017.toledo@gmail.com"], 30),
