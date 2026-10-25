@@ -203,6 +203,7 @@ def _a_dict(r) -> dict:
         "vino_de_ads": bool(r.vino_de_ads), "notas": r.titulo or "",
         "created_at": r.lead_creado_at, "closer_report": (r.nota or "").strip(),
         "link_llamada": r.link_llamada or "",
+        "fathom_url": (r.fathom_url or "").strip(),
         "resultado": "descartada" if r.descartada else resultado,
         "calificacion": (r.calificacion or "").strip().lower(),
         "eventoId": r.evento_id if not r.evento_id.startswith(("lead:", "ops:")) else "",

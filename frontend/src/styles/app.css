@@ -5174,6 +5174,9 @@ button.lista-item:hover { background: var(--surface-2); }
 .sel-estado.pendiente { border-color: var(--warn); background: var(--warn-dim); }
 .cash-celda { font: inherit; font-size: 12.5px; width: 86px; text-align: right; padding: 4px 7px;
   border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+/* El link a la grabación de Fathom. Va discreto: es una fila de tabla, no un botón. */
+.link-fathom { font-size: 12.5px; color: var(--info); text-decoration: none; border-bottom: 1px solid transparent; }
+.link-fathom:hover { border-bottom-color: currentColor; }
 .llamada-acciones-fila { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .llamada-acciones-fila .dim { font-size: 11.5px; white-space: nowrap; }
 .tabla-llamadas .llamada-aviso td { padding-top: 0; border-bottom: none; font-size: 12px; }

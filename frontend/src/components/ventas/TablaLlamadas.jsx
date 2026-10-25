@@ -159,7 +159,13 @@ function Fila({ llamada, programas, estados, equipo, abierta, onAbrir, onCerrar,
             />
           ) : <span className="dim">—</span>}
         </td>
-        <td className="dim">{llamada.setter || '—'}</td>
+        <td>
+          {/* Fathom en vez del setter: casi ninguna llamada lo tiene cargado y la
+              grabación es lo que el closer abre para escucharse. */}
+          {llamada.fathomUrl
+            ? <a className="link-fathom" href={llamada.fathomUrl} target="_blank" rel="noreferrer">Escuchar</a>
+            : <span className="dim">—</span>}
+        </td>
         <td className="right">
           <span className="llamada-acciones-fila">
             {guardando && <span className="dim">guardando…</span>}
@@ -223,7 +229,7 @@ export default function TablaLlamadas({ llamadas, programas, estados, equipo = [
             <th>Estado</th>
             <th>Programa</th>
             <th className="right">Cash</th>
-            <th>Set por</th>
+            <th>Fathom</th>
             <th />
           </tr>
         </thead>

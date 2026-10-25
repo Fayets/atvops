@@ -1708,6 +1708,9 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
             "cashUsd": _num(l["pago"]), "saldoUsd": _saldo_finito(l),
             "notas": (l["notas"] or "").strip(), "reporte": (l["closer_report"] or "").strip(),
             "grabacion": (l["link_llamada"] or "").strip(),
+            # La grabación de Fathom, si la llamada la tiene: es lo que el closer abre para
+            # escucharse, y en la tabla vale más que el setter, que casi nunca está cargado.
+            "fathomUrl": (l.get("fathom_url") or "").strip(),
             "pasada": l["call"] <= ahora,
             "diasDesde": (hoy - l["call"].date()).days,
         }
