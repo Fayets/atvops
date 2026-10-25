@@ -15,7 +15,7 @@ import {
 import '../styles/daily.css';
 
 /**
- * La daily de cada uno: cinco cajas, una por día. En cada día están las tareas del rol
+ * La daily de cada uno: una caja por día, de lunes a domingo. En cada día están las tareas del rol
  * (no se borran) y se suman las propias, de velocidad o de desplazamiento. Se marca cada
  * tarea con motivo si no se hizo.
  */
@@ -51,11 +51,11 @@ export default function Daily() {
   if (!data) return <div className="page"><SkeletonBlock height={420} /></div>;
 
   const sinEmpezar = data.dias.every((d) => d.futuro);
-  const terminada = sumarDias(data.semana, 4) < data.hoy;
+  const terminada = sumarDias(data.semana, 6) < data.hoy;
   const nav = (
     <div className="dl-weeknav">
       <button type="button" className="btn ghost sm" onClick={() => setSemana(sumarDias(data.semana, -7))}>←</button>
-      <b>Semana del {fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 4))}</b>
+      <b>Semana del {fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 6))}</b>
       <button type="button" className="btn ghost sm" disabled={sinEmpezar}
         onClick={() => setSemana(sumarDias(data.semana, 7))}>→</button>
     </div>
@@ -86,7 +86,7 @@ const LOCK = (
 
 /* ------------------------------------------------------------------ daily */
 
-const SEMANA = 5; // la sexta caja: la semana entera, como el documento del domingo
+const SEMANA = 7; // la octava caja: la semana entera, como el documento del domingo
 const primeroDesplazamiento = (a, b) => (a.tipo === 'desplazamiento' ? 0 : 1) - (b.tipo === 'desplazamiento' ? 0 : 1);
 
 /** La semana como el documento: cada día con sus tareas y cómo quedó cada una. */
@@ -128,8 +128,11 @@ function SemanaCompleta({ data }) {
   );
 }
 
-function estadoDia(d) {
+// Un sábado o un domingo sin tareas no es una daily que falta: es un día libre, y no se
+// pinta de rojo. Apenas alguien se pone una tarea ahí, el día se comporta como cualquier otro.
+function estadoDia(d, tareas) {
   if (d.futuro) return '';
+  if (d.dia >= 5 && !d.guardado_at && !tareas) return 'libre';
   if (!d.guardado_at) return 'falta';
   return 'ok';
 }
@@ -186,7 +189,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     return () => clearTimeout(t);
   }, [draft, draftFecha, fecha]);
 
-  const terminada = sumarDias(data.semana, 4) < data.hoy;
+  const terminada = sumarDias(data.semana, 6) < data.hoy;
   const [nueva, setNueva] = useState('');
   const [tipoNueva, setTipoNueva] = useState('velocidad');
 
@@ -307,8 +310,8 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     <>
       <div className="dl-days" role="group" aria-label="Día de la semana">
         {data.dias.map((x, i) => {
-          const e = estadoDia(x);
           const n = data.tareas.filter((t) => vence(t, i)).length;
+          const e = estadoDia(x, n);
           return (
             <button key={x.fecha} type="button" className={`dl-day ${e}`} aria-pressed={i === dia} onClick={() => setDia(i)}>
               <b>{DIAS[i]}</b>
@@ -316,14 +319,14 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
               <i>{x.futuro ? (() => {
                 const adelantadas = data.tareas.filter((t) => t.marcas[x.fecha]).length;
                 return adelantadas ? `${adelantadas} adelantada${adelantadas > 1 ? 's' : ''}` : 'Todavía no llegó';
-              })() : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : '✕ Sin guardar'}</i>
+              })() : e === 'ok' ? `✓ Guardada ${x.guardado_at}` : e === 'libre' ? 'Libre' : '✕ Sin guardar'}</i>
               {x.es_hoy && <em>Hoy</em>}
             </button>
           );
         })}
         <button type="button" className="dl-day dl-day-semana" aria-pressed={dia === SEMANA} onClick={() => setDia(SEMANA)}>
           <b>Semana completa</b>
-          <span>{fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 4))} · {data.tareas.length} tareas</span>
+          <span>{fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 6))} · {data.tareas.length} tareas</span>
           <i>Todo el documento</i>
         </button>
       </div>

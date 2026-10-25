@@ -41,7 +41,7 @@ export default function Backbone() {
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;
   if (!data) return <div className="page"><SkeletonBlock height={520} /></div>;
 
-  const actual = data.semana <= data.hoy && sumarDias(data.semana, 4) >= data.hoy;
+  const actual = data.semana <= data.hoy && sumarDias(data.semana, 6) >= data.hoy;
   const futura = data.semana > data.hoy;
   const cerrar = () => { setSel(null); setSelEdge(null); };
 
@@ -52,7 +52,7 @@ export default function Backbone() {
           <div className="dl-weeknav">
             <button type="button" className="btn ghost sm" disabled={data.semana <= data.inicio} aria-label="Semana anterior"
               onClick={() => { cerrar(); setSemana(sumarDias(data.semana, -7)); }}>←</button>
-            <b>Semana del {fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 4))}</b>
+            <b>Semana del {fechaCorta(data.semana)} al {fechaCorta(sumarDias(data.semana, 6))}</b>
             <button type="button" className="btn ghost sm" disabled={actual || futura} aria-label="Semana siguiente"
               onClick={() => { cerrar(); setSemana(sumarDias(data.semana, 7)); }}>→</button>
           </div>
@@ -71,7 +71,7 @@ export default function Backbone() {
           onSel={(u) => { setSel(u); setSelEdge(null); }}
           onEdge={(id) => setSelEdge(id)}
           onFondo={cerrar} />
-        <div className="bb-hint">Debajo de cada nombre, los cinco días de la semana. Clic en una persona para ver su detalle.</div>
+        <div className="bb-hint">Debajo de cada nombre, los siete días de la semana. Clic en una persona para ver su detalle.</div>
       </Card>
 
       {(sel || selEdge != null) && (

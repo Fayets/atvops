@@ -1,11 +1,17 @@
 /** Reglas de la daily, las mismas que aplica el backend (daily_services.py). */
 
-export const DIAS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes'];
-export const DIAS_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+export const DIAS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+export const DIAS_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-/** Si la tarea hay que marcarla ese día sí o sí. */
+/**
+ * Si la tarea hay que marcarla ese día sí o sí.
+ *
+ * Una "diaria" es de lunes a viernes: el sábado y el domingo están para el que trabaja el
+ * finde, y una tarea de todos los días no puede caer ahí sola.
+ */
 export function vence(t, dia) {
-  return t.frecuencia === 'diaria' || (t.frecuencia === 'semanal' && t.dia === dia);
+  if (t.frecuencia === 'diaria') return dia < 5;
+  return t.frecuencia === 'semanal' && t.dia === dia;
 }
 
 /** Se cierra cualquier día de la semana (o del mes). */

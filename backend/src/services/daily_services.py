@@ -2,7 +2,9 @@
 Daily, la semana de cada uno y Backbone.
 
 Cómo trabaja el equipo: el domingo cada uno arma su semana, el lunes la presenta en la
-weekly de su área y de lunes a viernes la va marcando en su daily. Las tareas del rol (las
+weekly de su área y la va marcando día por día en su daily. La semana son los siete días:
+sábado y domingo están para el que trabaja el finde, y quedan en blanco para el que no —una
+tarea "diaria" no cae ahí y un finde sin tareas no cuenta como daily sin guardar—. Las tareas del rol (las
 del documento de rol de Backbone) están siempre: se copian a la semana de cada uno y ahí no
 se pueden borrar. Lo demás lo suma cada uno, separado en velocidad (rutina) y
 desplazamiento (lo que hace avanzar).
@@ -30,7 +32,7 @@ from src.models import CierreDaily, MarcaDaily, TareaRol, TareaSemana, Usuario
 logger = logging.getLogger("atv_ops.daily")
 
 TZ = ZoneInfo("America/Argentina/Buenos_Aires")
-DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes")
+DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 ESTADOS = ("hecha", "no", "no_aplica")
 AREAS = ("ventas", "marketing", "producto", "sistemas", "direccion")
 ROLES_BACKBONE = ("admin", "founder", "operaciones")
@@ -193,9 +195,9 @@ def lunes_de(d: date) -> date:
 
 
 def semana_por_defecto() -> date:
-    """Sábado y domingo se arma la semana que viene; de lunes a viernes se trabaja la actual."""
-    h = hoy()
-    return lunes_de(h) + timedelta(days=7) if h.weekday() >= 5 else lunes_de(h)
+    """La semana en la que estamos. Sábado y domingo ya son días de la daily, así que la
+    semana no se termina el viernes: se sigue viendo la misma hasta el domingo a la noche."""
+    return lunes_de(hoy())
 
 
 def _parse_fecha(texto: str | None, nombre: str = "fecha") -> date | None:
@@ -393,8 +395,8 @@ def _validar_tarea_rol(t: dict) -> None:
     if t.get("frecuencia") not in ("diaria", "semanal", "mensual"):
         raise HTTPException(status_code=400, detail="La frecuencia es diaria, semanal o mensual.")
     dia = t.get("dia")
-    if dia is not None and (t["frecuencia"] != "semanal" or dia not in range(5)):
-        raise HTTPException(status_code=400, detail="Solo las semanales llevan día, de lunes a viernes.")
+    if dia is not None and (t["frecuencia"] != "semanal" or dia not in range(7)):
+        raise HTTPException(status_code=400, detail="Solo las semanales llevan día, de lunes a domingo.")
 
 
 def guardar_tareas_rol(username: str, tareas: list[dict]) -> list[dict]:
@@ -438,7 +440,7 @@ def _sincronizar_semana(username: str, semana: date) -> None:
     ya = {t.tarea_rol: t for t in TareaSemana.select(
         lambda t: t.usuario == username and t.semana == semana and t.origen == "rol")}
     # Una semana que ya terminó no se toca, y antes del inicio no hay nada que copiar.
-    editable = semana >= INICIO and semana + timedelta(days=4) >= hoy()
+    editable = semana >= INICIO and semana + timedelta(days=6) >= hoy()
     if not ROL_EN_LA_DAILY:
         for t in ya.values():
             if editable and not t.borrada and not t.marcas.count():
@@ -463,8 +465,15 @@ def _sincronizar_semana(username: str, semana: date) -> None:
 
 
 def _vence(t: TareaSemana, dia: int) -> bool:
-    """Si la tarea hay que marcarla ese día sí o sí."""
-    return t.frecuencia == "diaria" or (t.frecuencia == "semanal" and t.dia == dia)
+    """Si la tarea hay que marcarla ese día sí o sí.
+
+    Una tarea "diaria" es de lunes a viernes. El sábado y el domingo están en la daily para
+    el que trabaja el finde, y una tarea de todos los días no puede caer ahí sola: eso sería
+    ponerle a todo el equipo dos días de obligaciones que nadie pidió.
+    """
+    if t.frecuencia == "diaria":
+        return dia < 5
+    return t.frecuencia == "semanal" and t.dia == dia
 
 
 def _abierta(t: TareaSemana) -> bool:
@@ -500,7 +509,7 @@ def _tareas(username: str, semana: date) -> list[TareaSemana]:
 
 
 def _cierres(username: str, semana: date) -> dict[date, CierreDaily]:
-    fin = semana + timedelta(days=4)
+    fin = semana + timedelta(days=6)
     return {c.fecha: c for c in CierreDaily.select(
         lambda c: c.usuario == username and c.fecha >= semana and c.fecha <= fin)}
 
@@ -516,7 +525,7 @@ def ver_semana(username: str, semana: date | None) -> dict:
     with db_session:
         cierres = _cierres(username, semana)
         dias = []
-        for i in range(5):
+        for i in range(7):
             f = semana + timedelta(days=i)
             c = cierres.get(f)
             dias.append({
@@ -542,10 +551,10 @@ def agregar_tarea(username: str, semana: date, texto: str, tipo: str, dia: int |
         raise HTTPException(status_code=400, detail="Escribí la tarea.")
     if tipo not in ("velocidad", "desplazamiento"):
         raise HTTPException(status_code=400, detail="La tarea es de velocidad o de desplazamiento.")
-    if dia is not None and dia not in range(5):
-        raise HTTPException(status_code=400, detail="El día va de lunes a viernes.")
+    if dia is not None and dia not in range(7):
+        raise HTTPException(status_code=400, detail="El día va de lunes a domingo.")
     semana = lunes_de(semana)
-    if semana + timedelta(days=4) < hoy():
+    if semana + timedelta(days=6) < hoy():
         raise HTTPException(status_code=400, detail="Esa semana ya terminó.")
     with db_session:
         orden = TareaSemana.select(lambda t: t.usuario == username and t.semana == semana).count()
@@ -563,14 +572,14 @@ def agregar_tareas(username: str, semana: date, tareas: list[dict]) -> int:
     mensajes de seguimiento" los lunes y los martes son dos tareas, no una repetida.
     """
     semana = lunes_de(semana)
-    if semana + timedelta(days=4) < hoy():
+    if semana + timedelta(days=6) < hoy():
         raise HTTPException(status_code=400, detail="Esa semana ya terminó.")
     limpias = []
     for t in tareas or []:
         texto = (t.get("texto") or "").strip()[:300]
         tipo = t.get("tipo") if t.get("tipo") in ("velocidad", "desplazamiento") else "velocidad"
         dia = t.get("dia")
-        dia = dia if isinstance(dia, int) and dia in range(5) else None
+        dia = dia if isinstance(dia, int) and dia in range(7) else None
         if texto:
             limpias.append({"texto": texto, "tipo": tipo, "dia": dia})
     if not limpias:
@@ -637,8 +646,6 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict], parcial: bool = 
     viernes que se hizo el lunes. Ahí vale solo "hecha" o "no aplica", no hace falta
     marcar todo y no cuenta como la daily de ese día: esa se guarda cuando llega."""
     h = hoy()
-    if fecha.weekday() >= 5:
-        raise HTTPException(status_code=400, detail="La daily es de lunes a viernes.")
     adelanto = fecha > h
     if adelanto and lunes_de(fecha) > lunes_de(h) + timedelta(days=7):
         raise HTTPException(status_code=400, detail="Solo se adelanta esta semana o la que viene.")
@@ -701,9 +708,9 @@ def _corte(semana: date) -> int:
     h = hoy()
     if semana > h or semana < INICIO:
         return -1
-    if semana + timedelta(days=4) < h:
-        return 4
-    return min(h.weekday(), 4)
+    if semana + timedelta(days=6) < h:
+        return 6
+    return min(h.weekday(), 6)
 
 
 def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
@@ -714,11 +721,15 @@ def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
     faltas, no_aplica = [], []
     for d in range(corte + 1):
         f = semana + timedelta(days=d)
+        vencen = [t for t in tareas if _vence(t, d)]
+        # El fin de semana cuenta solo si alguien se puso tareas: un sábado sin nada no es
+        # una daily que falta, es un día libre, y marcarlo en rojo todas las semanas sería
+        # pedirle a todo el equipo que trabaje los fines de semana.
+        if d >= 5 and not vencen:
+            continue
         if f not in cierres:
             faltas.append({"fecha": f.isoformat(), "dia": d, "texto": "No guardó la daily", "motivo": None, "sin_daily": True})
-        for t in tareas:
-            if not _vence(t, d):
-                continue
+        for t in vencen:
             m = marcas[t.id].get(f)
             if m and m.estado == "no_aplica":
                 no_aplica.append({"fecha": f.isoformat(), "dia": d, "texto": t.texto, "motivo": m.motivo})
@@ -734,15 +745,17 @@ def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
             if hecha:
                 due += 1
                 done += 1
-            elif corte == 4:
+            elif corte == 6:
                 due += 1
                 faltas.append({"fecha": None, "dia": None, "texto": t.texto, "motivo": "Quedó abierta toda la semana", "sin_daily": False})
     dias = []
-    for d in range(5):
+    for d in range(7):
         f = semana + timedelta(days=d)
         c = cierres.get(f)
         # Guardada es guardada, a la hora que sea: "cargada tarde" no le servía a nadie (Franco, 23-10-2026).
-        estado = "futuro" if d > corte else ("ok" if c else "falta")
+        # Un finde sin tareas no es "falta": queda "libre", que no pinta nada en el tablero.
+        libre = d >= 5 and not any(_vence(t, d) for t in tareas) and f not in cierres
+        estado = "futuro" if d > corte else "libre" if libre else ("ok" if c else "falta")
         dias.append({"fecha": f.isoformat(), "estado": estado, "hora": c.guardado_at.strftime("%H:%M") if c else None})
     despl = []
     for t in tareas:
@@ -775,8 +788,8 @@ def _entregas(gente: list[Usuario], semana: date, corte: int) -> list[dict]:
             marcas = {m.fecha: m for m in t.marcas}
             if _abierta(t):
                 hecha = next((m for m in marcas.values() if m.estado == "hecha"), None)
-                estado = "ok" if hecha else ("alert" if corte == 4 else "off")
-                nota = "Entregada" if hecha else ("No se entregó en la semana" if corte == 4 else "Abierta en la semana")
+                estado = "ok" if hecha else ("alert" if corte == 6 else "off")
+                nota = "Entregada" if hecha else ("No se entregó en la semana" if corte == 6 else "Abierta en la semana")
             else:
                 dias = [d for d in range(corte + 1) if _vence(t, d)]
                 due = [d for d in dias if not (marcas.get(semana + timedelta(days=d)) and marcas[semana + timedelta(days=d)].estado == "no_aplica")]

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Modal from '../ui/Modal.jsx';
-import { DIAS } from '../../lib/daily.js';
+import { DIAS, fechaCorta, sumarDias } from '../../lib/daily.js';
 import { cargarTareasDaily, importarDaily } from '../../data/api.js';
 
 /**
@@ -17,9 +17,6 @@ export default function CargarDaily({ semana, onCargado }) {
   const [abierto, setAbierto] = useState(false);
   const [fuente, setFuente] = useState('');
   const [propuesta, setPropuesta] = useState(null);
-  // Lo que el documento puso un sábado o un domingo. No tiene día posible —la daily va de
-  // lunes a viernes—, así que se muestra aparte en vez de desaparecer sin decir nada.
-  const [finde, setFinde] = useState([]);
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState(null);
 
@@ -29,7 +26,6 @@ export default function CargarDaily({ semana, onCargado }) {
     setAbierto(false);
     setFuente('');
     setPropuesta(null);
-    setFinde([]);
     setError(null);
   }
 
@@ -40,7 +36,6 @@ export default function CargarDaily({ semana, onCargado }) {
     try {
       const r = await importarDaily(esLink ? { url: fuente.trim() } : { texto: fuente });
       setPropuesta(r.tareas.map((t, i) => ({ ...t, id: i })));
-      setFinde(r.finde ?? []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -98,26 +93,13 @@ export default function CargarDaily({ semana, onCargado }) {
           <>
             <div className="dl-imp-cab">
               <b>{propuesta.length} {propuesta.length === 1 ? 'tarea' : 'tareas'}</b>
+              {/* En qué semana entran: el cuadro se abre sobre la que está en pantalla y el
+                  documento del domingo suele ser el de la semana que viene. */}
+              <span className="dl-imp-semana">
+                Semana del {fechaCorta(semana)} al {fechaCorta(sumarDias(semana, 6))}
+              </span>
               <button type="button" className="btn sm ghost" onClick={() => setPropuesta(null)}>Cambiar el documento</button>
             </div>
-            {finde.length > 0 && (
-              <div className="dl-imp-finde">
-                <span>
-                  {finde.length} {finde.length === 1 ? 'tarea' : 'tareas'} del sábado o el domingo.
-                  La daily va de lunes a viernes.
-                </span>
-                <button
-                  type="button"
-                  className="btn sm"
-                  onClick={() => {
-                    setPropuesta((p) => [...p, ...finde.map((t, i) => ({ ...t, dia: null, id: `f${i}` }))]);
-                    setFinde([]);
-                  }}
-                >
-                  Dejarlas abiertas en la semana
-                </button>
-              </div>
-            )}
             {grupos.map((g) => (
               <section key={g.dia ?? 'semana'} className="dl-imp-dia">
                 <h4>{g.dia === null ? 'Abiertas en la semana' : DIAS[g.dia]}</h4>

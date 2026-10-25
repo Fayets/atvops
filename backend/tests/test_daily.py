@@ -390,9 +390,10 @@ def test_antes_del_inicio_no_hay_rojos(monkeypatch):
     assert all(e["estado"] == "off" for e in b["entregas"])
 
 
-def test_el_domingo_backbone_abre_la_semana_que_viene(monkeypatch):
+def test_el_domingo_backbone_sigue_en_la_semana_que_termina(monkeypatch):
+    """Desde que el finde es parte de la daily, el domingo todavía es de su propia semana."""
     monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 18))
-    assert d.backbone(None)["semana"] == "2026-10-19"
+    assert d.backbone(None)["semana"] == "2026-10-12"
 
 
 def test_el_detalle_trae_la_semana_entera():
@@ -425,7 +426,29 @@ def test_una_tarea_propia_de_un_dia_se_marca_ese_dia():
         d.guardar_dia("nick", miercoles, [m for m in _marcar_todo(s, miercoles) if m["tarea_id"] != t["id"]])
     assert t["id"] not in [m["tarea_id"] for m in _marcar_todo(s, date(2026, 10, 20))]
     with pytest.raises(HTTPException):
-        d.agregar_tarea("nick", LUNES, "x", "velocidad", dia=5)
+        d.agregar_tarea("nick", LUNES, "x", "velocidad", dia=7)
+
+
+def test_el_sabado_y_el_domingo_son_dias_de_la_daily(monkeypatch):
+    """Franco los pidió el 25-10-2026: el que trabaja el finde tiene dónde anotarlo."""
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 25))  # el domingo de esa semana
+    sabado = d.agregar_tarea("nick", LUNES, "Grabar los reels del lunes", "velocidad", dia=5)
+    assert sabado["dia"] == 5
+    s = d.ver_semana("nick", LUNES)
+    assert [x["nombre"] for x in s["dias"]][-2:] == ["sábado", "domingo"]
+    assert s["dias"][5]["fecha"] == "2026-10-24"
+    # Y se guarda como cualquier otro día.
+    d.guardar_dia("nick", date(2026, 10, 24), _marcar_todo(s, date(2026, 10, 24)))
+    s = d.ver_semana("nick", LUNES)
+    assert s["dias"][5]["guardado_at"] is not None
+
+
+def test_un_finde_sin_tareas_no_es_una_daily_que_falta(monkeypatch):
+    """Si no se puso nada el sábado, Backbone no lo cuenta: es un día libre, no una falta."""
+    monkeypatch.setattr(d, "hoy", lambda: date(2026, 10, 26))  # la semana ya terminó entera
+    p = next(x for x in d.backbone(LUNES)["personas"] if x["username"] == "lucas")
+    assert [x["estado"] for x in p["dias"]][5:] == ["libre", "libre"]
+    assert not [f for f in p["faltas"] if f.get("dia") in (5, 6)]
 
 
 # ------------------------------------------------------------------ chats de reels (con base)
