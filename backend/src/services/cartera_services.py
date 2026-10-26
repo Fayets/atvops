@@ -122,7 +122,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "SELECT q.id, q.monto_usd, q.fecha_vence, q.fecha_pago, q.estado, q.notas, "
         "c.nombre, c.plan_actual, c.estado_cliente, c.responsable "
         "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
-        "WHERE q.fecha_vence >= %s AND q.fecha_vence < %s ORDER BY q.fecha_vence",
+        f"WHERE {clients_db.SIN_BAJAS} AND q.fecha_vence >= %s AND q.fecha_vence < %s "
+        "ORDER BY q.fecha_vence",
         (inicio - timedelta(days=120), fin + timedelta(days=60)),
     )
     clientes = clients_db.consultar(
@@ -271,7 +272,9 @@ def ops(mes: str | None = None) -> dict:
                 and str(c["estado_cliente"] or "").lower() == "vigente"]
 
     cuotas_mes = clients_db.consultar(
-        "SELECT coalesce(sum(monto_usd), 0) AS total FROM {esquema}.cuotas WHERE fecha_vence >= %s AND fecha_vence < %s",
+        "SELECT coalesce(sum(q.monto_usd), 0) AS total "
+        "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
+        f"WHERE {clients_db.SIN_BAJAS} AND q.fecha_vence >= %s AND q.fecha_vence < %s",
         (inicio, fin),
     )
     # La caja del mes no se recalcula acá: es la que muestra ATV Clients, para que el

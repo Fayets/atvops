@@ -135,6 +135,10 @@ class CobranzaServices:
         Así octubre decía 28.600 cuando en ATV Clients habían entrado 26.500. Lo que vence
         y lo atrasado se miran desde la cuota, pero con el saldo que falta, descontando
         lo que ya se imputó.
+
+        Lo que falta cobrar deja afuera a los clientes dados de baja: no van a pagar y
+        inflaban el atrasado con deuda de gente que ya no está. Lo que entró no se filtra:
+        esa plata entró de verdad, el cliente siga o no.
         """
         from src.services import clients_db
 
@@ -197,7 +201,8 @@ class CobranzaServices:
             "       q.monto_usd - coalesce((SELECT sum(pi.monto_usd) FROM {esquema}.pago_imputaciones pi "
             "                               WHERE pi.cuota_id = q.id), 0) AS saldo "
             "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
-            f"WHERE {TIPO} = 'cuota_venta' AND q.fecha_pago IS NULL AND "
+            f"WHERE {TIPO} = 'cuota_venta' AND {clients_db.SIN_BAJAS} "
+            "AND q.fecha_pago IS NULL AND "
         )
 
         def _pendientes(cond: str, params: tuple) -> list[dict]:

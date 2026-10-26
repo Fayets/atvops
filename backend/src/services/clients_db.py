@@ -16,6 +16,12 @@ logger = logging.getLogger("atv_ops.clients")
 
 ESQUEMA = config("CLIENTS_SCHEMA", default="clients")
 
+# Un cliente dado de baja no va a pagar lo que debe: sus cuotas no son cobranza. La
+# condición se pega a toda consulta que mida plata POR cobrar —lo que vence, lo
+# atrasado— y nunca a la que mide plata que YA entró, que es real venga de quien venga.
+# Espera que la tabla de clientes esté aliaseada como `c`.
+SIN_BAJAS = "lower(coalesce(c.estado_cliente, '')) <> 'inactivo'"
+
 
 def _dsn() -> str:
     return (config("CLIENTS_DSN", default="") or "").strip()

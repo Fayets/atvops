@@ -195,12 +195,15 @@ def _seccion_cobranza(desde: date, hasta_ex: date, p_desde: date, p_hasta_ex: da
     vencidas = clients_db.consultar(
         "SELECT count(*) AS n, coalesce(sum(q.monto_usd - coalesce((SELECT sum(pi.monto_usd) "
         "FROM {esquema}.pago_imputaciones pi WHERE pi.cuota_id = q.id), 0)), 0) AS saldo "
-        "FROM {esquema}.cuotas q WHERE q.fecha_pago IS NULL AND q.fecha_vence >= %s AND q.fecha_vence < %s",
+        "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
+        f"WHERE {clients_db.SIN_BAJAS} AND q.fecha_pago IS NULL "
+        "AND q.fecha_vence >= %s AND q.fecha_vence < %s",
         (desde, hasta_ex))
     atras = clients_db.consultar(
         "SELECT count(*) AS n, coalesce(sum(q.monto_usd - coalesce((SELECT sum(pi.monto_usd) "
         "FROM {esquema}.pago_imputaciones pi WHERE pi.cuota_id = q.id), 0)), 0) AS saldo "
-        "FROM {esquema}.cuotas q WHERE q.fecha_pago IS NULL AND q.fecha_vence < %s", (desde,))
+        "FROM {esquema}.cuotas q JOIN {esquema}.clientes c ON c.id = q.cliente_id "
+        f"WHERE {clients_db.SIN_BAJAS} AND q.fecha_pago IS NULL AND q.fecha_vence < %s", (desde,))
     v = vencidas[0] if vencidas else {"n": 0, "saldo": 0}
     a = atras[0] if atras else {"n": 0, "saldo": 0}
     return {
