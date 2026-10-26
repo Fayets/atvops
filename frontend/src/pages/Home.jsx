@@ -33,9 +33,9 @@ const COL_CUOTAS = [
   { clave: 'cliente', label: 'Cliente' },
   { clave: 'plan', label: 'Plan', ancho: 110 },
   { clave: 'venceAt', label: 'Vencía', ancho: 110, render: (f) => formatFecha(f.venceAt) },
-  { clave: 'estado', label: 'Cómo está', ancho: 230, render: (f) => (
+  { clave: 'estado', label: 'Cómo está', ancho: 210, render: (f) => (
     f.estado === 'pagada' ? `pagada el ${formatFecha(f.pagadaAt ?? f.pagoAt)}`
-      : f.estado === 'vencida' ? `sin pagar · ${f.diasAtraso ?? f.diasVencida ?? 0} días de atraso`
+      : f.estado === 'vencida' ? `${f.diasAtraso ?? f.diasVencida ?? 0} días de atraso`
         : 'todavía no vence') },
   { clave: 'montoUsd', label: 'Monto', align: 'right', ancho: 130, format: 'usd' },
 ];
@@ -54,9 +54,10 @@ function detalleCuotas(titulo, sub, filas) {
   return {
     titulo,
     sub,
+    enColumnas: true,
     columnas: COL_CUOTAS,
     grupos: [
-      { titulo: 'Caja 1 · cuotas de ventas nuevas', filas: uno, total: suma(uno) },
+      { titulo: 'Caja 1 · ventas nuevas', filas: uno, total: suma(uno) },
       { titulo: 'Caja 2 · upsells y recompras', filas: dos, total: suma(dos) },
     ],
   };
@@ -81,6 +82,7 @@ function detalleCaja(filas) {
   return {
     titulo: 'La plata que entró este mes',
     sub: 'Por fecha de pago. Es el mismo número que muestra ATV Clients.',
+    enColumnas: true,
     columnas: COL_PAGOS,
     grupos: [
       { titulo: 'Caja 1 · ventas nuevas y señas', filas: uno, total: suma(uno), unidad: 'pago' },

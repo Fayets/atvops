@@ -38,6 +38,44 @@ function celda(fila, col) {
  * entera para ver qué parte ya entró. Cada grupo lleva su propio subtotal, así la suma
  * de arriba se ve sin hacer cuentas.
  */
+/**
+ * Los dos grupos uno al lado del otro, en vez de uno abajo del otro.
+ *
+ * Caja 1 y caja 2 son dos negocios distintos y la pregunta es cuál de los dos está
+ * atrasado: apilados hay que scrollear para comparar, al lado se ve de una. Cada fila se
+ * arma con las mismas columnas —la primera es el nombre, la última el monto y las del
+ * medio van abajo en una línea— porque a la mitad del ancho no entra una tabla.
+ */
+function ColumnasDetalle({ columnas, grupos }) {
+  const principal = columnas[0];
+  const monto = columnas[columnas.length - 1];
+  const medio = columnas.slice(1, -1);
+  return (
+    <div className="detalle-cols">
+      {grupos.map((g) => (
+        <section key={g.titulo} className="detalle-col">
+          <header>
+            <span>{g.titulo}</span>
+            <b className="num">{g.total}</b>
+          </header>
+          <span className="detalle-col-n dim">
+            {g.filas.length} {g.filas.length === 1 ? (g.unidad ?? 'cuota') : `${g.unidad ?? 'cuota'}s`}
+          </span>
+          {g.filas.length ? g.filas.map((f, i) => (
+            <div key={f.id ?? i} className="detalle-fila">
+              <div className="detalle-fila-txt">
+                <span className="strong">{celda(f, principal)}</span>
+                <span className="dim">{medio.map((c) => celda(f, c)).filter(Boolean).join(' · ')}</span>
+              </div>
+              <span className="num">{celda(f, monto)}</span>
+            </div>
+          )) : <p className="dim detalle-col-vacio">Nada acá.</p>}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function TablaDetalle({ columnas, grupos }) {
   const vacia = grupos.every((g) => !g.filas.length);
   if (vacia) return <div className="empty">No hay nada para mostrar.</div>;
@@ -146,9 +184,9 @@ export default function ResumenArea({ titulo, dueno, href, estado, metricas = []
         wide
       >
         {abierta?.detalle?.sub && <p className="dim" style={{ marginTop: 0 }}>{abierta.detalle.sub}</p>}
-        {abierta && (
-          <TablaDetalle columnas={abierta.detalle.columnas} grupos={abierta.detalle.grupos} />
-        )}
+        {abierta && (abierta.detalle.enColumnas
+          ? <ColumnasDetalle columnas={abierta.detalle.columnas} grupos={abierta.detalle.grupos} />
+          : <TablaDetalle columnas={abierta.detalle.columnas} grupos={abierta.detalle.grupos} />)}
       </Modal>
     </section>
   );
