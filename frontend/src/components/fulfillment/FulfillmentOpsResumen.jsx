@@ -57,7 +57,7 @@ export default function FulfillmentOpsResumen({ resumen: r, contexto }) {
           <div className="k">Caja 2 del mes</div>
           <div className="n num">{formatValue(r.caja2MesUsd, 'usd')}</div>
           <div className="dim" style={{ fontSize: 12 }}>
-            upsells + recompras
+            lo cobrado a clientes que ya están
           </div>
         </div>
       </div>

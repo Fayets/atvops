@@ -7,6 +7,8 @@ Fallback: `/api/agent/cobros` + `/api/agent/cobrado-mes` (deploy actual de clien
 
 from __future__ import annotations
 
+import logging
+
 from datetime import date, datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -14,6 +16,8 @@ import json
 
 from decouple import config
 from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
 
 AR_OFFSET = timedelta(hours=-3)
 
@@ -432,3 +436,22 @@ class CobranzaServices:
             "syncAt": ahora_iso,
         }
 
+
+
+def caja_del_mes(month: str) -> dict:
+    """Lo cobrado en el mes partido en Caja 1 y Caja 2, como lo muestra ATV Clients.
+
+    Es el mismo número que se ve allá: no se recalcula acá. Caja 1 es la venta nueva y
+    Caja 2 la plata de los clientes que ya están; sumarlas da el cobrado del mes.
+
+    Si Clients no contesta vuelve en cero en vez de romper la pantalla que lo pide: es un
+    dato de una tarjeta, no algo sin lo que la vista no sirva.
+    """
+    try:
+        d = CobranzaServices()._get_json(f"/api/agent/cobrado-mes?month={month}")
+    except Exception as e:  # noqa: BLE001
+        logger.info("Sin caja del mes de ATV Clients: %s", str(e)[:200])
+        return {"caja1Usd": 0.0, "caja2Usd": 0.0, "totalUsd": 0.0, "conectado": False}
+    caja1, caja2 = float(d.get("caja_1") or 0), float(d.get("caja_2") or 0)
+    return {"caja1Usd": round(caja1, 2), "caja2Usd": round(caja2, 2),
+            "totalUsd": round(float(d.get("total") or caja1 + caja2), 2), "conectado": True}

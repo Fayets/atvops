@@ -1403,16 +1403,17 @@ export async function getFulfillmentOps(mes) {
       onboardingsMesAnterior: r.altasMesAnterior,
       metaOnboarding: 0,
       churnMes: r.bajasMes,
-      caja2MesUsd: r.cuotasMesUsd,
+      caja2MesUsd: r.caja2MesUsd ?? 0,
       deltaOnboarding: r.altasMes - r.altasMesAnterior,
       programas,
     },
-    // Upsells, recompras y downsells no tienen fuente todavía: van en cero.
+    // Upsells, recompras y downsells no tienen fuente todavía: van en cero. La Caja 2
+    // sí es real: es la que muestra ATV Clients, no las cuotas que vencen en el mes.
     expansion: {
       upsells: { cantidad: 0, revenueUsd: 0 },
       recompras: { cantidad: 0, revenueUsd: 0 },
       downsells: { cantidad: 0, revenueUsd: 0 },
-      caja2Usd: r.cuotasMesUsd,
+      caja2Usd: r.caja2MesUsd ?? 0,
       metaCaja2Usd: 0,
       gapCaja2: 0,
       pctCaja2: 0,

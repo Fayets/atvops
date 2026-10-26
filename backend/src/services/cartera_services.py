@@ -34,7 +34,7 @@ from urllib.request import Request, urlopen
 
 from decouple import config
 
-from src.services import clients_db
+from src.services import clients_db, cobranza_services
 from src.services.transcripts_services import AR_TZ
 
 logger = logging.getLogger("atv_ops.cobranza")
@@ -235,7 +235,8 @@ def ops(mes: str | None = None) -> dict:
     vacio = {
         "mes": mes, "generadoAt": datetime.now(AR_TZ).isoformat(), "conectado": False,
         "resumen": {"activos": 0, "altasMes": 0, "altasMesAnterior": 0, "bajasMes": 0, "churnRate": 0,
-                    "netGrowth": 0, "cuotasMesUsd": 0},
+                    "netGrowth": 0, "cuotasMesUsd": 0,
+                    "caja1MesUsd": 0, "caja2MesUsd": 0, "cajaConectada": False},
         "salud": {"vigentes": 0, "proximosAVencer": 0, "vencidos": 0, "vencenProximos7d": 0, "revenueRiesgo7dUsd": 0},
         "programas": [],
     }
@@ -273,6 +274,11 @@ def ops(mes: str | None = None) -> dict:
         "SELECT coalesce(sum(monto_usd), 0) AS total FROM {esquema}.cuotas WHERE fecha_vence >= %s AND fecha_vence < %s",
         (inicio, fin),
     )
+    # La caja del mes no se recalcula acá: es la que muestra ATV Clients, para que el
+    # número sea el mismo de los dos lados. Las cuotas de arriba son otra cosa —lo que
+    # vence en el mes, cobrado o no— y mezclarlas fue lo que dejó la tarjeta de Caja 2
+    # con un total que no tenía nada que ver con lo que contaba.
+    caja = cobranza_services.caja_del_mes(mes)
     por_plan: dict[str, dict] = {}
     for c in clientes:
         plan = (c["plan_actual"] or "sin plan").strip().lower()
@@ -294,6 +300,9 @@ def ops(mes: str | None = None) -> dict:
             "churnRate": round(len(bajas) / len(activos) * 100, 1) if activos else 0,
             "netGrowth": len(altas) - len(bajas),
             "cuotasMesUsd": round(_num(cuotas_mes[0]["total"]) if cuotas_mes else 0, 2),
+            "caja1MesUsd": caja["caja1Usd"],
+            "caja2MesUsd": caja["caja2Usd"],
+            "cajaConectada": caja["conectado"],
         },
         "salud": {
             "vigentes": len(activos),
