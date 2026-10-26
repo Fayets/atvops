@@ -1146,26 +1146,6 @@ function metaDelMes(mes) {
 }
 
 /** Feed del día armado con lo que pasó de verdad en el CRM. */
-function actividadDesdeCrm(real) {
-  const eventos = [];
-  for (const c of real.cierresRecientes ?? []) {
-    eventos.push({
-      id: `cierre_${c.id}`, tipo: 'cierre', at: c.fechaAt,
-      texto: `${c.prospecto} cerró${c.montoUsd ? ` ${formatValue(c.montoUsd, 'usd')}` : ''} con ${c.closer}`,
-    });
-  }
-  for (const l of real.sinReportar ?? []) {
-    eventos.push({
-      id: `pend_${l.id}`, tipo: 'sin_reporte', at: l.fechaAt,
-      texto: `${l.prospecto} · llamada de ${l.closer} sin reporte hace ${l.diasDesde} d`,
-    });
-  }
-  for (const l of real.seguimientos ?? []) {
-    eventos.push({ id: `seg_${l.id}`, tipo: 'seguimiento', at: l.fechaAt, texto: `${l.prospecto} quedó en seguimiento con ${l.closer}` });
-  }
-  return eventos.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? '')).slice(0, 40);
-}
-
 export async function getVentas(mes) {
   const real = await getVentasReal(mes);
   const { actual, previo, semanas, contexto } = real;
@@ -1232,12 +1212,6 @@ export async function getVentas(mes) {
         aplicaciones: r.metricas?.links_enviados ?? 0,
         agendadas: r.metricas?.agendas ?? 0,
       },
-    })),
-    actividad: actividadDesdeCrm(real),
-    followUps: (real.seguimientos ?? []).map((l) => ({
-      id: l.id, prospecto: l.prospecto, closer: l.closer,
-      diasSinContacto: l.diasDesde ?? 0, ultimoContactoAt: l.fechaAt,
-      proximoPaso: l.notas ? l.notas.slice(0, 90) : 'Seguimiento sin nota cargada',
     })),
     sinReportar: real.sinReportar ?? [],
     perfClosers,
