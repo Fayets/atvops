@@ -1,12 +1,11 @@
 import AccionesSemana from '../components/home/AccionesSemana.jsx';
-import Bloque from '../components/home/Bloque.jsx';
 import ResumenArea from '../components/home/ResumenArea.jsx';
 import Bar from '../components/ui/Bar.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { getHome } from '../data/api.js';
-import { formatFecha, formatValue, hace } from '../lib/format.js';
+import { formatFecha, formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { ESTADO_RITMO } from '../lib/pacing.js';
@@ -90,7 +89,7 @@ export default function Home() {
     );
   }
 
-  const { mes, semana, acciones, marketing, ventas, fulfillment, sistemas, cobranza } = data;
+  const { mes, semana, acciones, marketing, ventas, fulfillment, cobranza } = data;
   const pctMes = Math.round(mes.fraccion * 100);
   const mandaVentas = metaQueManda(ventas);
   const mandaMkt = metaQueManda(marketing);
@@ -186,45 +185,6 @@ export default function Home() {
             ? 'Sin datos de cobranza · levantá ATV Clients o revisá ATV_CLIENTS_API_URL'
             : undefined}
         />
-      </div>
-
-      <div className="areas-pie">
-        <Bloque titulo="Sistemas" dueno="Franco" href="/sistemas">
-          <div className="estado-lista">
-            <div className="estado-item">
-              <i className={`luz ${sistemas.backendOk ? 'ok' : 'alert'}`} />
-              <span className="nombre">Backend ATV Ops</span>
-              <span className="det">{sistemas.backendOk ? 'respondiendo' : 'sin respuesta'}</span>
-            </div>
-            <div className="estado-item">
-              <i className={`luz ${sistemas.botUltimaEscritura ? (sistemas.transcriptsParcial ? 'warn' : 'ok') : 'off'}`} />
-              <span className="nombre">Bot de Discord · transcripts</span>
-              <span className="det">
-                {sistemas.botUltimaEscritura
-                  ? `${sistemas.transcriptsCanales} canales · último ${hace(sistemas.botUltimaEscritura, new Date())}${sistemas.transcriptsParcial ? ' · copia parcial' : ''}`
-                  : 'sin datos'}
-              </span>
-            </div>
-            <div className="estado-item">
-              <i className={`luz ${sistemas.fuentes.some((f) => f.status === 'sin_conectar') ? 'warn' : 'ok'}`} />
-              <span className="nombre">Fuentes de datos</span>
-              <span className="det">
-                {sistemas.fuentes.filter((f) => f.status === 'conectada').length} conectadas ·{' '}
-                {sistemas.fuentes.filter((f) => f.status === 'manual').length} a mano ·{' '}
-                {sistemas.fuentes.filter((f) => f.status === 'sin_conectar').length} sin conectar
-              </span>
-            </div>
-            <div className="estado-item">
-              <i className={`luz ${sistemas.grietas.some((g) => g.severidad === 'alta') ? 'alert' : sistemas.grietas.length ? 'warn' : 'ok'}`} />
-              <span className="nombre">Alertas operativas</span>
-              <span className="det">
-                {sistemas.grietas.length
-                  ? sistemas.grietas.map((g) => g.metrica.split(' · ')[0]).join(' · ')
-                  : 'Sin alertas de fuentes caídas'}
-              </span>
-            </div>
-          </div>
-        </Bloque>
       </div>
     </div>
   );
