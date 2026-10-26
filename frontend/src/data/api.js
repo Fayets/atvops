@@ -2043,6 +2043,8 @@ export async function getCobranza(mes) {
       kpi('deuda_cartera', 'Deuda de la cartera', raw.cartera.deudaUsd, 'usd', `${raw.cartera.vigentes} clientes vigentes de ${raw.cartera.clientes}`),
     ],
     cartera: raw.cartera,
+    // Los pagos de upsell y recompra que forman la caja 2, para poder abrirla.
+    caja2Filas: raw.caja2Filas ?? [],
     proximas: raw.proximas ?? [],
     listaVencidas: raw.vencidas ?? [],
     conectado: raw.conectado,

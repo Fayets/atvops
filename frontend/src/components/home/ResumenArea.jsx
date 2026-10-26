@@ -31,35 +31,45 @@ function celda(fila, col) {
   return col.format ? formatValue(Number(v), col.format) : v;
 }
 
-function TablaDetalle({ columnas, filas, total }) {
-  if (!filas.length) return <div className="empty">No hay nada para mostrar.</div>;
+/**
+ * La tabla del detalle, en grupos.
+ *
+ * Una lista corrida de 31 cuotas no explica el número que se tocó: hay que leerla
+ * entera para ver qué parte ya entró. Cada grupo lleva su propio subtotal, así la suma
+ * de arriba se ve sin hacer cuentas.
+ */
+function TablaDetalle({ columnas, grupos }) {
+  const vacia = grupos.every((g) => !g.filas.length);
+  if (vacia) return <div className="empty">No hay nada para mostrar.</div>;
   return (
     <div className="table-wrap">
-      <table className="data">
+      <table className="data detalle-metrica">
         <thead>
           <tr>
             {columnas.map((c) => <th key={c.clave} className={c.align === 'right' ? 'right' : ''}>{c.label}</th>)}
           </tr>
         </thead>
-        <tbody>
-          {filas.map((f, i) => (
-            <tr key={f.id ?? i}>
-              {columnas.map((c) => (
-                <td key={c.clave} className={`${c.align === 'right' ? 'right num' : ''}${c.clave === columnas[0].clave ? ' strong' : ''}`}>
-                  {celda(f, c)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-        {total && (
-          <tfoot>
-            <tr>
-              <td colSpan={columnas.length - 1}>{total.label}</td>
-              <td className="right num">{total.valor}</td>
-            </tr>
-          </tfoot>
-        )}
+        {grupos.filter((g) => g.filas.length).map((g) => (
+          <tbody key={g.titulo ?? 'todo'}>
+            {g.titulo && (
+              <tr className="detalle-grupo">
+                <th colSpan={columnas.length - 1} scope="rowgroup">
+                  {g.titulo} <span className="dim">· {g.filas.length} {g.filas.length === 1 ? (g.unidad ?? 'cuota') : `${g.unidad ?? 'cuota'}s`}</span>
+                </th>
+                <th className="right num">{g.total}</th>
+              </tr>
+            )}
+            {g.filas.map((f, i) => (
+              <tr key={f.id ?? `${g.titulo}-${i}`}>
+                {columnas.map((c) => (
+                  <td key={c.clave} className={`${c.align === 'right' ? 'right num' : ''}${c.clave === columnas[0].clave ? ' strong' : ''}`}>
+                    {celda(f, c)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        ))}
       </table>
     </div>
   );
@@ -69,8 +79,8 @@ function TablaDetalle({ columnas, filas, total }) {
  * @param {{ titulo: string, dueno?: string, href: string, estado?: { tone: string, label: string },
  *           metricas: { label: string, valor: number | string, format?: string, meta?: number | null,
  *                       nota?: string, tono?: string, href?: string,
- *                       detalle?: { titulo: string, sub?: string, columnas: object[], filas: object[],
- *                                   total?: { label: string, valor: string } } }[],
+ *                       detalle?: { titulo: string, sub?: string, columnas: object[],
+ *                                   grupos: { titulo?: string, filas: object[], total?: string }[] } }[],
  *           pie?: React.ReactNode }} props
  */
 export default function ResumenArea({ titulo, dueno, href, estado, metricas = [], pie }) {
@@ -93,14 +103,14 @@ export default function ResumenArea({ titulo, dueno, href, estado, metricas = []
           const valor = typeof m.valor === 'number' ? formatValue(m.valor, formato) : m.valor;
           const conMeta = Number(m.meta) > 0;
           const pct = conMeta ? Math.min(100, (Number(m.valor) / Number(m.meta)) * 100) : null;
-          const abrible = Boolean(m.detalle?.filas?.length) || Boolean(m.href);
+          const abrible = Boolean(m.detalle?.grupos?.some((g) => g.filas.length)) || Boolean(m.href);
           return (
             <button
               key={m.label}
               type="button"
               className={`area-metrica${abrible ? ' abrible' : ''}`}
               disabled={!abrible}
-              onClick={() => (m.detalle?.filas?.length ? setAbierta(m) : navegar(m.href))}
+              onClick={() => (m.detalle?.grupos?.some((g) => g.filas.length) ? setAbierta(m) : navegar(m.href))}
             >
               <span className="area-metrica-label">{m.label}</span>
               {/* Un monto largo en una columna de tres no entra a 24px: se achica en vez
@@ -126,15 +136,12 @@ export default function ResumenArea({ titulo, dueno, href, estado, metricas = []
         open={Boolean(abierta)}
         onClose={() => setAbierta(null)}
         title={abierta?.detalle?.titulo ?? ''}
+        className="detalle-metrica-modal"
         wide
       >
         {abierta?.detalle?.sub && <p className="dim" style={{ marginTop: 0 }}>{abierta.detalle.sub}</p>}
         {abierta && (
-          <TablaDetalle
-            columnas={abierta.detalle.columnas}
-            filas={abierta.detalle.filas}
-            total={abierta.detalle.total}
-          />
+          <TablaDetalle columnas={abierta.detalle.columnas} grupos={abierta.detalle.grupos} />
         )}
       </Modal>
     </section>

@@ -32,22 +32,55 @@ function metricasDe(metas = [], href) {
 const COL_CUOTAS = [
   { clave: 'cliente', label: 'Cliente' },
   { clave: 'plan', label: 'Plan' },
-  { clave: 'venceAt', label: 'Vence', render: (f) => formatFecha(f.venceAt) },
-  { clave: 'estado', label: 'Estado',
-    render: (f) => (f.estado === 'vencida' && f.diasVencida ? `vencida · ${f.diasVencida} d` : f.estado) },
+  { clave: 'venceAt', label: 'Vencía', render: (f) => formatFecha(f.venceAt) },
+  { clave: 'estado', label: 'Cómo está', render: (f) => (
+    f.estado === 'pagada' ? `pagada el ${formatFecha(f.pagadaAt ?? f.pagoAt)}`
+      : f.estado === 'vencida' ? `sin pagar · ${f.diasAtraso ?? f.diasVencida ?? 0} días de atraso`
+        : 'todavía no vence') },
   { clave: 'montoUsd', label: 'Monto', align: 'right', format: 'usd' },
 ];
 
+const suma = (filas) => formatValue(filas.reduce((s, f) => s + (f.montoUsd ?? 0), 0), 'usd');
+
+/** Un solo grupo, sin título: la lista entera con su total al pie de la cabecera. */
 function detalleCuotas(titulo, sub, filas) {
+  return { titulo, sub, columnas: COL_CUOTAS, grupos: [{ titulo: 'En total', filas, total: suma(filas) }] };
+}
+
+/**
+ * Las cuotas del mes partidas en lo que ya entró, lo que se pasó de fecha y lo que
+ * todavía no vence. Corridas en una lista sola no explicaban el número de la tarjeta:
+ * había que sumar a ojo cuáles de las 31 formaban los US$ 43.900.
+ */
+function detalleDelMes(cuotas) {
+  const de = (estado) => cuotas.filter((c) => c.estado === estado);
+  const pagadas = de('pagada');
+  const vencidas = de('vencida');
+  const pendientes = cuotas.filter((c) => c.estado !== 'pagada' && c.estado !== 'vencida');
   return {
-    titulo,
-    sub,
+    titulo: 'Las cuotas que vencían este mes',
+    sub: `${cuotas.length} cuotas por ${suma(cuotas)}`,
     columnas: COL_CUOTAS,
-    filas,
-    total: {
-      label: `${filas.length} ${filas.length === 1 ? 'cuota' : 'cuotas'}`,
-      valor: formatValue(filas.reduce((s, f) => s + (f.montoUsd ?? 0), 0), 'usd'),
-    },
+    grupos: [
+      { titulo: 'Ya entró', filas: pagadas, total: suma(pagadas) },
+      { titulo: 'Se pasó de fecha', filas: vencidas, total: suma(vencidas) },
+      { titulo: 'Todavía no vence', filas: pendientes, total: suma(pendientes) },
+    ],
+  };
+}
+
+/** Los pagos de upsell y recompra del mes: lo que forma la caja 2. */
+function detalleCaja2(filas) {
+  return {
+    titulo: 'Caja 2 del mes',
+    sub: 'Upsells y recompras de clientes que ya estaban',
+    columnas: [
+      { clave: 'cliente', label: 'Cliente' },
+      { clave: 'tipo', label: 'Qué fue' },
+      { clave: 'pagoAt', label: 'Entró', render: (f) => formatFecha(f.pagoAt) },
+      { clave: 'montoUsd', label: 'Monto', align: 'right', format: 'usd' },
+    ],
+    grupos: [{ titulo: 'En total', filas, total: suma(filas), unidad: 'pago' }],
   };
 }
 
@@ -62,7 +95,7 @@ function detalleSemaforo(color, clientes, activos) {
       { clave: 'score', label: 'Score', align: 'right', render: (f) => Math.round(f.score) },
       { clave: 'ultimo', label: 'Último mensaje del cliente' },
     ],
-    filas: clientes,
+    grupos: [{ filas: clientes }],
   };
 }
 
@@ -166,9 +199,7 @@ export default function Home() {
               valor: cobranza.cobrado, format: 'usd', meta: cobranza.totalMes,
               tono: cobranza.ritmoCobro?.estado === 'critico' ? 'alert' : 'ok',
               nota: `${Math.round(cobranza.pctSobreVencido)} % · entraron ${formatValue(cobranza.caja?.usd ?? 0, 'usd')} en el mes`,
-              detalle: detalleCuotas('Las cuotas que vencían este mes',
-                `${cobranza.cuotas.length} cuotas · ${cobranza.cuotas.filter((c) => c.estado === 'pagada').length} pagadas`,
-                cobranza.cuotas) },
+              detalle: detalleDelMes(cobranza.cuotas) },
             // No es del mes: son todas las cuotas con la fecha pasada, de cuando sea. Al
             // lado de la de arriba se leía como si fueran el mismo período.
             { label: 'Vencido · toda la cartera', valor: cobranza.vencidas.usd, format: 'usd', tono: 'alert',
@@ -180,6 +211,9 @@ export default function Home() {
               nota: `${cobranza.porVencerSemana.n} cuotas por avisar`,
               detalle: detalleCuotas('Vencen en los próximos 7 días', 'Para avisar esta semana',
                 cobranza.proximasSemana ?? []) },
+            { label: 'Caja 2 del mes', valor: cobranza.caja?.caja2 ?? 0, format: 'usd',
+              nota: 'upsells y recompras de clientes que ya estaban',
+              detalle: detalleCaja2(cobranza.caja2Filas ?? []) },
           ]}
           pie={cobranza.unavailable
             ? 'Sin datos de cobranza · levantá ATV Clients o revisá ATV_CLIENTS_API_URL'

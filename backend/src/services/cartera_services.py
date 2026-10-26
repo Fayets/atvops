@@ -113,7 +113,7 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0,
                     "cobradoHistoricoUsd": 0, "deudores": []},
         "caja": {"usd": 0, "pagos": 0, "caja1": None, "caja2": None, "otros": 0},
-        "cuotas": [], "vencidas": [], "proximas": [],
+        "cuotas": [], "vencidas": [], "proximas": [], "caja2Filas": [],
     }
     if not clients_db.disponible():
         return base
@@ -144,6 +144,22 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "WHERE fecha >= %s AND fecha < %s",
         (inicio, fin),
     )
+    # Los pagos que forman la caja 2 del mes —upsell y recompra—, para poder abrir el
+    # número. El total sigue siendo el que publica ATV Clients: si alguna vez no dan
+    # igual manda el de allá, y estas filas son solo el detalle de de dónde sale.
+    tipo_cuota = "split_part(coalesce(q.notas, ''), chr(10), 1)"
+    caja2 = clients_db.consultar(
+        "SELECT c.nombre, pi.monto_usd AS usd, p.fecha, "
+        f"       {tipo_cuota} AS tipo "
+        "FROM {esquema}.pagos p "
+        "JOIN {esquema}.clientes c ON c.id = p.cliente_id "
+        "JOIN {esquema}.pago_imputaciones pi ON pi.pago_id = p.id "
+        "JOIN {esquema}.cuotas q ON q.id = pi.cuota_id "
+        f"WHERE p.fecha >= %s AND p.fecha < %s AND {tipo_cuota} IN ('cuota_upsell', 'cuota_recompra') "
+        "ORDER BY p.fecha DESC",
+        (inicio, fin),
+    )
+
     if not cuotas and not clientes:
         return base
 
@@ -209,6 +225,12 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             ],
         },
         "cuotas": del_mes,
+        "caja2Filas": [{
+            "cliente": (f["nombre"] or "").strip() or "Sin nombre",
+            "tipo": "upsell" if f["tipo"] == "cuota_upsell" else "recompra",
+            "pagoAt": f["fecha"].isoformat() if f.get("fecha") else None,
+            "montoUsd": round(_num(f["usd"]), 2),
+        } for f in caja2],
         "vencidas": sorted([q for q in todas if q["estado"] == "vencida"], key=lambda q: -q["diasVencida"]),
         "proximas": sorted([q for q in todas if q["estado"] == "pendiente" and q["venceAt"] and q["venceAt"] >= hoy.isoformat()],
                            key=lambda q: q["venceAt"]),

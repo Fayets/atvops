@@ -6699,6 +6699,15 @@ body.gate-abierto .shell { display: none; }
 .area-metrica-barra { height: 3px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .area-metrica-barra > span { display: block; height: 3px; border-radius: 999px; }
 .area-metrica-nota { font-size: 11.5px; line-height: 1.4; color: var(--text-2); }
+
+/* La tabla del detalle de una métrica: los grupos llevan su subtotal, que es lo que
+   explica el número que se tocó. */
+.detalle-metrica .detalle-grupo th { background: var(--surface-2); color: var(--text-2);
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 9px 10px;
+  border-bottom: 1px solid var(--border-soft); position: static; }
+.detalle-metrica tbody + tbody .detalle-grupo th { border-top: 1px solid var(--border-soft); }
+.detalle-metrica .detalle-grupo .dim { text-transform: none; letter-spacing: 0; }
+.detalle-metrica td.num, .detalle-metrica th.num { white-space: nowrap; }
 @media (max-width: 620px) { .area-resumen-metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .area-resumen-pie { font-size: 12px; line-height: 1.45; color: var(--text-2);
@@ -7687,6 +7696,11 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 }
 .modal-card.modal-docs.wide {
   width: min(720px, 100%);
+}
+/* El detalle de una métrica es una tabla de cinco columnas: a 720 la última quedaba
+   cortada y había que scrollear de costado para ver el monto. */
+.modal-card.modal-docs.detalle-metrica-modal {
+  width: min(900px, 100%);
 }
 .modal-docs-head {
   display: flex;

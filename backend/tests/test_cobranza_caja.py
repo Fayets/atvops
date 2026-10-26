@@ -31,12 +31,21 @@ CUOTAS = [
      "estado_cliente": "vigente", "responsable": "franco"},
 ]
 CLIENTES = [{"estado_cliente": "vigente", "n": 3, "deuda": 0, "pagado": 16800}]
+# Los pagos de upsell y recompra del mes: son la caja 2, y van aparte de las cuotas.
+CAJA2 = [
+    {"nombre": "Subió de plan", "usd": 1200, "fecha": date(2026, 9, 12), "tipo": "cuota_upsell"},
+    {"nombre": "Volvió", "usd": 800, "fecha": date(2026, 9, 4), "tipo": "cuota_recompra"},
+]
 # Los pagos del mes se pasan aparte: 1000 + 9000 de las cuotas 2 y 3, más 2000 de pagos
 # parciales contra una cuota que sigue vencida y por eso no aparece como pagada.
 
 
 def _falso(monkeypatch, pagos_usd, pagos_n, split=None):
     def consultar(sql, params=None):
+        # Antes que la de abajo: las dos leen `pagos`, pero esta trae las filas de la
+        # caja 2 y la otra solo cuenta el total del mes.
+        if "cuota_upsell" in sql:
+            return list(CAJA2)
         if "FROM {esquema}.pagos" in sql:
             return [{"n": pagos_n, "usd": pagos_usd}]
         if "total_adeudado_usd, 0) > 0" in sql:
@@ -128,6 +137,8 @@ def test_falta_cobrar_se_parte_en_vencido_y_por_vencer(monkeypatch):
 
 def test_los_deudores_suman_la_deuda_de_la_cartera(monkeypatch):
     def consultar(sql, params=None):
+        if "cuota_upsell" in sql:
+            return []
         if "FROM {esquema}.pagos" in sql:
             return [{"n": 0, "usd": 0}]
         if "total_adeudado_usd, 0) > 0" in sql:
@@ -148,3 +159,22 @@ def test_los_deudores_suman_la_deuda_de_la_cartera(monkeypatch):
 
     cartera = cs.resumen(MES, refrescar=True)["cartera"]
     assert sum(d["deudaUsd"] for d in cartera["deudores"]) == cartera["deudaUsd"]
+
+
+def test_la_caja_2_se_puede_abrir(monkeypatch):
+    """El número de caja 2 viene con los pagos que lo forman.
+
+    El total lo publica ATV Clients y no se recalcula acá, pero un monto que no se puede
+    desarmar en nombres no sirve para discutir nada: las filas salen de `pagos`.
+    """
+    _falso(monkeypatch, pagos_usd=12000, pagos_n=4, split={"caja1": 9000.0, "caja2": 2000.0})
+    filas = cs.resumen(MES)["caja2Filas"]
+    assert [f["cliente"] for f in filas] == ["Subió de plan", "Volvió"]
+    assert [f["tipo"] for f in filas] == ["upsell", "recompra"]
+    assert sum(f["montoUsd"] for f in filas) == 2000.0
+
+
+def test_sin_conexion_la_caja_2_no_rompe(monkeypatch):
+    monkeypatch.setattr(clients_db, "disponible", lambda: False)
+    cs._cache.clear()
+    assert cs.resumen(MES)["caja2Filas"] == []
