@@ -42,9 +42,24 @@ const COL_CUOTAS = [
 
 const suma = (filas) => formatValue(filas.reduce((s, f) => s + (f.montoUsd ?? 0), 0), 'usd');
 
-/** Un solo grupo, sin título: la lista entera con su total al pie de la cabecera. */
+/**
+ * Las cuotas partidas en las dos cajas, igual que la plata que entra.
+ *
+ * Una cuota de venta y un upsell no se reclaman igual ni le tocan a la misma persona, y
+ * en una lista sola el total no dice cuál de los dos negocios está atrasado.
+ */
 function detalleCuotas(titulo, sub, filas) {
-  return { titulo, sub, columnas: COL_CUOTAS, grupos: [{ titulo: 'En total', filas, total: suma(filas) }] };
+  const uno = filas.filter((f) => f.caja !== 2);
+  const dos = filas.filter((f) => f.caja === 2);
+  return {
+    titulo,
+    sub,
+    columnas: COL_CUOTAS,
+    grupos: [
+      { titulo: 'Caja 1 · cuotas de ventas nuevas', filas: uno, total: suma(uno) },
+      { titulo: 'Caja 2 · upsells y recompras', filas: dos, total: suma(dos) },
+    ],
+  };
 }
 
 const COL_PAGOS = [

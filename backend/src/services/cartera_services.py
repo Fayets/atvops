@@ -203,8 +203,14 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
     def _fila(q: dict) -> dict:
         vence = q["fecha_vence"]
         pagada = str(q["estado"] or "").lower() in PAGADO
+        # La primera línea de `notas` dice qué es la cuota, y eso decide a qué caja va:
+        # una cuota de venta es caja 1, un upsell o una recompra son caja 2. Es la misma
+        # regla con la que ATV Clients parte la plata que entra.
+        tipo = (q["notas"] or "").split("\n", 1)[0].strip()
         return {
             "id": q["id"], "cliente": (q["nombre"] or "").strip() or "Sin nombre",
+            "tipo": _ETIQUETA_CUOTA.get(tipo, tipo),
+            "caja": 2 if tipo in ("cuota_upsell", "cuota_recompra") else 1,
             "plan": (q["plan_actual"] or "").strip(), "responsable": (q["responsable"] or "").strip(),
             "montoUsd": round(_num(q["monto_usd"]), 2),
             "venceAt": vence.isoformat() if vence else None,
