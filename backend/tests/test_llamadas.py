@@ -36,10 +36,11 @@ class _Fila:
         base = dict(id=1, lead_id=0, fuente="calendario", evento_id="ev1", prospecto="Fulano",
                     inicio_at=datetime(2026, 9, 10, 15, 0), email=None, telefono=None, ig=None,
                     setter=None, origen=None, calificacion=None, segunda=False, titulo=None,
-                    url=None, link_llamada=None, agendo_at=None, agendo_en=None,
+                    url=None, link_llamada=None, fathom_url=None, agendo_at=None, agendo_en=None,
                     ingresos_rango=None, vino_de_ads=False, lead_creado_at=None,
                     resultado="", closer="", programa="", cash_usd=0.0, saldo_usd=0.0,
-                    nota="", descartada=False, movida_at=None, movida_por=None)
+                    nota="", descartada=False, movida_at=None, movida_por=None,
+                    cierre_mes=None, cierre_cash_usd=0.0, sincronizado_at=None)
         base.update(kw)
         for k, val in base.items():
             setattr(self, k, val)

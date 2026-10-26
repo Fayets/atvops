@@ -30,7 +30,13 @@ VELOCIDAD, DESPLAZAMIENTO = "velocidad", "desplazamiento"
 
 # Títulos que no son tareas ni días: lo que cuelga de ellos queda abierto en la semana.
 _NO_ES_TAREA = re.compile(
-    r"^(objetivos?|metas?|notas?|resumen|semana|plan|contexto|prioridades?|recordatorios?)\b")
+    r"^((mis?\s+)?tareas?|objetivos?|metas?|notas?|resumen|semana|plan|contexto"
+    r"|prioridades?|recordatorios?)\b")
+
+# Relleno con el que la gente titula un bloque: "MIS TAREAS DE DESPLAZAMIENTO",
+# "Bloque de velocidad", "Lista - Velocidad".
+_RELLENO = re.compile(
+    r"\b(mis?|las?|los|el|tareas?|bloque|seccion|parte|lista|de|del)\b")
 
 
 def _norm(t: str) -> str:
@@ -93,13 +99,22 @@ def _dia_del_titulo(linea: str) -> int | None:
 
 
 def _tipo_del_titulo(linea: str) -> str | None:
+    """'velocidad' o 'desplazamiento' si el renglón titula un bloque de ese tipo.
+
+    No alcanza con que arranque con la palabra: los documentos titulan el bloque "MIS
+    TAREAS DE DESPLAZAMIENTO" y así ese renglón no era ni título ni nada, se colaba como
+    tarea y todo lo que colgaba abajo entraba como velocidad. Es un título cuando, saltando
+    el relleno, no queda nada más que el tipo: si sobra texto es una tarea que lo menciona.
+    """
     t = _norm(_limpiar(linea))
     if not t or len(t) > 60:
         return None
-    if t.startswith(DESPLAZAMIENTO):
-        return DESPLAZAMIENTO
-    if t.startswith(VELOCIDAD):
-        return VELOCIDAD
+    for tipo in (DESPLAZAMIENTO, VELOCIDAD):
+        if tipo not in t:
+            continue
+        resto = _RELLENO.sub(" ", t.replace(tipo, " "))
+        if not re.sub(r"[^a-z0-9]+", "", resto):
+            return tipo
     return None
 
 
