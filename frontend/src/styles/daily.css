@@ -294,3 +294,6 @@
   .dl-imp-cols { grid-template-columns: 1fr; }
   .dl-cal { position: static; }
 }
+
+/* El importador lee solo: mientras baja el documento, el campo queda quieto y esto avisa. */
+.dl-imp-leyendo { font-size: 13px; color: var(--text-3); margin: -6px 0 12px; }

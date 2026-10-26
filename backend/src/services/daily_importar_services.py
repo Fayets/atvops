@@ -71,7 +71,7 @@ def texto_del_documento(url: str) -> str:
         raise HTTPException(
             status_code=400,
             detail=("El documento es privado. Abrilo en Google Docs, tocá Compartir y poné "
-                    "\"Cualquier persona con el enlace\". O pegá el texto acá abajo."))
+                    "\"Cualquier persona con el enlace\"."))
     return r.text[:MAX_TEXTO]
 
 
