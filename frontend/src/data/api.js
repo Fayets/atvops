@@ -2003,6 +2003,10 @@ export async function getCobranza(mes) {
     responsable: c.responsable,
   }));
 
+  const proximasSemana = (raw.proximas ?? []).filter(
+    (c) => diasEntre(new Date().toISOString(), c.venceAt) <= 7,
+  );
+
   const kpi = (id, label, value, format, nota, objetivo) => ({
     id, label, value, format, previous: null, objetivo,
     sourceId: 'atv_clients', updatedAt: raw.generadoAt, nota,
@@ -2012,11 +2016,11 @@ export async function getCobranza(mes) {
     cuotas,
     vencidas: { n: raw.vencidas.length, usd: m.vencidoUsd, detalle: `${raw.vencidas.length} cuotas vencidas sin pagar` },
     porVencerSemana: {
-      n: (raw.proximas ?? []).filter((c) => diasEntre(new Date().toISOString(), c.venceAt) <= 7).length,
-      usd: (raw.proximas ?? [])
-        .filter((c) => diasEntre(new Date().toISOString(), c.venceAt) <= 7)
-        .reduce((s, c) => s + c.montoUsd, 0),
+      n: proximasSemana.length,
+      usd: proximasSemana.reduce((s, c) => s + c.montoUsd, 0),
     },
+    // Las mismas filas que suma el número de arriba: sin esto el total no se puede abrir.
+    proximasSemana,
     cobrado: m.cobradoUsd,
     // "Falta cobrar" son dos cosas: lo que ya se pasó de fecha y lo que todavía no
     // venció. Van separadas porque se accionan distinto y porque el número junto se
@@ -2241,6 +2245,21 @@ export async function getHome(mesSel) {
       enRiesgo: enRiesgo.slice(0, 5),
       revision,
       activos: fulfillment.activos.length,
+      // Quiénes son los de cada color, para que el número del semáforo se pueda abrir.
+      // Peor score arriba: el que hay que mirar primero.
+      porSemaforo: ['rojo', 'amarillo', 'verde'].reduce((acc, color) => {
+        acc[color] = fulfillment.activos
+          .filter((c) => c.salud.semaforo === color)
+          .sort((a, b) => a.salud.score - b.salud.score)
+          .map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+            plan: c.categoria,
+            score: c.salud.score,
+            ultimo: c.engagement.diasSinMensaje != null ? `hace ${c.engagement.diasSinMensaje} d` : 'sin datos',
+          }));
+        return acc;
+      }, {}),
     },
     sistemas: {
       fuentes: SOURCE_LIST,

@@ -6,13 +6,13 @@ import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { getHome } from '../data/api.js';
-import { formatCompact, formatValue, hace } from '../lib/format.js';
+import { formatFecha, formatValue, hace } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { ESTADO_RITMO } from '../lib/pacing.js';
 
 /** Las metas decretadas de un área, con la forma que espera la tarjeta. */
-function metricasDe(metas = []) {
+function metricasDe(metas = [], href) {
   return metas.slice(0, 3).map(({ meta, ritmo }) => ({
     label: meta.nombre,
     valor: meta.acumulado.at(-1) ?? 0,
@@ -20,9 +20,51 @@ function metricasDe(metas = []) {
     meta: Number(meta.meta) > 0 ? meta.meta : null,
     tono: ritmo.estado === 'critico' ? 'alert' : ritmo.estado === 'atrasado' ? 'warn' : 'ok',
     nota: Number(meta.meta) > 0
-      ? `esperado a hoy ${formatCompact(Math.round(ritmo.esperado), meta.format)}`
+      ? `esperado a hoy ${formatValue(Math.round(ritmo.esperado), meta.format)}`
       : 'sin meta decretada',
+    // Una meta no trae las filas que la formaron: el acumulado diario que viaja con
+    // ella está repartido en línea recta, no es lo que pasó cada día. El clic lleva a
+    // la página del área, que sí tiene las llamadas y los chats de verdad.
+    href,
   }));
+}
+
+/** Las cuotas de cobranza como tabla: siempre las mismas columnas. */
+const COL_CUOTAS = [
+  { clave: 'cliente', label: 'Cliente' },
+  { clave: 'plan', label: 'Plan' },
+  { clave: 'venceAt', label: 'Vence', render: (f) => formatFecha(f.venceAt) },
+  { clave: 'estado', label: 'Estado',
+    render: (f) => (f.estado === 'vencida' && f.diasVencida ? `vencida · ${f.diasVencida} d` : f.estado) },
+  { clave: 'montoUsd', label: 'Monto', align: 'right', format: 'usd' },
+];
+
+function detalleCuotas(titulo, sub, filas) {
+  return {
+    titulo,
+    sub,
+    columnas: COL_CUOTAS,
+    filas,
+    total: {
+      label: `${filas.length} ${filas.length === 1 ? 'cuota' : 'cuotas'}`,
+      valor: formatValue(filas.reduce((s, f) => s + (f.montoUsd ?? 0), 0), 'usd'),
+    },
+  };
+}
+
+/** Los clientes de un color del semáforo, del peor score al mejor. */
+function detalleSemaforo(color, clientes, activos) {
+  return {
+    titulo: `Clientes en ${color}`,
+    sub: `${clientes.length} de ${activos} clientes activos`,
+    columnas: [
+      { clave: 'nombre', label: 'Cliente' },
+      { clave: 'plan', label: 'Plan' },
+      { clave: 'score', label: 'Score', align: 'right', render: (f) => Math.round(f.score) },
+      { clave: 'ultimo', label: 'Último mensaje del cliente' },
+    ],
+    filas: clientes,
+  };
 }
 
 /** La meta que manda para juzgar el área: la principal si está decretada, si no la
@@ -82,18 +124,18 @@ export default function Home() {
         <ResumenArea
           titulo="Ventas" dueno={ventas.dueno} href="/ventas"
           estado={mandaVentas ? ESTADO_RITMO[mandaVentas.ritmo.estado] : undefined}
-          metricas={metricasDe(ventas.metas)}
+          metricas={metricasDe(ventas.metas, '/ventas')}
           pie={mandaVentas
-            ? `${mandaVentas.meta.nombre}: proyecta ${formatCompact(Math.round(mandaVentas.ritmo.proyeccion), mandaVentas.meta.format)} sobre ${formatCompact(mandaVentas.meta.meta, mandaVentas.meta.format)}.`
+            ? `${mandaVentas.meta.nombre}: proyecta ${formatValue(Math.round(mandaVentas.ritmo.proyeccion), mandaVentas.meta.format)} sobre ${formatValue(mandaVentas.meta.meta, mandaVentas.meta.format)}.`
             : 'Todavía no hay metas decretadas para el mes.'}
         />
 
         <ResumenArea
           titulo="Marketing" dueno={marketing.dueno} href="/marketing"
           estado={mandaMkt ? ESTADO_RITMO[mandaMkt.ritmo.estado] : undefined}
-          metricas={metricasDe(marketing.metas)}
+          metricas={metricasDe(marketing.metas, '/marketing')}
           pie={mandaMkt
-            ? `${mandaMkt.meta.nombre}: hacen falta ${formatCompact(Math.round(mandaMkt.ritmo.necesarioSemana), mandaMkt.meta.format)} por semana para llegar.`
+            ? `${mandaMkt.meta.nombre}: hacen falta ${formatValue(Math.round(mandaMkt.ritmo.necesarioSemana), mandaMkt.meta.format)} por semana para llegar.`
             : 'Todavía no hay metas decretadas para el mes.'}
         />
 
@@ -104,11 +146,14 @@ export default function Home() {
             : { tone: 'ok', label: 'sana' }}
           metricas={[
             { label: 'En rojo', valor: fulfillment.semaforoTotales.rojo, tono: 'alert',
-              nota: `de ${fulfillment.activos ?? '—'} clientes activos` },
+              nota: `de ${fulfillment.activos ?? '—'} clientes activos`,
+              detalle: detalleSemaforo('rojo', fulfillment.porSemaforo?.rojo ?? [], fulfillment.activos) },
             { label: 'Amarillo', valor: fulfillment.semaforoTotales.amarillo, tono: 'warn',
-              nota: 'para mirar esta semana' },
+              nota: 'para mirar esta semana',
+              detalle: detalleSemaforo('amarillo', fulfillment.porSemaforo?.amarillo ?? [], fulfillment.activos) },
             { label: 'Verde', valor: fulfillment.semaforoTotales.verde, tono: 'ok',
-              nota: 'avanzando solos' },
+              nota: 'avanzando solos',
+              detalle: detalleSemaforo('verde', fulfillment.porSemaforo?.verde ?? [], fulfillment.activos) },
           ]}
           pie={fulfillment.revision?.[0]}
         />
@@ -118,13 +163,24 @@ export default function Home() {
           estado={cobranza.unavailable ? { tone: 'off', label: 'sin datos' }
             : cobranza.vencidas.n ? { tone: 'alert', label: 'con vencidas' } : { tone: 'ok', label: 'al día' }}
           metricas={cobranza.unavailable ? [] : [
-            { label: 'De lo que vencía', valor: cobranza.cobrado, format: 'usd', meta: cobranza.totalMes,
+            { label: `De lo que vencía en ${mes.nombre.split(' ')[0].toLowerCase()}`,
+              valor: cobranza.cobrado, format: 'usd', meta: cobranza.totalMes,
               tono: cobranza.ritmoCobro?.estado === 'critico' ? 'alert' : 'ok',
-              nota: `${Math.round(cobranza.pctSobreVencido)} % · entraron ${formatCompact(cobranza.caja?.usd ?? 0, 'usd')} en el mes` },
-            { label: 'Vencido', valor: cobranza.vencidas.usd, format: 'usd', tono: 'alert',
-              nota: `${cobranza.vencidas.n} cuotas pasadas de fecha` },
+              nota: `${Math.round(cobranza.pctSobreVencido)} % · entraron ${formatValue(cobranza.caja?.usd ?? 0, 'usd')} en el mes`,
+              detalle: detalleCuotas('Las cuotas que vencían este mes',
+                `${cobranza.cuotas.length} cuotas · ${cobranza.cuotas.filter((c) => c.estado === 'pagada').length} pagadas`,
+                cobranza.cuotas) },
+            // No es del mes: son todas las cuotas con la fecha pasada, de cuando sea. Al
+            // lado de la de arriba se leía como si fueran el mismo período.
+            { label: 'Vencido · toda la cartera', valor: cobranza.vencidas.usd, format: 'usd', tono: 'alert',
+              nota: `${cobranza.vencidas.n} cuotas pasadas de fecha`,
+              detalle: detalleCuotas('Cuotas con la fecha pasada, de toda la cartera',
+                `${cobranza.vencidas.n} cuotas de ${new Set(cobranza.listaVencidas.map((c) => c.cliente)).size} clientes`,
+                cobranza.listaVencidas) },
             { label: 'Vence en 7 días', valor: cobranza.porVencerSemana.usd, format: 'usd', tono: 'warn',
-              nota: `${cobranza.porVencerSemana.n} cuotas por avisar` },
+              nota: `${cobranza.porVencerSemana.n} cuotas por avisar`,
+              detalle: detalleCuotas('Vencen en los próximos 7 días', 'Para avisar esta semana',
+                cobranza.proximasSemana ?? []) },
           ]}
           pie={cobranza.unavailable
             ? 'Sin datos de cobranza · levantá ATV Clients o revisá ATV_CLIENTS_API_URL'

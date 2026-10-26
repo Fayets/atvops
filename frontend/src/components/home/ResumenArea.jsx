@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import Modal from '../ui/Modal.jsx';
 import Pill from '../ui/Pill.jsx';
-import { formatCompact, formatValue } from '../../lib/format.js';
+import { formatValue } from '../../lib/format.js';
 
 /**
  * Un área en el cuadro de mando, con la misma forma que todas las demás.
@@ -12,15 +14,69 @@ import { formatCompact, formatValue } from '../../lib/format.js';
  *
  * La barra aparece solo cuando hay meta decretada. Sin meta, el número va solo: inventar
  * un objetivo para tener algo que dibujar es peor que no dibujar nada.
+ *
+ * Los montos van enteros. Antes se redondeaban a miles —US$ 25.900 se leía "$26k"— y el
+ * valor exacto vivía en el globito del mouse, que en el celular no existe: el tablero
+ * decía un número y la página de al lado decía otro.
+ *
+ * Y todo número se abre. El que trae sus filas las muestra acá mismo; el que no, lleva a
+ * la página donde están. Un número que no se puede desarmar no se puede discutir.
  */
+
+/** Una celda de la tabla del detalle, según cómo la pidió la columna. */
+function celda(fila, col) {
+  const v = fila[col.clave];
+  if (col.render) return col.render(fila);
+  if (v === null || v === undefined || v === '') return '—';
+  return col.format ? formatValue(Number(v), col.format) : v;
+}
+
+function TablaDetalle({ columnas, filas, total }) {
+  if (!filas.length) return <div className="empty">No hay nada para mostrar.</div>;
+  return (
+    <div className="table-wrap">
+      <table className="data">
+        <thead>
+          <tr>
+            {columnas.map((c) => <th key={c.clave} className={c.align === 'right' ? 'right' : ''}>{c.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f, i) => (
+            <tr key={f.id ?? i}>
+              {columnas.map((c) => (
+                <td key={c.clave} className={`${c.align === 'right' ? 'right num' : ''}${c.clave === columnas[0].clave ? ' strong' : ''}`}>
+                  {celda(f, c)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        {total && (
+          <tfoot>
+            <tr>
+              <td colSpan={columnas.length - 1}>{total.label}</td>
+              <td className="right num">{total.valor}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  );
+}
 
 /**
  * @param {{ titulo: string, dueno?: string, href: string, estado?: { tone: string, label: string },
  *           metricas: { label: string, valor: number | string, format?: string, meta?: number | null,
- *                       nota?: string, tono?: string }[],
+ *                       nota?: string, tono?: string, href?: string,
+ *                       detalle?: { titulo: string, sub?: string, columnas: object[], filas: object[],
+ *                                   total?: { label: string, valor: string } } }[],
  *           pie?: React.ReactNode }} props
  */
 export default function ResumenArea({ titulo, dueno, href, estado, metricas = [], pie }) {
+  const [abierta, setAbierta] = useState(null);
+  const navegar = useNavigate();
+
   return (
     <section className="area-resumen">
       <header>
@@ -34,28 +90,53 @@ export default function ResumenArea({ titulo, dueno, href, estado, metricas = []
       <div className="area-resumen-metricas">
         {metricas.map((m) => {
           const formato = m.format ?? 'count';
-          // Compacto a propósito: tres columnas con "US$ 151.400" al lado de otra igual se
-          // pisan, y acá lo que importa es el orden de magnitud, no el peso exacto.
-          const valor = typeof m.valor === 'number' ? formatCompact(m.valor, formato) : m.valor;
+          const valor = typeof m.valor === 'number' ? formatValue(m.valor, formato) : m.valor;
           const conMeta = Number(m.meta) > 0;
           const pct = conMeta ? Math.min(100, (Number(m.valor) / Number(m.meta)) * 100) : null;
+          const abrible = Boolean(m.detalle?.filas?.length) || Boolean(m.href);
           return (
-            <div key={m.label} className="area-metrica" title={typeof m.valor === 'number' ? formatValue(m.valor, formato) : undefined}>
+            <button
+              key={m.label}
+              type="button"
+              className={`area-metrica${abrible ? ' abrible' : ''}`}
+              disabled={!abrible}
+              onClick={() => (m.detalle?.filas?.length ? setAbierta(m) : navegar(m.href))}
+            >
               <span className="area-metrica-label">{m.label}</span>
-              <span className={`area-metrica-valor num${m.tono ? ` zona-${m.tono}` : ''}`}>{valor}</span>
-              {conMeta && <span className="area-metrica-meta dim">de {formatCompact(m.meta, formato)}</span>}
+              {/* Un monto largo en una columna de tres no entra a 24px: se achica en vez
+                  de redondearse, que era lo que hacía que el número no fuera el real. */}
+              <span className={`area-metrica-valor num${valor.length > 9 ? ' largo' : ''}${m.tono ? ` zona-${m.tono}` : ''}`}>
+                {valor}
+              </span>
+              {conMeta && <span className="area-metrica-meta dim">de {formatValue(m.meta, formato)}</span>}
               {conMeta && (
                 <span className="area-metrica-barra">
                   <span style={{ width: `${pct}%`, background: `var(--${m.tono === 'alert' ? 'alert' : m.tono === 'warn' ? 'warn' : 'ok'})` }} />
                 </span>
               )}
               {m.nota && <span className="area-metrica-nota">{m.nota}</span>}
-            </div>
+            </button>
           );
         })}
       </div>
 
       {pie && <footer className="area-resumen-pie">{pie}</footer>}
+
+      <Modal
+        open={Boolean(abierta)}
+        onClose={() => setAbierta(null)}
+        title={abierta?.detalle?.titulo ?? ''}
+        wide
+      >
+        {abierta?.detalle?.sub && <p className="dim" style={{ marginTop: 0 }}>{abierta.detalle.sub}</p>}
+        {abierta && (
+          <TablaDetalle
+            columnas={abierta.detalle.columnas}
+            filas={abierta.detalle.filas}
+            total={abierta.detalle.total}
+          />
+        )}
+      </Modal>
     </section>
   );
 }
