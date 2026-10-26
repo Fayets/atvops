@@ -1,6 +1,4 @@
 import Card from '../ui/Card.jsx';
-import Pill from '../ui/Pill.jsx';
-import Bar from '../ui/Bar.jsx';
 import { formatValue } from '../../lib/format.js';
 
 /**
@@ -60,19 +58,6 @@ export default function FulfillmentOpsResumen({ resumen: r, contexto }) {
             lo cobrado a clientes que ya están
           </div>
         </div>
-      </div>
-
-      <div className="ff-ops-barra">
-        <div className="ff-ops-barra-head">
-          <span>Onboarding vs meta</span>
-          <Pill tone={r.pctOnboarding >= 100 ? 'ok' : r.pctOnboarding >= 70 ? 'warn' : 'alert'} dot>
-            {r.onboardingsMes}/{r.metaOnboarding}
-          </Pill>
-        </div>
-        <Bar
-          pct={r.pctOnboarding}
-          tone={r.pctOnboarding >= 100 ? 'ok' : r.pctOnboarding >= 70 ? 'warn' : 'alert'}
-        />
       </div>
     </Card>
   );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Card from '../components/ui/Card.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { getCajaUno } from '../data/api.js';
@@ -26,7 +26,13 @@ const fecha = (iso) => (iso
   : '—');
 
 function Lista({ filas, campo, vacio, tono }) {
-  if (!filas?.length) return <p className="dim" style={{ margin: 0 }}>{vacio}</p>;
+  // Lo que ya pasó se mira al revés de lo que viene: arriba el último pago que entró,
+  // pero arriba también la cuota que vence primero.
+  const ordenadas = useMemo(() => {
+    const orden = campo === 'pagoAt' ? -1 : 1;
+    return [...(filas ?? [])].sort((a, b) => orden * String(a[campo] ?? '').localeCompare(String(b[campo] ?? '')));
+  }, [filas, campo]);
+  if (!ordenadas.length) return <p className="dim" style={{ margin: 0 }}>{vacio}</p>;
   return (
     <div className="pv-bloque caja1-tabla">
       <table>
@@ -38,7 +44,7 @@ function Lista({ filas, campo, vacio, tono }) {
           </tr>
         </thead>
         <tbody>
-          {filas.map((f, i) => (
+          {ordenadas.map((f, i) => (
             <tr key={`${f.cliente}-${f[campo]}-${i}`}>
               <td className="num">{fecha(f[campo])}</td>
               <td className="nom">{f.cliente}</td>
