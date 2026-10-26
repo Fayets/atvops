@@ -10,6 +10,17 @@ import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { ESTADO_RITMO } from '../lib/pacing.js';
 
+/**
+ * Adónde lleva cada meta: a la pantalla donde están las filas que la formaron, no a la
+ * portada del área. Las agendas y los cierres son el registro de llamadas; el cash es
+ * Caja 1; los chats se desarman en la propia home de Marketing.
+ */
+const PANTALLA_DE_LA_META = {
+  mkt_agendas: '/ventas/llamadas',
+  ven_cierres: '/ventas/llamadas',
+  ven_cash: '/ventas/caja',
+};
+
 /** Las metas decretadas de un área, con la forma que espera la tarjeta. */
 function metricasDe(metas = [], href) {
   return metas.slice(0, 3).map(({ meta, ritmo }) => ({
@@ -23,8 +34,8 @@ function metricasDe(metas = [], href) {
       : 'sin meta decretada',
     // Una meta no trae las filas que la formaron: el acumulado diario que viaja con
     // ella está repartido en línea recta, no es lo que pasó cada día. El clic lleva a
-    // la página del área, que sí tiene las llamadas y los chats de verdad.
-    href,
+    // la pantalla que sí las tiene.
+    href: PANTALLA_DE_LA_META[meta.id] ?? href,
   }));
 }
 
