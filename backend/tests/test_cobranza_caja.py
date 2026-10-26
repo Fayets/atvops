@@ -31,10 +31,13 @@ CUOTAS = [
      "estado_cliente": "vigente", "responsable": "franco"},
 ]
 CLIENTES = [{"estado_cliente": "vigente", "n": 3, "deuda": 0, "pagado": 16800}]
-# Los pagos de upsell y recompra del mes: son la caja 2, y van aparte de las cuotas.
-CAJA2 = [
+# Los pagos imputados del mes, que son el detalle de la caja: venta y seña van a la
+# caja 1, upsell y recompra a la caja 2.
+PAGOS = [
     {"nombre": "Subió de plan", "usd": 1200, "fecha": date(2026, 9, 12), "tipo": "cuota_upsell"},
     {"nombre": "Volvió", "usd": 800, "fecha": date(2026, 9, 4), "tipo": "cuota_recompra"},
+    {"nombre": "Al día", "usd": 1000, "fecha": date(2026, 9, 10), "tipo": "cuota_venta"},
+    {"nombre": "Recién firmó", "usd": 300, "fecha": date(2026, 9, 2), "tipo": "sena"},
 ]
 # Los pagos del mes se pasan aparte: 1000 + 9000 de las cuotas 2 y 3, más 2000 de pagos
 # parciales contra una cuota que sigue vencida y por eso no aparece como pagada.
@@ -45,7 +48,7 @@ def _falso(monkeypatch, pagos_usd, pagos_n, split=None, huerfanos=(0, 0)):
         # Antes que la de abajo: las tres leen `pagos`, pero una trae las filas de la
         # caja 2, otra los pagos sin imputar y la última solo cuenta el total del mes.
         if "cuota_upsell" in sql:
-            return list(CAJA2)
+            return list(PAGOS)
         if "NOT EXISTS (SELECT 1 FROM {esquema}.pago_imputaciones" in sql:
             return [{"n": huerfanos[0], "usd": huerfanos[1]}]
         if "FROM {esquema}.pagos" in sql:
@@ -162,6 +165,8 @@ def test_los_deudores_suman_la_deuda_de_la_cartera(monkeypatch):
     def consultar(sql, params=None):
         if "cuota_upsell" in sql:
             return []
+        if "NOT EXISTS (SELECT 1 FROM {esquema}.pago_imputaciones" in sql:
+            return [{"n": 0, "usd": 0}]
         if "FROM {esquema}.pagos" in sql:
             return [{"n": 0, "usd": 0}]
         if "total_adeudado_usd, 0) > 0" in sql:
@@ -184,20 +189,22 @@ def test_los_deudores_suman_la_deuda_de_la_cartera(monkeypatch):
     assert sum(d["deudaUsd"] for d in cartera["deudores"]) == cartera["deudaUsd"]
 
 
-def test_la_caja_2_se_puede_abrir(monkeypatch):
-    """El número de caja 2 viene con los pagos que lo forman.
+def test_la_caja_se_puede_abrir_pago_por_pago(monkeypatch):
+    """El total viene con los pagos que lo forman, cada uno con su caja.
 
     El total lo publica ATV Clients y no se recalcula acá, pero un monto que no se puede
-    desarmar en nombres no sirve para discutir nada: las filas salen de `pagos`.
+    desarmar en nombres no sirve para discutir nada: las filas salen de `pagos`. El tipo
+    de la cuota decide la caja: venta y seña son la 1, upsell y recompra la 2.
     """
     _falso(monkeypatch, pagos_usd=12000, pagos_n=4, split={"caja1": 9000.0, "caja2": 2000.0})
-    filas = cs.resumen(MES)["caja2Filas"]
-    assert [f["cliente"] for f in filas] == ["Subió de plan", "Volvió"]
-    assert [f["tipo"] for f in filas] == ["upsell", "recompra"]
-    assert sum(f["montoUsd"] for f in filas) == 2000.0
+    filas = cs.resumen(MES)["cajaFilas"]
+    assert [(f["tipo"], f["caja"]) for f in filas] == [
+        ("upsell", 2), ("recompra", 2), ("cuota de venta", 1), ("seña", 1)]
+    assert sum(f["montoUsd"] for f in filas if f["caja"] == 2) == 2000.0
+    assert sum(f["montoUsd"] for f in filas if f["caja"] == 1) == 1300.0
 
 
-def test_sin_conexion_la_caja_2_no_rompe(monkeypatch):
+def test_sin_conexion_el_detalle_de_la_caja_no_rompe(monkeypatch):
     monkeypatch.setattr(clients_db, "disponible", lambda: False)
     cs._cache.clear()
-    assert cs.resumen(MES)["caja2Filas"] == []
+    assert cs.resumen(MES)["cajaFilas"] == []
