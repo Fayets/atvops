@@ -40,12 +40,14 @@ CAJA2 = [
 # parciales contra una cuota que sigue vencida y por eso no aparece como pagada.
 
 
-def _falso(monkeypatch, pagos_usd, pagos_n, split=None):
+def _falso(monkeypatch, pagos_usd, pagos_n, split=None, huerfanos=(0, 0)):
     def consultar(sql, params=None):
-        # Antes que la de abajo: las dos leen `pagos`, pero esta trae las filas de la
-        # caja 2 y la otra solo cuenta el total del mes.
+        # Antes que la de abajo: las tres leen `pagos`, pero una trae las filas de la
+        # caja 2, otra los pagos sin imputar y la última solo cuenta el total del mes.
         if "cuota_upsell" in sql:
             return list(CAJA2)
+        if "NOT EXISTS (SELECT 1 FROM {esquema}.pago_imputaciones" in sql:
+            return [{"n": huerfanos[0], "usd": huerfanos[1]}]
         if "FROM {esquema}.pagos" in sql:
             return [{"n": pagos_n, "usd": pagos_usd}]
         if "total_adeudado_usd, 0) > 0" in sql:
@@ -63,7 +65,7 @@ def _falso(monkeypatch, pagos_usd, pagos_n, split=None):
 
 
 def test_la_caja_sale_de_pagos_y_no_de_cuotas(monkeypatch):
-    """`caja` es la plata con fecha de pago en el mes: es la que compara con ATV Clients."""
+    """`caja` es la plata con fecha de pago en el mes, nunca las cuotas que vencían."""
     _falso(monkeypatch, pagos_usd=12000, pagos_n=4)
     r = cs.resumen(MES, refrescar=True)
     assert r["caja"]["usd"] == 12000.0
@@ -78,21 +80,42 @@ def test_sin_desglose_la_tarjeta_no_promete_detalle(monkeypatch):
     assert r["caja"]["caja1"] is None and r["caja"]["caja2"] is None
 
 
-def test_el_desglose_siempre_cierra_contra_el_total(monkeypatch):
-    """Si las partes no llegan al total, la diferencia se muestra como `otros`.
+def test_el_total_es_el_de_atv_clients_y_no_la_suma_local(monkeypatch):
+    """La plata del mes es la que publica ATV Clients, no la suma de `pagos`.
 
-    Las dos fuentes pueden desincronizarse —el total sale de la base, el desglose de la
-    API de ATV Clients—. Mostrar un desglose que no suma es peor que mostrar un resto.
+    En octubre de 2026 la suma local daba US$ 69.500 y ATV Clients mostraba 50.500: la
+    diferencia eran tres pagos cargados a mano sin imputar a ninguna cuota —apuntaban a
+    cuotas que no existen—, que entran en la suma pero Clients no cuenta. El tablero
+    decía que entró plata que del otro lado no aparece.
     """
-    _falso(monkeypatch, pagos_usd=12000, pagos_n=4, split={"caja1": 9000.0, "caja2": 2000.0})
+    _falso(monkeypatch, pagos_usd=12000, pagos_n=4, huerfanos=(1, 1000.0),
+           split={"caja1": 9000.0, "caja2": 2000.0, "total": 11000.0})
+    c = cs.resumen(MES, refrescar=True)["caja"]
+    assert c["usd"] == 11000.0
+    assert c["caja1"] + c["caja2"] == c["usd"]
+    assert c["otros"] == 0
+
+
+def test_los_pagos_sin_imputar_se_muestran_aparte(monkeypatch):
+    """No se tapan con un resto: son un problema de carga y conviene que se vea.
+
+    También salen de la cuenta de pagos, para que "26 pagos por US$ 50.500" sea cierto
+    en las dos mitades.
+    """
+    _falso(monkeypatch, pagos_usd=12000, pagos_n=4, huerfanos=(1, 1000.0),
+           split={"caja1": 9000.0, "caja2": 2000.0, "total": 11000.0})
+    c = cs.resumen(MES, refrescar=True)["caja"]
+    assert c["sinImputar"] == {"usd": 1000.0, "pagos": 1}
+    assert c["pagos"] == 3
+
+
+def test_si_el_total_de_clients_no_da_con_sus_mitades_queda_un_resto(monkeypatch):
+    """`otros` sigue existiendo, pero para la incoherencia de Clients consigo mismo."""
+    _falso(monkeypatch, pagos_usd=12000, pagos_n=4,
+           split={"caja1": 9000.0, "caja2": 2000.0, "total": 12000.0})
     c = cs.resumen(MES, refrescar=True)["caja"]
     assert c["otros"] == 1000.0
     assert c["caja1"] + c["caja2"] + c["otros"] == c["usd"]
-
-
-def test_cuando_cierra_no_hay_resto(monkeypatch):
-    _falso(monkeypatch, pagos_usd=12000, pagos_n=4, split={"caja1": 9000.0, "caja2": 3000.0})
-    assert cs.resumen(MES, refrescar=True)["caja"]["otros"] == 0
 
 
 def test_la_cobranza_del_mes_mira_el_vencimiento_no_el_pago(monkeypatch):

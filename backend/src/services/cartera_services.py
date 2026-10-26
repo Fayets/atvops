@@ -57,17 +57,33 @@ def _rango(mes: str) -> tuple[date, date]:
     return date(anio, m, 1), date(anio + (m == 12), (m % 12) + 1, 1)
 
 
-def _armar_caja(usd: float, pagos: int, split: dict | None) -> dict:
-    """El total con su desglose, cuando lo hay, y siempre cerrando.
+def _armar_caja(usd: float, pagos: int, split: dict | None, sin_imputar: dict | None = None) -> dict:
+    """La plata del mes: la que publica ATV Clients, con su desglose.
 
-    `otros` es lo que el desglose no explica. Existe para que las partes sumen el total
-    aunque las dos fuentes se desincronicen: preferimos mostrar un resto raro a mostrar
-    un desglose que no da, que es como se pierde la confianza en un tablero de plata.
+    El total NO es la suma de `pagos`. Sumando esa tabla octubre daba US$ 69.500 mientras
+    ATV Clients mostraba 50.500, y la diferencia eran tres pagos cargados a mano que no
+    están imputados a ninguna cuota —apuntan a cuotas que no existen—: entran en la suma
+    local pero Clients no los cuenta. El tablero terminaba diciendo que entró plata que
+    del otro lado no aparece, que es exactamente lo que no puede pasar con un número de
+    plata.
+
+    Esos pagos huérfanos no se esconden: van en `sinImputar`, que es un problema de carga
+    de ATV Clients y conviene que se vea. Y `otros` queda para el caso en que el propio
+    total de Clients no dé con sus dos mitades.
+
+    Sin respuesta de Clients se usa la suma local, que es mejor que nada, y la pantalla
+    no ofrece desglose.
     """
+    fuera = sin_imputar or {"usd": 0.0, "pagos": 0}
     if not split:
-        return {"usd": usd, "pagos": pagos, "caja1": None, "caja2": None, "otros": 0}
-    otros = round(usd - split["caja1"] - split["caja2"], 2)
-    return {"usd": usd, "pagos": pagos, **split, "otros": otros}
+        return {"usd": usd, "pagos": pagos, "caja1": None, "caja2": None, "otros": 0,
+                "sinImputar": fuera}
+    caja1, caja2 = split["caja1"], split["caja2"]
+    total = split.get("total")
+    total = round(float(total), 2) if total is not None else round(caja1 + caja2, 2)
+    return {"usd": total, "pagos": max(0, pagos - int(fuera["pagos"])),
+            "caja1": caja1, "caja2": caja2,
+            "otros": round(total - caja1 - caja2, 2), "sinImputar": fuera}
 
 
 def _split_de_caja(mes: str) -> dict | None:
@@ -92,7 +108,8 @@ def _split_de_caja(mes: str) -> dict | None:
         return None
     if not isinstance(d, dict) or "caja_1" not in d:
         return None
-    return {"caja1": round(_num(d.get("caja_1")), 2), "caja2": round(_num(d.get("caja_2")), 2)}
+    return {"caja1": round(_num(d.get("caja_1")), 2), "caja2": round(_num(d.get("caja_2")), 2),
+            "total": round(_num(d.get("total")), 2) if d.get("total") is not None else None}
 
 
 def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
@@ -112,7 +129,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
                    "vencidoUsd": 0, "pctCobrado": 0},
         "cartera": {"clientes": 0, "vigentes": 0, "inactivos": 0, "deudaUsd": 0,
                     "cobradoHistoricoUsd": 0, "deudores": []},
-        "caja": {"usd": 0, "pagos": 0, "caja1": None, "caja2": None, "otros": 0},
+        "caja": {"usd": 0, "pagos": 0, "caja1": None, "caja2": None, "otros": 0,
+                 "sinImputar": {"usd": 0, "pagos": 0}},
         "cuotas": [], "vencidas": [], "proximas": [], "caja2Filas": [],
     }
     if not clients_db.disponible():
@@ -157,6 +175,16 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
         "JOIN {esquema}.cuotas q ON q.id = pi.cuota_id "
         f"WHERE p.fecha >= %s AND p.fecha < %s AND {tipo_cuota} IN ('cuota_upsell', 'cuota_recompra') "
         "ORDER BY p.fecha DESC",
+        (inicio, fin),
+    )
+
+    # Los pagos del mes que no están imputados a ninguna cuota. ATV Clients no los cuenta
+    # y por eso su total es menor que la suma de `pagos`: acá se miden aparte para poder
+    # decir cuánto es y no para taparlo con un resto.
+    huerfanos = clients_db.consultar(
+        "SELECT count(*) AS n, coalesce(sum(p.monto_usd), 0) AS usd FROM {esquema}.pagos p "
+        "WHERE p.fecha >= %s AND p.fecha < %s "
+        "  AND NOT EXISTS (SELECT 1 FROM {esquema}.pago_imputaciones pi WHERE pi.pago_id = p.id)",
         (inicio, fin),
     )
 
@@ -207,6 +235,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             round(_num((caja[0] if caja else {}).get("usd")), 2),
             int(_num((caja[0] if caja else {}).get("n"))),
             _split_de_caja(mes),
+            {"usd": round(_num((huerfanos[0] if huerfanos else {}).get("usd")), 2),
+             "pagos": int(_num((huerfanos[0] if huerfanos else {}).get("n")))},
         ),
         "cartera": {
             "clientes": sum(int(_num(c["n"])) for c in clientes),

@@ -11,6 +11,11 @@ import { formatValue } from '../../lib/format.js';
  *
  * La partición la decide ATV Clients, no ATV Ops: acá se muestra lo que ese sistema
  * publica, y `otros` aparece solo si las partes no llegan al total.
+ *
+ * Abajo del todo, los pagos del mes que no están imputados a ninguna cuota. No son parte
+ * del total —Clients no los cuenta y por eso no están en ninguna de las dos cajas— pero
+ * son plata que alguien cargó: esconderlos es la diferencia entre un tablero que avisa y
+ * uno que calla.
  */
 
 const usd = (v) => formatValue(v ?? 0, 'usd');
@@ -20,6 +25,7 @@ export default function DeQueEsLaCaja({ caja, mes, onCerrar }) {
   const caja2 = caja?.caja2 ?? 0;
   const otros = caja?.otros ?? 0;
   const total = caja?.usd ?? 0;
+  const sueltos = caja?.sinImputar ?? { usd: 0, pagos: 0 };
 
   const partes = [
     { label: 'Caja 1', usd: caja1, que: 'Cuotas de ventas nuevas', color: 'var(--s3)' },
@@ -64,6 +70,14 @@ export default function DeQueEsLaCaja({ caja, mes, onCerrar }) {
             </div>
           ))}
         </div>
+
+        {sueltos.pagos > 0 && (
+          <p className="caja-sueltos">
+            Además entraron <b>{usd(sueltos.usd)}</b> en {sueltos.pagos}{' '}
+            {sueltos.pagos === 1 ? 'pago' : 'pagos'} sin imputar a ninguna cuota. ATV Clients
+            no los cuenta, así que no están en el total de arriba.
+          </p>
+        )}
       </div>
     </div>
   );
