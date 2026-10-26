@@ -31,13 +31,13 @@ function metricasDe(metas = [], href) {
 /** Las cuotas de cobranza como tabla: siempre las mismas columnas. */
 const COL_CUOTAS = [
   { clave: 'cliente', label: 'Cliente' },
-  { clave: 'plan', label: 'Plan' },
-  { clave: 'venceAt', label: 'Vencía', render: (f) => formatFecha(f.venceAt) },
-  { clave: 'estado', label: 'Cómo está', render: (f) => (
+  { clave: 'plan', label: 'Plan', ancho: 110 },
+  { clave: 'venceAt', label: 'Vencía', ancho: 110, render: (f) => formatFecha(f.venceAt) },
+  { clave: 'estado', label: 'Cómo está', ancho: 230, render: (f) => (
     f.estado === 'pagada' ? `pagada el ${formatFecha(f.pagadaAt ?? f.pagoAt)}`
       : f.estado === 'vencida' ? `sin pagar · ${f.diasAtraso ?? f.diasVencida ?? 0} días de atraso`
         : 'todavía no vence') },
-  { clave: 'montoUsd', label: 'Monto', align: 'right', format: 'usd' },
+  { clave: 'montoUsd', label: 'Monto', align: 'right', ancho: 130, format: 'usd' },
 ];
 
 const suma = (filas) => formatValue(filas.reduce((s, f) => s + (f.montoUsd ?? 0), 0), 'usd');
@@ -76,9 +76,9 @@ function detalleCaja2(filas) {
     sub: 'Upsells y recompras de clientes que ya estaban',
     columnas: [
       { clave: 'cliente', label: 'Cliente' },
-      { clave: 'tipo', label: 'Qué fue' },
-      { clave: 'pagoAt', label: 'Entró', render: (f) => formatFecha(f.pagoAt) },
-      { clave: 'montoUsd', label: 'Monto', align: 'right', format: 'usd' },
+      { clave: 'tipo', label: 'Qué fue', ancho: 140 },
+      { clave: 'pagoAt', label: 'Entró', ancho: 130, render: (f) => formatFecha(f.pagoAt) },
+      { clave: 'montoUsd', label: 'Monto', align: 'right', ancho: 130, format: 'usd' },
     ],
     grupos: [{ titulo: 'En total', filas, total: suma(filas), unidad: 'pago' }],
   };
@@ -91,9 +91,9 @@ function detalleSemaforo(color, clientes, activos) {
     sub: `${clientes.length} de ${activos} clientes activos`,
     columnas: [
       { clave: 'nombre', label: 'Cliente' },
-      { clave: 'plan', label: 'Plan' },
-      { clave: 'score', label: 'Score', align: 'right', render: (f) => Math.round(f.score) },
-      { clave: 'ultimo', label: 'Último mensaje del cliente' },
+      { clave: 'plan', label: 'Plan', ancho: 140 },
+      { clave: 'score', label: 'Score', align: 'right', ancho: 90, render: (f) => Math.round(f.score) },
+      { clave: 'ultimo', label: 'Último mensaje del cliente', ancho: 220 },
     ],
     grupos: [{ filas: clientes }],
   };

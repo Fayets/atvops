@@ -6707,6 +6707,7 @@ body.gate-abierto .shell { display: none; }
   border-bottom: 1px solid var(--border-soft); position: static; }
 .detalle-metrica tbody + tbody .detalle-grupo th { border-top: 1px solid var(--border-soft); }
 .detalle-metrica .detalle-grupo .dim { text-transform: none; letter-spacing: 0; }
+.detalle-metrica { table-layout: fixed; width: 100%; }
 .detalle-metrica td.num, .detalle-metrica th.num { white-space: nowrap; }
 @media (max-width: 620px) { .area-resumen-metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 

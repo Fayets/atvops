@@ -44,6 +44,12 @@ function TablaDetalle({ columnas, grupos }) {
   return (
     <div className="table-wrap">
       <table className="data detalle-metrica">
+        {/* Los anchos van declarados: con las filas de grupo, que son un colspan, el
+            navegador repartía las columnas a ojo y la cabecera terminaba antes que las
+            filas. */}
+        <colgroup>
+          {columnas.map((c) => <col key={c.clave} style={c.ancho ? { width: c.ancho } : undefined} />)}
+        </colgroup>
         <thead>
           <tr>
             {columnas.map((c) => <th key={c.clave} className={c.align === 'right' ? 'right' : ''}>{c.label}</th>)}
