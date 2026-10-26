@@ -243,3 +243,63 @@ def test_el_dibujo_que_juan_hizo_cerca_de_la_frase_de_la_idea_es_de_esa_idea_aun
     assert p.dibujos_de_la_idea([planta], otra_idea, cerca_de=4200) == []         # a 38 minutos
     sec = {"corta": [[{"tipo": "texto", "tamano": "g", "texto": "algo"}, {"tipo": "imagen", "texto": "foto de noche"}]], "media": [], "larga": []}
     assert p.asegurar_dibujos(sec, [planta], otra_idea, cerca_de=1600)["corta"][0][1]["dibujo"] == 4
+
+
+# ------------------------------------------------------------------ sin llamada
+
+def test_cada_origen_dice_de_donde_arranca_la_idea():
+    titulo, material = p._material("dolor", "  Subo contenido todos los días  y no vendo. ")
+    assert titulo == "Dolor · Subo contenido todos los días y no vendo."
+    assert "un dolor de la audiencia" in material
+    titulo, material = p._material("tema", "contratan un closer antes de tener oferta")
+    assert titulo == "Tema · contratan un closer antes de tener oferta"
+    assert "el tema que quiere contar Juan" in material
+
+
+def test_copiar_una_secuencia_es_copiarle_la_forma_y_no_el_tema():
+    """Si no se le dice, vuelve a contar lo mismo que ese día y la idea "nueva" es la vieja."""
+    titulo, material = p.material_de_secuencia("2026-10-14", "gancho personal → preguntas de clientes → CTA", "Me preguntaron")
+    assert titulo == "Como la del 14-10-2026"
+    assert "Estructura: Me preguntaron" in material
+    assert "la FORMA, no el tema" in material
+    assert "temas distintos al de ese día" in material
+
+
+def test_sin_de_donde_arrancar_no_se_arma_nada():
+    import pytest
+    from fastapi import HTTPException
+
+    for origen, valor in (("dolor", ""), ("tema", "   "), ("secuencia", "")):
+        with pytest.raises(HTTPException):
+            p._material(origen, valor)
+
+
+def test_un_origen_que_no_existe_no_entra():
+    import pytest
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as e:
+        p.crear_sin_llamada("lo-que-se-me-ocurra", "algo", "franco")
+    assert e.value.status_code == 422
+
+
+def test_una_idea_de_secuencia_sin_estructura_real_de_juan_no_llega_a_la_pantalla():
+    """Sin llamada no hay cita que verificar: la estructura es la única red que queda."""
+    claves = {"por-que-no-vendes": {"nombre": "Te digo por qué no vendés"}, "te-lo-dibujo": {"nombre": "Te lo dibujo"}}
+    crudo = {"story": [
+        {"titulo": "subís todos los días y no vende nada", "detalle": "x", "estructura": "por-que-no-vendes"},
+        {"titulo": "una idea linda", "detalle": "x", "estructura": "la-que-se-le-ocurrio"},
+        {"titulo": "Te lo dibujo: por dónde se escapa la gente", "detalle": "x", "estructura": "te-lo-dibujo"},
+        {"titulo": "sin estructura ninguna", "detalle": "x"},
+    ]}
+    salida = p.validar_variantes(crudo, claves)["story"]
+    assert [v["estructura"] for v in salida] == ["por-que-no-vendes", "te-lo-dibujo"]
+    # El nombre de la estructura ya se ve en su etiqueta: no va también en el título.
+    assert salida[1]["titulo"] == "por dónde se escapa la gente"
+
+
+def test_el_pedido_le_prohibe_escribir_una_frase_de_juan():
+    """Sin transcripción el código no puede verificar una cita, así que la salida es no
+    tenerla: si Claude igual escribe una, nadie la va a poder desmentir."""
+    assert "NO hay frase de Juan" in p.SYSTEM_IDEAS_STORY
+    assert "No inventes cifras" in p.SYSTEM_IDEAS_STORY

@@ -12,6 +12,7 @@ import {
   pizarraCrearLlamada, pizarraEditarGeneral, pizarraGenerarGeneral, pizarraGenerarSecuencias,
   pizarraGuardarContexto, pizarraRegenerarVariantes, pizarraSubirArchivos,
   getEstructurasHistorias, getNarrativaPropuestas, narrativaDecidir, narrativaRevisar, pizarraBuscarDibujos, pizarraEstadoDibujo, pizarraMoverDibujo,
+  getSecuenciasPublicadas, pizarraCrearSinLlamada,
 } from '../../data/api.js';
 import { useLocalState } from '../../lib/hooks.js';
 import '../../styles/pizarra.css';
@@ -34,6 +35,7 @@ const NODOS = {
   uno: { x: 28, y: 440, w: 66, h: 76, label: '1 a 1' },
   clase: { x: 135, y: 440, w: 66, h: 76, label: 'Clase grupal' },
   fathom: { x: 28, y: 292, w: 170, h: 76, label: 'Fathom' },
+  tema: { x: 28, y: 566, w: 170, h: 76, label: 'Sin llamada', sub: 'dolor · tema · secuencia' },
   dolores: { x: 188, y: 52, w: 112, h: 76, label: 'Dolores de la audiencia' },
   diferenciales: { x: 327, y: 52, w: 112, h: 76, label: 'Diferenciales de la marca' },
   objeciones: { x: 466, y: 52, w: 112, h: 76, label: 'Objeciones' },
@@ -67,6 +69,15 @@ const CABLES = [
   ['claude', 'general', 'h'], ['general', 'yt', 'h'], ['general', 'reel', 'h'], ['general', 'story', 'h'],
   ['yt', 'ytAprob', 'h'], ['ytAprob', 'ytEnt', 'h'], ['ytEnt', 'ytDocs', 'h'], ['ytEnt', 'ytCanva', 'h'], ['ytEnt', 'ytPlay', 'h'],
   ['reel', 'reelAprob', 'h'], ['reelAprob', 'reelEnt', 'h'], ['reelAprob', 'reelGuion', 'h'], ['reelEnt', 'reelDocs', 'h'], ['reelEnt', 'reelPlay', 'h'],
+  ['story', 'storySec', 'h'], ['storySec', 'storyEnt', 'h'], ['storyEnt', 'storyDocs', 'h'], ['storyEnt', 'storyPlay', 'h'],
+];
+
+// Sin llamada el camino es otro y el mapa lo dice: no hay idea general que discutir ni
+// ideas por canal, se va derecho a las ideas de secuencia de historias.
+const CABLES_TEMA = [
+  ['tema', 'claude', 'h'],
+  ['dolores', 'claude', 'abajo'], ['diferenciales', 'claude', 'abajo'], ['objeciones', 'claude', 'abajo'], ['narrativa', 'claude', 'abajo'],
+  ['claude', 'story', 'h'],
   ['story', 'storySec', 'h'], ['storySec', 'storyEnt', 'h'], ['storyEnt', 'storyDocs', 'h'], ['storyEnt', 'storyPlay', 'h'],
 ];
 
@@ -139,6 +150,86 @@ function PanelCargar({ tipo, onCargada }) {
       )}
       {error && <p className="pz-error">{error}</p>}
       <div className="pz-botones"><button type="submit" className="btn primary" disabled={!listo || ocupado}>{ocupado ? 'Cargando…' : 'Cargar'}</button></div>
+    </form>
+  );
+}
+
+/**
+ * Ideas de secuencia sin llamada.
+ *
+ * Las tres formas de arrancar cuando no hay un 1 a 1 ni una clase que cargar. Las dos
+ * primeras no piden nada que no esté ya en la pizarra: los dolores están escritos hace
+ * rato y el tema lo tira Juan en una línea. La tercera copia la FORMA de una secuencia que
+ * ya salió, nunca su tema.
+ *
+ * Lo que se pierde sin llamada es la frase de Juan que sostenía cada idea, y el código ya
+ * no la puede verificar porque no hay transcripción. Lo que la reemplaza son las
+ * estructuras: la idea que no se apoya en una de las de Juan no llega a la pantalla.
+ */
+function PanelSinLlamada({ contexto, onCreada }) {
+  const [origen, setOrigen] = useState('dolor');
+  const [dolor, setDolor] = useState('');
+  const [tema, setTema] = useState('');
+  const [fecha, setFecha] = useState('');
+  const [publicadas, setPublicadas] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState('');
+  const dolores = (contexto?.dolores?.texto || '').split('\n').map((l) => l.trim()).filter(Boolean);
+
+  useEffect(() => {
+    if (origen !== 'secuencia' || publicadas) return;
+    getSecuenciasPublicadas().then((d) => setPublicadas(d.secuencias)).catch((e) => setError(e.message));
+  }, [origen, publicadas]);
+
+  const valor = origen === 'dolor' ? dolor : origen === 'tema' ? tema.trim() : fecha;
+  const enviar = async (e) => {
+    e.preventDefault();
+    setOcupado(true); setError('');
+    try { onCreada(await pizarraCrearSinLlamada(origen, valor)); }
+    catch (err) { setError(err.message); } finally { setOcupado(false); }
+  };
+
+  return (
+    <form className="pz-sec" onSubmit={enviar}>
+      <span className="pz-k">Ideas de secuencia sin llamada</span>
+      <div className="pz-segmento" role="tablist">
+        {[['dolor', 'Un dolor'], ['tema', 'Un tema'], ['secuencia', 'Una que ya salió']].map(([k, l]) => (
+          <button key={k} type="button" role="tab" aria-selected={origen === k} onClick={() => setOrigen(k)}>{l}</button>
+        ))}
+      </div>
+
+      {origen === 'dolor' && (
+        dolores.length ? (
+          <div className="pz-opciones">
+            {dolores.map((d) => (
+              <button key={d} type="button" className={`pz-opcion${dolor === d ? ' sel' : ''}`} onClick={() => setDolor(d)}>{d}</button>
+            ))}
+          </div>
+        ) : <p className="pz-dim">Todavía no hay dolores cargados en la pizarra.</p>
+      )}
+
+      {origen === 'tema' && (
+        <textarea id="pz-tema" rows={4} maxLength={400} placeholder="De qué querés hablar, en una línea"
+          value={tema} onChange={(e) => setTema(e.target.value)} />
+      )}
+
+      {origen === 'secuencia' && (
+        publicadas === null ? <p className="pz-dim">Buscando las secuencias publicadas…</p>
+          : publicadas.length ? (
+            <div className="pz-opciones">
+              {publicadas.map((s) => (
+                <button key={s.fecha} type="button" className={`pz-opcion${fecha === s.fecha ? ' sel' : ''}`} onClick={() => setFecha(s.fecha)}>
+                  <span className="pz-min">{fechaCorta(s.fecha)}</span>{s.resumen}
+                </button>
+              ))}
+            </div>
+          ) : <p className="pz-dim">Todavía no hay secuencias leídas.</p>
+      )}
+
+      {error && <p className="pz-error">{error}</p>}
+      <div className="pz-botones">
+        <button type="submit" className="btn primary" disabled={!valor || ocupado}>{ocupado ? 'Armando…' : 'Armar las ideas'}</button>
+      </div>
     </form>
   );
 }
@@ -302,7 +393,7 @@ function PanelVariantes({ canal, g, soloAprobadas, onVariante, onRegenerar, estr
   return (
     <div className="pz-sec">
       <span className="pz-k">{soloAprobadas ? `${NOMBRE_CANAL[canal]} · aprobadas` : `Ideas de ${NOMBRE_CANAL[canal]}`}</span>
-      {g?.variantesEstado === 'armando' && <p className="pz-dim">Claude está armando las variantes…</p>}
+      {g?.variantesEstado === 'armando' && <p className="pz-dim">Claude está armando las ideas…</p>}
       {g?.variantesEstado === 'error' && <p className="pz-error">{g.error}</p>}
       <div className="pz-variantes">
         {lista.map((v) => (
@@ -446,7 +537,11 @@ export default function Pizarra() {
   // ---- el estado de cada caja: off (apagada), listo (se puede tocar), hecho (verde), armando
   const aprobadas = (c) => (g?.variantes?.[c] || []).filter((v) => v.estado === 'aprobada');
   const storyConSec = aprobadas('story').find((v) => v.id === storyElegida) || aprobadas('story').find((v) => v.secuencias.length) || aprobadas('story')[0];
+  // Una fuente sin llamada solo da historias: YouTube y Reels salen de la idea general,
+  // y acá no hay idea general.
+  const esTema = llamada?.tipo === 'tema';
   const canalEstado = (c) => {
+    if (esTema) return c === 'story' ? (g?.variantesEstado === 'armando' ? 'armando' : aprobadas('story').length || (g?.variantes?.story || []).length ? 'hecho' : 'listo') : 'off';
     if (g?.estado !== 'aprobada') return 'off';
     if (g.variantesEstado === 'armando') return 'armando';
     return aprobadas(c).length ? 'hecho' : 'listo';
@@ -454,12 +549,13 @@ export default function Pizarra() {
   const estado = {
     uno: llamada?.tipo === '1a1' ? 'hecho' : 'listo',
     clase: llamada?.tipo === 'clase' ? 'hecho' : 'listo',
-    fathom: llamada ? 'hecho' : 'off',
+    tema: esTema ? 'hecho' : 'listo',
+    fathom: llamada && !esTema ? 'hecho' : 'listo',
     claude: !llamada ? 'off' : llamada.estado === 'armando' ? 'armando' : generales.length ? 'hecho' : 'listo',
-    general: g ? 'hecho' : generales.length ? 'listo' : 'off',
+    general: esTema ? 'off' : g ? 'hecho' : generales.length ? 'listo' : 'off',
     yt: canalEstado('yt'), reel: canalEstado('reel'), story: canalEstado('story'),
-    ytAprob: aprobadas('yt').length ? 'hecho' : 'off',
-    reelAprob: aprobadas('reel').length ? 'hecho' : 'off',
+    ytAprob: !esTema && aprobadas('yt').length ? 'hecho' : 'off',
+    reelAprob: !esTema && aprobadas('reel').length ? 'hecho' : 'off',
     storySec: !storyConSec ? 'off' : storyConSec.secuenciasEstado === 'armando' ? 'armando' : storyConSec.secuencias.length ? 'hecho' : 'listo',
   };
   CONTEXTO.forEach((c) => { estado[c] = (base.contexto[c]?.texto || '').trim() ? 'hecho' : 'listo'; });
@@ -467,12 +563,13 @@ export default function Pizarra() {
 
   const resumen = {
     uno: null, clase: null,
-    fathom: !llamada ? null : llamada.dibujosEstado === 'buscando' ? 'buscando dibujos…'
+    tema: esTema ? llamada.titulo : null,
+    fathom: !llamada || esTema ? null : llamada.dibujosEstado === 'buscando' ? 'buscando dibujos…'
       : (llamada.dibujos || []).some((x) => x.estado === 'visible')
         ? `${llamada.dibujos.filter((x) => x.estado === 'visible').length} dibujos · ${llamada.titulo}` : llamada.titulo,
     claude: estado.claude === 'armando' ? 'leyendo…' : null,
     narrativa: base.narrativaPendientes ? `${base.narrativaPendientes} cambio${base.narrativaPendientes > 1 ? 's' : ''} propuesto${base.narrativaPendientes > 1 ? 's' : ''}` : null,
-    general: g ? g.titulo : generales.length ? `${generales.length} idea${generales.length > 1 ? 's' : ''}` : null,
+    general: esTema ? null : g ? g.titulo : generales.length ? `${generales.length} idea${generales.length > 1 ? 's' : ''}` : null,
     yt: g?.variantes?.yt?.length ? `${g.variantes.yt.length} ideas` : null,
     reel: g?.variantes?.reel?.length ? `${g.variantes.reel.length} ideas` : null,
     story: g?.variantes?.story?.length ? `${g.variantes.story.length} ideas` : null,
@@ -485,6 +582,7 @@ export default function Pizarra() {
     if (CONTEXTO.includes(k)) { setPanel(null); setDoc(k); return; }
     if (estado[k] === 'off' || estado[k] === 'prox') return;
     if (k === 'uno' || k === 'clase') { setPanel({ cargar: k === 'uno' ? '1a1' : 'clase' }); return; }
+    if (k === 'tema') { setPanel('tema'); return; }
     setPanel(k);
   };
   const cable = (desde, hasta) => {
@@ -495,6 +593,7 @@ export default function Pizarra() {
   };
 
   const cargada = async (l) => { await traerBase(true); setLlamadaId(l.id); setPanel('claude'); };
+  const creadaSinLlamada = async (l) => { await traerBase(true); setLlamadaId(l.id); setLlamada(l); setPanel('story'); };
   const guardarContexto = async (clave, texto) => { const ctx = await pizarraGuardarContexto(clave, texto); setBase((b) => ({ ...b, contexto: ctx })); };
   const generarGeneral = () => accion(() => pizarraGenerarGeneral(llamada.id));
   const abierta = generales.find((x) => x.id === ideaAbierta) || null;
@@ -515,7 +614,7 @@ export default function Pizarra() {
     const enVault = (llamada.generales || []).flatMap((x) => Object.values(x.variantes || {}).flat()).filter((v) => v.estado === 'aprobada').length;
     const aprobada = llamada.generales?.some((x) => x.estado === 'aprobada');
     const extra = enVault ? (enVault > 1 ? `\n\nSe borran también las ${enVault} ideas del vault que salieron de esta llamada.` : '\n\nSe borra también la idea del vault que salió de esta llamada.') : aprobada ? '\n\nSe borra también su idea general aprobada.' : '';
-    if (!window.confirm(`¿Borrar la llamada "${llamada.titulo}"?${extra}`)) return;
+    if (!window.confirm(`¿Borrar ${llamada.tipo === 'tema' ? 'la fuente' : 'la llamada'} "${llamada.titulo}"?${extra}`)) return;
     setAviso('');
     try {
       await pizarraBorrarLlamada(llamada.id, aprobada);
@@ -529,7 +628,7 @@ export default function Pizarra() {
       <div className="pz-barra">
         <select id="pz-llamada" className="pz-select" aria-label="Llamada" value={llamadaId ?? ''} onChange={(e) => { setLlamadaId(Number(e.target.value) || null); setPanel(null); setGeneralId(null); }}>
           <option value="">{base.llamadas.length ? 'Elegí una llamada' : 'Sin llamadas cargadas'}</option>
-          {base.llamadas.map((l) => <option key={l.id} value={l.id}>{l.tipo === 'clase' ? 'Clase · ' : '1 a 1 · '}{l.titulo}</option>)}
+          {base.llamadas.map((l) => <option key={l.id} value={l.id}>{l.tipo === 'clase' ? 'Clase · ' : l.tipo === 'tema' ? '' : '1 a 1 · '}{l.titulo}</option>)}
         </select>
         {llamada && <button type="button" className="btn ghost" onClick={borrarLlamada}>Borrar</button>}
         <span className="pz-sep" />
@@ -547,7 +646,7 @@ export default function Pizarra() {
                 </marker>
               ))}
             </defs>
-            {CABLES.map(([a, b, f]) => {
+            {(esTema ? CABLES_TEMA : CABLES).map(([a, b, f]) => {
               const t = cable(a, b);
               return <path key={`${a}-${b}`} d={camino(NODOS[a], NODOS[b], f)} className={`pz-cable ${t}`} markerEnd={`url(#pz-punta-${t})`} />;
             })}
@@ -570,6 +669,7 @@ export default function Pizarra() {
           <aside className="pz-panel" aria-live="polite">
             <button type="button" className="btn icon pz-cerrar" onClick={() => setPanel(null)} aria-label="Cerrar">✕</button>
             {panel.cargar && <PanelCargar tipo={panel.cargar} onCargada={cargada} />}
+            {panelClave === 'tema' && <PanelSinLlamada contexto={base.contexto} onCreada={creadaSinLlamada} />}
             {panelClave === 'fathom' && llamada && (
               <div className="pz-sec">
                 <span className="pz-k">{llamada.tipo === 'clase' ? 'Clase grupal' : '1 a 1'} · {llamada.fuente}</span>

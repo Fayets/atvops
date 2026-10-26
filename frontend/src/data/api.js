@@ -3232,6 +3232,12 @@ export async function getPizarraVault(refrescar = false) {
 export async function pizarraCrearLlamada({ link, texto, titulo, tipo }) {
   return pedir('/api/pizarra/llamadas', { method: 'POST', headers: JSON_H, body: JSON.stringify({ link, texto, titulo, tipo }) });
 }
+export async function pizarraCrearSinLlamada(origen, valor) {
+  return pedir('/api/pizarra/sin-llamada', { method: 'POST', headers: JSON_H, body: JSON.stringify({ origen, valor }) });
+}
+export async function getSecuenciasPublicadas() {
+  return pedir('/api/pizarra/secuencias-publicadas');
+}
 export async function pizarraSubirArchivos(archivos, tipo) {
   const body = new FormData();
   [...archivos].forEach((a) => body.append('archivos', a));

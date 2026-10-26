@@ -47,6 +47,20 @@ def crear(payload: dict = Body(...), user: dict = Depends(_puede)):
     return pizarra.crear(str(payload.get("texto") or ""), payload.get("titulo"), user.get("username"), tipo=tipo)
 
 
+@router.post("/sin-llamada")
+def crear_sin_llamada(payload: dict = Body(...), user: dict = Depends(_puede)):
+    """Ideas de secuencia sin llamada: `origen` es dolor, tema o secuencia, y `valor` es el
+    dolor elegido, el tema escrito o la fecha de la secuencia que se quiere copiar."""
+    return pizarra.crear_sin_llamada(str(payload.get("origen") or ""), str(payload.get("valor") or ""),
+                                     user.get("username"))
+
+
+@router.get("/secuencias-publicadas")
+def secuencias_publicadas(_user: dict = Depends(_puede)):
+    """Las secuencias que Juan ya publicó, para copiarles la forma."""
+    return {"secuencias": pizarra.secuencias_publicadas()}
+
+
 @router.post("/llamadas/archivos")
 async def subir(archivos: list[UploadFile] = File(...), tipo: str = Form("1a1"), user: dict = Depends(_puede)):
     """Transcripciones exportadas (.txt de Fathom o .vtt de Zoom), de a varias."""

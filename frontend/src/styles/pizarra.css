@@ -334,3 +334,14 @@
 .ed-reglas { display: flex; flex-direction: column; gap: 6px; }
 .ed-regla { border-left: 3px solid var(--brand); padding: 4px 10px; font-size: 13px; background: var(--surface-2); border-radius: 0 6px 6px 0; }
 @media (prefers-reduced-motion: reduce) { .ed-quitar { transition: none; } }
+
+/* Las tres formas de arrancar sin llamada: una lista donde se elige de a uno. */
+.pz-opciones { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+.pz-opcion {
+  text-align: left; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 9px 11px; font: inherit; font-size: 13px;
+  line-height: 1.45; color: var(--text); cursor: pointer;
+}
+.pz-opcion:hover { border-color: var(--text-3); }
+.pz-opcion.sel { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-dim); }
+.pz-opcion .pz-min { display: block; margin-bottom: 3px; }

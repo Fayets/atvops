@@ -670,6 +670,8 @@ def generar_general(llamada_id: int) -> dict:
         ll = PizarraLlamada.get(id=llamada_id)
         if ll is None:
             raise HTTPException(status_code=404, detail="Esa llamada no está en la pizarra.")
+        if ll.tipo == TIPO_SIN_LLAMADA:
+            raise HTTPException(status_code=409, detail="Esta fuente no tiene llamada: sus ideas de secuencia salen derecho.")
         ll.estado, ll.error = "armando", None
     _en_segundo_plano(f"general:{llamada_id}", _generar_general, llamada_id)
     return detalle(llamada_id)
@@ -765,8 +767,8 @@ def regenerar_variantes(general_id: int) -> dict:
         if g is None or g.estado != "aprobada":
             raise HTTPException(status_code=409, detail="Primero hay que aprobar la idea general.")
         g.variantes_estado, g.error = "armando", None
-        llamada_id = g.llamada.id
-    _en_segundo_plano(f"variantes:{general_id}", _generar_variantes, general_id)
+        llamada_id, sin_llamada = g.llamada.id, g.llamada.tipo == TIPO_SIN_LLAMADA
+    _en_segundo_plano(f"variantes:{general_id}", _generar_ideas_story if sin_llamada else _generar_variantes, general_id)
     return detalle(llamada_id)
 
 
@@ -794,6 +796,139 @@ def _generar_variantes(general_id: int) -> None:
         hay = any(variantes.values())
         g.variantes_estado = "listas" if hay else "error"
         g.error = None if hay else "Claude no devolvió variantes. Probá de nuevo."
+
+
+# ------------------------------------------------------------------ sin llamada
+
+# Las ideas de secuencia también salen sin una llamada cargada. La regla que hace que no
+# suenen a IA era la cita verificada: Claude tenía que apoyarse en una frase que Juan dijo
+# de verdad, y el código la buscaba en la transcripción. Sin llamada esa red no existe, así
+# que el ancla pasa a ser lo que Juan YA hizo: las estructuras sacadas de sus secuencias,
+# cómo titula lo que publica, cómo escribe (medido en el classroom) y las secuencias que ya
+# salieron —que además son la lista de lo que no hay que volver a contar—. Y como no hay
+# frase, se le prohíbe escribir una: lo que no está, no se inventa.
+ORIGENES = ("dolor", "tema", "secuencia")
+TIPO_SIN_LLAMADA = "tema"           # el `tipo` de la fuente que no es una llamada
+SECUENCIAS_PARA_ELEGIR = 60         # las que se le ofrecen a marketing para copiar la forma
+SECUENCIAS_YA_CONTADAS = 40         # las que entran al pedido para no repetir tema
+MAX_TEMA = 400
+
+SYSTEM_IDEAS_STORY = MARCA + """
+
+Juan quiere ideas de secuencias de historias y esta vez NO hay llamada: no tenés transcripción de donde sacar una frase suya.
+Te paso de dónde arranca la idea, lo fijo de la marca, las estructuras que Juan usa de verdad en sus historias, cómo titula lo que publica y las secuencias que ya publicó.
+
+Tu trabajo: %(n)s ideas de secuencia de historias, cada una sobre UNA de las estructuras que te paso. No inventes otras. Usá estructuras distintas entre las ideas cuando el tema lo permita, y preferí las que más respuestas traen si le sirven a la idea.
+
+Las reglas que importan:
+- NO hay frase de Juan. No pongas nada entre comillas como si él lo hubiera dicho, y no le atribuyas nada que no esté en lo que te paso.
+- No inventes cifras, resultados ni nombres de clientes. Donde haga falta un caso, decí qué captura va ("captura del resultado de un cliente, a elegir") y escribí el texto sin números inventados.
+- No repitas lo ya contado: abajo están las secuencias que Juan ya publicó. Si tu idea es la misma que una de esas, no la devuelvas.
+- "titulo": la primera historia de la secuencia, como abren las historias de "Cómo titula Juan". Hasta 14 palabras. Nunca pongas el nombre de la estructura en el título.
+- "detalle": cómo la armaría Juan contado por él, en primera persona, siguiendo los pasos de la estructura, con las frases que van en pantalla y la palabra que pide al final. Nada de lenguaje de brief: prohibido "arranca con", "muestro", "cierro con", "la secuencia", "el objetivo es", "el espectador", "se presenta".
+
+Devolvé SOLO un objeto JSON, sin texto antes ni después:
+{"ideas": [{"titulo": "...", "detalle": "...", "estructura": "clave"}]}"""
+
+
+def secuencias_publicadas(limite: int = SECUENCIAS_PARA_ELEGIR) -> list[dict]:
+    """Las secuencias que Juan ya publicó, de la más nueva a la más vieja."""
+    with db_session:
+        dias = sorted((d for d in PizarraHistoriaDia.select() if (d.resumen or "").strip()),
+                      key=lambda d: d.fecha, reverse=True)[:limite]
+        return [{"fecha": d.fecha, "estructura": d.estructura, "resumen": d.resumen} for d in dias]
+
+
+def _ya_contado() -> str:
+    lista = secuencias_publicadas(SECUENCIAS_YA_CONTADAS)
+    if not lista:
+        return ""
+    return ("\n\n# Secuencias que Juan ya publicó (no repitas el tema)\n"
+            + "\n".join(f"- {d['fecha']}: {' '.join((d['resumen'] or '').split())[:300]}" for d in lista))
+
+
+def _material(origen: str, valor: str) -> tuple[str, str]:
+    """(título de la fuente, el tramo del pedido que dice de dónde arranca la idea)."""
+    valor = " ".join(str(valor or "").split())
+    if not valor:
+        raise HTTPException(status_code=422, detail="Falta de dónde arranca la idea.")
+    if origen == "dolor":
+        return (f"Dolor · {valor[:120]}",
+                "# De dónde arranca: un dolor de la audiencia\n" + valor[:600]
+                + "\nLas tres ideas le pegan a ese dolor, cada una desde un ángulo distinto.")
+    if origen == "tema":
+        return (f"Tema · {valor[:120]}",
+                "# De dónde arranca: el tema que quiere contar Juan\n" + valor[:MAX_TEMA]
+                + "\nLas tres ideas son de ese tema, cada una desde un ángulo distinto.")
+    with db_session:
+        dia = PizarraHistoriaDia.get(fecha=valor[:10])
+        resumen = (dia.resumen or "").strip() if dia else ""
+        clave = dia.estructura if dia else None
+    if not resumen:
+        raise HTTPException(status_code=404, detail="Esa secuencia no está leída en la pizarra.")
+    return material_de_secuencia(valor[:10], resumen, (estructuras.activas().get(clave or "") or {}).get("nombre"))
+
+
+def material_de_secuencia(fecha: str, resumen: str, nombre_estructura: str | None) -> tuple[str, str]:
+    """Copiar una secuencia que ya salió es copiarle la MANERA de contar, no el tema: sin
+    esa línea la idea "nueva" vuelve a contar lo mismo que ese día."""
+    dia_corto = "-".join(reversed(fecha.split("-")))  # 2026-10-19 → 19-10-2026
+    return (f"Como la del {dia_corto}",
+            f"# De dónde arranca: una secuencia que ya salió ({fecha})\n"
+            + (f"Estructura: {nombre_estructura}\n" if nombre_estructura else "")
+            + f"Lo que hizo: {resumen[:600]}"
+            + "\nLo que se copia es la FORMA, no el tema: las tres ideas usan esa misma manera de contar "
+              "sobre temas distintos al de ese día.")
+
+
+def crear_sin_llamada(origen: str, valor: str, por: str | None) -> dict:
+    """Arranca las ideas de secuencia sin llamada: de un dolor, de un tema escrito o de una
+    secuencia que ya salió.
+
+    La fuente se guarda como una `PizarraLlamada` más —con `tipo` tema— porque de ahí para
+    adelante el camino es el mismo: la idea aprobada baja a las tres secuencias con los
+    mismos bocetos. La idea general queda aprobada de entrada y no se muestra: acá no hay
+    idea general que discutir, el origen ES la idea."""
+    if origen not in ORIGENES:
+        raise HTTPException(status_code=422, detail="De dónde arranca tiene que ser un dolor, un tema o una secuencia.")
+    titulo, material = _material(origen, valor)
+    with db_session:
+        ll = PizarraLlamada(titulo=titulo[:200], fuente=origen, transcripcion=material,
+                            creado_por=por, tipo=TIPO_SIN_LLAMADA, estado="armando")
+        flush()
+        g = PizarraGeneral(llamada=ll, titulo=titulo[:200], estado="aprobada", aprobada_por=por,
+                           variantes_estado="armando")
+        flush()
+        general_id, llamada_id = g.id, ll.id
+    _en_segundo_plano(f"variantes:{general_id}", _generar_ideas_story, general_id)
+    return detalle(llamada_id)
+
+
+def _generar_ideas_story(general_id: int) -> None:
+    ctx = contexto()
+    voz_juan.voz()  # se lee antes de abrir la sesión: si el classroom falla, no anula la transacción de Ops
+    catalogo, claves = estructuras.catalogo_texto(), estructuras.activas()
+    ya = _ya_contado()
+    ganchos = ganchos_juan()
+    with db_session:
+        g = PizarraGeneral[general_id]
+        aprobadas = [f"- {v.titulo}" for v in g.variantes if v.estado == "aprobada"]
+        prompt = (g.llamada.transcripcion
+                  + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx)
+                  + (f"\n\n# Estructuras de historias de Juan\n{catalogo}" if catalogo else "")
+                  + ganchos + ya
+                  + ("\n\n# Ideas ya aprobadas de esta misma fuente (no las repitas)\n" + "\n".join(aprobadas) if aprobadas else ""))
+    ideas = validar_variantes({"story": (_claude(SYSTEM_IDEAS_STORY % {"n": VARIANTES_POR_CANAL}, prompt, 5000) or {}).get("ideas")}, claves)["story"]
+    with db_session:
+        g = PizarraGeneral[general_id]
+        for v in list(g.variantes):
+            if v.estado != "aprobada" and not v.secuencias:
+                v.delete()
+        for i in ideas[:VARIANTES_POR_CANAL]:
+            PizarraVariante(general=g, canal="story", titulo=i["titulo"], detalle=i["detalle"], estructura=i.get("estructura"))
+        g.variantes_estado = "listas" if ideas else "error"
+        g.error = None if ideas else "Claude no devolvió ideas que se apoyen en una estructura real. Probá de nuevo."
+        g.llamada.estado, g.llamada.error = ("lista", None) if ideas else ("error", g.error)
 
 
 # --- variantes
@@ -1231,9 +1366,13 @@ def _generar_secuencias(variante_id: int, objetivos: dict) -> None:
         de_la_llamada = dibujos.para_ia(g.llamada.id)
         idea = f"{g.titulo} {g.detalle or ''} {g.cita or ''} {v.titulo} {v.detalle or ''}"
         cerca_de = dibujos._segundos(g.minuto)
+        # Sin llamada no hay frase de Juan: la línea no va vacía, porque una cita en blanco
+        # es justo la invitación a que Claude invente una.
+        de_donde = (f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}"
+                    + (f"\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita}\"" if g.cita else ""))
         prompt = ("# Guía: cómo arma Juan sus secuencias\n" + guia_secuencias()
                   + "\n\n# Lo fijo de la marca\n" + _contexto_texto(ctx) + corregido
-                  + f"\n\n# La idea general\n{g.titulo}\n{g.detalle or ''}\nFrase de Juan ({g.minuto or 's/m'}): \"{g.cita or ''}\""
+                  + de_donde
                   + f"\n\n# La idea de historias aprobada\n{v.titulo}\n{v.detalle or ''}"
                   + _estructura_texto(todas.get(v.estructura or ""))
                   + _dibujos_texto(de_la_llamada, dibujos_de_la_idea(de_la_llamada, idea, cerca_de))
