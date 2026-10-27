@@ -45,14 +45,25 @@ def main() -> None:
     ancla = plano(sys.argv[1] if len(sys.argv) > 1 else ANCLA_DEFAULT)
     if not BASE.is_dir():
         raise SystemExit(f"No encuentro los transcripts en {BASE}.")
-    con, sin, sin_pedido = [], [], []
+    # Un canal puede tener varios .txt: el acumulativo y los que el bot parte por día. Son
+    # el mismo canal, así que se leen juntos. Agrupar por archivo hacía que cada día
+    # suelto apareciera como un "canal" llamado 2026-06-26 y la lista no servía para nada.
+    carpetas: dict[Path, list[Path]] = {}
     for f in sorted(BASE.glob("*/*/*.txt")):
-        canal, categoria = f.stem, f.parent.parent.name
+        carpetas.setdefault(f.parent, []).append(f)
+
+    con, sin, sin_pedido = [], [], []
+    for carpeta, archivos in sorted(carpetas.items()):
+        canal, categoria = carpeta.name, carpeta.parent.name
         try:
-            todos = mensajes(f.read_text(encoding="utf-8", errors="replace"))
+            crudos = []
+            for f in archivos:
+                crudos += mensajes(f.read_text(encoding="utf-8", errors="replace"))
         except OSError as e:
             print(f"!! {categoria}/{canal}: {e}", file=sys.stderr)
             continue
+        # El acumulativo repite lo que ya está en los diarios: el mismo mensaje una vez.
+        todos = sorted(dict.fromkeys(crudos), key=lambda m: m[0])
         # El último, no el primero: si el pedido se repitió, vale la vuelta más nueva.
         pedido = None
         for i, (fecha, _autor, cuerpo) in enumerate(todos):
