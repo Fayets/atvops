@@ -1156,8 +1156,45 @@ table.data .dim {
     border-right: none;
     border-bottom: 1px solid var(--border-soft);
   }
+  /* El pie del sidebar NO se esconde: es el único lugar donde dice quién sos, si
+     entraste como otra persona y por dónde se sale. Escondido, el equipo abría Ops en el
+     celular y leía su propia daily como la de otro, sin nada en pantalla que lo
+     desmintiera. Acá pasa a ser una fila compacta entre el logo y la navegación. */
   .sidebar-foot {
-    display: none;
+    order: 1;
+    margin-top: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 10px;
+    padding: 8px 10px;
+  }
+  .nav {
+    order: 2;
+  }
+  .sidebar-quien {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .sidebar-acciones {
+    padding-top: 0;
+    border-top: none;
+  }
+  /* Entrar como otra persona es lo más importante que puede estar pasando: fila propia.
+     Va con `.sidebar` adelante a propósito: la regla base de `.sidebar-como` vive más
+     abajo en este archivo y, a igual especificidad, gana la última. */
+  .sidebar .sidebar-como {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-basis: 100%;
+    margin-bottom: 0;
   }
   .nav {
     flex-direction: row;
