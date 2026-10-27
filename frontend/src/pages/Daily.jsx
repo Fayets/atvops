@@ -64,6 +64,12 @@ export default function Daily() {
   return (
     <div className="page">
       <div className="dl-top">
+        {/* De quién es esta daily. En el celular el pie del sidebar —el único lugar donde
+            figuraba el nombre— queda oculto, y como hay tareas de rol con el mismo texto en
+            varias personas ("Pasada de Discord"), la daily propia se lee como la de otro.
+            El nombre sale de lo que devuelve el servidor y no de la sesión guardada: es el
+            dueño real de estas tareas, también cuando un admin entró como esa persona. */}
+        <b className="dl-quien">{data.persona?.nombre ?? data.persona?.username}</b>
         {terminada ? <span /> : (
           <CargarDaily
             semana={data.semana}
