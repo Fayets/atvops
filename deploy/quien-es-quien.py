@@ -19,7 +19,7 @@ sys.path.insert(0, "/app")
 
 from src.db import init_db  # noqa: E402
 from src.models import TareaSemana, Usuario  # noqa: E402
-from src.services.daily_services import _emails, hoy, lunes_de, usuario_por_email  # noqa: E402
+from src.services.daily_services import DIAS, _emails, hoy, lunes_de, usuario_por_email  # noqa: E402
 
 
 def main() -> None:
@@ -53,14 +53,22 @@ def main() -> None:
             ok = "" if u and u.username == esperado and len(de_quien[m]) == 1 else "   <-- MIRAR"
             print(f"  {m:<42} -> {u.username if u else 'NADIE'}{ok}")
 
-        print(f"\n{'=' * 72}\nTAREAS DE LA SEMANA DEL {semana} POR DUENO\n{'=' * 72}")
-        por_dueno = defaultdict(lambda: [0, 0])
-        for t in list(TareaSemana.select(lambda t: t.semana == semana)):
-            por_dueno[t.usuario][0 if t.origen == "rol" else 1] += 1
+        print(f"\n{'=' * 72}\nTAREAS DE LA SEMANA DEL {semana}, POR DUENO\n{'=' * 72}")
+        print("Esto es lo que hay GUARDADO con el nombre de cada uno. Si en la ficha de otra\n"
+              "persona aparecen tareas que son de Franco, las filas son de ella: alguien las\n"
+              "cargo estando en su cuenta (Backbone -> entrar como). Si las filas son suyas y\n"
+              "aun asi en pantalla veia otra daily, el problema es con que sesion entro.\n")
+        por_dueno = defaultdict(list)
+        for t in list(TareaSemana.select(lambda t: t.semana == semana and not t.borrada)):
+            por_dueno[t.usuario].append(t)
         for username in sorted(por_dueno):
-            rol, propias = por_dueno[username]
-            existe = "" if Usuario.get(username=username) else "   <-- no existe esa ficha"
-            print(f"  {username:<10} rol={rol:<4} propias={propias}{existe}")
+            ts = sorted(por_dueno[username], key=lambda t: (t.origen != "rol", t.orden, t.id))
+            rol = sum(1 for t in ts if t.origen == "rol")
+            existe = "" if Usuario.get(username=username) else "   <-- NO EXISTE ESA FICHA"
+            print(f"\n## {username}  ({rol} del rol, {len(ts) - rol} propias){existe}")
+            for t in ts:
+                dia = DIAS[t.dia][:3].lower() if t.dia is not None else "---"
+                print(f"     [{t.origen:<7} {dia}] {t.texto[:78]}")
 
 
 if __name__ == "__main__":
