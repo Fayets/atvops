@@ -51,7 +51,8 @@ EQUIPO = (
     ("nick", "Nick", "closer", "Closer", "ventas", "lucas", ["nicolasaliagachl@gmail.com"], 12),
     ("ignacio", "Ignacio", "marketing", "Director de Marketing", "marketing", "juan", ["ignacioaburto.business@gmail.com"], 20),
     ("maite", "Maite", "marketing", "Directora Creativa", "marketing", "juan", ["maiteatv1@gmail.com"], 21),
-    ("janner", "Janner", "marketing", "Head de Contenido", "marketing", "maite,ignacio", [], 22),
+    # Antes "janner": se renombró a "janer" y la lista lo volvía a crear duplicado en cada deploy.
+    ("janer", "Janer", "marketing", "Head de Contenido", "marketing", "maite,ignacio", ["cantillojanerc@gmail.com"], 22),
     ("juampi", "Juampi", "csm", "Director de Producto", "producto", "juan", ["juanpablotoledo2017.toledo@gmail.com"], 30),
     ("ale", "Ale", "csm", "CSM", "producto", "juampi", ["ramirezcalderonalejandro@gmail.com"], 31),
     ("mauri", "Mauri", "csm", "VA", "producto", "juampi", ["mauriw35@gmail.com", "s_35@live.com"], 32),
@@ -61,7 +62,7 @@ EQUIPO = (
 # El organigrama de octubre (19-10-2026): Juampi encabeza producto y Maite con Ignacio,
 # marketing. Se corrige una sola vez y solo si sigue como se sembró al principio (todos
 # reportando a Juan): lo que se haya editado a mano no se pisa.
-_ORGANIGRAMA_OCT = {"ale": ("juan", "juampi"), "mauri": ("juan", "juampi"), "janner": ("juan", "maite,ignacio")}
+_ORGANIGRAMA_OCT = {"ale": ("juan", "juampi"), "mauri": ("juan", "juampi"), "janer": ("juan", "maite,ignacio")}
 
 # Las tareas de cada rol, sacadas de los documentos de rol de Backbone. Cris hereda las del
 # setter (antes Andrés) e Ignacio las del director de marketing (antes Emi). Janner no

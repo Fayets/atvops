@@ -173,31 +173,31 @@ def test_backbone_es_solo_de_direccion():
 
 
 def test_solo_el_admin_edita_el_equipo():
-    r = api.patch("/api/daily/equipo/janner", headers=_h("juan"), json={"cargo": "x"})
+    r = api.patch("/api/daily/equipo/janer", headers=_h("juan"), json={"cargo": "x"})
     assert r.status_code == 403
-    r = api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"emails": ["janner@gmail.com"]})
+    r = api.patch("/api/daily/equipo/janer", headers=_h("franco"), json={"emails": ["janner@gmail.com"]})
     assert r.status_code == 200 and r.json()["emails"] == ["janner@gmail.com"]
 
 
 def test_un_mail_no_puede_ser_de_dos():
-    r = api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"emails": ["lucasruarte688@gmail.com"]})
+    r = api.patch("/api/daily/equipo/janer", headers=_h("franco"), json={"emails": ["lucasruarte688@gmail.com"]})
     assert r.status_code == 409
 
 
 def test_las_tareas_del_rol_nuevas_aparecen_en_la_semana():
-    r = api.put("/api/daily/equipo/janner/rol", headers=_h("franco"), json=[
+    r = api.put("/api/daily/equipo/janer/rol", headers=_h("franco"), json=[
         {"texto": "Guiones de la semana", "frecuencia": "semanal", "dia": 1, "destinatario": "ignacio"}])
     assert r.status_code == 200
-    s = api.get(f"/api/daily/semana?semana={LUNES}", headers=_h("janner")).json()
+    s = api.get(f"/api/daily/semana?semana={LUNES}", headers=_h("janer")).json()
     assert any(t["texto"] == "Guiones de la semana" and t["origen"] == "rol" for t in s["tareas"])
     # Sacarla de la plantilla la saca de la semana (no tenía marcas).
-    api.put("/api/daily/equipo/janner/rol", headers=_h("franco"), json=[])
-    s = api.get(f"/api/daily/semana?semana={LUNES}", headers=_h("janner")).json()
+    api.put("/api/daily/equipo/janer/rol", headers=_h("franco"), json=[])
+    s = api.get(f"/api/daily/semana?semana={LUNES}", headers=_h("janer")).json()
     assert not any(t["texto"] == "Guiones de la semana" for t in s["tareas"])
 
 
 def test_dia_de_semana_invalido_en_la_plantilla():
-    r = api.put("/api/daily/equipo/janner/rol", headers=_h("franco"), json=[
+    r = api.put("/api/daily/equipo/janer/rol", headers=_h("franco"), json=[
         {"texto": "x", "frecuencia": "diaria", "dia": 2}])
     assert r.status_code == 400
 
@@ -615,9 +615,9 @@ def test_sistemas_ops_edita_el_equipo_y_marketing_no_ve_webinars():
     with db_session:
         if Usuario.get(username="ops-test") is None:
             Usuario(username="ops-test", password_hash="x", nombre="Ops", rol="operaciones")
-    r = api.patch("/api/daily/equipo/janner", headers=_h("ops-test"), json={"cargo": "Head de Contenido"})
+    r = api.patch("/api/daily/equipo/janer", headers=_h("ops-test"), json={"cargo": "Head de Contenido"})
     assert r.status_code == 200
-    assert api.patch("/api/daily/equipo/janner", headers=_h("juan"), json={"cargo": "x"}).status_code == 403
+    assert api.patch("/api/daily/equipo/janer", headers=_h("juan"), json={"cargo": "x"}).status_code == 403
     assert "marketing" not in ROLES_WEBINAR
 
 
@@ -625,11 +625,11 @@ def test_un_equipo_puede_tener_dos_cabezas():
     d.ensure_equipo()
     equipo = {p["username"]: p for p in d.listar_equipo()}
     assert equipo["ale"]["jefe"] == "juampi" and equipo["mauri"]["jefe"] == "juampi"
-    assert equipo["janner"]["jefe"] == "maite,ignacio"
-    r = api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"jefe": ["ignacio", "maite"]})
+    assert equipo["janer"]["jefe"] == "maite,ignacio"
+    r = api.patch("/api/daily/equipo/janer", headers=_h("franco"), json={"jefe": ["ignacio", "maite"]})
     assert r.status_code == 200 and r.json()["jefe"] == "ignacio,maite"
-    assert api.patch("/api/daily/equipo/janner", headers=_h("franco"), json={"jefe": ["nadie"]}).status_code == 400
-    d.actualizar_persona("janner", {"jefe": "maite,ignacio"})
+    assert api.patch("/api/daily/equipo/janer", headers=_h("franco"), json={"jefe": ["nadie"]}).status_code == 400
+    d.actualizar_persona("janer", {"jefe": "maite,ignacio"})
 
 
 def test_los_motivos_de_backbone_los_ve_solo_juan():
