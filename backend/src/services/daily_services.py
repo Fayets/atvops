@@ -33,7 +33,10 @@ logger = logging.getLogger("atv_ops.daily")
 
 TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
-ESTADOS = ("hecha", "no", "no_aplica")
+ESTADOS = ("hecha", "no", "no_aplica", "pasada")
+# "pasada" = no la hice hoy y la paso a mañana. No pide motivo (el motivo es ese) y el día
+# la cuenta como no hecha: pasarla no es hacerla. Lo que cambia es que no se pierde, porque
+# aparece sola en el día siguiente (ver _pasar_a_manana).
 AREAS = ("ventas", "marketing", "producto", "sistemas", "direccion")
 ROLES_BACKBONE = ("admin", "founder", "operaciones")
 # La primera semana con daily. Antes no existía: esas semanas no se cuentan ni se muestran
@@ -501,7 +504,48 @@ def _tarea_dict(t: TareaSemana) -> dict:
         "id": t.id, "texto": t.texto, "tipo": t.tipo, "origen": t.origen, "frecuencia": t.frecuencia,
         "dia": t.dia, "destinatario": t.destinatario, "marcas": marcas,
         "hecha_mes": mes.isoformat() if mes else None,
+        "se_puede_pasar": se_puede_pasar(t),
+        "viene_de": _viene_de(t),
     }
+
+
+def se_puede_pasar(t: TareaSemana) -> bool:
+    """Solo las que son de un día. Una diaria mañana ya está; una abierta o del mes se cierra
+    cualquier día, no hay a dónde pasarla."""
+    return t.frecuencia == "semanal" and t.dia is not None
+
+
+def _viene_de(t: TareaSemana) -> str | None:
+    """El día de la tarea original, si esta se pasó desde otro día."""
+    if t.pasada_de is None:
+        return None
+    o = TareaSemana.get(id=t.pasada_de)
+    return (o.semana + timedelta(days=o.dia)).isoformat() if o is not None and o.dia is not None else None
+
+
+def _copia_pasada(t: TareaSemana) -> TareaSemana | None:
+    return TareaSemana.select(lambda c: c.pasada_de == t.id).first()
+
+
+def _pasar_a_manana(t: TareaSemana, fecha: date) -> None:
+    """La pone en el día siguiente, aunque sea de la semana que viene (domingo → lunes)."""
+    manana = fecha + timedelta(days=1)
+    c = _copia_pasada(t)
+    if c is not None:
+        c.borrada = False
+        return
+    semana = lunes_de(manana)
+    orden = TareaSemana.select(lambda x: x.usuario == t.usuario and x.semana == semana).count()
+    TareaSemana(usuario=t.usuario, semana=semana, texto=t.texto, tipo=t.tipo, origen="propia",
+                frecuencia="semanal", dia=manana.weekday(), destinatario=t.destinatario,
+                pasada_de=t.id, orden=orden)
+
+
+def _deshacer_pasada(t: TareaSemana) -> None:
+    """Se arrepintió de pasarla: la copia se va, salvo que ya la haya marcado en el otro día."""
+    c = _copia_pasada(t)
+    if c is not None and not c.borrada and not c.marcas.count():
+        c.borrada = True
 
 
 def _tareas(username: str, semana: date) -> list[TareaSemana]:
@@ -657,7 +701,7 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict], parcial: bool = 
         estado = m.get("estado")
         if estado is not None and estado not in ESTADOS:
             raise HTTPException(status_code=400, detail="Estado inválido.")
-        if adelanto and estado == "no":
+        if adelanto and estado in ("no", "pasada"):
             raise HTTPException(status_code=400, detail="Ese día todavía no llegó: se puede marcar hecha o que no aplica.")
         por_id[int(m["tarea_id"])] = (estado, (m.get("motivo") or "").strip() or None)
     with db_session:
@@ -671,7 +715,7 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict], parcial: bool = 
             if estado is None:
                 if not adelanto:
                     faltan.append(t.texto)
-            elif estado != "hecha" and not motivo:
+            elif estado not in ("hecha", "pasada") and not motivo:
                 faltan.append(f"{t.texto} (falta el motivo)")
         if faltan and not parcial:
             raise HTTPException(status_code=400, detail="Falta marcar: " + "; ".join(faltan[:4]) + (" …" if len(faltan) > 4 else ""))
@@ -679,18 +723,24 @@ def guardar_dia(username: str, fecha: date, marcas: list[dict], parcial: bool = 
             t = tareas.get(tid)
             if t is None:
                 raise HTTPException(status_code=400, detail="Una de las tareas no es de esta semana.")
-            if estado and estado != "hecha" and not motivo and not parcial:
+            if estado == "pasada" and not se_puede_pasar(t):
+                raise HTTPException(status_code=400, detail=f"«{t.texto}» no es de un día: no hay a dónde pasarla.")
+            if estado and estado not in ("hecha", "pasada") and not motivo and not parcial:
                 raise HTTPException(status_code=400, detail=f"«{t.texto}»: falta el motivo.")
             previa = MarcaDaily.get(tarea=t, fecha=fecha)
+            if previa and previa.estado == "pasada" and estado != "pasada":
+                _deshacer_pasada(t)
+            if estado == "pasada":
+                _pasar_a_manana(t, fecha)
             if estado is None:
                 if previa:
                     previa.delete()
                 continue
+            motivo = motivo if estado not in ("hecha", "pasada") else None
             if previa:
-                previa.estado, previa.motivo, previa.marcado_at = estado, motivo if estado != "hecha" else None, ahora()
+                previa.estado, previa.motivo, previa.marcado_at = estado, motivo, ahora()
             else:
-                MarcaDaily(tarea=t, fecha=fecha, estado=estado, motivo=motivo if estado != "hecha" else None,
-                           marcado_at=ahora())
+                MarcaDaily(tarea=t, fecha=fecha, estado=estado, motivo=motivo, marcado_at=ahora())
         c = CierreDaily.get(usuario=username, fecha=fecha)
         if adelanto or parcial:
             pass  # lo adelantado o a medio marcar no es la daily de ese día
@@ -740,6 +790,9 @@ def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
                 done += 1
             elif m and m.estado == "no":
                 faltas.append({"fecha": f.isoformat(), "dia": d, "texto": t.texto, "motivo": m.motivo, "sin_daily": False})
+            elif m and m.estado == "pasada":
+                faltas.append({"fecha": f.isoformat(), "dia": d, "texto": t.texto,
+                               "motivo": f"La pasó al {DIAS[(d + 1) % 7]}", "sin_daily": False})
     for t in tareas:
         if _abierta(t) and t.frecuencia == "semanal":
             hecha = any(m.estado == "hecha" for m in marcas[t.id].values())
@@ -805,7 +858,8 @@ def _entregas(gente: list[Usuario], semana: date, corte: int) -> list[dict]:
                     estado, nota = "warn", f"{len(ok)} de {len(due)} días"
                 else:
                     m = marcas.get(semana + timedelta(days=due[0]))
-                    estado, nota = "alert", (f"No se hizo: {m.motivo}" if m and m.motivo else "Sin marcar en la daily")
+                    estado, nota = ("warn", "Pasada al día siguiente") if m and m.estado == "pasada" else (
+                        "alert", f"No se hizo: {m.motivo}" if m and m.motivo else "Sin marcar en la daily")
             out.append({"id": t.id, "de": u.username, "a": t.destinatario, "texto": t.texto, "estado": estado, "nota": nota})
     return out
 

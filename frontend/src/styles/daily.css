@@ -53,6 +53,9 @@
 .dl-seg button[aria-pressed="true"].hecha { background: var(--ok); color: #fff; }
 .dl-seg button[aria-pressed="true"].no { background: var(--alert); color: #fff; }
 .dl-seg button[aria-pressed="true"].no_aplica { background: var(--text-2); color: #fff; }
+.dl-seg button[aria-pressed="true"].pasada { background: var(--warn); color: #fff; }
+.dl-editar { width: 100%; font: inherit; font-weight: 500; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 8px; }
+.dl-editar:focus { outline: none; border-color: var(--brand); }
 .dl-seg button:disabled { cursor: not-allowed; opacity: .6; }
 .dl-motivo { grid-column: 1 / -1; }
 .dl-motivo input { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 9px; font: inherit; }
@@ -75,6 +78,8 @@
 .dl-add input, .dl-add select { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; font: inherit; min-width: 0; }
 .dl-x { border: 0; background: transparent; color: var(--text-3); cursor: pointer; width: 28px; height: 28px; border-radius: 6px; }
 .dl-x:hover { background: var(--surface-2); color: var(--alert); }
+.dl-x svg { vertical-align: middle; }
+.dl-x.editar:hover { color: var(--text); }
 .dl-count { display: flex; gap: var(--space-4); }
 .dl-count b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .dl-count span { font-size: 12px; color: var(--text-3); }
@@ -226,6 +231,15 @@
 .dl-day b { font-size: 15px; }
 .dl-day span { font-size: 12px; color: var(--text-2); }
 .dl-acc { display: flex; align-items: center; gap: 6px; }
+.dl-seg button { white-space: nowrap; }
+/* En el celular el texto de la tarea va arriba y los botones abajo: al lado, con tres
+   botones, la tarea quedaba de una palabra por línea. */
+@media (max-width: 640px) {
+  .dl-task { grid-template-columns: minmax(0, 1fr); }
+  .dl-acc { justify-content: flex-end; }
+  .dl-acc .dl-seg { flex: 1 1 auto; }
+  .dl-acc .dl-seg button { flex: 1 1 0; padding: 8px 6px; }
+}
 .dl-guardar { width: 100%; justify-content: center; padding-top: 11px; padding-bottom: 11px; }
 .dl-day-semana { background: var(--surface-2); }
 .dl-doc section { padding: 16px 20px; border-top: 1px solid var(--border-soft); }

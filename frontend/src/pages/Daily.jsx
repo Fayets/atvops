@@ -6,6 +6,7 @@ import Pill from '../components/ui/Pill.jsx';
 import {
   agregarTareaDaily,
   borrarTareaDaily,
+  editarTareaDaily,
   getDailySemana,
   guardarDiaDaily,
 } from '../data/api.js';
@@ -88,6 +89,13 @@ export default function Daily() {
   );
 }
 
+const LAPIZ = (
+  <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5z" />
+  </svg>
+);
+
 const LOCK = (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
     <rect x="3" y="7" width="10" height="7" rx="1.5" />
@@ -148,6 +156,9 @@ function estadoDia(d, tareas) {
   return 'ok';
 }
 
+/** Lo que no se hizo pide motivo. Pasarla a mañana no: el motivo es ese. */
+const sinMotivo = (estado) => estado === 'hecha' || estado === 'pasada';
+
 function DiaDaily({ data, dia, setDia, onGuardado }) {
   const d = data.dias[dia] ?? data.dias[0];
   const fecha = d.fecha;
@@ -189,16 +200,19 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
       return i && (v.estado !== i.estado || (v.motivo || '') !== (i.motivo || ''));
     });
     if (!cambiadas.length) return undefined;
+    // Pasar (o despasar) crea o saca la tarea del día siguiente: esa vuelta sí trae la semana.
+    const tocaManana = cambiadas.some(([id, v]) => v.estado === 'pasada' || enBase.current[id]?.estado === 'pasada');
     const t = setTimeout(() => {
       guardarDiaDaily(fecha, cambiadas.map(([id, v]) => ({ tarea_id: Number(id), estado: v.estado, motivo: v.motivo || null })), true)
-        .then(() => {
+        .then((semana) => {
           enBase.current = { ...enBase.current, ...Object.fromEntries(cambiadas) };
           setParcialError('');
+          if (tocaManana) onGuardado(semana);
         })
         .catch((e) => setParcialError(e.message));
     }, 600);
     return () => clearTimeout(t);
-  }, [draft, draftFecha, fecha]);
+  }, [draft, draftFecha, fecha, onGuardado]);
 
   const terminada = sumarDias(data.semana, 6) < data.hoy;
   const [nueva, setNueva] = useState('');
@@ -217,6 +231,22 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     }
   }
 
+  const [editando, setEditando] = useState(null); // { id, texto }
+
+  async function guardarEdicion() {
+    const { id, texto } = editando;
+    const orig = data.tareas.find((x) => x.id === id);
+    setEditando(null);
+    if (!texto.trim() || texto.trim() === orig?.texto) return;
+    setError('');
+    try {
+      const nueva = await editarTareaDaily(id, { texto: texto.trim() });
+      onGuardado({ ...data, tareas: data.tareas.map((x) => (x.id === id ? { ...x, ...nueva } : x)) });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function quitar(t) {
     setError('');
     try {
@@ -229,10 +259,10 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
 
   // Hoy y los días pasados se guardan completos; uno que no llegó solo pide motivo en lo marcado.
   const falta = d.futuro
-    ? [...deHoy, ...abiertas].filter((t) => { const v = draft[t.id]; return v?.estado && v.estado !== 'hecha' && !v.motivo.trim(); }).length
+    ? [...deHoy, ...abiertas].filter((t) => { const v = draft[t.id]; return v?.estado && !sinMotivo(v.estado) && !v.motivo.trim(); }).length
     : deHoy.filter((t) => {
       const v = draft[t.id];
-      return !v?.estado || (v.estado !== 'hecha' && !v.motivo.trim());
+      return !v?.estado || (!sinMotivo(v.estado) && !v.motivo.trim());
     }).length;
   // El porcentaje se mueve a medida que marcás, antes de guardar: lo marcado pisa lo guardado de ese día.
   const conLoMarcado = {
@@ -276,6 +306,7 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
         {t.frecuencia === 'mensual' && <span>Del mes</span>}
         {t.destinatario && <span>Entrega a {nombreDe(t.destinatario)}</span>}
         {otro && <span>· hecha el {otro}</span>}
+        {t.viene_de && <span>Pasada del {DIAS[(new Date(`${t.viene_de}T12:00:00`).getDay() + 6) % 7]}</span>}
       </small>
     );
     if (otro) {
@@ -288,21 +319,43 @@ function DiaDaily({ data, dia, setDia, onGuardado }) {
     }
     return (
       <div className="dl-task" key={t.id}>
-        <div className="t"><b>{t.texto}</b>{etiquetas}</div>
+        <div className="t">
+          {editando?.id === t.id ? (
+            <input
+              className="dl-editar"
+              value={editando.texto}
+              autoFocus
+              onChange={(e) => setEditando({ id: t.id, texto: e.target.value })}
+              onBlur={guardarEdicion}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                if (e.key === 'Escape') setEditando(null);
+              }}
+              aria-label="Texto de la tarea"
+            />
+          ) : <b>{t.texto}</b>}
+          {etiquetas}
+        </div>
         <div className="dl-acc">
         {/* Las del rol son fijas: no se borran, se marcan (con motivo si no se hicieron). */}
+        {!terminada && t.origen !== 'rol' && (
+          <button type="button" className="dl-x editar" onClick={() => setEditando({ id: t.id, texto: t.texto })}
+            aria-label={`Editar ${t.texto}`} title="Editar tarea">{LAPIZ}</button>
+        )}
         {!terminada && t.origen !== 'rol' && (
           <button type="button" className="dl-x" onClick={() => quitar(t)} aria-label={`Quitar ${t.texto}`} title="Quitar tarea">✕</button>
         )}
         {!terminada && t.origen === 'rol' && <span className="dl-x dl-x-lock" title="Tarea fija del rol">{LOCK}</span>}
         <div className="dl-seg" role="group" aria-label={`Estado de ${t.texto}`}>
           {/* Un día que no llegó se adelanta: lo hiciste antes o no va a aplicar. */}
-          {(d.futuro ? [['hecha', 'Hecha']] : [['hecha', 'Hecha'], ['no', 'No la hice']]).map(([k, l]) => (
+          {/* Pasar a mañana: solo las que son de un día (una diaria mañana ya está). */}
+          {(d.futuro ? [['hecha', 'Hecha']]
+            : [['hecha', 'Hecha'], ['no', 'No la hice'], ...(t.se_puede_pasar ? [['pasada', 'A mañana']] : [])]).map(([k, l]) => (
             <button key={k} type="button" className={k} aria-pressed={v.estado === k} onClick={() => poner(t.id, k)}>{l}</button>
           ))}
         </div>
         </div>
-        {v.estado && v.estado !== 'hecha' && (
+        {v.estado && !sinMotivo(v.estado) && (
           <div className="dl-motivo">
             <input
               className={v.motivo.trim() ? '' : 'falta'}

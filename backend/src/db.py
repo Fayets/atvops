@@ -81,7 +81,7 @@ def _bind_postgres() -> None:
 def init_db() -> None:
     import src.models  # noqa: F401 — registra entidades en `db`
     # Migraciones SQLite ligeras ANTES de generate_mapping (Pony check_tables).
-    from src.services.auth_services import (ensure_conversacion_columns, ensure_equipo_roles_column, ensure_idea_usuario_column,
+    from src.services.auth_services import (ensure_conversacion_columns, ensure_daily_columns, ensure_equipo_roles_column, ensure_idea_usuario_column,
                                             ensure_integracion_columns,
                                             ensure_pitch_setting_columns, ensure_pizarra_columns, ensure_reunion_crm_columns,
                                             ensure_reunion_usuario_column, ensure_theo_columns,
@@ -96,6 +96,7 @@ def init_db() -> None:
 
     ensure_usuario_rol_column()
     ensure_usuario_equipo_columns()
+    ensure_daily_columns()
     ensure_theo_columns()
     ensure_reunion_usuario_column()
     ensure_idea_usuario_column()

@@ -962,6 +962,7 @@ class TareaSemana(db.Entity):
     dia = Optional(int, nullable=True)
     destinatario = Optional(str, nullable=True)
     tarea_rol = Optional(int, nullable=True)     # id de TareaRol si vino del rol
+    pasada_de = Optional(int, nullable=True)     # id de la tarea que se pasó a este día
     orden = Required(int, default=0)
     borrada = Required(bool, default=False)
     creado_at = Required(datetime, default=datetime.utcnow)
@@ -976,7 +977,7 @@ class MarcaDaily(db.Entity):
     id = PrimaryKey(int, auto=True)
     tarea = Required(TareaSemana)
     fecha = Required(date, index=True)
-    estado = Required(str)                       # hecha | no | no_aplica
+    estado = Required(str)                       # hecha | no | no_aplica | pasada
     motivo = Optional(str, nullable=True)
     marcado_at = Required(datetime, default=datetime.utcnow)
 

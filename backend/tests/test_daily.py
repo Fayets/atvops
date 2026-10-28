@@ -746,3 +746,79 @@ def test_una_version_que_solo_suma_una_tarea_la_agrega_sin_tocar_las_demas():
         activas = list(TareaRol.select(lambda r: r.usuario == "nick" and r.activa))
         assert ids_antes <= {r.id for r in activas}  # las de antes siguen siendo las mismas
         assert [r.texto for r in activas].count(nueva) == 1
+
+
+# ------------------------------------------------------------------ pasar a mañana
+
+
+def _propia(usuario: str, fecha: date, texto: str) -> dict:
+    return d.agregar_tarea(usuario, d.lunes_de(fecha), texto, "velocidad", fecha.weekday())
+
+
+def _de_dia(usuario: str, fecha: date, texto: str) -> list[dict]:
+    s = d.ver_semana(usuario, d.lunes_de(fecha))
+    return [t for t in s["tareas"] if t["texto"] == texto and t["dia"] == fecha.weekday()]
+
+
+def test_pasar_a_manana_la_pone_en_el_dia_siguiente_sin_pedir_motivo():
+    t = _propia("nick", JUEVES, "Llamar a los no show de la semana")
+    d.guardar_dia("nick", JUEVES, [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)
+    viernes = _de_dia("nick", date(2026, 10, 23), "Llamar a los no show de la semana")
+    assert len(viernes) == 1
+    assert viernes[0]["viene_de"] == JUEVES.isoformat()
+    # Marcarla otra vez (el guardado parcial se repite) no la duplica.
+    d.guardar_dia("nick", JUEVES, [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)
+    assert len(_de_dia("nick", date(2026, 10, 23), "Llamar a los no show de la semana")) == 1
+
+
+def test_arrepentirse_de_pasarla_saca_la_de_manana():
+    t = _propia("nick", JUEVES, "Ordenar el CRM")
+    d.guardar_dia("nick", JUEVES, [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)
+    d.guardar_dia("nick", JUEVES, [{"tarea_id": t["id"], "estado": "hecha", "motivo": None}], parcial=True)
+    assert _de_dia("nick", date(2026, 10, 23), "Ordenar el CRM") == []
+
+
+def test_si_ya_la_marco_manana_arrepentirse_no_la_borra():
+    t = _propia("nick", JUEVES, "Mandar propuestas")
+    d.guardar_dia("nick", JUEVES, [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)
+    copia = _de_dia("nick", date(2026, 10, 23), "Mandar propuestas")[0]
+    with db_session:
+        d.MarcaDaily(tarea=d.TareaSemana[copia["id"]], fecha=date(2026, 10, 23), estado="hecha", marcado_at=datetime(2026, 10, 23, 10))
+    d.guardar_dia("nick", JUEVES, [{"tarea_id": t["id"], "estado": None, "motivo": None}], parcial=True)
+    assert len(_de_dia("nick", date(2026, 10, 23), "Mandar propuestas")) == 1
+
+
+def test_el_domingo_se_pasa_al_lunes_de_la_semana_que_viene(monkeypatch):
+    domingo, lunes = date(2026, 10, 25), date(2026, 10, 26)
+    monkeypatch.setattr(d, "hoy", lambda: domingo)
+    t = _propia("nick", domingo, "Revisar la semana")
+    d.guardar_dia("nick", domingo, [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)
+    assert len(_de_dia("nick", lunes, "Revisar la semana")) == 1
+
+
+def test_una_diaria_no_se_pasa():
+    s = d.ver_semana("lucas", LUNES)
+    diaria = next(t for t in s["tareas"] if t["frecuencia"] == "diaria")
+    assert diaria["se_puede_pasar"] is False
+    with pytest.raises(HTTPException) as e:
+        d.guardar_dia("lucas", JUEVES, [{"tarea_id": diaria["id"], "estado": "pasada", "motivo": None}], parcial=True)
+    assert e.value.status_code == 400
+
+
+def test_pasarla_no_es_hacerla_y_backbone_lo_muestra():
+    t = _propia("cris", JUEVES, "Seguimiento a los que dejaron en visto")
+    d.ver_semana("cris", LUNES)
+    with db_session:
+        vencen = [x.id for x in d._tareas("cris", LUNES) if d._vence(x, JUEVES.weekday())]
+    marcas = [{"tarea_id": i, "estado": "pasada" if i == t["id"] else "hecha", "motivo": None} for i in vencen]
+    d.guardar_dia("cris", JUEVES, marcas)   # completa: la pasada no pide motivo
+    with db_session:
+        r = d._resumen_persona(d.Usuario.get(username="cris"), LUNES, JUEVES.weekday())
+    falta = [f for f in r["faltas"] if f["texto"] == "Seguimiento a los que dejaron en visto"]
+    assert falta and falta[0]["motivo"] == "La pasó al viernes"
+
+
+def test_un_dia_que_no_llego_no_se_pasa():
+    t = _propia("nick", date(2026, 10, 23), "Algo del viernes")
+    with pytest.raises(HTTPException):
+        d.guardar_dia("nick", date(2026, 10, 23), [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)

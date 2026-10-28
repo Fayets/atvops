@@ -614,6 +614,11 @@ def ensure_theo_columns() -> None:
     _agregar_columnas("theo_mensajes", "TheoMensaje", [("etiquetar", "BOOLEAN DEFAULT FALSE NOT NULL")])
 
 
+def ensure_daily_columns() -> None:
+    """"Pasar a mañana" llegó después: la copia del día siguiente sabe de qué tarea viene."""
+    _agregar_columnas("daily_tareas_semana", "TareaSemana", [("pasada_de", "INTEGER")])
+
+
 def ensure_pitch_setting_columns() -> None:
     """`borrado_at` llegó después de crear la tabla de pitches: borrar es esconder."""
     _agregar_columnas("pitches_setting", "PitchSetting", [("borrado_at", "TIMESTAMP")])
