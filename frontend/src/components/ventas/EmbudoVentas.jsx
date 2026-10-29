@@ -6,9 +6,10 @@ import { formatValue } from '../../lib/format.js';
  * El dashboard de ventas como el de atv-mkt: el mes en plata arriba, el embudo de punta a
  * punta en el medio y las métricas contra el mes anterior abajo.
  *
- * Cada paso del embudo se abre: al tocarlo se ven las llamadas que lo forman. La lista
- * sale del mismo cálculo que el número (`agendasDetalle`, `showsDetalle`…), así que lo
- * que se cuenta y lo que se lista no pueden no coincidir.
+ * Todo se abre: cada paso del embudo y cada métrica muestran en un pop-up la cuenta que
+ * los arma y las llamadas que los forman. Las listas salen del mismo cálculo que los
+ * números (`agendasDetalle`, `showsDetalle`…), así que lo que se cuenta y lo que se lista
+ * no pueden no coincidir.
  */
 
 const usd = (n) => formatValue(n ?? 0, 'usd');
@@ -25,23 +26,25 @@ function delta(actual, previo) {
   if (actual == null || previo == null || previo === 0) return null;
   return ((actual - previo) / previo) * 100;
 }
+const flecha = (d) => (d == null ? '—'
+  : `${d > 0 ? '▲' : d < 0 ? '▼' : '─'} ${Math.abs(d).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`);
+const tonoDe = (d, subeEsBueno = true) => (d == null || d === 0 ? '' : (d > 0) === subeEsBueno ? 'ok' : 'alert');
 
-function Kpi({ label, valor, d, antes, subeEsBueno = true }) {
-  const tono = d == null || d === 0 ? '' : (d > 0) === subeEsBueno ? 'ok' : 'alert';
+function Kpi({ label, valor, d, antes, subeEsBueno = true, onAbrir }) {
   return (
-    <div className="ev-kpi">
+    <button type="button" className="ev-kpi" onClick={onAbrir}>
       <span className="ev-kpi-label">{label}</span>
       <span className="ev-kpi-valor num">{valor}</span>
-      <span className={`ev-kpi-delta ${tono}`}>
-        {d == null ? '—' : `${d > 0 ? '▲' : d < 0 ? '▼' : '─'} ${Math.abs(d).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`}
+      <span className={`ev-kpi-delta ${tonoDe(d, subeEsBueno)}`}>
+        {flecha(d)}
         <span className="dim"> vs {antes}</span>
       </span>
-    </div>
+    </button>
   );
 }
 
 function ListaPaso({ filas }) {
-  if (!filas.length) return <div className="ev-vacio">No hay llamadas en este paso.</div>;
+  if (!filas.length) return <div className="ev-vacio">No hay llamadas para mostrar.</div>;
   return (
     <div className="ev-lista">
       <div className="ev-fila ev-cab">
@@ -62,19 +65,61 @@ function ListaPaso({ filas }) {
   );
 }
 
+function Partes({ items }) {
+  return (
+    <div className="ev-partes">
+      {items.map(([nombre, dato, valor]) => (
+        <div key={nombre}>
+          <span>{nombre}</span>
+          {dato && <span className="dim">{dato}</span>}
+          <b className="num">{valor}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** El pop-up de un paso o de una métrica: la cuenta, el mes anterior y lo que la forma. */
+function Detalle({ d, onCerrar }) {
+  useEffect(() => {
+    const alTeclear = (e) => e.key === 'Escape' && onCerrar();
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [onCerrar]);
+  return (
+    <div className="modal-backdrop" onClick={onCerrar} role="presentation">
+      <div className="modal-card ev-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true"
+        aria-label={d.titulo}>
+        <header className="ev-modal-cab">
+          <div>
+            <h3>{d.titulo} · {d.valor}</h3>
+            {d.cuenta && <span className="ev-cuenta num">{d.cuenta}</span>}
+          </div>
+          <button type="button" className="btn ghost" onClick={onCerrar}>Cerrar</button>
+        </header>
+        {d.antes && (
+          <div className="ev-antes">
+            <span><span className="dim">Este mes</span><b className="num">{d.valor}</b></span>
+            <span><span className="dim">{d.antes.mes}</span><b className="num">{d.antes.valor}</b></span>
+            <span className={`ev-kpi-delta ${tonoDe(d.antes.d, d.antes.subeEsBueno !== false)}`}>{flecha(d.antes.d)}</span>
+          </div>
+        )}
+        {d.partes && <Partes items={d.partes} />}
+        {d.vacio && <div className="ev-vacio">{d.vacio}</div>}
+        {d.filas && <ListaPaso filas={d.filas} />}
+      </div>
+    </div>
+  );
+}
+
 /**
  * @param {{ real: object, embudo: object | null, embudoPrevio: object | null, mesPrevio: string }} props
  *   `real` es lo que devuelve /api/ventas; `embudo` lo de /api/ventas/setting (los chats).
  */
 export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) {
-  // El detalle de un paso se abre en un pop-up al tocarlo; cerrado, el embudo se lee entero.
-  const [paso, setPaso] = useState(null);
-  useEffect(() => {
-    if (!paso) return undefined;
-    const alTeclear = (e) => e.key === 'Escape' && setPaso(null);
-    window.addEventListener('keydown', alTeclear);
-    return () => window.removeEventListener('keydown', alTeclear);
-  }, [paso]);
+  // Qué está abierto: un paso del embudo o una métrica. Cerrado, la pantalla se lee entera.
+  const [abierto, setAbierto] = useState(null);
+  const cerrar = () => setAbierto(null);
   const a = real.actual ?? {};
   const p = real.previo ?? {};
   const chats = embudo?.chats ?? null;
@@ -84,48 +129,83 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
   const facturado = (a.cashUsd ?? 0) + (a.deudaUsd ?? 0);
   const facturadoPrevio = (p.cashUsd ?? 0) + (p.deudaUsd ?? 0);
   const dCash = delta(a.cashUsd, p.cashUsd);
+  const setters = (real.settersMes ?? []).filter((s) => s.conversaciones);
+
+  const agendas = a.agendasDetalle ?? [];
+  const shows = a.showsDetalle ?? [];
+  const noShows = a.noShowsDetalle ?? [];
+  const cierres = a.cierresDetalle ?? [];
+  const senas = a.senasDetalle ?? [];
+  const ventas = a.ventasDetalle ?? [...cierres, ...senas];
+  const partesChats = partes.map((x) => [x.fuente, x.detalle, num(x.cuantos)]);
+  const resueltas = (a.shows ?? 0) + (a.noShows ?? 0);
+  const conSenas = a.senas ? ` + ${a.senas} ${a.senas === 1 ? 'seña' : 'señas'}` : '';
 
   const pasos = [
     { id: 'chats', label: 'Chats', valor: num(chats),
-      sub: partes.map((x) => `${x.fuente.replace(' con CTA', '')} ${num(x.cuantos)}`).join(' · ') },
-    { id: 'conversaciones', label: 'Conversaciones', valor: num(conversaciones), sub: 'reporte del setter' },
-    { id: 'agendas', label: 'Agendas', valor: num(a.agendados), sub: 'calls del mes' },
-    { id: 'shows', label: 'Shows', valor: num(a.shows), sub: `${num(a.noShows)} no shows` },
-    { id: 'cierres', label: 'Cierres', valor: num(a.cierres), sub: a.senas ? `+ ${a.senas} señas` : 'sin señas' },
+      sub: partes.map((x) => `${x.fuente.replace(' con CTA', '')} ${num(x.cuantos)}`).join(' · '),
+      detalle: { partes: partesChats } },
+    { id: 'conversaciones', label: 'Conversaciones', valor: num(conversaciones), sub: 'reporte del setter',
+      detalle: setters.length
+        ? { partes: setters.map((s) => [s.nombre, `${s.reportes} ${s.reportes === 1 ? 'reporte' : 'reportes'}`, num(s.conversaciones)]) }
+        : { vacio: 'Sin reportes del setter cargados en el mes' } },
+    { id: 'agendas', label: 'Agendas', valor: num(a.agendados), sub: 'calls del mes', detalle: { filas: agendas } },
+    { id: 'shows', label: 'Shows', valor: num(a.shows), sub: `${num(a.noShows)} no shows`, detalle: { filas: shows } },
+    { id: 'cierres', label: 'Cierres', valor: `${num(a.cierres)}${conSenas}`, sub: a.senas ? `+ ${a.senas} señas` : 'sin señas',
+      detalle: { filas: [...cierres, ...senas] } },
   ];
   const tasas = [
     ['Tasa de conversión', pct(tasa(conversaciones, chats)), 'conversaciones / chats'],
     ['Tasa de agendamiento', pct(tasa(a.agendados, chats)), `${num(a.agendados)} agendas / ${num(chats)} chats`],
-    ['Tasa de show', pct(a.showRate), `${num(a.shows)} shows / ${num((a.shows ?? 0) + (a.noShows ?? 0))} resueltas`],
+    ['Tasa de show', pct(a.showRate), `${num(a.shows)} shows / ${num(resueltas)} resueltas`],
     ['Tasa de cierre', pct(a.closeRate), `${num(a.cierres)} cierres / ${num(a.shows)} shows`],
   ];
 
   const tAgend = tasa(a.agendados, chats);
   const tAgendPrevio = tasa(p.agendados, chatsPrevio);
+  // Redondeados: un promedio de plata con centavos (US$ 81,43) es precisión que nadie usa.
+  const porAgenda = (b) => (b.agendados ? Math.round(b.cashUsd / b.agendados) : null);
+  const porShow = (b) => (b.shows ? Math.round(b.cashUsd / b.shows) : null);
+  // Cada métrica: el número, contra qué se compara, la cuenta con sus números y la lista
+  // de llamadas que la forman. La cuenta va en números, no en palabras: es lo que se
+  // necesita para chequearla a mano.
   const kpis = [
-    ['Cash del mes', usd(a.cashUsd), delta(a.cashUsd, p.cashUsd), usd(p.cashUsd)],
-    ['Agendas', num(a.agendados), delta(a.agendados, p.agendados), num(p.agendados)],
-    ['No shows', num(a.noShows), delta(a.noShows, p.noShows), num(p.noShows), false],
-    ['Show up rate', pct(a.showRate), delta(a.showRate, p.showRate), pct(p.showRate)],
-    ['Close rate', pct(a.closeRate), delta(a.closeRate, p.closeRate), pct(p.closeRate)],
-    ['T. agendamiento', pct(tAgend), delta(tAgend, tAgendPrevio), tAgendPrevio == null ? 'sin chats' : pct(tAgendPrevio)],
-    ['AOV', usd(a.averageSaleUsd), delta(a.averageSaleUsd, p.averageSaleUsd), usd(p.averageSaleUsd)],
-    ['Cash / agenda', usd(a.agendados ? a.cashUsd / a.agendados : 0),
-      delta(a.agendados ? a.cashUsd / a.agendados : null, p.agendados ? p.cashUsd / p.agendados : null),
-      usd(p.agendados ? p.cashUsd / p.agendados : 0)],
-    ['Cash / show', usd(a.shows ? a.cashUsd / a.shows : 0),
-      delta(a.shows ? a.cashUsd / a.shows : null, p.shows ? p.cashUsd / p.shows : null),
-      usd(p.shows ? p.cashUsd / p.shows : 0)],
-    ['Señas', num(a.senas), delta(a.senas, p.senas), num(p.senas)],
+    { id: 'cash', label: 'Cash del mes', valor: usd(a.cashUsd), actual: a.cashUsd, previo: p.cashUsd, antes: usd(p.cashUsd),
+      cuenta: [`${usd(a.cashUsd - (a.cashDeSenaUsd ?? 0))} de ventas del mes`,
+        a.cashDeSenaUsd ? `${usd(a.cashDeSenaUsd)} de señas que cerraron` : null].filter(Boolean).join(' + '),
+      filas: ventas },
+    { id: 'agendas', label: 'Agendas', valor: num(a.agendados), actual: a.agendados, previo: p.agendados, antes: num(p.agendados),
+      cuenta: `${num(a.reuniones)} reuniones − ${num(a.seguimientos)} segundas con el mismo prospecto = ${num(a.agendados)}`,
+      filas: agendas },
+    { id: 'noshows', label: 'No shows', valor: num(a.noShows), actual: a.noShows, previo: p.noShows, antes: num(p.noShows),
+      subeEsBueno: false, filas: noShows },
+    { id: 'show', label: 'Show up rate', valor: pct(a.showRate), actual: a.showRate, previo: p.showRate, antes: pct(p.showRate),
+      cuenta: `${num(a.shows)} shows ÷ ${num(resueltas)} resueltas (${num(a.shows)} shows + ${num(a.noShows)} no shows)`,
+      filas: [...shows, ...noShows] },
+    { id: 'close', label: 'Close rate', valor: pct(a.closeRate), actual: a.closeRate, previo: p.closeRate, antes: pct(p.closeRate),
+      cuenta: `${num(a.cierres)} cierres ÷ ${num(a.shows)} shows`, filas: cierres },
+    { id: 'agendamiento', label: 'T. agendamiento', valor: pct(tAgend), actual: tAgend, previo: tAgendPrevio,
+      antes: tAgendPrevio == null ? 'sin chats' : pct(tAgendPrevio),
+      cuenta: `${num(a.agendados)} agendas ÷ ${num(chats)} chats`, partes: partesChats, filas: agendas },
+    { id: 'aov', label: 'AOV', valor: usd(a.averageSaleUsd), actual: a.averageSaleUsd, previo: p.averageSaleUsd, antes: usd(p.averageSaleUsd),
+      cuenta: `${usd(a.cashUsd)} cash ÷ ${num(a.cierres)} cierres`, filas: cierres },
+    { id: 'poragenda', label: 'Cash / agenda', valor: usd(porAgenda(a) ?? 0), actual: porAgenda(a), previo: porAgenda(p),
+      antes: usd(porAgenda(p) ?? 0), cuenta: `${usd(a.cashUsd)} cash ÷ ${num(a.agendados)} agendas`, filas: ventas },
+    { id: 'porshow', label: 'Cash / show', valor: usd(porShow(a) ?? 0), actual: porShow(a), previo: porShow(p),
+      antes: usd(porShow(p) ?? 0), cuenta: `${usd(a.cashUsd)} cash ÷ ${num(a.shows)} shows`, filas: ventas },
+    { id: 'senas', label: 'Señas', valor: num(a.senas), actual: a.senas, previo: p.senas, antes: num(p.senas), filas: senas },
   ];
 
-  const actual = pasos.find((x) => x.id === paso);
-  const filasDe = {
-    agendas: a.agendasDetalle ?? [],
-    shows: a.showsDetalle ?? [],
-    cierres: [...(a.cierresDetalle ?? []), ...(a.senasDetalle ?? [])],
-  };
-  const setters = (real.settersMes ?? []).filter((s) => s.conversaciones);
+  let detalle = null;
+  const paso = pasos.find((x) => `paso:${x.id}` === abierto);
+  const kpi = kpis.find((x) => `kpi:${x.id}` === abierto);
+  if (paso) detalle = { titulo: paso.label, valor: paso.valor, cuenta: paso.id === 'chats' || paso.id === 'cierres' ? null : paso.sub, ...paso.detalle };
+  if (kpi) {
+    detalle = {
+      titulo: kpi.label, valor: kpi.valor, cuenta: kpi.cuenta, partes: kpi.partes, filas: kpi.filas,
+      antes: { mes: mayuscula(mesPrevio), valor: kpi.antes, d: delta(kpi.actual, kpi.previo), subeEsBueno: kpi.subeEsBueno },
+    };
+  }
 
   return (
     <>
@@ -147,9 +227,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
           </div>
         </div>
         <div className="ev-plata-der">
-          <b className={dCash == null ? 'dim' : dCash >= 0 ? 'ok' : 'alert'}>
-            {dCash == null ? '—' : `${dCash >= 0 ? '▲' : '▼'} ${Math.abs(dCash).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`}
-          </b>
+          <b className={dCash == null ? 'dim' : dCash >= 0 ? 'ok' : 'alert'}>{flecha(dCash)}</b>
           <span className="dim">vs {mesPrevio} · {usd(p.cashUsd)} · facturado {usd(facturadoPrevio)}</span>
         </div>
       </section>
@@ -161,21 +239,22 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
             {pasos.map((x, i) => {
               const w = ANCHOS[i];
               const recorte = i < pasos.length - 1 ? ((w - ANCHOS[i + 1]) / 2) * (100 / w) : 0;
+              const activo = abierto === `paso:${x.id}`;
               return (
                 <button
                   key={x.id}
                   type="button"
-                  className={`ev-paso${paso === x.id ? ' activo' : ''}`}
-                  aria-pressed={paso === x.id}
+                  className={`ev-paso${activo ? ' activo' : ''}`}
+                  aria-pressed={activo}
                   style={{
                     width: `${w}%`,
                     '--tinta': `var(--ev-capa-${i})`,
                     clipPath: i < pasos.length - 1 ? `polygon(0 0, 100% 0, ${100 - recorte}% 100%, ${recorte}% 100%)` : undefined,
                   }}
-                  onClick={() => setPaso(x.id)}
+                  onClick={() => setAbierto(`paso:${x.id}`)}
                 >
                   <span className="ev-paso-label">{x.label}</span>
-                  <span className="ev-paso-valor num">{x.valor}</span>
+                  <span className="ev-paso-valor num">{x.id === 'cierres' ? num(a.cierres) : x.valor}</span>
                   <span className="ev-paso-sub">{x.sub}</span>
                 </button>
               );
@@ -191,53 +270,17 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
             ))}
           </div>
         </div>
-
       </section>
-
-      {actual && (
-        <div className="modal-backdrop" onClick={() => setPaso(null)} role="presentation">
-          <div className="modal-card ev-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true"
-            aria-label={`${actual.label} del mes`}>
-          <header className="ev-modal-cab">
-            <div>
-              <h3>{actual.label} · {actual.valor}{paso === 'cierres' && a.senas ? ` + ${a.senas} ${a.senas === 1 ? 'seña' : 'señas'}` : ''}</h3>
-              {actual.sub && paso !== 'cierres' && <span className="dim">{actual.sub}</span>}
-            </div>
-            <button type="button" className="btn ghost" onClick={() => setPaso(null)}>Cerrar</button>
-          </header>
-          {paso === 'chats' && (
-            <div className="ev-partes">
-              {partes.map((x) => (
-                <div key={x.clave}>
-                  <span>{x.fuente}</span>
-                  <span className="dim">{x.detalle}</span>
-                  <b className="num">{num(x.cuantos)}</b>
-                </div>
-              ))}
-            </div>
-          )}
-          {paso === 'conversaciones' && (setters.length ? (
-            <div className="ev-partes">
-              {setters.map((s) => (
-                <div key={s.nombre}>
-                  <span>{s.nombre}</span>
-                  <span className="dim">{s.reportes} {s.reportes === 1 ? 'reporte' : 'reportes'}</span>
-                  <b className="num">{num(s.conversaciones)}</b>
-                </div>
-              ))}
-            </div>
-          ) : <div className="ev-vacio">Sin reportes del setter cargados en el mes</div>)}
-          {filasDe[paso] && <ListaPaso filas={filasDe[paso]} />}
-          </div>
-        </div>
-      )}
 
       <div className="ev-kpis-titulo">Métricas del mes</div>
       <div className="ev-kpis">
-        {kpis.map(([label, valor, d, antes, subeEsBueno]) => (
-          <Kpi key={label} label={label} valor={valor} d={d} antes={antes} subeEsBueno={subeEsBueno !== false} />
+        {kpis.map((k) => (
+          <Kpi key={k.id} label={k.label} valor={k.valor} d={delta(k.actual, k.previo)} antes={k.antes}
+            subeEsBueno={k.subeEsBueno !== false} onAbrir={() => setAbierto(`kpi:${k.id}`)} />
         ))}
       </div>
+
+      {detalle && <Detalle d={detalle} onCerrar={cerrar} />}
     </>
   );
 }
