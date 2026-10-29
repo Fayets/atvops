@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { claseStatus } from './CeldasLlamada.jsx';
 import { formatValue } from '../../lib/format.js';
 
@@ -17,6 +17,8 @@ const num = (n) => (n == null ? '—' : n.toLocaleString('es-AR'));
 // Sin numerador tampoco hay tasa: "0 %" diría que hubo chats y nadie conversó.
 const tasa = (a, b) => (a == null || !b ? null : (a / b) * 100);
 const ANCHOS = [100, 80, 64, 50, 36];
+// La base guarda el resultado como lo escribió cada uno ("seguimiento", "Seguimiento").
+const mayuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
 /** Cuánto cambió contra el mes anterior. Sin base para comparar no se inventa un número. */
 function delta(actual, previo) {
@@ -50,7 +52,7 @@ function ListaPaso({ filas }) {
           <div key={f.id} className="ev-fila">
             <span className="strong pl-corta">{f.nombre}</span>
             <span className="num dim">{f.fecha ? new Date(`${f.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—'}</span>
-            <span><span className={`pl-pill ${claseStatus(f.estado)}`}>{f.estado || 'Falta cargar'}</span></span>
+            <span><span className={`pl-pill ${claseStatus(f.estado)}`}>{mayuscula(f.estado) || 'Falta cargar'}</span></span>
             <span>{f.closer || '—'}</span>
             <span className="dim">{f.origen || '—'}</span>
             <span className={`right num${f.pagoUsd ? ' pl-cobrado' : ' dim'}`}>{f.pagoUsd ? usd(f.pagoUsd) : '—'}</span>
@@ -66,7 +68,14 @@ function ListaPaso({ filas }) {
  *   `real` es lo que devuelve /api/ventas; `embudo` lo de /api/ventas/setting (los chats).
  */
 export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) {
-  const [paso, setPaso] = useState('agendas');
+  // El detalle de un paso se abre en un pop-up al tocarlo; cerrado, el embudo se lee entero.
+  const [paso, setPaso] = useState(null);
+  useEffect(() => {
+    if (!paso) return undefined;
+    const alTeclear = (e) => e.key === 'Escape' && setPaso(null);
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [paso]);
   const a = real.actual ?? {};
   const p = real.previo ?? {};
   const chats = embudo?.chats ?? null;
@@ -184,10 +193,19 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
           </div>
         </div>
 
-        <div className="ev-panel">
-          <div className="ev-panel-cab">
-            <b>{actual.label} · {actual.valor}{paso === 'cierres' && a.senas ? ` + ${a.senas} ${a.senas === 1 ? 'seña' : 'señas'}` : ''}</b>
-          </div>
+      </section>
+
+      {actual && (
+        <div className="modal-backdrop" onClick={() => setPaso(null)} role="presentation">
+          <div className="modal-card ev-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true"
+            aria-label={`${actual.label} del mes`}>
+          <header className="ev-modal-cab">
+            <div>
+              <h3>{actual.label} · {actual.valor}{paso === 'cierres' && a.senas ? ` + ${a.senas} ${a.senas === 1 ? 'seña' : 'señas'}` : ''}</h3>
+              {actual.sub && paso !== 'cierres' && <span className="dim">{actual.sub}</span>}
+            </div>
+            <button type="button" className="btn ghost" onClick={() => setPaso(null)}>Cerrar</button>
+          </header>
           {paso === 'chats' && (
             <div className="ev-partes">
               {partes.map((x) => (
@@ -211,8 +229,9 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
             </div>
           ) : <div className="ev-vacio">Sin reportes del setter cargados en el mes</div>)}
           {filasDe[paso] && <ListaPaso filas={filasDe[paso]} />}
+          </div>
         </div>
-      </section>
+      )}
 
       <div className="ev-kpis-titulo">Métricas del mes</div>
       <div className="ev-kpis">

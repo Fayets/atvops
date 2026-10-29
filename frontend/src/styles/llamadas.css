@@ -43,29 +43,38 @@
 /* ---------------------------------------------------------------- barras */
 
 .pl-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; }
-.pl-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.pl-tab { font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text-2); }
-.pl-tab .num { opacity: 0.7; margin-left: 2px; }
-.pl-tab.activo { background: var(--text); border-color: var(--text); color: #fff; font-weight: 600; }
-.pl-totales { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; font-size: 13px; }
-.pl-totales span { display: flex; gap: 6px; align-items: baseline; }
+.pl-barra { row-gap: 12px; }
+/* Las pestañas de status se estiran hasta ocupar todo el ancho: cada una es una caja con
+   el nombre arriba y la cantidad abajo, y se leen de un vistazo como un tablero. */
+.pl-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.pl-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-tab { min-width: 0; font: inherit; font-size: 12px; padding: 9px 9px; border-radius: 9px;
+  cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.pl-tab b { font-size: 18px; font-weight: 600; color: var(--text); }
+.pl-tab:hover:not(.activo) { border-color: var(--text-3); }
+.pl-tab.activo { background: var(--text); border-color: var(--text); color: rgba(255, 255, 255, 0.75); }
+.pl-tab.activo b { color: #fff; }
+.pl-totales { display: flex; flex-wrap: wrap; gap: 8px 36px; align-items: flex-end; }
+.pl-totales span { display: flex; flex-direction: column; gap: 2px; }
 .pl-totales small { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); }
-.pl-buscar { font: inherit; font-size: 12.5px; width: 240px; max-width: 100%; padding: 6px 10px;
+.pl-totales b { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+.pl-buscar { font: inherit; font-size: 13px; width: 340px; max-width: 100%; padding: 8px 12px;
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; }
 .pl-buscar:focus { outline: none; border-color: var(--text-3); }
 
 /* ---------------------------------------------------------------- planilla */
 
 .planilla { padding: 0; display: flex; flex-direction: column; min-width: 0; }
-.planilla > .pl-barra { padding: 14px 16px 10px; }
-.planilla > .pl-herramientas { padding: 0 16px 14px; border-bottom: 1px solid var(--border-soft); }
-.pl-izq { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.planilla > .pl-tabs { padding: 20px 20px 0; }
+.planilla > .pl-resumen { padding: 18px 20px; align-items: flex-end; }
+.planilla > .pl-herramientas { padding: 14px 20px; border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft); background: var(--surface-2); }
+.pl-izq { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pl-izq .btn.activo { border-color: var(--text); }
 .pl-select { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
 .pl-select select { font: inherit; font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--border);
   border-radius: 7px; background: var(--surface); color: var(--text); }
-.pl-sep { width: 1px; height: 22px; background: var(--border-soft); margin: 0 4px; }
 .pl-seg { display: flex; gap: 2px; padding: 3px; background: var(--bg); border-radius: 8px; flex-wrap: wrap; }
 .pl-seg button { font: inherit; font-size: 12.5px; padding: 4px 11px; border: 0; border-radius: 6px;
   background: transparent; color: var(--text-2); cursor: pointer; }
@@ -100,14 +109,16 @@
 .pl-tabla .cash-celda { width: 86px; }
 .pl-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px;
   padding: 10px 16px; border-top: 1px solid var(--border-soft); font-size: 12px; }
-.pl-ficha { width: min(620px, 96vw); display: grid; gap: var(--space-4); }
+.modal-card.pl-ficha { width: min(620px, 96vw); padding: var(--space-5); display: grid; gap: var(--space-4); }
 .pl-ficha header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.pl-ficha header h3 { margin: 0 0 3px; font-size: 18px; }
+.modal-card.pl-ficha header h3 { margin: 0 0 3px; font-size: 18px; }
 .pl-ficha header p { margin: 0; font-size: 12.5px; }
 
 /* ---------------------------------------------------------------- lista del closer */
 
-.lc-barra { margin-bottom: var(--space-3); }
+.lc-barra { margin-bottom: var(--space-4); }
+.lc-barra .pl-tabs { flex: 1 1 100%; }
+.lc-barra .pl-buscar { margin-left: auto; }
 .lc-cuerpo { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
 .lc-lista { flex: 999 1 620px; min-width: 0; padding: 0; overflow: hidden; }
 .lc-cab, .lc-fila { display: grid; grid-template-columns: 56px minmax(0, 1fr) 150px 150px 120px 100px; gap: 0 8px; align-items: center; }
@@ -136,6 +147,11 @@
 .lc-datos { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 5px 10px; font-size: 13px; }
 .lc-datos > span { overflow-wrap: anywhere; }
 .lc-links { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Angosto, una fila no alcanza: varias filas parejas, sin una pestaña sola estirada. */
+@media (max-width: 900px) {
+  .pl-tabs { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+}
 
 @media (max-width: 760px) {
   .lc-cab { display: none; }
@@ -187,8 +203,11 @@
 .ev-tasas .dim { font-size: 12px; }
 .ev-tasas b { font-size: 22px; font-weight: 600; }
 .ev-tasas small { font-size: 11.5px; }
-.ev-panel { border-top: 1px solid var(--border-soft); padding-top: 14px; display: grid; gap: 10px; }
-.ev-panel-cab b { font-size: 14px; }
+/* `.modal-card` adelante en los dos pop-ups: su regla base fija 420px de ancho y ganaba. */
+.modal-card.ev-modal { width: min(900px, 94vw); padding: var(--space-5); display: grid; gap: var(--space-4); align-content: start; }
+.ev-modal-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.modal-card .ev-modal-cab h3 { margin: 0 0 3px; font-size: 18px; }
+.ev-modal-cab .dim { font-size: 12.5px; }
 .ev-partes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
 .ev-partes > div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
   border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; }
@@ -201,7 +220,7 @@
 .ev-fila .right { text-align: right; }
 .ev-cab { border-top: 0; background: var(--surface-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--text-3); }
-.ev-scroll { max-height: 320px; overflow: auto; }
+.ev-scroll { max-height: 60vh; overflow: auto; }
 .ev-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .ev-kpi { display: grid; gap: 4px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); }

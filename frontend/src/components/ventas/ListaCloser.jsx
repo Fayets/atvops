@@ -166,7 +166,7 @@ export default function ListaCloser({ datos, mes, onActualizado }) {
         <div className="pl-tabs" role="group" aria-label="Status">
           {tabs.map(([t, n]) => (
             <button key={t} type="button" className={`pl-tab${tab === t ? ' activo' : ''}`} onClick={() => setTab(t)}>
-              {t} <span className="num">{n}</span>
+              <span>{t}</span><b className="num">{n}</b>
             </button>
           ))}
         </div>

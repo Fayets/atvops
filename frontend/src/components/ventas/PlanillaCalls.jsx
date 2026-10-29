@@ -199,19 +199,30 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
 
   return (
     <section className="planilla card">
-      <div className="pl-barra">
-        <div className="pl-tabs" role="group" aria-label="Status">
-          {tabs.map(([t, n]) => (
-            <button key={t} type="button" className={`pl-tab${tab === t ? ' activo' : ''}`} onClick={() => setTab(t)}>
-              {t} <span className="num">{n}</span>
-            </button>
-          ))}
-        </div>
+      {/* Tres franjas a lo ancho: el status, los totales con el buscador, y las
+          herramientas con el closer. Todo en dos renglones quedaba apretado. */}
+      <div className="pl-tabs" role="group" aria-label="Status">
+        {tabs.map(([t, n]) => (
+          <button key={t} type="button" className={`pl-tab${tab === t ? ' activo' : ''}`} onClick={() => setTab(t)}>
+            <span>{t}</span><b className="num">{n}</b>
+          </button>
+        ))}
+      </div>
+
+      <div className="pl-barra pl-resumen">
         <div className="pl-totales">
           <span><small>Calls</small><b className="num">{visibles.length}</b></span>
           <span><small>Cobrado</small><b className="num pl-cobrado">{usd(cobrado)}</b></span>
           <span><small>Debe</small><b className="num pl-debe">{usd(debe)}</b></span>
         </div>
+        <input
+          type="search"
+          className="pl-buscar"
+          placeholder="Buscar nombre, mail, closer…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Buscar en las llamadas"
+        />
       </div>
 
       <div className="pl-barra pl-herramientas">
@@ -264,22 +275,13 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
               {Object.entries(GRUPOS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           </label>
-          <span className="pl-sep" />
-          <div className="pl-seg" role="group" aria-label="Closer">
-            {[['', 'Todos los closers'], ...datos.equipo.map((n) => [n, n]), ...(sinDueno ? [['—', 'Sin dueño']] : [])]
-              .map(([k, l]) => (
-                <button key={k || 'todos'} type="button" className={closer === k ? 'activo' : ''} onClick={() => setCloser(k)}>{l}</button>
-              ))}
-          </div>
         </div>
-        <input
-          type="search"
-          className="pl-buscar"
-          placeholder="Buscar nombre, mail, closer…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label="Buscar en las llamadas"
-        />
+        <div className="pl-seg" role="group" aria-label="Closer">
+          {[['', 'Todos los closers'], ...datos.equipo.map((n) => [n, n]), ...(sinDueno ? [['—', 'Sin dueño']] : [])]
+            .map(([k, l]) => (
+              <button key={k || 'todos'} type="button" className={closer === k ? 'activo' : ''} onClick={() => setCloser(k)}>{l}</button>
+            ))}
+        </div>
       </div>
 
       <div className="pl-scroll">
