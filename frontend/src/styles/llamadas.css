@@ -215,9 +215,11 @@
 .ev-vacio { padding: 18px; border: 1px dashed var(--border); border-radius: var(--radius-sm); font-size: 13px;
   color: var(--text-3); text-align: center; }
 .ev-lista { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); overflow: hidden; }
-.ev-fila { display: grid; grid-template-columns: minmax(0, 1.4fr) 80px 150px 100px 100px 100px; gap: 0 8px;
+.ev-fila { display: grid; grid-template-columns: minmax(0, 1.4fr) 80px minmax(0, 190px) 100px 100px; gap: 0 12px;
   align-items: center; padding: 7px 14px; border-top: 1px solid #efebe4; font-size: 13px; }
 .ev-fila .right { text-align: right; }
+/* El status no se monta sobre el closer: si no entra, se corta con puntos. */
+.ev-fila .pl-pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .ev-cab { border-top: 0; background: var(--surface-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--text-3); }
 .ev-scroll { max-height: 60vh; overflow: auto; }

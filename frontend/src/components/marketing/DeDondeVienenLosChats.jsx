@@ -41,7 +41,6 @@ function Puerta({ parte, total }) {
       <header>
         <div>
           <h4>{parte.fuente}</h4>
-          <span className="dim">{parte.detalle}</span>
         </div>
         <div className="chats-puerta-n">
           <span className="num">{n(parte.cuantos)}</span>

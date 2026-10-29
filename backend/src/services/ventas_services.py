@@ -50,6 +50,9 @@ CON_RESULTADO = CIERRE + ("seguimiento", "descalificado", "re-agenda", "reagenda
                           "no tiene la plata", "lo voy a pensar")
 
 
+_MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
 def _norm(t: str | None) -> str:
     t = unicodedata.normalize("NFKD", (t or "").strip()).encode("ascii", "ignore").decode().lower()
     return " ".join(t.split())
@@ -330,7 +333,7 @@ def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
                      < datetime.combine(hasta, time.min)]
             return [{
                 "id": f"ops:{r.id}", "nombre": r.prospecto or "Sin nombre", "email": "",
-                "telefono": "", "ig": "", "origen": "Cargada en ATV Ops",
+                "telefono": "", "ig": "", "origen": "",
                 "closer": (r.closer or "").strip(), "setter": "",
                 "call": r.inicio_at, "agendo": None, "agendo_en": "ATV Ops",
                 "pago": r.cash_usd or 0.0, "debe": r.saldo_usd or 0.0,
@@ -1836,7 +1839,7 @@ def _con_cierres_de_sena(b: dict, diferidos: list[dict]) -> dict:
         b["closeRate"] = round(b["cierres"] / b["shows"] * 100, 1)
     filas = [{"id": f"sena-{d['id']}", "nombre": d["prospecto"] or "Sin nombre", "closer": _persona(d["closer"], "closer"),
               "fecha": (d["fechaAt"] or "")[:10] or None, "pagoUsd": d["cashUsd"], "deudaUsd": 0.0,
-              "programa": d["programa"], "resultado": "Cerrado", "estado": f"Cerrado · era seña de {(d['fechaAt'] or '')[:7]}"}
+              "programa": d["programa"], "resultado": "Cerrado", "estado": f"Cerrado · seña de {_MESES_CORTOS[int(d['fechaAt'][5:7]) - 1]}" if d.get("fechaAt") else "Cerrado · seña"}
              for d in diferidos]
     for clave in ("cierresDetalle", "ventasDetalle"):
         if clave in b:

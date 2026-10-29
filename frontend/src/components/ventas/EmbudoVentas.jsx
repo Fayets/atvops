@@ -45,16 +45,15 @@ function ListaPaso({ filas }) {
   return (
     <div className="ev-lista">
       <div className="ev-fila ev-cab">
-        <span>Prospecto</span><span>Call</span><span>Status</span><span>Closer</span><span>Origen</span><span className="right">Pagó</span>
+        <span>Prospecto</span><span>Call</span><span>Status</span><span>Closer</span><span className="right">Pagó</span>
       </div>
       <div className="ev-scroll">
         {filas.map((f) => (
           <div key={f.id} className="ev-fila">
             <span className="strong pl-corta">{f.nombre}</span>
             <span className="num dim">{f.fecha ? new Date(`${f.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—'}</span>
-            <span><span className={`pl-pill ${claseStatus(f.estado)}`}>{mayuscula(f.estado) || 'Falta cargar'}</span></span>
+            <span><span className={`pl-pill ${claseStatus(f.estado)}`} title={mayuscula(f.estado) || undefined}>{mayuscula(f.estado) || 'Falta cargar'}</span></span>
             <span>{f.closer || '—'}</span>
-            <span className="dim">{f.origen || '—'}</span>
             <span className={`right num${f.pagoUsd ? ' pl-cobrado' : ' dim'}`}>{f.pagoUsd ? usd(f.pagoUsd) : '—'}</span>
           </div>
         ))}

@@ -27,7 +27,7 @@ function Numero({ label, valor, nota, format = 'count', tono }) {
 }
 
 /** Una fuente del embudo: cuánto contenido salió y cuántas conversaciones trajo. */
-function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota }) {
+function Fuente({ titulo, volumen, volumenLabel, conversaciones }) {
   return (
     <div className="mkt-fuente">
       <div className="mkt-fuente-cab">
@@ -37,7 +37,6 @@ function Fuente({ titulo, volumen, volumenLabel, conversaciones, nota }) {
       <div className="mkt-fuente-valor num">
         {formatValue(conversaciones ?? 0, 'count')}
       </div>
-      <div className="dim mkt-fuente-nota">{nota}</div>
     </div>
   );
 }
@@ -103,13 +102,13 @@ export default function HomeMarketing({ decreto, contexto, instagram, conversaci
         <div className="mkt-fuentes">
           <Fuente titulo="Reels" volumen={(pReels.filas ?? []).length}
             volumenLabel={(pReels.filas ?? []).length === 1 ? 'reel con chats' : 'reels con chats'}
-            conversaciones={pReels.cuantos} nota="comentaron la palabra del reel" />
+            conversaciones={pReels.cuantos} />
           <Fuente titulo="Historias con CTA" volumen={conCta.length}
             volumenLabel={conCta.length === 1 ? 'secuencia' : 'secuencias'}
-            conversaciones={pHistorias.cuantos} nota="respuestas a las secuencias con CTA" />
+            conversaciones={pHistorias.cuantos} />
           {otras.map((o) => (
             <Fuente key={o.clave} titulo={o.fuente} volumen={(o.filas ?? []).length} volumenLabel=""
-              conversaciones={o.cuantos} nota={o.detalle ?? ''} />
+              conversaciones={o.cuantos} />
           ))}
         </div>
       </Card>
