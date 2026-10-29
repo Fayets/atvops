@@ -202,7 +202,6 @@ export default function WebinarDetalle({ modo } = {}) {
     try {
       if (esNuevo) {
         const w = await crearWebinar(payload());
-        localStorage.setItem('atv.webinar.activo', String(w.id));
         navigate(`/webinars/${w.id}`, { replace: true });
       } else {
         const w = await actualizarWebinar(id, payload());
@@ -236,7 +235,7 @@ export default function WebinarDetalle({ modo } = {}) {
     return (
       <div className="page">
         <ErrorState error={error} />
-        <Link to="/webinars" className="btn ghost">← Volver</Link>
+        <Link to={esNuevo ? '/webinars' : `/webinars?webinar=${id}`} className="btn ghost">← Volver</Link>
       </div>
     );
   }
@@ -255,7 +254,7 @@ export default function WebinarDetalle({ modo } = {}) {
         actions={(
           <div className="webinar-head-actions">
             {!esNuevo && <Pill tone={est.tone} dot>{est.label}</Pill>}
-            <Link to="/webinars" className="btn ghost">Embudo</Link>
+            <Link to={esNuevo ? '/webinars' : `/webinars?webinar=${id}`} className="btn ghost">Embudo</Link>
             <Link to="/webinars/listado" className="btn ghost">Listado</Link>
             <button type="button" className="btn primary" disabled={guardando} onClick={guardar}>
               {guardando ? 'Guardando…' : esNuevo ? 'Crear' : 'Guardar'}

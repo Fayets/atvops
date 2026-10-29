@@ -73,7 +73,6 @@ export default function WebinarFaseDetalle() {
         setWebinar(w);
         webinarRef.current = w;
         setError(null);
-        localStorage.setItem('atv.webinar.activo', String(w.id));
       })
       .catch((e) => vivo && setError(e))
       .finally(() => vivo && setCargando(false));
@@ -142,7 +141,7 @@ export default function WebinarFaseDetalle() {
     return (
       <div className="page">
         <ErrorState error={new Error('Esa fase no existe.')} />
-        <Link to="/webinars" className="btn ghost">← Embudo</Link>
+        <Link to={`/webinars?webinar=${id}`} className="btn ghost">← Embudo</Link>
       </div>
     );
   }
@@ -151,7 +150,7 @@ export default function WebinarFaseDetalle() {
     return (
       <div className="page">
         <ErrorState error={error} />
-        <Link to="/webinars" className="btn ghost">← Embudo</Link>
+        <Link to={`/webinars?webinar=${id}`} className="btn ghost">← Embudo</Link>
       </div>
     );
   }
@@ -169,7 +168,7 @@ export default function WebinarFaseDetalle() {
         desc={`${fase.desde} → ${fase.hasta}`}
         actions={(
           <div className="webinar-head-actions">
-            <Link to="/webinars" className="btn ghost">← Embudo</Link>
+            <Link to={`/webinars?webinar=${id}`} className="btn ghost">← Embudo</Link>
             <Link to={`/webinars/${id}`} className="btn ghost">Configurar</Link>
           </div>
         )}

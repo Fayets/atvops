@@ -188,7 +188,12 @@ export default function Sidebar() {
     setPreview(null);
     window.location.assign('/backbone');
   }
-  const nav = filtrarNav(NAV, rol);
+  const filtrado = filtrarNav(NAV, rol);
+  // El director de ventas ve Ventas primero: los webinars son una parte de su embudo, no
+  // su área (Franco, 29-10-2026). Para el resto el orden queda como está.
+  const nav = rol === 'ventas'
+    ? [...filtrado].sort((x, y) => Number(y.to === '/ventas') - Number(x.to === '/ventas'))
+    : filtrado;
   // Agrupado para que la barra se lea de un vistazo: dónde estoy, las áreas del negocio,
   // lo que sirve para decidir y lo del sistema.
   const grupos = ORDEN_GRUPOS

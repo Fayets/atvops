@@ -1,20 +1,39 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Pill from '../components/ui/Pill.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import WebinarEmbudo, { FunnelMathBar } from '../components/webinars/WebinarEmbudo.jsx';
 import { getWebinar, getWebinars } from '../data/api.js';
 import { BENCHMARKS_COLD, fasesDeWebinar, proyeccionDesdeMeta } from '../lib/webinarFases.js';
 
-const LS_KEY = 'atv.webinar.activo';
+const ESTADO = {
+  en_vivo: ['En vivo', 'alert'], configurado: ['Próximo', 'warn'], finalizado: ['Terminado', 'off'], borrador: ['Borrador', 'off'],
+};
+// Lo que está pasando arriba, lo que ya pasó abajo.
+const ORDEN_ESTADO = ['en_vivo', 'configurado', 'finalizado', 'borrador'];
+const fecha = (s) => {
+  if (!s) return 'Sin fecha';
+  const d = new Date(s.replace(' ', 'T'));
+  const dia = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)} · ${hora}`;
+};
 
 /**
- * Home de Webinars: selector de listado arriba → embudo del webinar elegido.
+ * Home de Webinars: primero se elige el webinar, después se ve su embudo.
+ *
+ * Antes abría solo el último que se había mirado, aunque ya hubiera terminado: el
+ * director entraba y lo primero que cargaba era un webinar viejo (Franco, 29-10-2026).
+ * El elegido va en la dirección (`?webinar=`): recargar o volver desde una fase lo
+ * mantiene, y entrar desde el menú vuelve a preguntar.
  */
 export default function Webinars() {
   const [lista, setLista] = useState([]);
-  const [activoId, setActivoId] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const activoId = Number(params.get('webinar')) || null;
+  const setActivoId = (id) => setParams(id ? { webinar: String(id) } : {});
   const [detalle, setDetalle] = useState(null);
   const [metaCash, setMetaCash] = useState('');
   const [cargando, setCargando] = useState(true);
@@ -29,9 +48,6 @@ export default function Webinars() {
         if (!vivo) return;
         setLista(w);
         setError(null);
-        const guardado = Number(localStorage.getItem(LS_KEY) || 0);
-        const existe = w.some((x) => x.id === guardado);
-        setActivoId(existe ? guardado : (w[0]?.id ?? null));
       })
       .catch((e) => vivo && setError(e))
       .finally(() => vivo && setCargando(false));
@@ -45,7 +61,6 @@ export default function Webinars() {
     }
     let vivo = true;
     setCargandoDetalle(true);
-    localStorage.setItem(LS_KEY, String(activoId));
     getWebinar(activoId)
       .then((w) => { if (vivo) setDetalle(w); })
       .catch((e) => vivo && setError(e))
@@ -80,6 +95,9 @@ export default function Webinars() {
     });
   }, [metaCash, detalle, fases]);
 
+  const ordenados = [...lista].sort((x, y) => (ORDEN_ESTADO.indexOf(x.estado) - ORDEN_ESTADO.indexOf(y.estado))
+    || (y.fechaHora || '').localeCompare(x.fechaHora || ''));
+
   if (error) {
     return <div className="page"><ErrorState error={error} /></div>;
   }
@@ -112,9 +130,10 @@ export default function Webinars() {
           <span className="wb-listado-lab">Listado</span>
           <select
             value={activoId || ''}
-            onChange={(e) => setActivoId(Number(e.target.value))}
+            onChange={(e) => setActivoId(Number(e.target.value) || null)}
             aria-label="Elegir webinar del listado"
           >
+            <option value="">Elegí un webinar</option>
             {lista.map((w) => (
               <option key={w.id} value={w.id}>{w.nombre}</option>
             ))}
@@ -128,7 +147,23 @@ export default function Webinars() {
         </div>
       </div>
 
-      {cargandoDetalle || !detalle ? (
+      {!activoId ? (
+        <section className="wb-elegir">
+          <h2>¿Qué webinar querés ver?</h2>
+          <div className="wb-elegir-lista">
+            {ordenados.map((w) => {
+              const [etiqueta, tono] = ESTADO[w.estado] ?? [w.estado, 'off'];
+              return (
+                <button key={w.id} type="button" className="wb-elegir-item" onClick={() => setActivoId(w.id)}>
+                  <span className="wb-elegir-nombre">{w.nombre}</span>
+                  <span className="dim wb-elegir-fecha">{fecha(w.fechaHora)}</span>
+                  <Pill tone={tono}>{etiqueta}</Pill>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : cargandoDetalle || !detalle ? (
         <SkeletonBlock height={360} />
       ) : (
         <>

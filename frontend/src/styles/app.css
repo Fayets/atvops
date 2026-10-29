@@ -7108,6 +7108,20 @@ body.gate-abierto .shell { display: none; }
 /* --- embudo home (Linear/Emil: soft shadow, no clip que corta texto) --- */
 .wb-home .page-head { margin-bottom: var(--space-4); }
 
+/* El selector del home de Webinars: nada carga hasta elegir uno. */
+.wb-elegir { display: grid; gap: var(--space-4); max-width: 760px; }
+.wb-elegir h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.wb-elegir-lista { display: grid; gap: var(--space-2); }
+.wb-elegir-item { font: inherit; color: inherit; text-align: left; cursor: pointer; display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nombre estado" "fecha estado";
+  align-items: center; gap: 2px 16px; padding: 14px 18px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); }
+.wb-elegir-item:hover { border-color: var(--text-3); }
+.wb-elegir-item:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.wb-elegir-nombre { grid-area: nombre; font-size: 15px; font-weight: 600; }
+.wb-elegir-fecha { grid-area: fecha; font-size: 12.5px; }
+.wb-elegir-item > :last-child { grid-area: estado; }
+
 .wb-topbar {
   display: flex;
   align-items: center;

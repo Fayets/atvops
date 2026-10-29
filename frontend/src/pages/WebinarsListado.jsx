@@ -138,11 +138,7 @@ export default function WebinarsListado() {
                 </div>
                 <footer className="webinar-card-foot">
                   <Link to={`/webinars/${w.id}`} className="btn sm">Configurar</Link>
-                  <Link
-                    to="/webinars"
-                    className="btn ghost sm"
-                    onClick={() => localStorage.setItem('atv.webinar.activo', String(w.id))}
-                  >
+                  <Link to={`/webinars?webinar=${w.id}`} className="btn ghost sm">
                     Ver embudo
                   </Link>
                   <button type="button" className="btn ghost sm" disabled={ocupado === w.id}
