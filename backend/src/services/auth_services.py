@@ -273,6 +273,8 @@ def ensure_reunion_crm_columns() -> None:
         ("cierre_at", "TIMESTAMP"), ("cierre_por", "TEXT"),
         # La vista Theo: el reporte se puede editar o frenar antes de que salga al grupo.
         ("reporte_editado_por", "TEXT"), ("reporte_frenado_por", "TEXT"),
+        # El programa ofrecido en la llamada, aparte del comprado: no toca la plata.
+        ("programa_propuesto", "TEXT"),
     ]
     if ES_POSTGRES:
         import psycopg2

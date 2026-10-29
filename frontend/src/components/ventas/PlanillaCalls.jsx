@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import CerrarSena from './CerrarSena.jsx';
 import { FormResultado } from './ListaLlamadas.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
 import {
-  CeldaCash, SelectCloser, SelectPrograma, SelectStatus, closerDe, statusDe, useLlamada,
+  CeldaCash, MoverLlamada, SelectCloser, SelectPrograma, SelectStatus, closerDe, enSena, statusDe, useLlamada,
 } from './CeldasLlamada.jsx';
 import { formatValue } from '../../lib/format.js';
 
@@ -42,6 +43,12 @@ const fechaCorta = (iso) => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 const usd = (n) => (n ? formatValue(n, 'usd') : '—');
+// Muchas fichas guardan el perfil entero ("https://www.instagram.com/usuario/"): se
+// muestra el usuario, que es lo que se lee y lo que entra en la columna.
+const usuarioIg = (ig) => {
+  const limpio = (ig || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@/, '');
+  return limpio ? `@${limpio}` : '';
+};
 
 function leerColumnas() {
   try {
@@ -65,12 +72,12 @@ function Fila({ l, datos, ver, mes, onRecargar, onAbrir }) {
           </button>
           {l.segunda && <span className="pl-segunda" title="Segunda reunión con el mismo prospecto">2ª</span>}
         </th>
-        {ver.has('ig') && <td className="dim pl-corta">{l.instagram ? `@${l.instagram}` : '—'}</td>}
-        {ver.has('tel') && <td className="dim num">{l.telefono || '—'}</td>}
-        {ver.has('email') && <td className="dim pl-corta">{l.email || '—'}</td>}
+        {ver.has('ig') && <td className="dim pl-corta pl-c-ig" title={l.instagram || undefined}>{usuarioIg(l.instagram) || '—'}</td>}
+        {ver.has('tel') && <td className="dim num pl-corta pl-c-tel" title={l.telefono || undefined}>{l.telefono || '—'}</td>}
+        {ver.has('email') && <td className="dim pl-corta pl-c-email" title={l.email || undefined}>{l.email || '—'}</td>}
         <td>{descartada ? <span className="pl-pill st-descartada">Descartada</span>
           : <SelectStatus llamada={l} estados={datos.estados} f={f} />}</td>
-        {ver.has('origen') && <td className="dim">{l.origen || '—'}</td>}
+        {ver.has('origen') && <td className="dim pl-corta pl-c-origen" title={l.origen || undefined}>{l.origen || '—'}</td>}
         {ver.has('ads') && <td>{l.vinoDeAds ? 'Sí' : <span className="dim">—</span>}</td>}
         {ver.has('agendo') && <td className="dim num">{fechaCorta(l.agendoAt)}</td>}
         <td className="num">{fechaCall(l.fechaAt)}</td>
@@ -84,7 +91,7 @@ function Fila({ l, datos, ver, mes, onRecargar, onAbrir }) {
                 : <span className="dim">—</span>}
           </td>
         )}
-        {ver.has('programa') && <td><SelectPrograma programas={datos.programas} f={f} /></td>}
+        {ver.has('programa') && <td><SelectPrograma llamada={l} programas={datos.programas} f={f} /></td>}
         {ver.has('pago') && <td className="right"><CeldaCash llamada={l} f={f} /></td>}
         {ver.has('debe') && <td className={`right num${l.saldoUsd > 0 ? ' pl-debe' : ' dim'}`}>{usd(l.saldoUsd)}</td>}
       </tr>
@@ -321,6 +328,11 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
               </div>
               <button type="button" className="btn ghost" onClick={() => setFicha(null)}>Cerrar</button>
             </header>
+            {/* Una seña de un mes pasado que terminó de cerrar: el cash va al mes en que entró. */}
+            {enSena(fichaAbierta) && (
+              <CerrarSena llamada={fichaAbierta} mes={mes} onGuardado={() => { setFicha(null); onRecargar(); }} />
+            )}
+            <MoverLlamada llamada={fichaAbierta} onGuardado={() => { setFicha(null); onRecargar(); }} />
             <FormResultado
               llamada={fichaAbierta}
               programas={datos.programas}

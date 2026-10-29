@@ -200,6 +200,7 @@ def _a_dict(r) -> dict:
         "fechaOriginal": r.inicio_at,
         "pago": r.cash_usd or 0.0, "debe": r.saldo_usd or 0.0,
         "ingresos_rango": r.ingresos_rango or "", "programa_ofrecido": (r.programa or "").strip(),
+        "programa_propuesto": (r.programa_propuesto or "").strip(),
         "vino_de_ads": bool(r.vino_de_ads), "notas": r.titulo or "",
         "created_at": r.lead_creado_at, "closer_report": (r.nota or "").strip(),
         "link_llamada": r.link_llamada or "",

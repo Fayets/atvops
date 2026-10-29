@@ -37,7 +37,7 @@ export default function VentasOperativaPage() {
   if (error) return <div className="page"><ErrorState error={error} /></div>;
 
   return (
-    <div className="page ventas-page">
+    <div className="page ventas-page pagina-ancha">
       <div className="pag-acciones">
         <button className="btn" onClick={actualizar} disabled={loading || sincronizando}>
           <span className={`recargar-icono${loading || sincronizando ? ' girando' : ''}`}>⟳</span> Actualizar

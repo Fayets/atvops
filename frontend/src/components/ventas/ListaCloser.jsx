@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import CerrarSena from './CerrarSena.jsx';
 import { FormResultado } from './ListaLlamadas.jsx';
-import { CeldaCash, SelectPrograma, SelectStatus, statusDe, useLlamada } from './CeldasLlamada.jsx';
+import {
+  CeldaCash, MoverLlamada, SelectPrograma, SelectStatus, enSena, statusDe, useLlamada,
+} from './CeldasLlamada.jsx';
 import { formatValue } from '../../lib/format.js';
 
 /**
@@ -26,7 +29,7 @@ function Fila({ l, datos, mes, activa, onAbrir, onActualizado }) {
       </button>
       <span>{l.estado === 'descartada' ? <span className="pl-pill st-descartada">Descartada</span>
         : <SelectStatus llamada={l} estados={datos.estados} f={f} />}</span>
-      <span><SelectPrograma programas={datos.programas} f={f} /></span>
+      <span><SelectPrograma llamada={l} programas={datos.programas} f={f} /></span>
       <span className="dim lc-origen" title={l.origen}>{l.origen || '—'}</span>
       <span className="right"><CeldaCash llamada={l} f={f} /></span>
       {(f.error || f.faltaPrograma) && (
@@ -78,6 +81,8 @@ function Ficha({ l, datos, mes, onActualizado }) {
           {l.grabacion && <a className="btn sm" href={l.grabacion} target="_blank" rel="noreferrer">Link de la call ↗</a>}
         </div>
       )}
+      {enSena(l) && <CerrarSena key={`sena-${l.id}`} llamada={l} mes={mes} onGuardado={() => onActualizado()} />}
+      {l.estado !== 'descartada' && <MoverLlamada key={`mover-${l.id}`} llamada={l} onGuardado={() => onActualizado()} />}
       {l.estado !== 'descartada' && (
         <FormResultado
           key={l.id}

@@ -11,12 +11,18 @@
   --ev-capa-4: #786f68;
 }
 
+/* Las listas usan todo el ancho: con el tope de 1360px de .page la planilla quedaba
+   corrida y el nombre tapaba IG, Tel, Email y Status. */
+.page.pagina-ancha { max-width: none; padding-left: var(--space-4); padding-right: var(--space-4); }
+
 /* ---------------------------------------------------------------- status */
 
 .sel-status {
-  font: inherit; font-size: 12.5px; font-weight: 600; padding: 4px 8px; border: 1px solid transparent;
-  border-radius: 6px; background: var(--surface-2); color: var(--text-2); cursor: pointer; max-width: 150px;
+  font: inherit; font-size: 12px; font-weight: 600; padding: 3px 6px; border: 1px solid transparent;
+  border-radius: 6px; background: var(--surface-2); color: var(--text-2); cursor: pointer; max-width: 140px;
 }
+.sel-programa { font-weight: 500; background: var(--surface); border-color: var(--border); color: var(--text); }
+.sel-programa.vacio { color: var(--text-3); border-color: var(--border-soft); }
 .sel-status:disabled { opacity: 0.55; cursor: default; }
 .sel-status.pendiente { border-color: var(--warn); background: var(--warn-dim); color: var(--warn); }
 .sel-closer { font-weight: 500; background: var(--surface); border-color: var(--border); color: var(--text); }
@@ -39,6 +45,12 @@
 .pl-cobrado { color: var(--ok); }
 .pl-debe { color: var(--warn); }
 .pl-corta { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Mover la llamada al día en que se tomó: una fila, sin abrir nada más. */
+.mover-llamada { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.mover-llamada label { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
+.mover-llamada input { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: 7px; background: var(--surface); color: var(--text); }
 
 /* ---------------------------------------------------------------- barras */
 
@@ -89,24 +101,32 @@
 .pl-menu .pl-check { display: flex; align-items: center; gap: 8px; color: var(--text); }
 
 .pl-scroll { overflow: auto; max-height: 72vh; }
-.pl-tabla { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.pl-tabla { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
 .pl-tabla thead th { position: sticky; top: 0; z-index: 3; background: var(--surface-2); text-align: left;
   font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3);
-  padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.pl-tabla td, .pl-tabla tbody th { padding: 6px 10px; border-bottom: 1px solid #efebe4; white-space: nowrap;
+  padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.pl-tabla td, .pl-tabla tbody th { padding: 5px 6px; border-bottom: 1px solid #efebe4; white-space: nowrap;
   text-align: left; font-weight: 400; background: var(--surface); }
 .pl-tabla .right { text-align: right; }
-.pl-tabla .pl-nombre { position: sticky; left: 0; z-index: 2; min-width: 200px; max-width: 240px;
-  border-right: 1px solid var(--border-soft); padding-left: 16px; }
+.pl-tabla .pl-nombre { position: sticky; left: 0; z-index: 2; min-width: 150px; max-width: 190px;
+  border-right: 1px solid var(--border-soft); padding-left: 14px; }
 .pl-tabla thead .pl-nombre { z-index: 4; }
 .pl-abrir { font: inherit; font-weight: 600; color: var(--text); background: none; border: 0; padding: 0;
-  cursor: pointer; text-align: left; max-width: 190px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  cursor: pointer; text-align: left; max-width: 160px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .pl-abrir:hover { color: var(--brand); text-decoration: underline; }
 .pl-tabla tr.descartada td, .pl-tabla tr.descartada th { opacity: 0.55; }
 .pl-tabla .pl-grupo th { position: sticky; left: 0; background: #fbfaf7; font-size: 12.5px; font-weight: 600;
   text-transform: capitalize; padding: 7px 16px; border-bottom: 1px solid #efebe4; }
 .pl-tabla .pl-aviso td { background: var(--surface-2); font-size: 12px; padding: 5px 16px; }
-.pl-tabla .cash-celda { width: 86px; }
+.pl-tabla .cash-celda { width: 70px; font-size: 12px; padding: 3px 6px; }
+/* Topes por columna para que la planilla entre en la pantalla; el texto entero va en el
+   title de la celda. */
+.pl-tabla .pl-c-ig { max-width: 120px; }
+.pl-tabla .pl-c-email { max-width: 165px; }
+.pl-tabla .pl-c-origen { max-width: 110px; }
+.pl-tabla .pl-c-tel { max-width: 105px; }
+.pl-tabla .sel-closer, .pl-tabla .sel-programa { max-width: 108px; }
+.pl-tabla .sel-status { max-width: 116px; }
 .pl-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px;
   padding: 10px 16px; border-top: 1px solid var(--border-soft); font-size: 12px; }
 .modal-card.pl-ficha { width: min(620px, 96vw); padding: var(--space-5); display: grid; gap: var(--space-4); }

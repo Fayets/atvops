@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { asignarCloserLlamada, descartarLlamada, guardarResultadoLlamada } from '../../data/api.js';
+import {
+  asignarCloserLlamada, descartarLlamada, guardarResultadoLlamada, moverReunion, ofrecerProgramaLlamada,
+} from '../../data/api.js';
 import '../../styles/llamadas.css';
 
 /**
@@ -113,11 +115,19 @@ export function useLlamada(llamada, { estados, mes, lista = true, onGuardado }) 
     v, esVenta, faltaPrograma, guardando, error,
     setBorrador,
     guardar,
-    // Elegir status: los que no son venta limpian programa y cash, como en el servidor.
+    // Elegir status: los que no son venta limpian programa y cash, como en el servidor. Una
+    // venta toma el programa que ya se había ofrecido: así no se frena a pedirlo.
     elegir: (valor) => {
       if (!valor) { setBorrador(null); setError(null); return; }
-      guardar({ resultado: valor, ...(VENTA.includes(valor) ? {} : { programa: '', cashUsd: '' }) });
+      guardar({
+        resultado: valor,
+        ...(VENTA.includes(valor)
+          ? { programa: v.programa || llamada.programaOfrecido || '' }
+          : { programa: '', cashUsd: '' }),
+      });
     },
+    // El programa ofrecido, en una llamada que no es venta: va aparte del comprado.
+    ofrecer: (programa) => correr(() => ofrecerProgramaLlamada(llamada.id, programa, mes, { lista })),
     // Quién tomó la llamada. Una llamada del calendario nace sin dueño, y hasta que
     // alguien lo diga no cuenta para nadie. Se puede asignar antes de que pase.
     asignar: (nombre) => correr(() => asignarCloserLlamada(llamada.id, nombre, mes, { lista })),
@@ -143,18 +153,23 @@ export function SelectStatus({ llamada, estados, f, compacto = false }) {
   );
 }
 
-/** El programa: solo se elige cuando la llamada es una venta. */
-export function SelectPrograma({ programas, f }) {
-  if (!f.esVenta) return <span className="dim">{f.v.programa || '—'}</span>;
+/**
+ * El programa, en cualquier llamada. En una venta es el que compró (da precio y saldo);
+ * en las demás, el que se le ofreció, que se guarda aparte y no toca la plata. Al marcar
+ * la venta, el ofrecido pasa a ser el comprado.
+ */
+export function SelectPrograma({ llamada, programas, f }) {
+  const valor = f.esVenta ? f.v.programa : (llamada.programaOfrecido || '');
   return (
     <select
-      className={`sel-status${f.faltaPrograma ? ' st-faltacargar pendiente' : ''}`}
-      value={f.v.programa}
-      disabled={f.guardando}
-      aria-label="Programa"
-      onChange={(e) => f.guardar({ programa: e.target.value })}
+      className={`sel-status sel-programa${f.faltaPrograma ? ' st-faltacargar pendiente' : ''}${valor ? '' : ' vacio'}`}
+      value={valor}
+      disabled={f.guardando || llamada.estado === 'descartada'}
+      aria-label={f.esVenta ? 'Programa que compró' : 'Programa que se le ofreció'}
+      title={f.esVenta ? 'Programa que compró' : 'Programa que se le ofreció'}
+      onChange={(e) => (f.esVenta ? f.guardar({ programa: e.target.value }) : f.ofrecer(e.target.value))}
     >
-      <option value="">Elegí el programa</option>
+      <option value="">{f.esVenta ? 'Elegí el programa' : '—'}</option>
       {programas.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
     </select>
   );
@@ -174,6 +189,50 @@ export function SelectCloser({ llamada, equipo, f }) {
       <option value="">¿Quién la tomó?</option>
       {equipo.map((n) => <option key={n} value={n}>{n}</option>)}
     </select>
+  );
+}
+
+/** Si la llamada quedó en seña: es la única que se puede cerrar después, en otro mes. */
+export const enSena = (llamada) => ['seña', 'sena'].includes((llamada.resultado || '').trim().toLowerCase());
+
+/**
+ * La llamada que se tomó otro día que el del calendario —la del sábado que terminó siendo
+ * el viernes, la del 30 que se hizo el 2—. Cambia el día en que cuenta en ATV Ops; Google
+ * Calendar no se toca. Era el arrastre del calendario viejo, que la planilla reemplazó.
+ */
+export function MoverLlamada({ llamada, onGuardado }) {
+  const actual = (llamada.fechaAt || '').slice(0, 10);
+  const [dia, setDia] = useState(actual);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState(null);
+  // El mover trabaja con el id de la reunión: el del evento de Google, o el propio.
+  const id = llamada.eventoId
+    || (String(llamada.id).startsWith('ops:') ? `manual:${String(llamada.id).slice(4)}` : `lead:${llamada.id}`);
+
+  const mover = async () => {
+    setGuardando(true);
+    setError(null);
+    try {
+      await moverReunion(id, dia);
+      onGuardado();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="mover-llamada">
+      <label>
+        <span>Se tomó otro día</span>
+        <input type="date" value={dia} onChange={(e) => setDia(e.target.value)} disabled={guardando} />
+      </label>
+      <button type="button" className="btn sm" onClick={mover} disabled={guardando || !dia || dia === actual}>
+        {guardando ? 'Moviendo…' : 'Mover'}
+      </button>
+      {error && <span className="ronda-evento error">{error}</span>}
+    </div>
   );
 }
 

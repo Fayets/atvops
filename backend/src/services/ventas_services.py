@@ -1653,6 +1653,9 @@ def _fila_llamada(l: dict, ahora: datetime, hoy: date, precios: dict) -> dict:
         "reprogramada": bool(l.get("reprogramada")),
         "eventoId": l.get("eventoId") or "",
         "programa": programa,
+        # El que se ofreció, aunque no haya venta. La lista lo muestra en las llamadas que
+        # no son venta; al marcarla Cerrado o Seña pasa a ser el comprado.
+        "programaOfrecido": (l.get("programa_propuesto") or "").strip(),
         "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
         "cashUsd": _num(l["pago"]), "saldoUsd": _saldo_finito(l),
         "notas": (l["notas"] or "").strip(), "reporte": (l["closer_report"] or "").strip(),
@@ -2403,6 +2406,47 @@ def asignar_closer(lead_id: int | str, closer: str, usuario: dict, mes: str | No
     _olvidar_meses()
     return _lista_despues_de_guardar(usuario, mes) if con_lista else {
         "guardado": True, "id": int(lead_id), "closer": nombre}
+
+
+def ofrecer_programa(lead_id: int | str, programa: str, usuario: dict, mes: str | None = None,
+                     con_lista: bool = True) -> dict:
+    """Anotar qué programa se ofreció en la llamada, sin cargarle el resultado.
+
+    Es el "Prog. ofrecido" de la lista de atv-mkt. Va aparte del programa comprado a
+    propósito: ese da el precio, el saldo y las métricas por programa, y una llamada que
+    no es venta lo deja vacío. Si se guardara ahí, una llamada en seguimiento figuraría
+    debiendo el precio entero del programa.
+
+    Vacío lo borra.
+    """
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cargar llamadas.")
+
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    nombre = str(programa or "").strip()[:120]
+    if nombre:
+        # Solo programas del catálogo: uno tipeado a mano no coincide con el de las ventas.
+        canonico = next((p["nombre"] for p in programas() if _norm(p["nombre"]) == _norm(nombre)), "")
+        if not canonico:
+            raise HTTPException(status_code=400, detail="Ese programa no está en el catálogo.")
+        nombre = canonico
+
+    lead_id, evento_de_la_ficha = _ficha_para(lead_id, usuario)
+    quien = (usuario.get("username") or "")[:80]
+    with db_session:
+        fila = (ReunionCrm.get(evento_id=evento_de_la_ficha) if evento_de_la_ficha else None) \
+            or _fila_del_lead(int(lead_id))
+        if fila is None:
+            raise HTTPException(status_code=404, detail="No encontré esa llamada.")
+        fila.programa_propuesto = nombre or None
+        fila.actualizado_por = quien
+        fila.actualizado_at = datetime.utcnow()
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {
+        "guardado": True, "id": int(lead_id), "programaOfrecido": nombre}
 
 
 def cerrar_sena(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,

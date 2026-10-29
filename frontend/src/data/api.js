@@ -784,6 +784,19 @@ export async function asignarCloserLlamada(leadId, closer, mes, { lista = true }
   });
 }
 
+/** El programa que se ofreció en la llamada, sin cargarle el resultado. Vacío lo borra. */
+export async function ofrecerProgramaLlamada(leadId, programa, mes, { lista = true } = {}) {
+  const p = new URLSearchParams();
+  if (mes) p.set('mes', mes);
+  if (!lista) p.set('lista', 'false');
+  const q = p.toString() ? `?${p}` : '';
+  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/programa-ofrecido${q}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ programa }),
+  });
+}
+
 export async function guardarResultadoLlamada(leadId, payload, mes, { lista = true } = {}) {
   // El id puede ser "cal:<evento>": una reunión del calendario que el backend crea en el CRM al guardar.
   // El mes viaja para que la lista que vuelve sea la del período que se está mirando.

@@ -325,6 +325,10 @@ class ReunionCrm(db.Entity):
     es_venta = Required(bool, default=True)
     closer = Optional(str)
     programa = Optional(str)
+    # El programa que se ofreció en la llamada, haya venta o no (el "Prog. ofrecido" de
+    # atv-mkt). `programa` es el que se compró: es el que da precio, saldo y métricas por
+    # programa, y por eso una llamada que no es venta lo deja vacío. Este no toca la plata.
+    programa_propuesto = Optional(str, nullable=True)
     cash_usd = Optional(float)
     saldo_usd = Optional(float)
     nota = Optional(str)

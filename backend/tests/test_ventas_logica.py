@@ -409,3 +409,24 @@ def test_la_lista_de_todas_las_llamadas_no_filtra_por_closer(monkeypatch):
     # Las tres reuniones de venta, sin la repetida ni la interna, y la que no tiene dueño también.
     assert sorted(x["id"] for x in r["llamadas"]) == [1, 2, 3]
     assert r["equipo"] == ["Nick", "Cris"]
+
+
+# ------------------------------------------------------------------ programa ofrecido
+
+def test_la_fila_trae_el_programa_ofrecido_aparte_del_comprado():
+    f = v._fila_llamada(_llamada(programa_propuesto="Boost", resultado="seguimiento"), AHORA, AHORA.date(), {})
+    assert f["programaOfrecido"] == "Boost" and f["programa"] == ""
+
+
+def test_el_programa_ofrecido_tiene_que_ser_del_catalogo(monkeypatch):
+    monkeypatch.setattr(v, "programas", lambda: [{"nombre": "Boost", "precioUsd": 20000}])
+    with pytest.raises(v.HTTPException) as e:
+        v.ofrecer_programa("cal:x", "Un programa inventado", {"rol": "ventas", "username": "lucas"})
+    assert e.value.status_code == 400
+
+
+@pytest.mark.parametrize("rol", ["marketing", "csm"])
+def test_ofrecer_programa_es_de_quien_carga_llamadas(rol):
+    with pytest.raises(v.HTTPException) as e:
+        v.ofrecer_programa("cal:x", "Boost", {"rol": rol, "username": "x"})
+    assert e.value.status_code == 403

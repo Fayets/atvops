@@ -38,7 +38,7 @@ class _Fila:
                     setter=None, origen=None, calificacion=None, segunda=False, titulo=None,
                     url=None, link_llamada=None, fathom_url=None, agendo_at=None, agendo_en=None,
                     ingresos_rango=None, vino_de_ads=False, lead_creado_at=None,
-                    resultado="", closer="", programa="", cash_usd=0.0, saldo_usd=0.0,
+                    resultado="", closer="", programa="", programa_propuesto=None, cash_usd=0.0, saldo_usd=0.0,
                     nota="", descartada=False, movida_at=None, movida_por=None,
                     cierre_mes=None, cierre_cash_usd=0.0, sincronizado_at=None)
         base.update(kw)
