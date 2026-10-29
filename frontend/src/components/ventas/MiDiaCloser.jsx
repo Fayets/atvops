@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import DetalleMetrica from './DetalleMetrica.jsx';
-import RendimientoCloser from './RendimientoCloser.jsx';
 import { formatValue } from '../../lib/format.js';
 
 const pct = (v) => (v == null ? '—' : `${v}%`);
@@ -18,7 +17,7 @@ function Kpi({ label, valor, nota, tono, onVer }) {
   );
 }
 
-/** Mi día: los números del mes del closer y cómo viene el mes en gráficos. */
+/** Mi día: los números del mes del closer. Abajo va el embudo, que arma la página. */
 export default function MiDiaCloser({ data }) {
   const { mes = {}, llamadas = [] } = data ?? {};
   const [detalle, setDetalle] = useState(null);
@@ -121,8 +120,6 @@ export default function MiDiaCloser({ data }) {
           nota={`${formatValue(mes.cashUsd ?? 0, 'usd')} de cash sobre ${mes.cierres ?? 0} ${mes.cierres === 1 ? 'cierre' : 'cierres'}`}
           onVer={ver('AOV', 'El cash del mes dividido por los cierres. Las señas suman al cash pero no son un cierre, así que no entran al divisor.', [...cerradas, ...senasCerradas], dinero, 'Cash')} />
       </div>
-
-      <RendimientoCloser mes={mes} closer={data?.closer} />
 
       {detalle && <DetalleMetrica {...detalle} onCerrar={() => setDetalle(null)} />}
 

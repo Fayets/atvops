@@ -898,6 +898,11 @@ export async function guardarDecretoEnServidor(mes, decreto) {
 }
 
 /** El embudo de setting del mes: chats, pitches, agendas y shows. */
+/** El embudo del director con las llamadas del closer logueado (Mi día). */
+export async function getMiEmbudo(mes) {
+  return pedir(`/api/ventas/mi-embudo${mes ? `?mes=${mes}` : ''}`);
+}
+
 export async function getEmbudoSetting(mes) {
   return pedir(`/api/ventas/setting${mes ? `?mes=${mes}` : ''}`);
 }

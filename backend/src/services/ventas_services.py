@@ -1826,6 +1826,49 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     }
 
 
+def embudo_closer(usuario: dict, mes: str | None = None) -> dict:
+    """El embudo del director con las llamadas de un closer: lo que ve en Mi día.
+
+    Las llamadas se eligen como en `mis_llamadas` —las suyas, y las huérfanas solo si es
+    el único closer— para que el embudo cuente lo mismo que los números de arriba. Los
+    chats y las conversaciones son del equipo: el setter no le abre chats a un closer.
+    """
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    mes = mes or ahora.date().strftime("%Y-%m")
+    try:
+        anio, m = int(mes[:4]), int(mes[5:7])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="El mes va como AAAA-MM.") from None
+    inicio_mes = date(anio, m, 1)
+    fin_mes = date(anio + (m == 12), (m % 12) + 1, 1)
+    inicio_previo = date(anio - (m == 1), 12 if m == 1 else m - 1, 1)
+
+    nombres = [n for n in _nombres_crm(usuario) if n]
+    mios = {_norm(n) for n in nombres}
+    un_solo_closer = len(equipo_services.listar("closer")) <= 1
+    internas = no_son_de_venta()
+    suyas = []
+    for f in _sumar_reuniones_del_calendario(inicio_previo, fin_mes):
+        if str(f.get("eventoId") or "") in internas:
+            continue
+        sin_closer = not (f.get("closer") or "").strip()
+        if _norm(f.get("closer")) in mios or (sin_closer and un_solo_closer and mios):
+            suyas.append(f)
+
+    del_mes = [f for f in suyas if inicio_mes <= f["call"].date() < fin_mes]
+    previos = [f for f in suyas if inicio_previo <= f["call"].date() < inicio_mes]
+    diferidos = cierres_diferidos(inicio_mes, fin_mes, set(nombres)) if nombres else []
+    equipo = resumen(mes)
+    return {
+        "mes": mes,
+        "closer": nombres[0] if nombres else None,
+        "actual": _con_cierres_de_sena(_bloque(del_mes, ahora, detalle=True), diferidos),
+        "previo": _bloque(previos, ahora),
+        "topFunnel": equipo.get("topFunnel", {}),
+        "settersMes": equipo.get("settersMes", []),
+    }
+
+
 def _con_cierres_de_sena(b: dict, diferidos: list[dict]) -> dict:
     """Suma al bloque las señas de meses anteriores que terminaron de cerrar en el período.
 

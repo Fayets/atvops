@@ -137,6 +137,15 @@ export function mesId(fecha = ahora()) {
 }
 
 /** 'Septiembre 2026' (mes AR). */
+/** "2026-09" → "2026-08". */
+export function mesAnterior(ym) {
+  const [a, m] = ym.split('-').map(Number);
+  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
+}
+
+/** "2026-09" → "septiembre". */
+export const nombreDelMes = (ym) => new Date(`${ym}-15T12:00:00`).toLocaleDateString('es-AR', { month: 'long' });
+
 export function nombreMesAnio(fecha = ahora()) {
   const p = partesAR(fecha);
   return `${MESES_LARGOS[Number(p.month) - 1]} ${p.year}`;

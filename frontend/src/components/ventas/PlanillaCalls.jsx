@@ -30,7 +30,11 @@ const OPCIONALES = [
   ['agendo', 'Agendó'], ['dias', 'Días p/ agendar'], ['setter', 'Setter'], ['closer', 'Closer'],
   ['link', 'Link'], ['programa', 'Programa'], ['pago', 'Pagó'], ['debe', 'Debe'],
 ];
-const CLAVE_COLUMNAS = 'atv-ops:planilla-calls:columnas';
+// Las que arrancan escondidas: el origen y los días ocupan lugar y casi no se miran. Están
+// en la ficha y se pueden volver a prender en Columnas.
+const OCULTAS = ['origen', 'dias'];
+// v2: con la clave vieja quedaban guardadas las columnas que ahora arrancan escondidas.
+const CLAVE_COLUMNAS = 'atv-ops:planilla-calls:columnas:v2';
 
 const fechaCall = (iso) => {
   const d = new Date(iso);
@@ -57,7 +61,7 @@ function leerColumnas() {
   } catch {
     /* sin localStorage van todas */
   }
-  return new Set(OPCIONALES.map(([k]) => k));
+  return new Set(OPCIONALES.map(([k]) => k).filter((k) => !OCULTAS.includes(k)));
 }
 
 function Fila({ l, datos, ver, mes, onRecargar, onAbrir }) {

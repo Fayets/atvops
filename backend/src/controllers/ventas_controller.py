@@ -103,6 +103,18 @@ def mis_llamadas(user: dict = Depends(solo_interno), closer: str | None = None, 
         raise HTTPException(status_code=500, detail="Error inesperado al leer tus llamadas.")
 
 
+@router.get("/mi-embudo")
+def mi_embudo(user: dict = Depends(solo_interno), mes: str | None = None):
+    """El embudo del director con las llamadas del closer logueado."""
+    try:
+        return ventas.embudo_closer(user, mes=mes)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        log.exception("Falló armar el embudo del closer")
+        raise HTTPException(status_code=500, detail="Error inesperado al armar tu embudo.")
+
+
 @router.get("/llamadas-del-mes")
 def llamadas_del_mes(user: dict = Depends(solo_interno), mes: str | None = None):
     """Todas las llamadas del mes, de todos los closers: la lista del director."""

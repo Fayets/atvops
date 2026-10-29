@@ -25,7 +25,13 @@
 .sel-programa.vacio { color: var(--text-3); border-color: var(--border-soft); }
 .sel-status:disabled { opacity: 0.55; cursor: default; }
 .sel-status.pendiente { border-color: var(--warn); background: var(--warn-dim); color: var(--warn); }
-.sel-closer { font-weight: 500; background: var(--surface); border-color: var(--border); color: var(--text); }
+.sel-closer {
+  appearance: none; font: inherit; font-size: 12px; font-weight: 500; padding: 3px 6px; border: 1px solid transparent;
+  border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; max-width: 108px;
+}
+.sel-closer.vacio { color: var(--text-3); }
+.sel-closer:hover, .sel-closer:focus-visible { border-color: var(--border); background: var(--surface); }
+.sel-closer:disabled { opacity: 0.55; cursor: default; }
 .pl-pill { display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; border-radius: 5px;
   background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
 
@@ -125,7 +131,7 @@
 .pl-tabla .pl-c-email { max-width: 165px; }
 .pl-tabla .pl-c-origen { max-width: 110px; }
 .pl-tabla .pl-c-tel { max-width: 105px; }
-.pl-tabla .sel-closer, .pl-tabla .sel-programa { max-width: 108px; }
+.pl-tabla .sel-programa { max-width: 108px; }
 .pl-tabla .sel-status { max-width: 116px; }
 .pl-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px;
   padding: 10px 16px; border-top: 1px solid var(--border-soft); font-size: 12px; }

@@ -175,18 +175,21 @@ export function SelectPrograma({ llamada, programas, f }) {
   );
 }
 
-/** Quién tomó la llamada. Sin dueño no entra en los números de nadie. */
+/**
+ * Quién tomó la llamada. Sin dueño no entra en los números de nadie. En la celda se lee
+ * como texto —el nombre o un guion— y recién al tocarlo despliega el equipo.
+ */
 export function SelectCloser({ llamada, equipo, f }) {
   const actual = closerDe(llamada.closer, equipo);
   return (
     <select
-      className={`sel-status sel-closer${actual ? '' : ' pendiente'}`}
+      className={`sel-closer${actual ? '' : ' vacio'}`}
       value={actual}
       disabled={f.guardando || llamada.estado === 'descartada'}
       aria-label={`Quién tomó la llamada de ${llamada.prospecto}`}
       onChange={(e) => f.asignar(e.target.value)}
     >
-      <option value="">¿Quién la tomó?</option>
+      <option value="">—</option>
       {equipo.map((n) => <option key={n} value={n}>{n}</option>)}
     </select>
   );

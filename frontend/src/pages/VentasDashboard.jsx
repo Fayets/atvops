@@ -3,14 +3,7 @@ import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loadin
 import { getEmbudoSetting, getVentas } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
-import { mesId } from '../lib/format.js';
-
-/** "2026-09" → "2026-08". */
-function anterior(mes) {
-  const [a, m] = mes.split('-').map(Number);
-  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
-}
-const nombreMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-AR', { month: 'long' });
+import { mesAnterior as anterior, mesId, nombreDelMes as nombreMes } from '../lib/format.js';
 
 /**
  * Ventas: el dashboard del área, con el embudo de punta a punta como el de atv-mkt.
