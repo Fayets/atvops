@@ -2456,12 +2456,14 @@ def cierres_diferidos(desde: date, hasta: date, closers: set[str] | None = None)
 # El orden es el del embudo, porque es el orden en que el setter los vive: abre la
 # conversación, ofrece la llamada, la agenda. `pitches` es el escalón donde más se
 # pierde y hasta ahora no se medía: sin él, el embudo salta de conversaciones a
-# agendas y la fuga queda escondida.
+# agendas y la fuga queda escondida. Antes de la conversación está el trabajo de
+# abrirla: los chats que el setter abrió y los mensajes que mandó ese día.
 CAMPOS_REPORTE = {
-    "setter": ("conversaciones", "pitches", "agendas", "links_enviados", "seguimientos", "outbounds", "leads_nuevos"),
+    "setter": ("chats_abiertos", "mensajes_enviados", "conversaciones", "pitches", "agendas", "links_enviados", "seguimientos", "outbounds", "leads_nuevos"),
     "closer": ("llamadas_agendadas", "shows", "cierres", "calificados", "descalificados", "ingreso"),
 }
 ETIQUETAS_REPORTE = {
+    "chats_abiertos": "Chats abiertos", "mensajes_enviados": "Mensajes enviados",
     "conversaciones": "Conversaciones", "pitches": "Pitches", "links_enviados": "Links enviados", "agendas": "Agendas",
     "seguimientos": "Seguimientos", "outbounds": "Outbounds", "leads_nuevos": "Leads nuevos",
     "llamadas_agendadas": "Llamadas agendadas", "shows": "Shows", "cierres": "Cierres",

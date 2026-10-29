@@ -15,6 +15,9 @@ import { LLAMADA_ESTADO, PITCH_ESTADO, conjuntosDeTasas, pct } from '../../lib/s
 // tasa corresponde a qué barra sin buscar la etiqueta. El setting rate no tiene barra
 // propia y va en ámbar.
 const TASAS = [
+  // La primera es la de punta a punta: de los chats que abrió el contenido (historias con
+  // CTA y reels, contados en Marketing), cuántos terminaron en una llamada agendada.
+  { id: 'agendamiento', color: 'var(--set-chats)', label: 'Tasa de agendamiento', unidad: 'chats de marketing', num: 'agendas', den: 'chats' },
   { id: 'booking', color: 'var(--set-agendas)', label: 'Booking rate', unidad: 'pitches', num: 'agendas', den: 'pitchesResueltos', verde: 30, amarillo: 20,
     detalle: 'Los pitches del período que ya se resolvieron: agendaron, dijeron que no o ghostearon. Los que todavía no contestaron no entran, porque no fallaron nada.' },
   { id: 'show', color: 'var(--set-shows)', label: 'Show rate', unidad: 'calls', num: 'shows', den: 'llamadasResueltas', verde: 80, amarillo: 65,
@@ -103,8 +106,8 @@ export default function TasasEmbudo({ m, pitches, lim, canal = '' }) {
       <div className="anillos">
         {TASAS.map((t) => (
           <Anillo key={t.id} label={t.label} unidad={t.unidad} valor={m[t.id]}
-            num={m[t.num]} den={m[t.den]} color={t.color}
-            onVer={C ? abrir(t.label, t.detalle, C[t.id].sobre) : undefined} />
+            num={m[t.den] == null ? '—' : m[t.num]} den={m[t.den] ?? '—'} color={t.color}
+            onVer={C?.[t.id] ? abrir(t.label, t.detalle, C[t.id].sobre) : undefined} />
         ))}
       </div>
 

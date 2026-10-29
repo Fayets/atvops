@@ -6335,7 +6335,7 @@ body.gate-abierto .shell { display: none; }
 
 /* ---------------- anillos de tasas */
 
-.anillos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.anillos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }
 .anillo-card { display: grid; justify-items: center; gap: 2px; padding: var(--space-4) var(--space-3) var(--space-3);
   background: var(--surface-2); border: 1px solid var(--border-soft); border-top: 2px solid var(--tono);
   border-radius: var(--radius-sm); }

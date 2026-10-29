@@ -226,3 +226,34 @@ def test_ida_y_vuelta_con_setsystem():
     assert p["externoId"] == "seed-0" and p["usuarioIg"] == "maholy" and p["llamadaEstado"] == "no_show"
     vuelta = s.a_setsystem({**p, "id": 9, "creadoAt": None, "actualizadoAt": None})
     assert vuelta["id"] == "seed-0" and vuelta["call_status"] == "no_show"
+
+
+# ------------------------------------------------------------------ tasa de agendamiento
+
+def test_la_tasa_de_agendamiento_es_agendas_sobre_los_chats_de_marketing(monkeypatch):
+    """Los chats salen de Marketing (historias con CTA + reels) y no de lo que carga el setter."""
+    from src.services import conversaciones_services
+    pedidos = []
+
+    def chats(desde, hasta):
+        pedidos.append((desde, hasta))
+        return {"total": 40, "partes": []}
+
+    monkeypatch.setattr(conversaciones_services, "chats", chats)
+    r = s._agendamiento(6, date(2026, 10, 1), date(2026, 10, 31), None)
+    assert r == {"chats": 40, "agendamiento": 15.0}
+    # `hasta` de chats() es exclusivo: el último día del período tiene que entrar.
+    assert pedidos == [(date(2026, 10, 1), date(2026, 11, 1))]
+
+
+def test_sin_periodo_o_con_canal_no_se_inventa_la_tasa(monkeypatch):
+    from src.services import conversaciones_services
+    monkeypatch.setattr(conversaciones_services, "chats", lambda d, h: {"total": 40})
+    assert s._agendamiento(6, None, None, None) == {"chats": None, "agendamiento": None}
+    assert s._agendamiento(6, date(2026, 10, 1), date(2026, 10, 31), "dm") == {"chats": None, "agendamiento": None}
+
+
+def test_sin_chats_la_tasa_queda_vacia_y_no_en_cero(monkeypatch):
+    from src.services import conversaciones_services
+    monkeypatch.setattr(conversaciones_services, "chats", lambda d, h: {"total": 0})
+    assert s._agendamiento(3, date(2026, 10, 1), date(2026, 10, 31), None) == {"chats": 0, "agendamiento": None}

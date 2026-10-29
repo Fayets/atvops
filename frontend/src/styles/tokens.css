@@ -83,6 +83,7 @@
   --set-shows: #0f9fb0;     /* show rate y la barra de shows */
   --set-closes: #16a34a;    /* close rate y la barra de closes */
   --set-setting: #d4a03c;   /* setting rate: no tiene barra */
+  --set-chats: #3b6fd4;     /* tasa de agendamiento: los chats que trajo marketing */
 
   --sidebar-w: 248px;
   --topbar-h: 60px;

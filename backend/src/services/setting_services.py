@@ -404,6 +404,31 @@ def listar(usuario: dict) -> list[dict]:
                       key=lambda p: (p["pitchAt"], p["id"]), reverse=True)
 
 
+def _agendamiento(agendas: int, d: date | None, h: date | None, canal: str | None) -> dict:
+    """Agendas sobre los chats que trajo marketing en el mismo período.
+
+    Los chats no son los que carga el setter: son los de Marketing —respuestas a las
+    secuencias de historias con CTA y a los reels—, contados por
+    `conversaciones_services.chats()`, el mismo número que muestran Marketing y el embudo
+    de Ventas. Es la pregunta de punta a punta: de lo que el contenido abrió, cuánto
+    terminó en una llamada.
+
+    Sin período (all-time) no se calcula, y con un canal elegido tampoco: los chats no
+    se reparten por canal del pitch, y dividir las agendas de un canal por los chats de
+    todos daría una tasa que no mide nada.
+    """
+    if d is None or h is None or canal:
+        return {"chats": None, "agendamiento": None}
+    from src.services import conversaciones_services
+
+    try:
+        total = int(conversaciones_services.chats(d, h + timedelta(days=1)).get("total") or 0)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudieron leer los chats del período: %s", str(e)[:160])
+        return {"chats": None, "agendamiento": None}
+    return {"chats": total, "agendamiento": _tasa(agendas, total)}
+
+
 def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
              canal: str | None = None) -> dict:
     """Todo lo que pinta la vista de un período, en una sola respuesta.
@@ -427,6 +452,7 @@ def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
         "velocidad": _velocidad(leads),
         "followUps": _follow_ups(leads),
         "dondeConviene": _donde_conviene(m),
+        **_agendamiento(m["agendas"], d, h, canal),
         "fuentes": _por_fuente(pitches, d, h, canal),
         # La serie termina en la semana de hoy: las semanas que todavía no pasaron
         # solo agregan filas en cero que parecen una caída.
