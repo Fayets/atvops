@@ -43,21 +43,24 @@ function Kpi({ label, valor, d, antes, subeEsBueno = true, onAbrir }) {
   );
 }
 
-function ListaPaso({ filas }) {
+function ListaPaso({ filas, conDebe = false }) {
   if (!filas.length) return <div className="ev-vacio">No hay llamadas para mostrar.</div>;
+  const fila = `ev-fila${conDebe ? ' con-debe' : ''}`;
   return (
     <div className="ev-lista">
-      <div className="ev-fila ev-cab">
+      <div className={`${fila} ev-cab`}>
         <span>Prospecto</span><span>Call</span><span>Status</span><span>Closer</span><span className="right">Pagó</span>
+        {conDebe && <span className="right">Debe</span>}
       </div>
       <div className="ev-scroll">
         {filas.map((f) => (
-          <div key={f.id} className="ev-fila">
+          <div key={f.id} className={fila}>
             <span className="strong pl-corta">{f.nombre}</span>
             <span className="num dim">{f.fecha ? new Date(`${f.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—'}</span>
             <span><span className={`pl-pill ${claseStatus(f.estado)}`} title={mayuscula(f.estado) || undefined}>{mayuscula(f.estado) || 'Falta cargar'}</span></span>
             <span>{f.closer || '—'}</span>
             <span className={`right num${f.pagoUsd ? ' pl-cobrado' : ' dim'}`}>{f.pagoUsd ? usd(f.pagoUsd) : '—'}</span>
+            {conDebe && <span className={`right num${f.deudaUsd ? ' pl-debe' : ' dim'}`}>{f.deudaUsd ? usd(f.deudaUsd) : '—'}</span>}
           </div>
         ))}
       </div>
@@ -106,7 +109,7 @@ function Detalle({ d, onCerrar }) {
         )}
         {d.partes && <Partes items={d.partes} />}
         {d.vacio && <div className="ev-vacio">{d.vacio}</div>}
-        {d.filas && <ListaPaso filas={d.filas} />}
+        {d.filas && <ListaPaso filas={d.filas} conDebe={d.conDebe} />}
       </div>
     </div>
   );
@@ -155,10 +158,10 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
       detalle: { filas: [...cierres, ...senas] } },
   ];
   const tasas = [
-    ['Tasa de conversión', pct(tasa(conversaciones, chats)), 'conversaciones / chats'],
-    ['Tasa de agendamiento', pct(tasa(a.agendados, chats)), `${num(a.agendados)} agendas / ${num(chats)} chats`],
-    ['Tasa de show', pct(a.showRate), `${num(a.shows)} shows / ${num(resueltas)} resueltas`],
-    ['Tasa de cierre', pct(a.closeRate), `${num(a.cierres)} cierres / ${num(a.shows)} shows`],
+    ['Tasa de conversión', pct(tasa(conversaciones, chats)), 'conversaciones / chats', 'conversion'],
+    ['Tasa de agendamiento', pct(tasa(a.agendados, chats)), `${num(a.agendados)} agendas / ${num(chats)} chats`, 'agendamiento'],
+    ['Tasa de show', pct(a.showRate), `${num(a.shows)} shows / ${num(resueltas)} resueltas`, 'show'],
+    ['Tasa de cierre', pct(a.closeRate), `${num(a.cierres)} cierres / ${num(a.shows)} shows`, 'close'],
   ];
 
   const tAgend = tasa(a.agendados, chats);
@@ -196,14 +199,32 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
     { id: 'senas', label: 'Señas', valor: num(a.senas), actual: a.senas, previo: p.senas, antes: num(p.senas), filas: senas },
   ];
 
+  const deben = ventas.filter((v) => (v.deudaUsd ?? 0) > 0);
+  // Lo que se abre y no es tarjeta: la plata de arriba y la tasa de conversión. Las otras
+  // tres tasas del embudo son las mismas tarjetas de abajo y abren lo mismo.
+  const otras = [
+    { id: 'facturacion', label: 'Facturación', valor: usd(facturado), actual: facturado, previo: facturadoPrevio,
+      antes: usd(facturadoPrevio), cuenta: `${usd(a.cashUsd)} cobrado + ${usd(a.deudaUsd)} por cobrar`,
+      filas: ventas, conDebe: true },
+    { id: 'porcobrar', label: 'Por cobrar', valor: usd(a.deudaUsd), actual: a.deudaUsd, previo: p.deudaUsd,
+      antes: usd(p.deudaUsd), subeEsBueno: false,
+      cuenta: `lo que deben ${num(deben.length)} de las ${num(ventas.length)} ventas del mes`, filas: deben, conDebe: true },
+    { id: 'ventas', label: 'Ventas', valor: num(a.ventas), actual: a.ventas, previo: p.ventas, antes: num(p.ventas),
+      cuenta: `${num(a.cierres)} cierres + ${num(a.senas)} señas`, filas: ventas, conDebe: true },
+    { id: 'conversion', label: 'Tasa de conversión', valor: pct(tasa(conversaciones, chats)),
+      cuenta: `${num(conversaciones)} conversaciones ÷ ${num(chats)} chats`,
+      partes: [...partesChats, ...setters.map((s) => [`Conversaciones de ${s.nombre}`, `${s.reportes} ${s.reportes === 1 ? 'reporte' : 'reportes'}`, num(s.conversaciones)])] },
+  ];
+
   let detalle = null;
   const paso = pasos.find((x) => `paso:${x.id}` === abierto);
-  const kpi = kpis.find((x) => `kpi:${x.id}` === abierto);
+  const kpi = [...kpis, ...otras].find((x) => `kpi:${x.id}` === abierto);
   if (paso) detalle = { titulo: paso.label, valor: paso.valor, cuenta: paso.id === 'chats' || paso.id === 'cierres' ? null : paso.sub, ...paso.detalle };
   if (kpi) {
     detalle = {
-      titulo: kpi.label, valor: kpi.valor, cuenta: kpi.cuenta, partes: kpi.partes, filas: kpi.filas,
-      antes: { mes: mayuscula(mesPrevio), valor: kpi.antes, d: delta(kpi.actual, kpi.previo), subeEsBueno: kpi.subeEsBueno },
+      titulo: kpi.label, valor: kpi.valor, cuenta: kpi.cuenta, partes: kpi.partes, filas: kpi.filas, conDebe: kpi.conDebe,
+      antes: kpi.antes === undefined ? null
+        : { mes: mayuscula(mesPrevio), valor: kpi.antes, d: delta(kpi.actual, kpi.previo), subeEsBueno: kpi.subeEsBueno },
     };
   }
 
@@ -211,25 +232,33 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
     <>
       <section className="card ev-plata">
         <div className="ev-plata-izq">
-          <div>
+          <button type="button" className="ev-abre" onClick={() => setAbierto('kpi:facturacion')}>
             <span className="dim">Facturación</span>
             <b className="num">{usd(facturado)}</b>
-          </div>
+          </button>
           <div>
-            <span className="dim">Cash collected</span>
+            <button type="button" className="ev-abre" onClick={() => setAbierto('kpi:cash')}>
+              <span className="dim">Cash collected</span>
+            </button>
             <div className="ev-cash">
-              <b className="num pl-cobrado">{usd(a.cashUsd)}</b>
+              <button type="button" className="ev-abre" onClick={() => setAbierto('kpi:cash')}>
+                <b className="num pl-cobrado">{usd(a.cashUsd)}</b>
+              </button>
               <div className="ev-cash-partes">
-                <span><span className="dim">Por cobrar</span><b className="num pl-debe">{usd(a.deudaUsd)}</b></span>
-                <span><span className="dim">Ventas</span><b className="num">{num(a.ventas)}</b></span>
+                <button type="button" className="ev-abre" onClick={() => setAbierto('kpi:porcobrar')}>
+                  <span className="dim">Por cobrar</span><b className="num pl-debe">{usd(a.deudaUsd)}</b>
+                </button>
+                <button type="button" className="ev-abre" onClick={() => setAbierto('kpi:ventas')}>
+                  <span className="dim">Ventas</span><b className="num">{num(a.ventas)}</b>
+                </button>
               </div>
             </div>
           </div>
         </div>
-        <div className="ev-plata-der">
+        <button type="button" className="ev-abre ev-plata-der" onClick={() => setAbierto('kpi:cash')}>
           <b className={dCash == null ? 'dim' : dCash >= 0 ? 'ok' : 'alert'}>{flecha(dCash)}</b>
           <span className="dim">vs {mesPrevio} · {usd(p.cashUsd)} · facturado {usd(facturadoPrevio)}</span>
-        </div>
+        </button>
       </section>
 
       <section className="card ev-embudo">
@@ -261,12 +290,12 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
             })}
           </div>
           <div className="ev-tasas">
-            {tasas.map(([label, valor, base]) => (
-              <div key={label}>
+            {tasas.map(([label, valor, base, id]) => (
+              <button key={label} type="button" className="ev-abre" onClick={() => setAbierto(`kpi:${id}`)}>
                 <span className="dim">{label}</span>
                 <b className="num">{valor}</b>
                 <small className="dim">{base}</small>
-              </div>
+              </button>
             ))}
           </div>
         </div>
