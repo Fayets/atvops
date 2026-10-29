@@ -126,19 +126,23 @@ export default function Webinars() {
   return (
     <div className="page wb-home">
       <div className="wb-topbar">
-        <label className="wb-listado-sel">
-          <span className="wb-listado-lab">Listado</span>
-          <select
-            value={activoId || ''}
-            onChange={(e) => setActivoId(Number(e.target.value) || null)}
-            aria-label="Elegir webinar del listado"
-          >
-            <option value="">Elegí un webinar</option>
-            {lista.map((w) => (
-              <option key={w.id} value={w.id}>{w.nombre}</option>
-            ))}
-          </select>
-        </label>
+        {/* Sin webinar elegido, la lista de abajo ya es el selector: el de arriba repetía lo
+            mismo. Aparece cuando hay uno abierto, para cambiar a otro. */}
+        {activoId ? (
+          <label className="wb-listado-sel">
+            <span className="wb-listado-lab">Listado</span>
+            <select
+              value={activoId || ''}
+              onChange={(e) => setActivoId(Number(e.target.value) || null)}
+              aria-label="Elegir webinar del listado"
+            >
+              <option value="">← Todos los webinars</option>
+              {lista.map((w) => (
+                <option key={w.id} value={w.id}>{w.nombre}</option>
+              ))}
+            </select>
+          </label>
+        ) : <span />}
         <div className="webinar-head-actions">
           {activoId && (
             <Link to={`/webinars/${activoId}`} className="btn ghost">Configurar</Link>
