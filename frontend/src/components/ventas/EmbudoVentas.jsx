@@ -71,10 +71,10 @@ function ListaPaso({ filas, conDebe = false }) {
 function Partes({ items }) {
   return (
     <div className="ev-partes">
-      {items.map(([nombre, dato, valor]) => (
+      {/* Nombre y número, nada en el medio: el texto explicativo entre los dos sobraba. */}
+      {items.map(([nombre, valor]) => (
         <div key={nombre}>
           <span>{nombre}</span>
-          {dato && <span className="dim">{dato}</span>}
           <b className="num">{valor}</b>
         </div>
       ))}
@@ -140,7 +140,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
   const cierres = a.cierresDetalle ?? [];
   const senas = a.senasDetalle ?? [];
   const ventas = a.ventasDetalle ?? [...cierres, ...senas];
-  const partesChats = partes.map((x) => [x.fuente, x.detalle, num(x.cuantos)]);
+  const partesChats = partes.map((x) => [x.fuente, num(x.cuantos)]);
   const resueltas = (a.shows ?? 0) + (a.noShows ?? 0);
   const conSenas = a.senas ? ` + ${a.senas} ${a.senas === 1 ? 'seña' : 'señas'}` : '';
 
@@ -150,7 +150,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
       detalle: { partes: partesChats } },
     { id: 'conversaciones', label: 'Conversaciones', valor: num(conversaciones), sub: 'reporte del setter',
       detalle: setters.length
-        ? { partes: setters.map((s) => [s.nombre, `${s.reportes} ${s.reportes === 1 ? 'reporte' : 'reportes'}`, num(s.conversaciones)]) }
+        ? { partes: setters.map((s) => [s.nombre, num(s.conversaciones)]) }
         : { vacio: 'Sin reportes del setter cargados en el mes' } },
     { id: 'agendas', label: 'Agendas', valor: num(a.agendados), sub: 'calls del mes', detalle: { filas: agendas } },
     { id: 'shows', label: 'Shows', valor: num(a.shows), sub: `${num(a.noShows)} no shows`, detalle: { filas: shows } },
@@ -213,7 +213,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
       cuenta: `${num(a.cierres)} cierres + ${num(a.senas)} señas`, filas: ventas, conDebe: true },
     { id: 'conversion', label: 'Tasa de conversión', valor: pct(tasa(conversaciones, chats)),
       cuenta: `${num(conversaciones)} conversaciones ÷ ${num(chats)} chats`,
-      partes: [...partesChats, ...setters.map((s) => [`Conversaciones de ${s.nombre}`, `${s.reportes} ${s.reportes === 1 ? 'reporte' : 'reportes'}`, num(s.conversaciones)])] },
+      partes: [...partesChats, ...setters.map((s) => [`Conversaciones de ${s.nombre}`, num(s.conversaciones)])] },
   ];
 
   let detalle = null;
