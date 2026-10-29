@@ -1,0 +1,223 @@
+/* Las listas de llamadas —la planilla del director, la del closer— y el embudo de ventas.
+   Es el diseño de atv-mkt pasado al tema de Ops: un color por status, para leer la lista
+   sin leer las palabras. Como la paleta del setter, es una excepción a "un color, un
+   trabajo" y vive solo en estas pantallas. */
+
+:root {
+  --ev-capa-0: #1c1917;
+  --ev-capa-1: #332e2a;
+  --ev-capa-2: #4a433e;
+  --ev-capa-3: #615953;
+  --ev-capa-4: #786f68;
+}
+
+/* ---------------------------------------------------------------- status */
+
+.sel-status {
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 4px 8px; border: 1px solid transparent;
+  border-radius: 6px; background: var(--surface-2); color: var(--text-2); cursor: pointer; max-width: 150px;
+}
+.sel-status:disabled { opacity: 0.55; cursor: default; }
+.sel-status.pendiente { border-color: var(--warn); background: var(--warn-dim); color: var(--warn); }
+.sel-closer { font-weight: 500; background: var(--surface); border-color: var(--border); color: var(--text); }
+.pl-pill { display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; border-radius: 5px;
+  background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+
+.st-faltacargar { background: var(--surface); border-color: var(--warn); color: var(--warn); }
+.st-porvenir { background: #efece6; color: #57534e; }
+.st-seguimiento { background: #dbe7fb; color: #1e40af; }
+.st-sena { background: #fbecc8; color: #8a4b06; }
+.st-cerrado { background: #d7f0de; color: #166534; }
+.st-noshow { background: #fbe0dc; color: #9f1d1d; }
+.st-reagenda { background: #fde6d2; color: #9a3412; }
+.st-descalificado { background: #ece4f7; color: #6b21a8; }
+.st-cancelada { background: #f3e3e7; color: #881337; }
+.st-descartada { background: #eeeae4; color: var(--text-3); }
+
+.pl-segunda { margin-left: 6px; font-size: 10.5px; font-weight: 600; color: var(--text-3);
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.pl-cobrado { color: var(--ok); }
+.pl-debe { color: var(--warn); }
+.pl-corta { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- barras */
+
+.pl-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; }
+.pl-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.pl-tab { font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2); }
+.pl-tab .num { opacity: 0.7; margin-left: 2px; }
+.pl-tab.activo { background: var(--text); border-color: var(--text); color: #fff; font-weight: 600; }
+.pl-totales { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; font-size: 13px; }
+.pl-totales span { display: flex; gap: 6px; align-items: baseline; }
+.pl-totales small { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); }
+.pl-buscar { font: inherit; font-size: 12.5px; width: 240px; max-width: 100%; padding: 6px 10px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; }
+.pl-buscar:focus { outline: none; border-color: var(--text-3); }
+
+/* ---------------------------------------------------------------- planilla */
+
+.planilla { padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.planilla > .pl-barra { padding: 14px 16px 10px; }
+.planilla > .pl-herramientas { padding: 0 16px 14px; border-bottom: 1px solid var(--border-soft); }
+.pl-izq { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pl-izq .btn.activo { border-color: var(--text); }
+.pl-select { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+.pl-select select { font: inherit; font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: 7px; background: var(--surface); color: var(--text); }
+.pl-sep { width: 1px; height: 22px; background: var(--border-soft); margin: 0 4px; }
+.pl-seg { display: flex; gap: 2px; padding: 3px; background: var(--bg); border-radius: 8px; flex-wrap: wrap; }
+.pl-seg button { font: inherit; font-size: 12.5px; padding: 4px 11px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-2); cursor: pointer; }
+.pl-seg button.activo { background: var(--surface); color: var(--text); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.08); }
+.pl-pop { position: relative; }
+.pl-menu { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; min-width: 220px; display: grid; gap: 8px;
+  padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(28, 25, 23, 0.12); font-size: 12.5px; }
+.pl-menu label { display: grid; gap: 4px; color: var(--text-2); }
+.pl-menu select { font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.pl-menu .pl-check { display: flex; align-items: center; gap: 8px; color: var(--text); }
+
+.pl-scroll { overflow: auto; max-height: 72vh; }
+.pl-tabla { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.pl-tabla thead th { position: sticky; top: 0; z-index: 3; background: var(--surface-2); text-align: left;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3);
+  padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.pl-tabla td, .pl-tabla tbody th { padding: 6px 10px; border-bottom: 1px solid #efebe4; white-space: nowrap;
+  text-align: left; font-weight: 400; background: var(--surface); }
+.pl-tabla .right { text-align: right; }
+.pl-tabla .pl-nombre { position: sticky; left: 0; z-index: 2; min-width: 200px; max-width: 240px;
+  border-right: 1px solid var(--border-soft); padding-left: 16px; }
+.pl-tabla thead .pl-nombre { z-index: 4; }
+.pl-abrir { font: inherit; font-weight: 600; color: var(--text); background: none; border: 0; padding: 0;
+  cursor: pointer; text-align: left; max-width: 190px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.pl-abrir:hover { color: var(--brand); text-decoration: underline; }
+.pl-tabla tr.descartada td, .pl-tabla tr.descartada th { opacity: 0.55; }
+.pl-tabla .pl-grupo th { position: sticky; left: 0; background: #fbfaf7; font-size: 12.5px; font-weight: 600;
+  text-transform: capitalize; padding: 7px 16px; border-bottom: 1px solid #efebe4; }
+.pl-tabla .pl-aviso td { background: var(--surface-2); font-size: 12px; padding: 5px 16px; }
+.pl-tabla .cash-celda { width: 86px; }
+.pl-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 10px 16px; border-top: 1px solid var(--border-soft); font-size: 12px; }
+.pl-ficha { width: min(620px, 96vw); display: grid; gap: var(--space-4); }
+.pl-ficha header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.pl-ficha header h3 { margin: 0 0 3px; font-size: 18px; }
+.pl-ficha header p { margin: 0; font-size: 12.5px; }
+
+/* ---------------------------------------------------------------- lista del closer */
+
+.lc-barra { margin-bottom: var(--space-3); }
+.lc-cuerpo { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+.lc-lista { flex: 999 1 620px; min-width: 0; padding: 0; overflow: hidden; }
+.lc-cab, .lc-fila { display: grid; grid-template-columns: 56px minmax(0, 1fr) 150px 150px 120px 100px; gap: 0 8px; align-items: center; }
+.lc-origen { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-cab { padding: 9px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
+.lc-cab .right, .lc-fila .right { text-align: right; justify-self: end; }
+.lc-scroll { max-height: 72vh; overflow: auto; }
+.lc-dia { position: sticky; top: 0; z-index: 1; display: flex; gap: 10px; align-items: baseline; padding: 7px 16px;
+  background: #fbfaf7; border-bottom: 1px solid #efebe4; font-size: 12.5px; text-transform: capitalize; }
+.lc-fila { padding: 9px 16px; border-bottom: 1px solid #efebe4; font-size: 13px; }
+.lc-fila.activa { background: #fbf3f2; box-shadow: inset 3px 0 0 var(--brand); }
+.lc-fila.descartada { opacity: 0.55; }
+.lc-quien { font: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px; color: var(--text); }
+.lc-quien b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-quien small { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-quien:hover b { color: var(--brand); }
+.lc-aviso { grid-column: 2 / -1; font-size: 12px; padding-top: 4px; }
+.lc-ficha { flex: 1 1 340px; max-width: 420px; display: grid; gap: var(--space-4); align-content: start; }
+.lc-ficha header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.lc-ficha header h3 { margin: 0 0 2px; font-size: 18px; }
+.lc-ficha header .dim { font-size: 12.5px; text-transform: capitalize; }
+.lc-bloque { display: grid; gap: 6px; }
+.lc-bloque h4 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); }
+.lc-datos { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 5px 10px; font-size: 13px; }
+.lc-datos > span { overflow-wrap: anywhere; }
+.lc-links { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .lc-cab { display: none; }
+  .lc-fila { grid-template-columns: 52px minmax(0, 1fr); row-gap: 8px; }
+  .lc-fila > :nth-child(n + 3) { grid-column: 2; justify-self: start; }
+  .lc-ficha { max-width: none; }
+  .pl-buscar { width: 100%; }
+}
+
+/* ---------------------------------------------------------------- embudo */
+
+/* `.card` no trae padding: lo pone el cuerpo del componente Card, y acá se usa la clase sola. */
+.card.ev-plata, .card.ev-embudo, .card.lc-ficha { padding: var(--space-5); }
+@media (max-width: 760px) { .card.ev-plata, .card.ev-embudo, .card.lc-ficha { padding: 14px; } }
+
+/* `.card` adelante: la regla base de .card pone flex-direction: column y ganaba. */
+.card.ev-plata { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+.ev-plata-izq { display: flex; flex-wrap: wrap; gap: 40px; }
+.ev-plata-izq > div { display: grid; gap: 4px; }
+.ev-plata-izq > div > .dim { font-size: 12px; }
+.ev-plata-izq > div > b.num, .ev-cash > b.num { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
+.ev-cash { display: flex; flex-wrap: wrap; align-items: stretch; gap: 14px; }
+.ev-cash-partes { display: grid; align-content: center; gap: 2px; padding-left: 12px; border-left: 1px solid var(--border-soft); font-size: 12px; }
+.ev-cash-partes span { display: flex; justify-content: space-between; gap: 20px; }
+.ev-cash-partes b.num { font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.ev-plata-der { display: grid; gap: 2px; text-align: right; font-size: 12px; }
+.ev-plata-der b { font-size: 13px; }
+.ev-plata-der .ok, .ev-kpi-delta.ok { color: var(--ok); }
+.ev-plata-der .alert, .ev-kpi-delta.alert { color: var(--alert); }
+
+.ev-embudo { display: grid; gap: var(--space-4); }
+.ev-titulo, .ev-kpis-titulo { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.ev-cuerpo { display: flex; flex-wrap: wrap; gap: 28px; align-items: stretch; }
+.ev-trapecios { flex: 3 1 480px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ev-paso { font: inherit; min-height: 76px; border: 0; padding: 8px 0; cursor: pointer; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  background: var(--tinta); }
+.ev-paso:first-child { border-radius: 10px 10px 0 0; }
+.ev-paso:last-child { border-radius: 0 0 10px 10px; }
+.ev-paso.activo { background: var(--brand); }
+.ev-paso:hover:not(.activo) { filter: brightness(1.15); }
+.ev-paso:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ev-paso-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
+.ev-paso-valor { font-size: 24px; font-weight: 600; }
+.ev-paso-sub { font-size: 11px; color: rgba(255, 255, 255, 0.75); }
+.ev-tasas { flex: 1 1 220px; display: flex; flex-direction: column; justify-content: space-around; gap: 10px;
+  padding-left: 24px; border-left: 1px solid var(--border-soft); }
+.ev-tasas > div { display: grid; gap: 1px; }
+.ev-tasas .dim { font-size: 12px; }
+.ev-tasas b { font-size: 22px; font-weight: 600; }
+.ev-tasas small { font-size: 11.5px; }
+.ev-panel { border-top: 1px solid var(--border-soft); padding-top: 14px; display: grid; gap: 10px; }
+.ev-panel-cab b { font-size: 14px; }
+.ev-partes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.ev-partes > div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; }
+.ev-partes b { font-size: 18px; }
+.ev-vacio { padding: 18px; border: 1px dashed var(--border); border-radius: var(--radius-sm); font-size: 13px;
+  color: var(--text-3); text-align: center; }
+.ev-lista { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); overflow: hidden; }
+.ev-fila { display: grid; grid-template-columns: minmax(0, 1.4fr) 80px 150px 100px 100px 100px; gap: 0 8px;
+  align-items: center; padding: 7px 14px; border-top: 1px solid #efebe4; font-size: 13px; }
+.ev-fila .right { text-align: right; }
+.ev-cab { border-top: 0; background: var(--surface-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-3); }
+.ev-scroll { max-height: 320px; overflow: auto; }
+.ev-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.ev-kpi { display: grid; gap: 4px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); }
+.ev-kpi-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2); }
+.ev-kpi-valor { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.ev-kpi-delta { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.ev-kpi-delta .dim { font-weight: 400; }
+
+@media (max-width: 1100px) { .ev-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  .ev-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ev-tasas { padding-left: 0; border-left: 0; }
+  /* En el celular cada llamada es nombre y status: lo demás está en la Operativa. */
+  .ev-fila { grid-template-columns: minmax(0, 1fr) auto; }
+  .ev-fila > :nth-child(2), .ev-fila > :nth-child(n + 4) { display: none; }
+  .ev-plata-izq > div > b.num, .ev-cash > b.num { font-size: 24px; }
+  .ev-plata-izq { gap: 20px; }
+  .ev-plata-der { text-align: left; }
+}

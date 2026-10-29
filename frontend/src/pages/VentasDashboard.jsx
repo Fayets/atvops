@@ -1,37 +1,45 @@
-import BloqueClosing from '../components/ventas/BloqueClosing.jsx';
-import EmbudoOps from '../components/ventas/EmbudoOps.jsx';
+import EmbudoVentas from '../components/ventas/EmbudoVentas.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import { getEmbudoSetting, getVentas } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
+import { mesId } from '../lib/format.js';
+
+/** "2026-09" → "2026-08". */
+function anterior(mes) {
+  const [a, m] = mes.split('-').map(Number);
+  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
+}
+const nombreMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-AR', { month: 'long' });
 
 /**
- * Ventas: el dashboard del área. Dos bloques y nada más.
+ * Ventas: el dashboard del área, con el embudo de punta a punta como el de atv-mkt.
  *
- * Setting arriba y closing abajo, en el orden del embudo. Lo operativo —el calendario,
- * los reportes, el pipeline— no vive acá: esta pantalla dice cómo venimos, no qué hacer
- * ahora. Para eso están los laboratorios.
- *
- * Son dos pedidos y no uno porque el embudo es caro (cruza conversaciones, reporte del
- * setter y calendario) y el bloque de closing no tiene por qué esperarlo.
+ * Son tres pedidos y no uno porque los chats del embudo los cuenta Marketing (es caro:
+ * cruza historias, reels y conversaciones) y el resto no tiene por qué esperarlo. El mes
+ * anterior se pide solo por sus chats: sin ellos la tasa de agendamiento no tiene contra
+ * qué compararse.
  */
 export default function VentasDashboard() {
-  const { mes } = useMes();
+  const { mes: elegido } = useMes();
+  const mes = elegido || mesId();
+  const previo = anterior(mes);
   const { data, error, loading } = useResource(() => getVentas(mes), [mes]);
   const embudo = useResource(() => getEmbudoSetting(mes), [mes]);
+  const embudoPrevio = useResource(() => getEmbudoSetting(previo), [previo]);
 
   if (error) return <ErrorState error={error} />;
   if (loading || !data) {
     return (
       <div className="page ventas-dash">
         <SkeletonKpis n={4} />
-        <SkeletonBlock height={200} />
+        <SkeletonBlock height={420} />
       </div>
     );
   }
 
-  const actual = data.real?.actual ?? data.actual ?? {};
-  const ctx = data.real?.contexto ?? data.contexto ?? {};
+  const real = data.real ?? {};
+  const ctx = real.contexto ?? {};
 
   return (
     <div className="page ventas-dash">
@@ -40,26 +48,12 @@ export default function VentasDashboard() {
           Día {ctx.diaHoy} de {ctx.diasMes} · el mes va por el {Math.round((ctx.diaHoy / ctx.diasMes) * 100)}%
         </p>
       ) : null}
-
-      <section className="ventas-dash-bloque">
-        <header>
-          <h2>Setting</h2>
-        </header>
-        {embudo.error ? (
-          <ErrorState error={embudo.error} />
-        ) : embudo.loading ? (
-          <SkeletonBlock height={120} />
-        ) : (
-          <EmbudoOps setting={embudo.data ?? {}} />
-        )}
-      </section>
-
-      <section className="ventas-dash-bloque">
-        <header>
-          <h2>Closing</h2>
-        </header>
-        <BloqueClosing data={actual} />
-      </section>
+      <EmbudoVentas
+        real={real}
+        embudo={embudo.data}
+        embudoPrevio={embudoPrevio.data}
+        mesPrevio={nombreMes(previo)}
+      />
     </div>
   );
 }

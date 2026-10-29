@@ -755,6 +755,11 @@ export async function getVentasReal(mes, { refrescar = false } = {}) {
   return pedir(`/api/ventas${q.toString() ? `?${q}` : ''}`);
 }
 
+/** Todas las llamadas del mes, de todos los closers: la lista del director. */
+export async function getLlamadasDelMes(mes) {
+  return pedir(`/api/ventas/llamadas-del-mes${mes ? `?mes=${mes}` : ''}`);
+}
+
 /** Las llamadas del closer logueado, con lo que ya reportó y lo que le falta. */
 export async function getMisLlamadas(closer, mes) {
   // Sin mes trae la ventana alrededor de hoy, que es la que usa el bloqueo por llamadas sin cargar.
@@ -767,8 +772,11 @@ export async function getMisLlamadas(closer, mes) {
 
 /** El closer marca cómo salió la llamada, qué programa compró y cuánto cash dejó. */
 /** Quién tomó la llamada, sin cargarle el resultado. Con el nombre vacío la deja sin dueño. */
-export async function asignarCloserLlamada(leadId, closer, mes) {
-  const q = mes ? `?mes=${encodeURIComponent(mes)}` : '';
+export async function asignarCloserLlamada(leadId, closer, mes, { lista = true } = {}) {
+  const p = new URLSearchParams();
+  if (mes) p.set('mes', mes);
+  if (!lista) p.set('lista', 'false');
+  const q = p.toString() ? `?${p}` : '';
   return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/closer${q}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

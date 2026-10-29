@@ -103,6 +103,18 @@ def mis_llamadas(user: dict = Depends(solo_interno), closer: str | None = None, 
         raise HTTPException(status_code=500, detail="Error inesperado al leer tus llamadas.")
 
 
+@router.get("/llamadas-del-mes")
+def llamadas_del_mes(user: dict = Depends(solo_interno), mes: str | None = None):
+    """Todas las llamadas del mes, de todos los closers: la lista del director."""
+    try:
+        return ventas.llamadas_del_mes(user, mes=mes)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        log.exception("Falló leer las llamadas del mes")
+        raise HTTPException(status_code=500, detail="Error inesperado al leer las llamadas del mes.")
+
+
 @router.get("/mis-reportes")
 def mis_reportes(user: dict = Depends(solo_interno), mes: str | None = None, rol: str = "setter"):
     """Los días del mes con y sin reporte cargado."""

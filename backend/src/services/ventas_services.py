@@ -923,6 +923,7 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
             "deudaUsd": deuda_out,
             "programa": (l.get("programa_ofrecido") or "").strip(),
             "resultado": (l.get("resultado") or "").strip(),
+            "origen": (l.get("origen") or "").strip() or ("Ads" if l.get("vino_de_ads") else "Orgánico"),
             **extra,
         }
 
@@ -976,6 +977,15 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
     }
     if detalle:
         out.update({
+            # Las agendas: todas las reuniones del mes menos la segunda vuelta con el mismo
+            # prospecto, que es exactamente cómo se cuenta `agendados`.
+            "agendasDetalle": [
+                _fila(l, estado=(l.get("resultado") or "").strip() or {
+                    "agendado": "Por venir", "sin_reportar": "Falta cargar", "sin_crm": "Falta cargar",
+                }.get(c, ""))
+                for l, c in sorted(((l, c) for l, c in zip(leads, clases) if not l.get("seguimiento")),
+                                   key=lambda x: x[0].get("call") or datetime.min, reverse=True)
+            ],
             "cierresDetalle": [_fila(l, estado="Cerrado") for l in por_fecha(cierres)],
             "senasDetalle": [_fila(l, estado="Seña") for l in por_fecha(senas)],
             "ventasDetalle": [
@@ -1607,6 +1617,94 @@ def _closers_del_periodo(desde: date, hasta: date) -> list[dict]:
     return sorted(salida, key=lambda c: -c["llamadas"])
 
 
+def _fila_llamada(l: dict, ahora: datetime, hoy: date, precios: dict) -> dict:
+    """Una llamada como la muestran las listas: la del closer y la de todas las calls.
+
+    Es la misma fila para las dos a propósito: el director y el closer miran la misma
+    reunión, y si cada lista la armara a su manera, el mismo status se vería distinto
+    según quién lo mire.
+    """
+    programa = (l["programa_ofrecido"] or "").strip()
+    agendo = l.get("agendo")
+    return {
+        "id": l["id"],
+        "prospecto": (l["nombre"] or "").strip() or "Sin nombre",
+        "email": l["email"] or "", "telefono": l["telefono"] or "", "instagram": (l["ig"] or "").lstrip("@"),
+        "fechaAt": l["call"].isoformat(), "closer": l["closer"], "setter": l["setter"] or "",
+        "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
+        "vinoDeAds": bool(l.get("vino_de_ads")),
+        "facturaHoy": (l["ingresos_rango"] or "").strip(),
+        # Cuándo agendó y cuántos días tardó en hacerlo, como en la lista de atv-mkt. Las
+        # que entran del calendario sin ficha no lo saben: van vacías, no en cero.
+        "agendoAt": agendo.isoformat() if isinstance(agendo, datetime) else None,
+        "diasParaAgendar": (l["call"].date() - agendo.date()).days if isinstance(agendo, datetime) else None,
+        "resultado": (l["resultado"] or "").strip(),
+        "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
+                              l.get("soloCalendario", False), l.get("duplicada", False),
+                              l.get("reprogramada", False)),
+        "soloCalendario": bool(l.get("soloCalendario")),
+        "cierreMes": l.get("cierreMes") or "",
+        "cierreCashUsd": float(l.get("cierreCashUsd") or 0),
+        "segunda": bool(l.get("segunda")),
+        "seguimiento": bool(l.get("seguimiento")),
+        "reprogramada": bool(l.get("reprogramada")),
+        "eventoId": l.get("eventoId") or "",
+        "programa": programa,
+        "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
+        "cashUsd": _num(l["pago"]), "saldoUsd": _saldo_finito(l),
+        "notas": (l["notas"] or "").strip(), "reporte": (l["closer_report"] or "").strip(),
+        "grabacion": (l["link_llamada"] or "").strip(),
+        # La grabación de Fathom, si la llamada la tiene: es lo que el closer abre para
+        # escucharse, y en la tabla vale más que el setter, que casi nunca está cargado.
+        "fathomUrl": (l.get("fathom_url") or "").strip(),
+        "pasada": l["call"] <= ahora,
+        "diasDesde": (hoy - l["call"].date()).days,
+    }
+
+
+def llamadas_del_mes(usuario: dict, mes: str | None = None) -> dict:
+    """Todas las llamadas del mes, de todos los closers y las que todavía no tienen dueño.
+
+    Es la lista del director: la que reemplazó al calendario de la Operativa y la que
+    abre el embudo al tocar un paso. `mis_llamadas` filtra por closer; esta no, y por eso
+    queda para quien mira el área entera.
+    """
+    if usuario.get("rol") not in ROLES_PRECIOS | {"ventas"}:
+        raise HTTPException(status_code=403, detail="La lista de todas las llamadas es de dirección.")
+    ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+    hoy = ahora.date()
+    mes = mes or hoy.strftime("%Y-%m")
+    try:
+        anio, m = int(mes[:4]), int(mes[5:7])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="El mes va como AAAA-MM.") from None
+    desde = date(anio, m, 1)
+    hasta = date(anio + (m == 12), (m % 12) + 1, 1)
+
+    internas = no_son_de_venta()
+    vistos: set[str] = set()
+    filas = []
+    for f in _sumar_reuniones_del_calendario(desde, hasta):
+        evento = str(f.get("eventoId") or "")
+        if evento and (evento in internas or evento in vistos):
+            continue
+        if evento:
+            vistos.add(evento)
+        filas.append(f)
+    precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
+    llamadas = [x for x in (_fila_llamada(l, ahora, hoy, precios)
+                            for l in sorted(filas, key=lambda f: f["call"], reverse=True))
+                if x["estado"] != "duplicada"]
+    return {
+        "generadoAt": datetime.now(AR_TZ).isoformat(),
+        "mes": mes,
+        "llamadas": llamadas,
+        "programas": programas(),
+        "estados": list(ESTADOS_LLAMADA),
+        "equipo": equipo_services.nombres("closer"),
+    }
+
+
 def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, closer: str | None = None,
                  mes: str | None = None) -> dict:
     """Las llamadas del closer: las que vienen, las de hoy y las que le falta reportar.
@@ -1683,40 +1781,8 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     filas = sorted(filas, key=lambda f: f["call"], reverse=True)
     precios = {_norm(p["nombre"]): p["precioUsd"] for p in programas()}
 
-    def _fila(l: dict) -> dict:
-        programa = (l["programa_ofrecido"] or "").strip()
-        return {
-            "id": l["id"],
-            "prospecto": (l["nombre"] or "").strip() or "Sin nombre",
-            "email": l["email"] or "", "telefono": l["telefono"] or "", "instagram": (l["ig"] or "").lstrip("@"),
-            "fechaAt": l["call"].isoformat(), "closer": l["closer"], "setter": l["setter"] or "",
-            "origen": (l["origen"] or "").strip() or ("Ads" if l["vino_de_ads"] else "Orgánico"),
-            "facturaHoy": (l["ingresos_rango"] or "").strip(),
-            "resultado": (l["resultado"] or "").strip(),
-            "estado": _clasificar(l["resultado"], l["calificacion"], l["call"], ahora,
-                                  l.get("soloCalendario", False), l.get("duplicada", False),
-                                  l.get("reprogramada", False)),
-            "soloCalendario": bool(l.get("soloCalendario")),
-            "cierreMes": l.get("cierreMes") or "",
-            "cierreCashUsd": float(l.get("cierreCashUsd") or 0),
-            "segunda": bool(l.get("segunda")),
-            "seguimiento": bool(l.get("seguimiento")),
-            "reprogramada": bool(l.get("reprogramada")),
-            "eventoId": l.get("eventoId") or "",
-            "programa": programa,
-            "facturacionUsd": precios.get(_norm(programa), 0.0) if programa else 0.0,
-            "cashUsd": _num(l["pago"]), "saldoUsd": _saldo_finito(l),
-            "notas": (l["notas"] or "").strip(), "reporte": (l["closer_report"] or "").strip(),
-            "grabacion": (l["link_llamada"] or "").strip(),
-            # La grabación de Fathom, si la llamada la tiene: es lo que el closer abre para
-            # escucharse, y en la tabla vale más que el setter, que casi nunca está cargado.
-            "fathomUrl": (l.get("fathom_url") or "").strip(),
-            "pasada": l["call"] <= ahora,
-            "diasDesde": (hoy - l["call"].date()).days,
-        }
-
     # Las duplicadas del CRM no se muestran: sería pedirle al closer que cargue dos veces.
-    llamadas = [f for f in (_fila(l) for l in filas) if f["estado"] != "duplicada"]
+    llamadas = [f for f in (_fila_llamada(l, ahora, hoy, precios) for l in filas) if f["estado"] != "duplicada"]
     # El mes de las métricas es el que se pidió, no el corriente: con `hoy.replace(day=1)`
     # mirar septiembre un 1° de octubre daba todo en cero, porque filtraba las llamadas
     # de septiembre por ser anteriores al 1° de octubre.

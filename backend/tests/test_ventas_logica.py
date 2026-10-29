@@ -349,3 +349,63 @@ def test_una_reunion_oculta_no_entra_en_ninguna_metrica():
     assert v._clasificar("no corresponde", "", paso, ahora) == "descartada"
     # Y una normal sí entra, para que el test no pase por casualidad.
     assert v._clasificar("cerrado", "", paso, ahora) == "cierre"
+
+
+# ------------------------------------------------------------------ embudo y lista de calls
+
+def test_las_agendas_del_embudo_son_las_mismas_que_cuenta_el_numero():
+    """Al tocar Agendas en el embudo se lista lo que se contó: ni la segunda vuelta con
+    el mismo prospecto ni la descartada, y la que no tiene resultado dice por qué."""
+    leads = [
+        fila("A", AYER, "cerrado", pago=5000, id=1),
+        fila("B", AYER, "seguimiento", id=2),
+        fila("B", AYER, "seguimiento", seguimiento=True, id=3),   # segunda reunión de B
+        fila("C", AYER, "", id=4),                                # pasó y nadie la cargó
+        fila("D", MANANA, "", id=5),                              # todavía no pasó
+        fila("E", AYER, "descartada", id=6),
+    ]
+    b = v._bloque(leads, AHORA, detalle=True)
+    assert len(b["agendasDetalle"]) == b["agendados"] == 4
+    estados = {x["nombre"]: x["estado"] for x in b["agendasDetalle"]}
+    assert estados == {"A": "cerrado", "B": "seguimiento", "C": "Falta cargar", "D": "Por venir"}
+
+
+def _llamada(**extra):
+    base = {"id": 7, "nombre": "Ana", "email": "a@x.com", "telefono": "", "ig": "@ana", "call": AYER,
+            "closer": "Nick", "setter": "", "origen": "", "vino_de_ads": True, "ingresos_rango": "",
+            "resultado": "", "calificacion": "", "programa_ofrecido": "", "pago": 0, "debe": 0,
+            "notas": "", "closer_report": "", "link_llamada": ""}
+    base.update(extra)
+    return base
+
+
+def test_la_fila_de_una_llamada_dice_cuando_agendo_y_cuanto_tardo():
+    f = v._fila_llamada(_llamada(agendo=datetime(2026, 9, 6, 18, 0)), AHORA, AHORA.date(), {})
+    assert f["diasParaAgendar"] == 3 and f["agendoAt"] == "2026-09-06T18:00:00"
+    assert f["origen"] == "Ads" and f["instagram"] == "ana" and f["estado"] == "sin_reportar"
+
+
+def test_sin_fecha_de_agenda_los_dias_quedan_vacios_y_no_en_cero():
+    f = v._fila_llamada(_llamada(), AHORA, AHORA.date(), {})
+    assert f["agendoAt"] is None and f["diasParaAgendar"] is None
+
+
+@pytest.mark.parametrize("rol", ["closer", "setter", "marketing", "csm"])
+def test_la_lista_de_todas_las_llamadas_es_de_direccion(rol):
+    with pytest.raises(v.HTTPException) as e:
+        v.llamadas_del_mes({"rol": rol, "username": "x"}, "2026-09")
+    assert e.value.status_code == 403
+
+
+def test_la_lista_de_todas_las_llamadas_no_filtra_por_closer(monkeypatch):
+    filas = [_llamada(id=1, closer="Nick", eventoId="a"), _llamada(id=2, closer="Cris", eventoId="b"),
+             _llamada(id=3, closer="", eventoId="c"), _llamada(id=4, closer="Nick", eventoId="a"),
+             _llamada(id=5, closer="Nick", eventoId="interna")]
+    monkeypatch.setattr(v, "_sumar_reuniones_del_calendario", lambda d, h: filas)
+    monkeypatch.setattr(v, "no_son_de_venta", lambda: {"interna"})
+    monkeypatch.setattr(v, "programas", lambda: [])
+    monkeypatch.setattr(v.equipo_services, "nombres", lambda rol: ["Nick", "Cris"])
+    r = v.llamadas_del_mes({"rol": "ventas", "username": "lucas"}, "2026-09")
+    # Las tres reuniones de venta, sin la repetida ni la interna, y la que no tiene dueño también.
+    assert sorted(x["id"] for x in r["llamadas"]) == [1, 2, 3]
+    assert r["equipo"] == ["Nick", "Cris"]
