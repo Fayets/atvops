@@ -64,13 +64,14 @@ function leerColumnas() {
   return new Set(OPCIONALES.map(([k]) => k).filter((k) => !OCULTAS.includes(k)));
 }
 
-function Fila({ l, datos, ver, mes, onRecargar, onAbrir }) {
+function Fila({ n, l, datos, ver, mes, onRecargar, onAbrir }) {
   const f = useLlamada(l, { estados: datos.estados, mes, lista: false, onGuardado: onRecargar });
   const descartada = l.estado === 'descartada';
   return (
     <>
       <tr className={descartada ? 'descartada' : ''}>
         <th scope="row" className="pl-nombre">
+          <span className="pl-num num">{n}</span>
           <button type="button" className="pl-abrir" onClick={onAbrir} title="Abrir la ficha">
             {l.prospecto}
           </button>
@@ -133,27 +134,34 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
     [llamadas, datos.estados, datos.equipo],
   );
 
-  // Las pestañas salen de lo que hay: un status sin llamadas no ocupa lugar.
+  const delCloser = (x) => (closer === '' ? true : closer === '—' ? !x.closer : x.closer === closer);
+
+  // Las pestañas salen de lo que hay: un status sin llamadas no ocupa lugar. Cuentan lo
+  // del closer elegido; si no, al tocar uno los números de arriba quedaban iguales y
+  // parecía que el filtro no hacía nada.
   const tabs = useMemo(() => {
     const cuenta = {};
-    for (const x of conStatus) cuenta[x.etiqueta] = (cuenta[x.etiqueta] ?? 0) + 1;
+    for (const x of conStatus) if (delCloser(x)) cuenta[x.etiqueta] = (cuenta[x.etiqueta] ?? 0) + 1;
     const orden = ['Falta cargar', 'Por venir', ...datos.estados.filter((e) => e !== 'Descartada')];
     const resto = Object.keys(cuenta).filter((e) => !orden.includes(e) && e !== 'Descartada');
     return [
-      ['Todas', conStatus.filter((x) => x.etiqueta !== 'Descartada').length],
+      ['Todas', conStatus.filter((x) => delCloser(x) && x.etiqueta !== 'Descartada').length],
       ...[...orden, ...resto].filter((e) => cuenta[e]).map((e) => [e, cuenta[e]]),
       ...(cuenta.Descartada ? [['Descartada', cuenta.Descartada]] : []),
     ];
-  }, [conStatus, datos.estados]);
+  }, [conStatus, datos.estados, closer]);
 
   const origenes = useMemo(() => [...new Set(llamadas.map((l) => l.origen).filter(Boolean))].sort(), [llamadas]);
   const sinDueno = conStatus.some((x) => !x.closer);
+  // Solo los closers que tienen llamadas en esta lista: el closer ve las suyas, y un botón
+  // con el nombre del otro le dejaba la planilla vacía.
+  const closers = datos.equipo.filter((n) => conStatus.some((x) => x.closer === n));
 
   const visibles = useMemo(() => {
     const t = q.trim().toLowerCase();
     return conStatus
       .filter((x) => (tab === 'Todas' ? x.etiqueta !== 'Descartada' : x.etiqueta === tab))
-      .filter((x) => (closer === '' ? true : closer === '—' ? !x.closer : x.closer === closer))
+      .filter(delCloser)
       .filter((x) => (origen ? x.l.origen === origen : true))
       .filter((x) => (soloAds ? x.l.vinoDeAds : true))
       .filter((x) => !t || [x.l.prospecto, x.l.email, x.l.instagram, x.l.closer, x.l.setter]
@@ -176,6 +184,8 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
     return [...m.entries()];
   }, [visibles, grupo]);
 
+  // Dónde arranca la numeración de cada grupo: el número sigue de un grupo al otro.
+  const desde = grupos.reduce((acc, [, filas], gi) => [...acc, gi ? acc[gi - 1] + grupos[gi - 1][1].length : 0], []);
   const cobrado = visibles.reduce((a, x) => a + (x.l.cashUsd || 0), 0);
   const debe = visibles.reduce((a, x) => a + (x.l.saldoUsd || 0), 0);
   const filtros = (origen ? 1 : 0) + (soloAds ? 1 : 0);
@@ -282,7 +292,7 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
           </label>
         </div>
         <div className="pl-seg" role="group" aria-label="Closer">
-          {[['', 'Todos los closers'], ...datos.equipo.map((n) => [n, n]), ...(sinDueno ? [['—', 'Sin dueño']] : [])]
+          {[['', 'Todos los closers'], ...closers.map((n) => [n, n]), ...(sinDueno ? [['—', 'Sin dueño']] : [])]
             .map(([k, l]) => (
               <button key={k || 'todos'} type="button" className={closer === k ? 'activo' : ''} onClick={() => setCloser(k)}>{l}</button>
             ))}
@@ -292,13 +302,13 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
       <div className="pl-scroll">
         <table className="pl-tabla">
           <thead>{cabecera}</thead>
-          {grupos.map(([nombre, filas]) => (
+          {grupos.map(([nombre, filas], gi) => (
             <tbody key={nombre || 'todas'}>
               {nombre && (
                 <tr className="pl-grupo"><th colSpan={99} scope="rowgroup">{nombre} <span className="dim num">{filas.length}</span></th></tr>
               )}
-              {filas.map((x) => (
-                <Fila key={x.l.id} l={x.l} datos={datos} ver={ver} mes={mes}
+              {filas.map((x, i) => (
+                <Fila key={x.l.id} n={desde[gi] + i + 1} l={x.l} datos={datos} ver={ver} mes={mes}
                   onRecargar={onRecargar} onAbrir={() => setFicha(x.l.id)} />
               ))}
             </tbody>

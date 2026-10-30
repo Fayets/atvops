@@ -454,6 +454,10 @@ def reuniones_venta(desde: datetime, hasta: datetime, refrescar: bool = False) -
         salida.append({
             "eventoId": e["id"], "titulo": titulo, "prospecto": nombre, "segunda": segunda,
             "inicioAt": e["inicioAt"], "tipo": e.get("tipo") or "", "url": e.get("url"),
+            # Lo que el prospecto contestó en el formulario de Calendly: desde que no se lee
+            # el CRM de atv-mkt es la única fuente del IG y del teléfono.
+            "instagram": e.get("instagram") or "", "telefono": e.get("telefono") or "",
+            "facturacion": e.get("facturacion") or "",
             "invitados": [i.get("email", "") for i in (e.get("invitados") or [])],
         })
     ahora = datetime.utcnow()

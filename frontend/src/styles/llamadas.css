@@ -123,9 +123,10 @@
 .pl-tabla td, .pl-tabla tbody th { padding: 5px 6px; border-bottom: 1px solid #efebe4; white-space: nowrap;
   text-align: left; font-weight: 400; background: var(--surface); }
 .pl-tabla .right { text-align: right; }
-.pl-tabla .pl-nombre { position: sticky; left: 0; z-index: 2; min-width: 150px; max-width: 190px;
-  border-right: 1px solid var(--border-soft); padding-left: 14px; }
+.pl-tabla .pl-nombre { position: sticky; left: 0; z-index: 2; min-width: 170px; max-width: 220px;
+  border-right: 1px solid var(--border-soft); padding-left: 8px; }
 .pl-tabla thead .pl-nombre { z-index: 4; }
+.pl-num { display: inline-block; min-width: 22px; margin-right: 6px; font-size: 11px; color: var(--text-3); text-align: right; }
 .pl-abrir { font: inherit; font-weight: 600; color: var(--text); background: none; border: 0; padding: 0;
   cursor: pointer; text-align: left; max-width: 160px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .pl-abrir:hover { color: var(--brand); text-decoration: underline; }

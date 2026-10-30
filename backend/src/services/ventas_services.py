@@ -356,6 +356,17 @@ def _llamadas_propias(desde: date, hasta: date) -> list[dict]:
 EMAILS_DE_TODAS = 5
 
 
+# Del formulario de Calendly a la ficha de la llamada. Solo completa: lo que el equipo
+# corrigió a mano no lo pisa el formulario.
+DE_CALENDLY = (("instagram", "ig"), ("telefono", "telefono"), ("facturacion", "ingresos_rango"))
+
+
+def _completar_de_calendly(fila: dict, reunion: dict) -> None:
+    for origen, destino in DE_CALENDLY:
+        if not (fila.get(destino) or "").strip() and (reunion.get(origen) or "").strip():
+            fila[destino] = reunion[origen].strip()
+
+
 def _armar_desde_las_fuentes(desde: date, hasta: date) -> list[dict]:
     """Arma la lista de llamadas del período cruzando el calendario con lo cargado acá.
 
@@ -411,6 +422,7 @@ def _armar_desde_las_fuentes(desde: date, hasta: date) -> list[dict]:
         filas[i]["call"] = r["_cuando"]
         filas[i]["segunda"] = r["segunda"]
         filas[i]["eventoId"] = r["eventoId"]
+        _completar_de_calendly(filas[i], r)
 
     # El resto: todos los cruces posibles, del que mejor coincide en el tiempo al que peor.
     posibles = []
@@ -435,6 +447,7 @@ def _armar_desde_las_fuentes(desde: date, hasta: date) -> list[dict]:
         filas[i]["call"] = reuniones[j]["_cuando"]
         filas[i]["segunda"] = reuniones[j]["segunda"]
         filas[i]["eventoId"] = reuniones[j]["eventoId"]
+        _completar_de_calendly(filas[i], reuniones[j])
 
     conocidos: dict[str, dict] = {}
     for f in filas:
@@ -454,7 +467,7 @@ def _armar_desde_las_fuentes(desde: date, hasta: date) -> list[dict]:
         extras.append({
             "id": f"cal:{r['eventoId']}",
             "nombre": r["prospecto"], "email": next(iter(r["_emails"]), ""),
-            "telefono": "", "ig": "",
+            "telefono": r.get("telefono") or "", "ig": r.get("instagram") or "",
             # Sin default: "Orgánico" es lo que se muestra cuando no hay origen NI vino de
             # ads, y esa cuenta se hace al leer. Guardarlo acá pisaba el `vino_de_ads` y
             # las agendas de Ads aparecían como orgánicas.
@@ -462,7 +475,7 @@ def _armar_desde_las_fuentes(desde: date, hasta: date) -> list[dict]:
             "closer": _persona(base.get("closer"), "closer") if (base.get("closer") or "").strip() else "",
             "setter": base.get("setter") or "",
             "call": r["_cuando"], "agendo": None, "agendo_en": "Google Calendar",
-            "pago": 0, "debe": 0, "ingresos_rango": "", "programa_ofrecido": "",
+            "pago": 0, "debe": 0, "ingresos_rango": r.get("facturacion") or "", "programa_ofrecido": "",
             "vino_de_ads": False, "notas": r["titulo"], "created_at": None,
             "resultado": "", "calificacion": "", "closer_report": "", "link_llamada": "",
             "soloCalendario": True, "segunda": r["segunda"], "url": r.get("url"),
