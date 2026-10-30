@@ -224,6 +224,16 @@
 .ev-cab { border-top: 0; background: var(--surface-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--text-3); }
 .ev-scroll { max-height: 60vh; overflow: auto; }
+/* Por programa: una fila por programa ofrecido, se abre como las métricas. */
+.card.ev-programas { padding: 6px 0; }
+.ev-prog { display: grid; grid-template-columns: minmax(0, 1fr) repeat(5, 110px); gap: 0 12px; align-items: center;
+  width: 100%; padding: 10px 20px; font: inherit; font-size: 13px; text-align: left; color: var(--text);
+  background: none; border: 0; border-bottom: 1px solid var(--border-soft); cursor: pointer; }
+.ev-prog:last-child { border-bottom: 0; }
+.ev-prog:hover:not(.ev-cab) { background: var(--surface-2); }
+.ev-prog.ev-cab { cursor: default; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
+.ev-prog .right { text-align: right; }
+@media (max-width: 760px) { .ev-prog { grid-template-columns: minmax(0, 1fr) repeat(3, 64px); } .ev-prog > :nth-child(4), .ev-prog > :nth-child(6) { display: none; } }
 .ev-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 /* Cada métrica es un botón: al tocarla abre su detalle. */
 .ev-kpi { display: grid; gap: 4px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);

@@ -436,3 +436,28 @@ def test_ofrecer_programa_es_de_quien_carga_llamadas(rol):
     with pytest.raises(v.HTTPException) as e:
         v.ofrecer_programa("cal:x", "Boost", {"rol": rol, "username": "x"})
     assert e.value.status_code == 403
+
+
+# ------------------------------------------------------------------ por programa (Nick)
+
+def test_pitches_y_cierres_por_programa():
+    filas = []
+    fila = lambda l, **extra: {"id": l["id"], **extra}
+    leads = [
+        _llamada(id=1, resultado="Cerrado", programa_ofrecido="Mid Level", programa_propuesto="High Level"),
+        _llamada(id=2, resultado="Seguimiento", programa_propuesto="Mid Level"),
+        _llamada(id=3, resultado="Seguimiento", plan_fathom="High Level"),
+        _llamada(id=4, resultado="Seña", programa_ofrecido="Entry Level"),
+        _llamada(id=5, resultado="No show", programa_propuesto="Mid Level"),
+        _llamada(id=6, resultado="Seguimiento"),
+    ]
+    clases = ["cierre", "show", "show", "cierre", "no_show", "show"]
+    r = {g["programa"]: g for g in v._por_programa_pitcheado(leads, clases, fila)}
+    # La venta cuenta para el programa que compró, aunque se le haya ofrecido otro.
+    assert (r["Mid Level"]["pitches"], r["Mid Level"]["cierres"], r["Mid Level"]["tasaCierre"]) == (2, 1, 50.0)
+    assert r["Mid Level"]["fuentes"] == {"venta": 1, "planilla": 1, "fathom": 0}
+    assert (r["High Level"]["pitches"], r["High Level"]["fuentes"]["fathom"]) == (1, 1)
+    # La seña no es cierre, pero se ve en la tasa con señas.
+    assert (r["Entry Level"]["cierres"], r["Entry Level"]["senas"], r["Entry Level"]["tasaConSenas"]) == (0, 1, 100.0)
+    # El no show no tuvo pitch; la que no tiene programa va al final.
+    assert list(r)[-1] == "Sin programa" and r["Sin programa"]["pitches"] == 1

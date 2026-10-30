@@ -17,6 +17,7 @@ completa lo que todavía está vacío.
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from datetime import date, datetime, time, timedelta
@@ -180,6 +181,14 @@ def cuando(r):
     return r.movida_at or r.inicio_at
 
 
+def _plan_de_fathom(r) -> str:
+    """El programa que Fathom escuchó ofrecer en la llamada (el `plan` del reporte de la IA)."""
+    try:
+        return str((json.loads(getattr(r, "reporte_ia", None) or "{}") or {}).get("plan") or "").strip()
+    except (TypeError, ValueError):
+        return ""
+
+
 def _a_dict(r) -> dict:
     """La llamada con el mismo shape que antes armaba el cruce en vivo."""
     if r.lead_id:
@@ -201,6 +210,7 @@ def _a_dict(r) -> dict:
         "pago": r.cash_usd or 0.0, "debe": r.saldo_usd or 0.0,
         "ingresos_rango": r.ingresos_rango or "", "programa_ofrecido": (r.programa or "").strip(),
         "programa_propuesto": (r.programa_propuesto or "").strip(),
+        "plan_fathom": _plan_de_fathom(r),
         "vino_de_ads": bool(r.vino_de_ads), "notas": r.titulo or "",
         "created_at": r.lead_creado_at, "closer_report": (r.nota or "").strip(),
         "link_llamada": r.link_llamada or "",

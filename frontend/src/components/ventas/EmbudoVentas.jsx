@@ -226,7 +226,23 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio, so
 
   const kpisVista = soloLlamadas ? kpis.filter((k) => !DE_CHATS.includes(k.id)) : kpis;
 
+  // Por programa: cuántas veces se ofreció cada uno y cuántas cerró (pedido de Nick).
+  const programas = a.programas ?? [];
+
   let detalle = null;
+  const prog = programas.find((x) => `prog:${x.programa}` === abierto);
+  if (prog) {
+    detalle = {
+      titulo: prog.programa, valor: pct(prog.tasaCierre),
+      cuenta: `${num(prog.cierres)} cierres ÷ ${num(prog.pitches)} pitches${prog.senas ? ` · con las ${num(prog.senas)} señas, ${pct(prog.tasaConSenas)}` : ''}`,
+      partes: prog.programa === 'Sin programa' ? null : [
+        ['Programa de la venta', num(prog.fuentes.venta)],
+        ['Ofrecido en la planilla', num(prog.fuentes.planilla)],
+        ['Escuchado por Fathom', num(prog.fuentes.fathom)],
+      ],
+      filas: prog.filas,
+    };
+  }
   const paso = pasos.find((x) => `paso:${x.id}` === abierto);
   const kpi = [...kpis, ...otras].find((x) => `kpi:${x.id}` === abierto);
   if (paso) detalle = { titulo: paso.label, valor: paso.valor, cuenta: paso.id === 'chats' || paso.id === 'cierres' ? null : paso.sub, ...paso.detalle };
@@ -318,6 +334,29 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio, so
             subeEsBueno={k.subeEsBueno !== false} onAbrir={() => setAbierto(`kpi:${k.id}`)} />
         ))}
       </div>
+
+      {programas.length > 0 && (
+        <>
+          <div className="ev-kpis-titulo">Por programa</div>
+          <section className="card ev-programas">
+            <div className="ev-prog ev-cab">
+              <span>Programa</span><span className="right">Pitches</span><span className="right">Cierres</span>
+              <span className="right">Señas</span><span className="right">Tasa de cierre</span><span className="right">Con señas</span>
+            </div>
+            {programas.map((p) => (
+              <button key={p.programa} type="button" className={`ev-prog${p.programa === 'Sin programa' ? ' dim' : ''}`}
+                onClick={() => setAbierto(`prog:${p.programa}`)}>
+                <span className="strong">{p.programa}</span>
+                <span className="right num">{num(p.pitches)}</span>
+                <span className="right num">{num(p.cierres)}</span>
+                <span className="right num">{num(p.senas)}</span>
+                <b className="right num">{p.programa === 'Sin programa' ? '—' : pct(p.tasaCierre)}</b>
+                <span className="right num dim">{p.programa === 'Sin programa' ? '—' : pct(p.tasaConSenas)}</span>
+              </button>
+            ))}
+          </section>
+        </>
+      )}
 
       {detalle && <Detalle d={detalle} onCerrar={cerrar} />}
     </>

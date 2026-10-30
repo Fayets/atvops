@@ -1023,8 +1023,57 @@ def _bloque(leads: list[dict], ahora: datetime, detalle: bool = False) -> dict:
             "conPlanDetalle": [
                 _fila(l, estado=estado_venta(l), saldada=False) for l in por_fecha(con_plan)
             ],
+            "programas": _por_programa_pitcheado(leads, clases, _fila),
         })
     return out
+
+
+def _por_programa_pitcheado(leads: list[dict], clases: list[str], _fila) -> list[dict]:
+    """Cuántas veces se ofreció cada programa y cuántas cerró: la tasa de cierre por programa.
+
+    Lo pidió Nick (30-10-2026): "cuántos pitch y cuántos cierres de cada uno". El programa
+    de cada llamada sale, en este orden, de:
+
+    - la venta: el programa que compró. Así el cierre y su pitch son del mismo programa y la
+      tasa no pasa del 100 %.
+    - el programa ofrecido que cargó el closer en la planilla.
+    - el que escuchó Fathom (`plan` del reporte de la IA), si nadie lo cargó.
+
+    Solo cuentan las llamadas que se hicieron: un no show o una cancelada no tuvo pitch. Una
+    sin cargar entra si Fathom la grabó. Las señas van aparte del cierre, como en el embudo.
+    """
+    grupos: dict[str, dict] = {}
+    for l, c in zip(leads, clases):
+        es_venta = c == "cierre"
+        if not (es_venta or c == "show" or (c == "sin_reportar" and l.get("plan_fathom"))):
+            continue
+        if es_venta and (l.get("programa_ofrecido") or "").strip():
+            programa, fuente = l["programa_ofrecido"].strip(), "venta"
+        elif (l.get("programa_propuesto") or "").strip():
+            programa, fuente = l["programa_propuesto"].strip(), "planilla"
+        elif (l.get("plan_fathom") or "").strip():
+            programa, fuente = l["plan_fathom"].strip(), "fathom"
+        else:
+            programa, fuente = "", ""
+        g = grupos.setdefault(_norm(programa) or "", {
+            "programa": programa or "Sin programa", "pitches": 0, "cierres": 0, "senas": 0,
+            "fuentes": {"venta": 0, "planilla": 0, "fathom": 0}, "filas": []})
+        g["pitches"] += 1
+        if fuente:
+            g["fuentes"][fuente] += 1
+        cerrado = es_venta and _norm(l["resultado"]) == _norm("Cerrado")
+        g["cierres"] += cerrado
+        g["senas"] += es_venta and not cerrado
+        g["filas"].append(_fila(l, estado=(l.get("resultado") or "Falta cargar").strip() or "Falta cargar",
+                                programa=g["programa"], fuente=fuente))
+    salida = []
+    for g in grupos.values():
+        g["tasaCierre"] = round(g["cierres"] / g["pitches"] * 100, 1) if g["pitches"] else None
+        g["tasaConSenas"] = round((g["cierres"] + g["senas"]) / g["pitches"] * 100, 1) if g["pitches"] else None
+        g["filas"].sort(key=lambda f: f.get("fecha") or "", reverse=True)
+        salida.append(g)
+    # "Sin programa" al final: es lo que falta cargar, no un programa.
+    return sorted(salida, key=lambda g: (g["programa"] == "Sin programa", -g["pitches"]))
 
 
 
