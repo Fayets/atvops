@@ -186,8 +186,6 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
 
   // Dónde arranca la numeración de cada grupo: el número sigue de un grupo al otro.
   const desde = grupos.reduce((acc, [, filas], gi) => [...acc, gi ? acc[gi - 1] + grupos[gi - 1][1].length : 0], []);
-  const cobrado = visibles.reduce((a, x) => a + (x.l.cashUsd || 0), 0);
-  const debe = visibles.reduce((a, x) => a + (x.l.saldoUsd || 0), 0);
   const filtros = (origen ? 1 : 0) + (soloAds ? 1 : 0);
   const fichaAbierta = ficha && llamadas.find((l) => l.id === ficha);
 
@@ -214,8 +212,8 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
 
   return (
     <section className="planilla card">
-      {/* Tres franjas a lo ancho: el status, los totales con el buscador, y las
-          herramientas con el closer. Todo en dos renglones quedaba apretado. */}
+      {/* Tres franjas a lo ancho: el status, el buscador, y las herramientas con el
+          closer. Todo en dos renglones quedaba apretado. */}
       <div className="pl-tabs" role="group" aria-label="Status">
         {tabs.map(([t, n]) => (
           <button key={t} type="button" className={`pl-tab${tab === t ? ' activo' : ''}`} onClick={() => setTab(t)}>
@@ -225,11 +223,6 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
       </div>
 
       <div className="pl-barra pl-resumen">
-        <div className="pl-totales">
-          <span><small>Calls</small><b className="num">{visibles.length}</b></span>
-          <span><small>Cobrado</small><b className="num pl-cobrado">{usd(cobrado)}</b></span>
-          <span><small>Debe</small><b className="num pl-debe">{usd(debe)}</b></span>
-        </div>
         <input
           type="search"
           className="pl-buscar"

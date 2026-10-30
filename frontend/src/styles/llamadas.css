@@ -82,10 +82,6 @@
 .pl-tab:hover:not(.activo) { border-color: var(--text-3); }
 .pl-tab.activo { background: var(--text); border-color: var(--text); color: rgba(255, 255, 255, 0.75); }
 .pl-tab.activo b { color: #fff; }
-.pl-totales { display: flex; flex-wrap: wrap; gap: 8px 36px; align-items: flex-end; }
-.pl-totales span { display: flex; flex-direction: column; gap: 2px; }
-.pl-totales small { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); }
-.pl-totales b { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
 .pl-buscar { font: inherit; font-size: 13px; width: 340px; max-width: 100%; padding: 8px 12px;
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; }
 .pl-buscar:focus { outline: none; border-color: var(--text-3); }
