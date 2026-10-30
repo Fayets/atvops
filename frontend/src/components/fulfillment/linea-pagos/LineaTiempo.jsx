@@ -251,11 +251,14 @@ const CapaTitulos = memo(function CapaTitulos({ layout }) {
         const extra = l.fuera ? ` · ${l.fuera} antes` : '';
         const w = medir(l.titulo) * 1.18 + medir(`${l.n}${extra}`) + 30;
         return (
-          <g key={l.key} className="lp-titulo">
-            <title>{l.desc}{l.fuera ? ` · ${l.fuera} salieron antes de la ventana` : ''}</title>
-            <rect x="8" y={l.top + 4} width={w} height="24" rx="6" fill="var(--surface)" opacity="0.95"
+          // El título abre y cierra el grupo: es lo único de esta capa que recibe el clic.
+          <g key={l.key} className="lp-titulo" data-carril={l.key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
+            <title>{l.cerrado ? 'Abrir' : 'Cerrar'} · {l.desc}{l.fuera ? ` · ${l.fuera} salieron antes de la ventana` : ''}</title>
+            <rect x="8" y={l.top + 4} width={w + 14} height="24" rx="6" fill="var(--surface)" opacity="0.95"
               stroke={l.col || 'var(--border-soft)'} strokeWidth={l.col ? 1.4 : 1} />
-            <text x="16" y={l.top + 20} fontSize="13" fontWeight="600" fill="var(--text)">
+            <path d={l.cerrado ? `M17 ${l.top + 11} L22 ${l.top + 16} L17 ${l.top + 21}` : `M14 ${l.top + 13} L19 ${l.top + 18} L24 ${l.top + 13}`}
+              fill="none" stroke="var(--text-3)" strokeWidth="1.6" />
+            <text x="30" y={l.top + 20} fontSize="13" fontWeight="600" fill="var(--text)">
               {l.titulo} <tspan fill="var(--text-3)" fontWeight="400" fontSize="11" className="num">{l.n}{extra}</tspan>
             </text>
           </g>
@@ -284,9 +287,16 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
   const [pxd, setPxd] = useState(null);
 
   const ctx = linea;
+  // Los grupos y carriles plegados: se pliegan tocando su título.
+  const [cerrados, setCerrados] = useState(() => new Set());
+  const plegar = (key) => setCerrados((s) => {
+    const n = new Set(s);
+    if (n.has(key)) n.delete(key); else n.add(key);
+    return n;
+  });
   const layout = useMemo(
-    () => (pxd ? armarLayout(clientes, filtros, pxd, ctx, medir) : null),
-    [clientes, filtros, pxd, ctx],
+    () => (pxd ? armarLayout(clientes, filtros, pxd, ctx, medir, cerrados) : null),
+    [clientes, filtros, pxd, ctx, cerrados],
   );
   const grilla = useMemo(() => (pxd ? armarGrilla(ctx.D0 - 30, ctx.FIN + 60, pxd, ctx.D0) : null), [pxd, ctx]);
   // Lo cobrado por mes solo entra cuando el mes es lo bastante ancho para leerlo.
@@ -295,7 +305,7 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
 
   // Los manejadores de eventos se registran una vez: leen lo último de acá.
   const vivo = useRef({});
-  vivo.current = { ctx, layout, tam, onElegir };
+  vivo.current = { ctx, layout, tam, onElegir, plegar };
 
   const limitar = () => {
     const v = vista.current;
@@ -475,7 +485,10 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
     if (punteros.current.size < 2) gesto.current.pinza = null;
     if (!punteros.current.size) escenario.current.classList.remove('arrastrando');
     if (e.type !== 'pointerup' || gesto.current.movido >= 6) return;
-    // Un clic sin arrastre: sobre una barra o un punto abre la ficha; en el vacío, cierra el cartel.
+    // Un clic sin arrastre: en el título de un grupo lo pliega; sobre una barra o un punto
+    // abre la ficha; en el vacío, cierra el cartel.
+    const carril = gesto.current.objetivo?.closest?.('[data-carril]');
+    if (carril) { vivo.current.plegar(carril.dataset.carril); return; }
     const it = itemDe(gesto.current.objetivo);
     if (it) {
       vivo.current.onElegir(it.c.id);

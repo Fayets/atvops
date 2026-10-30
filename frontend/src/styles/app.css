@@ -8850,6 +8850,8 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .lp-punto { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--c, var(--text-3)); display: inline-block; }
 .lp-muestra-marca { width: 14px; height: 9px; border-radius: 3px; flex: none; border: 2px solid var(--lp-marca); }
 .lp-muestra-marca.E { border-style: dashed; }
+.lp-fechas { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.lp-fecha { font: inherit; font-size: 12.5px; padding: 3px 8px; border: 1px solid var(--border-soft); border-radius: 999px; background: var(--surface); color: var(--text); }
 .lp-meta { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; }
 
 /* El escenario: cada capa se corre con transform, nada se re-dibuja al arrastrar. */

@@ -73,8 +73,8 @@ const ACTIVO = ['vigente', 'pausa', 'llamada_recompra', 'no_va_a_renovar', 'venc
  * Pasa las fechas a días y guarda lo que dice la ficha (`o`): los ajustes siempre se
  * aplican sobre la ficha original, nunca uno encima de otro.
  */
-/** Cuántos días después de hoy muestra la línea. */
-export const DIAS_FUTURO = 31;
+/** Cuántos días después de hoy muestra la línea: seis meses (Franco, 30-10-2026). */
+export const DIAS_FUTURO = 183;
 
 export function prepararLinea(data) {
   const CUT = D(data.cut);
@@ -90,8 +90,8 @@ export function prepararLinea(data) {
     c.o = { vD: c.vD, ad: c.ad, mE: c.mE, g: c.g, ab: c.ab, qm: c.qm, mD: c.mD.slice(), dvd: c.dvd };
     return c;
   });
-  // Un mes para adelante: lo que vence o termina en las próximas semanas se ve venir, no
-  // aparece recién el día que pasa (Franco, 30-10-2026).
+  // Para adelante: lo que vence o termina en los próximos meses se ve venir, no aparece
+  // recién el día que pasa.
   const FIN = HOY + DIAS_FUTURO;
   return { CUT, HOY, FIN, WIN0, D0: WIN0 - 30, clientes, pagos: clientes.reduce((n, c) => n + c.pg.length, 0) };
 }
@@ -136,7 +136,10 @@ export const aplicarAjustes = (base, ajustes, ctx) => base.map((b) => aplicarAju
 /* ---------------------------------------------------------------- filtros */
 
 /** filtros = { planes, grupos, marcas, carriles }: cuatro Sets. */
-export const visible = (c, f) => c.g !== 'X' && f.planes.has(c.p) && f.grupos.has(c.g);
+// Un rango de fechas en días; sin desde o sin hasta, ese lado queda abierto.
+const enRango = (d, r) => !r || ((r.desde == null || d >= r.desde) && (r.hasta == null || d <= r.hasta));
+export const visible = (c, f) => c.g !== 'X' && f.planes.has(c.p) && f.grupos.has(c.g)
+  && enRango(c.aD, f.inicio) && enRango(c.vD, f.vence);
 export const marcaD = (c) => c.mD.length > 0;
 export const marcaE = (c) => c.mE > 0;
 // Inactivo sin fecha de baja y con vencimiento a futuro: no se sabe cuándo se fue.
@@ -155,7 +158,7 @@ function armarEventos(clientes, f, { WIN0, HOY, FIN }) {
     c.pg.forEach((p) => { if (p.d >= WIN0 && p.d <= HOY) pag.push({ c, d: p.d, m: p.m, medio: p.tipo, tipo: 'pago' }); });
     if (c.bD != null && c.bD < c.vD) { if (c.bD >= WIN0 && c.bD <= HOY) ven.push({ c, d: c.bD, tipo: 'baja' }); }
     else if (c.vD >= WIN0 && c.vD <= HOY) ven.push({ c, d: c.vD, tipo: 'venc', est: false });
-    // Los del mes que viene: todavía no pasaron, van punteados como estimados.
+    // Los que vienen: todavía no pasaron, van punteados como estimados.
     else if (c.vD > HOY && c.vD <= FIN && !sinBaja(c, HOY)) ven.push({ c, d: c.vD, tipo: 'venc', est: true });
   });
   return { ing, pag, ven };
@@ -175,7 +178,7 @@ export const etiquetasBarra = (c) => [
  * `x` en píxeles desde D0 con `pxd` píxeles por día; `y` desde el tope de los carriles.
  * `medir(texto)` da el ancho en píxeles a 11px.
  */
-export function armarLayout(clientes, f, pxd, ctx, medir) {
+export function armarLayout(clientes, f, pxd, ctx, medir, cerrados = new Set()) {
   const { WIN0, HOY, FIN, D0 } = ctx;
   const ev = armarEventos(clientes, f, ctx);
   const modoEtiqueta = pxd >= 6;
@@ -189,10 +192,12 @@ export function armarLayout(clientes, f, pxd, ctx, medir) {
     const lista = todos
       .filter((c) => c.endD >= WIN0 || sinBaja(c, HOY))
       .sort((a, b) => a.aD - b.aD || a.n.localeCompare(b.n));
-    lista.forEach((c, i) => {
+    // Un grupo cerrado queda en su título: los clientes siguen contados, no se dibujan.
+    const cerrado = cerrados.has(`g${gr.k}`);
+    (cerrado ? [] : lista).forEach((c, i) => {
       const unk = sinBaja(c, HOY);
       const x1 = (Math.max(c.aD, WIN0) - D0) * pxd;
-      // La barra sigue hasta su fin si cae en el mes que viene; la de baja sin fecha, hasta hoy.
+      // La barra sigue hasta su fin si cae en lo que se ve del futuro; la de baja sin fecha, hasta hoy.
       const x2 = (Math.min(unk ? HOY : c.endD, FIN) - D0) * pxd;
       const wid = Math.max(x2 - x1, 4);
       const tags = etiquetasBarra(c);
@@ -204,17 +209,23 @@ export function armarLayout(clientes, f, pxd, ctx, medir) {
         y: top + 34 + i * rowH + rowH / 2, texto, fs, dentro: wid > (medir(texto) * fs) / 11 + 24,
       });
     });
+    const filas = cerrado ? 0 : lista.length;
     carriles.push({
       key: `g${gr.k}`, titulo: gr.titulo, desc: gr.desc, fuera: todos.length - lista.length,
-      top, h: 34 + lista.length * rowH + 10, n: lista.length, col: gr.color, banda: true,
+      top, h: 34 + filas * rowH + (cerrado ? 0 : 10), n: lista.length, col: gr.color, banda: true, cerrado,
     });
-    top += 34 + lista.length * rowH + 10 + 8;
+    top += 34 + filas * rowH + (cerrado ? 0 : 10) + 8;
   });
   top += 14;
   const paso = modoEtiqueta ? 20 : 16;
   [['ing', ev.ing], ['pag', ev.pag], ['ven', ev.ven]].forEach(([key, lista]) => {
     if (!f.carriles.has(key)) return;
     const def = CARRILES.find((x) => x.k === key);
+    if (cerrados.has(key)) {
+      carriles.push({ key, titulo: def.corto, desc: def.desc, top, h: 34, n: lista.length, cerrado: true });
+      top += 34 + 12;
+      return;
+    }
     lista.sort((a, b) => a.d - b.d || a.c.id - b.c.id);
     // Cada punto baja de nivel hasta encontrar un hueco donde no pise al anterior.
     const fines = [];

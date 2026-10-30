@@ -8,7 +8,7 @@ import Resumen from '../../components/fulfillment/linea-pagos/Resumen.jsx';
 import { useDocsLinea } from '../../components/fulfillment/linea-pagos/useDocsLinea.js';
 import { getLineaPagos } from '../../data/api.js';
 import {
-  CARRILES, GRUPOS, MARCAS, PLANES, PNAME, aplicarAjustes, filasAjustes, fmtD, marcaD, marcaE, prepararLinea,
+  CARRILES, D, GRUPOS, MARCAS, PLANES, PNAME, aplicarAjustes, filasAjustes, fmtD, iso, marcaD, marcaE, prepararLinea,
 } from '../../lib/lineaPagos.js';
 import { useResource } from '../../lib/hooks.js';
 
@@ -49,7 +49,28 @@ const FILTROS_INICIALES = () => ({
   grupos: new Set(GRUPOS.map((g) => g.k)),
   marcas: new Set(['D', 'E']),
   carriles: new Set(CARRILES.map((c) => c.k)),
+  // Rangos de fecha de inicio y de vencimiento del programa, en días. Vacíos = todos.
+  inicio: { desde: null, hasta: null },
+  vence: { desde: null, hasta: null },
 });
+
+/** Un rango de fechas: desde y hasta, cada uno opcional. */
+function FiltroFecha({ titulo, rango, onCambiar }) {
+  const campo = (lado) => (
+    <input type="date" className="lp-fecha" aria-label={`${titulo} ${lado}`}
+      value={rango[lado] == null ? '' : iso(rango[lado])}
+      onChange={(e) => onCambiar({ ...rango, [lado]: e.target.value ? D(e.target.value) : null })} />
+  );
+  return (
+    <div className="lp-filtro">
+      <span className="lab-k">{titulo}</span>
+      {campo('desde')}<span className="dim">a</span>{campo('hasta')}
+      {(rango.desde != null || rango.hasta != null) && (
+        <button type="button" className="chip" onClick={() => onCambiar({ desde: null, hasta: null })}>Todas</button>
+      )}
+    </div>
+  );
+}
 
 export default function LineaPagos() {
   const { data, error, loading } = useResource(() => getLineaPagos(), []);
@@ -87,6 +108,10 @@ export default function LineaPagos() {
           items={MARCAS.map((m) => ({ k: m.k, label: m.corto, desc: m.desc, marca: m.k, n: cuenta(m.k === 'D' ? marcaD : marcaE) }))} />
         <Filtro titulo="Carriles" activos={filtros.carriles} onCambiar={cambiar('carriles')}
           items={CARRILES.map((x) => ({ k: x.k, label: x.corto, desc: x.desc }))} />
+        <div className="lp-fechas">
+          <FiltroFecha titulo="Inicio" rango={filtros.inicio} onCambiar={cambiar('inicio')} />
+          <FiltroFecha titulo="Vencimiento" rango={filtros.vence} onCambiar={cambiar('vence')} />
+        </div>
         <span className="lp-meta num" title={`Ventana ${fmtD(linea.WIN0)} a ${fmtD(linea.HOY)}`}>
           Corte {fmtD(linea.CUT)} · {clientes.length} clientes · {linea.pagos} pagos
         </span>
