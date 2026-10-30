@@ -404,29 +404,35 @@ def listar(usuario: dict) -> list[dict]:
                       key=lambda p: (p["pitchAt"], p["id"]), reverse=True)
 
 
-def _agendamiento(agendas: int, d: date | None, h: date | None, canal: str | None) -> dict:
-    """Agendas sobre los chats que trajo marketing en el mismo período.
+def _agendamiento(h: date | None) -> dict:
+    """Las agendas del mes sobre el total de chats que ingresaron en el mes.
 
-    Los chats no son los que carga el setter: son los de Marketing —respuestas a las
-    secuencias de historias con CTA y a los reels—, contados por
-    `conversaciones_services.chats()`, el mismo número que muestran Marketing y el embudo
-    de Ventas. Es la pregunta de punta a punta: de lo que el contenido abrió, cuánto
-    terminó en una llamada.
+    Es la misma tasa que el embudo de Ventas, con los mismos dos números, para que diga lo
+    mismo en las dos pantallas (Franco, 30-10-2026):
 
-    Sin período (all-time) no se calcula, y con un canal elegido tampoco: los chats no
-    se reparten por canal del pitch, y dividir las agendas de un canal por los chats de
-    todos daría una tasa que no mide nada.
+    - Los chats son **todos** los que trajo marketing en el mes —historias con CTA, reels,
+      YouTube y otras—, contados por `conversaciones_services.chats()`.
+    - Las agendas son las llamadas del mes del calendario (`ventas.resumen`), no los
+      pitches que cargó el setter: esos dependen de que los cargue, y los chats no.
+
+    Va por mes y no por el período elegido: un recorte de una semana dividía las agendas
+    de esa semana por los chats de esa semana, que no es el número que se mira.
     """
-    if d is None or h is None or canal:
-        return {"chats": None, "agendamiento": None}
     from src.services import conversaciones_services
+    from src.services import ventas_services
 
+    ref = h or hoy_ar()
+    inicio = ref.replace(day=1)
+    fin = date(inicio.year + (inicio.month == 12), inicio.month % 12 + 1, 1)
+    mes = inicio.strftime("%Y-%m")
+    vacio = {"chats": None, "agendasMes": None, "agendamiento": None, "mesAgendamiento": mes}
     try:
-        total = int(conversaciones_services.chats(d, h + timedelta(days=1)).get("total") or 0)
+        total = int(conversaciones_services.chats(inicio, fin).get("total") or 0)
+        agendas = int((ventas_services.resumen(mes).get("actual") or {}).get("agendados") or 0)
     except Exception as e:  # noqa: BLE001
-        logger.warning("No se pudieron leer los chats del período: %s", str(e)[:160])
-        return {"chats": None, "agendamiento": None}
-    return {"chats": total, "agendamiento": _tasa(agendas, total)}
+        logger.warning("No se pudo calcular la tasa de agendamiento del mes: %s", str(e)[:160])
+        return vacio
+    return {**vacio, "chats": total, "agendasMes": agendas, "agendamiento": _tasa(agendas, total)}
 
 
 def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
@@ -452,7 +458,7 @@ def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
         "velocidad": _velocidad(leads),
         "followUps": _follow_ups(leads),
         "dondeConviene": _donde_conviene(m),
-        **_agendamiento(m["agendas"], d, h, canal),
+        **_agendamiento(h),
         "fuentes": _por_fuente(pitches, d, h, canal),
         # La serie termina en la semana de hoy: las semanas que todavía no pasaron
         # solo agregan filas en cero que parecen una caída.

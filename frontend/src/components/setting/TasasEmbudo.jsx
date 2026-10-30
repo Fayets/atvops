@@ -15,9 +15,9 @@ import { LLAMADA_ESTADO, PITCH_ESTADO, conjuntosDeTasas, pct } from '../../lib/s
 // tasa corresponde a qué barra sin buscar la etiqueta. El setting rate no tiene barra
 // propia y va en ámbar.
 const TASAS = [
-  // La primera es la de punta a punta: de los chats que abrió el contenido (historias con
-  // CTA y reels, contados en Marketing), cuántos terminaron en una llamada agendada.
-  { id: 'agendamiento', color: 'var(--set-chats)', label: 'Tasa de agendamiento', unidad: 'chats de marketing', num: 'agendas', den: 'chats' },
+  // La primera es la de punta a punta, y va por mes aunque el período sea otro: las agendas
+  // del mes sobre todos los chats que ingresaron en el mes. Es la misma del embudo de Ventas.
+  { id: 'agendamiento', color: 'var(--set-chats)', label: 'Tasa de agendamiento', unidad: 'agendas / chats del mes', num: 'agendasMes', den: 'chats' },
   { id: 'booking', color: 'var(--set-agendas)', label: 'Booking rate', unidad: 'pitches', num: 'agendas', den: 'pitchesResueltos', verde: 30, amarillo: 20,
     detalle: 'Los pitches del período que ya se resolvieron: agendaron, dijeron que no o ghostearon. Los que todavía no contestaron no entran, porque no fallaron nada.' },
   { id: 'show', color: 'var(--set-shows)', label: 'Show rate', unidad: 'calls', num: 'shows', den: 'llamadasResueltas', verde: 80, amarillo: 65,
