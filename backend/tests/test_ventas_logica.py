@@ -390,11 +390,17 @@ def test_sin_fecha_de_agenda_los_dias_quedan_vacios_y_no_en_cero():
     assert f["agendoAt"] is None and f["diasParaAgendar"] is None
 
 
-@pytest.mark.parametrize("rol", ["closer", "setter", "marketing", "csm"])
-def test_la_lista_de_todas_las_llamadas_es_de_direccion(rol):
+@pytest.mark.parametrize("rol", ["setter", "marketing", "csm"])
+def test_la_lista_de_todas_las_llamadas_es_de_direccion_y_closers(rol):
     with pytest.raises(v.HTTPException) as e:
         v.llamadas_del_mes({"rol": rol, "username": "x"}, "2026-09")
     assert e.value.status_code == 403
+
+
+def test_el_closer_y_el_setter_que_cierra_ven_todas_las_llamadas():
+    assert v._ve_todo_ventas({"rol": "closer"})
+    assert v._ve_todo_ventas({"rol": "setter", "rolesVentas": ["setter", "closer"]})
+    assert not v._ve_todo_ventas({"rol": "setter", "rolesVentas": ["setter"]})
 
 
 def test_la_lista_de_todas_las_llamadas_no_filtra_por_closer(monkeypatch):

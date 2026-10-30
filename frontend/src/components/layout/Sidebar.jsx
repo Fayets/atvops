@@ -81,9 +81,8 @@ const NAV = [
       // lleva "Ventas" cuando lo tocan ellos (ver filtrarNav), y repetirla abajo era
       // tener el mismo link dos veces, uno arriba del otro.
       { to: '/ventas/llamadas', label: 'Llamadas', roles: ['closer'] },
-      // El paneo general es del director: los números y el calendario de todo el equipo. Cada closer
-      // ve solo sus llamadas en Mi día.
-      { to: '/ventas/operativa', label: 'Operativa', roles: ['ventas', 'admin', 'founder', 'operaciones'] },
+      // La misma planilla de todas las calls: el closer la abre por /ventas/llamadas.
+      { to: '/ventas/operativa', label: 'Llamadas', roles: ['ventas', 'admin', 'founder', 'operaciones'] },
       // Los laboratorios son el análisis del área. El closer no ve el de setting: es de
       // Cris y del área. Operativa, Performance, Setting y Salud vs meta salieron del
       // menú; sus rutas siguen vivas hasta que se repartan entre los dos laboratorios.

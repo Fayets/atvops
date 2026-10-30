@@ -6832,6 +6832,8 @@ body.gate-abierto .shell { display: none; }
    Lo operativo no vive acá — esta pantalla dice cómo venimos, no qué hacer ahora. */
 .ventas-dash { display: flex; flex-direction: column; gap: var(--space-6); }
 .ventas-dash-dia { margin: 0 0 calc(var(--space-6) * -0.5); font-size: 14px; }
+/* El filtro por closer del dashboard: lo usan igual el director y los closers. */
+.ventas-dash-closer { align-self: flex-start; }
 .ventas-dash-bloque { display: flex; flex-direction: column; gap: var(--space-3); }
 .ventas-dash-bloque > header { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
 .ventas-dash-bloque > header h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }

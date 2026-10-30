@@ -31,8 +31,6 @@ import ReporteSetting from './pages/ReporteSetting.jsx';
 import ReporteProducto from './pages/ReporteProducto.jsx';
 import ReporteSemanal from './pages/ReporteSemanal.jsx';
 import Reporte from './pages/Reporte.jsx';
-import VentasCloser from './pages/VentasCloser.jsx';
-import VentasLlamadas from './pages/VentasLlamadas.jsx';
 import VentasOperativaPage from './pages/VentasOperativa.jsx';
 import VentasOps from './pages/VentasOps.jsx';
 import VentasPerformancePage from './pages/VentasPerformance.jsx';
@@ -103,7 +101,9 @@ function VentasMiDiaRoute() {
   if (!puedeVerVentasCloser(rol)) {
     return <Navigate to={homeParaRol(rol)} replace />;
   }
-  return <VentasCloser />;
+  // El closer ve lo mismo que el director (Franco, 30-10-2026): el dashboard del área,
+  // filtrable por closer.
+  return <VentasDashboard />;
 }
 
 function VentasMiProgresoRoute() {
@@ -237,7 +237,8 @@ export default function App() {
               <Route path="lab-closing" element={<LabClosing />} />
               <Route path="caja" element={<CajaUno />} />
               <Route path="mi-dia" element={<VentasMiDiaRoute />} />
-              <Route path="llamadas" element={<VentasLlamadas />} />
+              {/* La planilla de todas las calls, la misma que la Operativa del director. */}
+              <Route path="llamadas" element={<VentasOperativaPage />} />
               <Route path="mi-progreso" element={<VentasMiProgresoRoute />} />
               <Route path="setting" element={<Setting />} />
               <Route path="performance" element={<VentasPerformanceRoute />} />

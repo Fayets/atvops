@@ -104,10 +104,10 @@ def mis_llamadas(user: dict = Depends(solo_interno), closer: str | None = None, 
 
 
 @router.get("/mi-embudo")
-def mi_embudo(user: dict = Depends(solo_interno), mes: str | None = None):
-    """El embudo del director con las llamadas del closer logueado."""
+def mi_embudo(user: dict = Depends(solo_interno), mes: str | None = None, closer: str | None = None):
+    """El embudo del director con las llamadas de un closer (sin `closer`, el logueado)."""
     try:
-        return ventas.embudo_closer(user, mes=mes)
+        return ventas.embudo_closer(user, mes=mes, closer=closer)
     except HTTPException as e:
         raise e
     except Exception:

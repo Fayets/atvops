@@ -1408,6 +1408,8 @@ def resumen(mes: str | None = None, refrescar: bool = False) -> dict:
             [x for x in leads if _clasificar(x["resultado"], x["calificacion"], x["call"], ahora) == "cierre"],
             key=lambda x: x["call"], reverse=True)][:20],
         "equipo": [{"nombre": m["nombre"], "rol": m["rol"]} for m in equipo],
+        # Los botones del filtro por closer del dashboard: quién toma llamadas hoy.
+        "closers": equipo_services.nombres("closer"),
     }
     with _lock:
         _cache[clave] = {"at": datetime.utcnow(), "data": data}
@@ -1689,8 +1691,10 @@ def llamadas_del_mes(usuario: dict, mes: str | None = None) -> dict:
     abre el embudo al tocar un paso. `mis_llamadas` filtra por closer; esta no, y por eso
     queda para quien mira el área entera.
     """
-    if usuario.get("rol") not in ROLES_PRECIOS | {"ventas"}:
-        raise HTTPException(status_code=403, detail="La lista de todas las llamadas es de dirección.")
+    # Closers y dirección ven lo mismo (pedido de Franco, 30-10-2026): la lista entera, y
+    # cada uno filtra por closer. El setter no.
+    if not _ve_todo_ventas(usuario):
+        raise HTTPException(status_code=403, detail="La lista de todas las llamadas es de dirección y closers.")
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     hoy = ahora.date()
     mes = mes or hoy.strftime("%Y-%m")
@@ -1840,14 +1844,21 @@ def mis_llamadas(usuario: dict, dias_atras: int = 30, dias_adelante: int = 14, c
     }
 
 
-def embudo_closer(usuario: dict, mes: str | None = None) -> dict:
-    """El embudo del director con las llamadas de un closer: lo que ve en Mi día.
+def _ve_todo_ventas(usuario: dict) -> bool:
+    """Dirección, el director de ventas y los closers: ven las mismas pantallas de Ventas."""
+    return usuario.get("rol") in ROLES_PRECIOS | {"ventas"} or _toma_llamadas(usuario)
+
+
+def embudo_closer(usuario: dict, mes: str | None = None, closer: str | None = None) -> dict:
+    """El embudo del director con las llamadas de un closer: el filtro por closer.
 
     Las llamadas se eligen como en `mis_llamadas` —las suyas, y las huérfanas solo si es
-    el único closer— para que el embudo cuente lo mismo que los números de arriba. No
-    lleva chats: son del equipo, y dividir las agendas de un closer por los chats de todos
-    daba una tasa de agendamiento que no medía nada.
+    el único closer—. Sin `closer`, las de quien mira. No lleva chats: son del equipo, y
+    dividir las agendas de un closer por los chats de todos daba una tasa de agendamiento
+    que no medía nada.
     """
+    if closer and not _ve_todo_ventas(usuario):
+        raise HTTPException(status_code=403, detail="El embudo de otro closer es de dirección y closers.")
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     mes = mes or ahora.date().strftime("%Y-%m")
     try:
@@ -1858,7 +1869,7 @@ def embudo_closer(usuario: dict, mes: str | None = None) -> dict:
     fin_mes = date(anio + (m == 12), (m % 12) + 1, 1)
     inicio_previo = date(anio - (m == 1), 12 if m == 1 else m - 1, 1)
 
-    nombres = [n for n in _nombres_crm(usuario) if n]
+    nombres = [n for n in ((_grafias_de(closer) or [closer]) if closer else _nombres_crm(usuario)) if n]
     mios = {_norm(n) for n in nombres}
     un_solo_closer = len(equipo_services.listar("closer")) <= 1
     internas = no_son_de_venta()

@@ -911,9 +911,12 @@ export async function guardarDecretoEnServidor(mes, decreto) {
 }
 
 /** El embudo de setting del mes: chats, pitches, agendas y shows. */
-/** El embudo del director con las llamadas del closer logueado (Mi día). */
-export async function getMiEmbudo(mes) {
-  return pedir(`/api/ventas/mi-embudo${mes ? `?mes=${mes}` : ''}`);
+/** El embudo del director con las llamadas de un closer (sin `closer`, el logueado). */
+export async function getMiEmbudo(mes, closer) {
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  if (closer) q.set('closer', closer);
+  return pedir(`/api/ventas/mi-embudo${q.toString() ? `?${q}` : ''}`);
 }
 
 export async function getEmbudoSetting(mes) {
