@@ -5,6 +5,9 @@ Regla del módulo: es de solo lectura. No abre conexión a Discord, no escribe e
 los .txt y no toca la base de atv-clients. Si el bot cambia de cadencia o de
 canales, esto lo refleja solo.
 
+A cada canal se le suman los mensajes que el cliente escribió en el classroom
+(`classroom_chats_services`, desde el 28-10-2026). Discord sigue leyéndose igual.
+
 Formato del archivo (lo produce `_format_mensaje` en atv-clients):
 
     [YYYY-MM-DD HH:MM] Autor
@@ -26,6 +29,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from src.services import classroom_chats_services as classroom_chats
 from src.transcripts_source import CANONICAL_BASE, base_disponible, get_transcripts_base
 
 AR_TZ = timezone(timedelta(hours=-3))
@@ -93,6 +97,84 @@ def _describir_adjunto(url: str, carpeta_adjuntos: Path) -> dict:
             local = f.name
             break
     return {"url": url, "nombre": nombre, "es_imagen": es_imagen, "local": local}
+
+
+def _agregados(mensajes: list[dict]) -> dict:
+    """Lo que se cuenta de un canal a partir de sus mensajes, ya ordenados por fecha."""
+    autores: dict[str, dict] = {}
+    adjuntos = 0
+    caracteres = 0
+    for msg in mensajes:
+        adjuntos += len(msg["adjuntos"])
+        caracteres += len(msg["contenido"])
+        autor = autores.setdefault(
+            msg["autor"],
+            {"nombre": msg["autor"], "mensajes": 0, "primero_at": None, "ultimo_at": None},
+        )
+        autor["mensajes"] += 1
+        if autor["primero_at"] is None or msg["fecha_at"] < autor["primero_at"]:
+            autor["primero_at"] = msg["fecha_at"]
+        if autor["ultimo_at"] is None or msg["fecha_at"] > autor["ultimo_at"]:
+            autor["ultimo_at"] = msg["fecha_at"]
+
+    primero = mensajes[0]["fecha_at"] if mensajes else None
+    ultimo = max((m["fecha_at"] for m in mensajes), default=None)
+    ahora = datetime.now(AR_TZ)
+
+    # Vista previa del último mensaje: es lo que se lee en la lista de chats.
+    ultimo_msg = mensajes[-1] if mensajes else None
+    ultimo_texto = None
+    if ultimo_msg:
+        crudo = " ".join((ultimo_msg["contenido"] or "").split())
+        if not crudo and ultimo_msg["adjuntos"]:
+            crudo = f"📎 {len(ultimo_msg['adjuntos'])} adjunto(s)"
+        ultimo_texto = crudo[:160]
+
+    return {
+        "mensajes": len(mensajes),
+        "autores": sorted(autores.values(), key=lambda a: -a["mensajes"]),
+        "adjuntos": adjuntos,
+        "caracteres": caracteres,
+        "primer_mensaje_at": primero,
+        "ultimo_mensaje_at": ultimo,
+        "dias_sin_actividad": (ahora - ultimo).days if ultimo else None,
+        "ultimo_autor": ultimo_msg["autor"] if ultimo_msg else None,
+        "ultimo_texto": ultimo_texto,
+    }
+
+
+def _con_classroom(datos: dict | None, del_classroom: dict | None, categoria: str | None = None) -> dict | None:
+    """El canal de Discord con los mensajes que el cliente escribió en el classroom.
+
+    Devuelve una copia: el canal de Discord vive en el caché por archivo y no se toca. Sin
+    canal de Discord —un cliente que entró después— arma uno solo con el classroom.
+    """
+    if not del_classroom:
+        return datos
+    extra = del_classroom["mensajes"]
+    if datos is None:
+        mensajes = [dict(m, indice=i) for i, m in enumerate(extra)]
+        return {
+            "id": f"{categoria or del_classroom['categoria']}/{del_classroom['canal']}",
+            "canal": del_classroom["canal"],
+            "categoria": categoria or del_classroom["categoria"],
+            **_agregados(mensajes),
+            "archivo": None, "bytes": 0, "completo": True,
+            "actualizado_at": mensajes[-1]["fecha_at"] if mensajes else None,
+            "en_discord": not del_classroom["inactivo"],
+            "en_classroom": True,
+            "_mensajes": mensajes,
+        }
+    juntos = sorted([*datos["_mensajes"], *extra], key=lambda m: m["fecha_at"])
+    mensajes = [dict(m, indice=i) for i, m in enumerate(juntos)]
+    return {
+        **datos,
+        **_agregados(mensajes),
+        # Sigue vivo aunque el canal de Discord se haya cerrado: ahora habla por el classroom.
+        "en_discord": datos.get("en_discord", True) or not del_classroom["inactivo"],
+        "en_classroom": True,
+        "_mensajes": mensajes,
+    }
 
 
 class TranscriptsServices:
@@ -194,49 +276,11 @@ class TranscriptsServices:
         # encabezado es un fragmento: la historia previa quedó en otra máquina.
         tiene_header = texto.startswith("Canal:")
         mensajes = self._parsear(texto, _leer_directorio(get_transcripts_base()), carpeta / "adjuntos")
-        autores: dict[str, dict] = {}
-        adjuntos = 0
-        caracteres = 0
-
-        for msg in mensajes:
-            adjuntos += len(msg["adjuntos"])
-            caracteres += len(msg["contenido"])
-            autor = autores.setdefault(
-                msg["autor"],
-                {"nombre": msg["autor"], "mensajes": 0, "primero_at": None, "ultimo_at": None},
-            )
-            autor["mensajes"] += 1
-            if autor["primero_at"] is None or msg["fecha_at"] < autor["primero_at"]:
-                autor["primero_at"] = msg["fecha_at"]
-            if autor["ultimo_at"] is None or msg["fecha_at"] > autor["ultimo_at"]:
-                autor["ultimo_at"] = msg["fecha_at"]
-
-        primero = mensajes[0]["fecha_at"] if mensajes else None
-        ultimo = max((m["fecha_at"] for m in mensajes), default=None)
-        ahora = datetime.now(AR_TZ)
-
-        # Vista previa del último mensaje: es lo que se lee en la lista de chats.
-        ultimo_msg = mensajes[-1] if mensajes else None
-        ultimo_texto = None
-        if ultimo_msg:
-            crudo = " ".join((ultimo_msg["contenido"] or "").split())
-            if not crudo and ultimo_msg["adjuntos"]:
-                crudo = f"📎 {len(ultimo_msg['adjuntos'])} adjunto(s)"
-            ultimo_texto = crudo[:160]
-
         datos = {
             "id": f"{categoria}/{carpeta.name}",
             "canal": carpeta.name,
             "categoria": categoria,
-            "mensajes": len(mensajes),
-            "autores": sorted(autores.values(), key=lambda a: -a["mensajes"]),
-            "adjuntos": adjuntos,
-            "caracteres": caracteres,
-            "primer_mensaje_at": primero,
-            "ultimo_mensaje_at": ultimo,
-            "dias_sin_actividad": (ahora - ultimo).days if ultimo else None,
-            "ultimo_autor": ultimo_msg["autor"] if ultimo_msg else None,
-            "ultimo_texto": ultimo_texto,
+            **_agregados(mensajes),
             "archivo": str(archivo),
             "bytes": stat.st_size,
             "completo": tiene_header,
@@ -255,6 +299,8 @@ class TranscriptsServices:
             return []
 
         vivos = _canales_vivos(base)
+        # Copia: se van sacando los que encuentran su canal, y el original es el caché.
+        classroom = dict(classroom_chats.por_canal())
         canales: list[dict] = []
         for categoria_dir in sorted(p for p in base.iterdir() if p.is_dir()):
             if categoria_dir.name.startswith("_"):
@@ -265,7 +311,11 @@ class TranscriptsServices:
                     # Un canal que está en disco pero ya no en Discord es un cliente
                     # que terminó o un canal archivado: se conserva, pero cerrado.
                     datos["en_discord"] = _esta_vivo(datos, vivos)
-                    canales.append(datos)
+                    # Los mensajes del classroom van en el mismo canal. Se sacan del dict
+                    # para que no se sumen dos veces si el canal está en dos categorías.
+                    canales.append(_con_classroom(datos, classroom.pop(canal_dir.name, None)))
+        # Los clientes que solo hablan en el classroom: no tienen carpeta de Discord.
+        canales.extend(_con_classroom(None, c) for c in classroom.values())
         return canales
 
     @staticmethod
@@ -375,12 +425,13 @@ class TranscriptsServices:
         """Un canal con todos sus mensajes."""
         base = get_transcripts_base()
         carpeta = base / categoria / canal
-        if not carpeta.is_dir():
-            raise HTTPException(status_code=404, detail=f"No existe el canal #{canal}.")
 
-        datos = self._leer_canal(categoria, carpeta)
+        del_classroom = classroom_chats.por_canal().get(canal)
+        datos = self._leer_canal(categoria, carpeta) if carpeta.is_dir() else None
+        if datos:
+            datos = {**datos, "en_discord": _esta_vivo(datos, _canales_vivos(base))}
+        datos = _con_classroom(datos, del_classroom, categoria)
         if not datos:
             raise HTTPException(status_code=404, detail=f"El canal #{canal} no tiene transcript.")
-        datos["en_discord"] = _esta_vivo(datos, _canales_vivos(base))
 
         return {"canal": self._sin_mensajes(datos), "mensajes": datos["_mensajes"]}

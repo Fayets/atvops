@@ -131,15 +131,22 @@ def _semana_label(fecha: datetime) -> str:
 
 
 def _staff_desde_canales(canales: list[dict]) -> set[str]:
-    """Quién escribe en varios canales = equipo ATV, no el cliente del canal."""
+    """Quién escribe en varios canales = equipo ATV, no el cliente del canal.
+
+    En los mensajes del classroom no hace falta deducirlo: el classroom sabe quién es del
+    equipo (`equipo`), y un coach que escribió en un solo canal no es el cliente.
+    """
     por_autor: dict[str, set[str]] = defaultdict(set)
+    del_equipo: set[str] = set()
     for canal in canales:
         slug = canal["canal"]
         for msg in canal.get("_mensajes") or []:
             key = _norm(msg["autor"])
             if key:
                 por_autor[key].add(slug)
-    return {autor for autor, chs in por_autor.items() if len(chs) >= STAFF_MIN_CANALES}
+                if msg.get("equipo"):
+                    del_equipo.add(key)
+    return {autor for autor, chs in por_autor.items() if len(chs) >= STAFF_MIN_CANALES} | del_equipo
 
 
 def _autor_es_cliente(autor: str, canal: str, staff: set[str]) -> bool:

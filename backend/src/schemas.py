@@ -64,10 +64,11 @@ class CanalResumen(BaseModel):
     dias_sin_actividad: int | None = None
     ultimo_autor: str | None = None
     ultimo_texto: str | None = None
-    archivo: str
+    archivo: str | None = None  # None = el cliente habla solo por el classroom
     bytes: int
     completo: bool = False
     en_discord: bool = True   # False = está en disco pero ya no existe en Discord (cerrado)
+    en_classroom: bool = False  # tiene mensajes escritos en la mensajería del classroom
     actualizado_at: datetime | None = None
 
 
@@ -107,6 +108,7 @@ class MensajeTranscript(BaseModel):
     autor: str
     contenido: str
     adjuntos: list[AdjuntoTranscript]
+    origen: str = "discord"  # discord | classroom
 
 
 class CanalDetalleResponse(BaseModel):
