@@ -230,7 +230,7 @@ def test_ida_y_vuelta_con_setsystem():
 
 # ------------------------------------------------------------------ tasa de agendamiento
 
-def _mes(monkeypatch, chats_total, agendados):
+def _periodo(monkeypatch, chats_total, reuniones):
     from src.services import conversaciones_services, ventas_services
     pedidos = []
 
@@ -239,24 +239,27 @@ def _mes(monkeypatch, chats_total, agendados):
         return {"total": chats_total, "partes": []}
 
     monkeypatch.setattr(conversaciones_services, "chats", chats)
-    monkeypatch.setattr(ventas_services, "resumen", lambda mes: {"actual": {"agendados": agendados}})
+    monkeypatch.setattr(ventas_services, "_sumar_reuniones_del_calendario", lambda d, h: reuniones)
+    monkeypatch.setattr(ventas_services, "_bloque", lambda ls, ahora: {"agendados": len(ls)})
     return pedidos
 
 
-def test_la_tasa_de_agendamiento_es_agendas_del_mes_sobre_todos_los_chats_del_mes(monkeypatch):
-    """Los chats son todos los que ingresaron en el mes, y las agendas las del calendario."""
-    pedidos = _mes(monkeypatch, 1109, 58)
-    r = s._agendamiento(date(2026, 10, 31))
-    assert r == {"chats": 1109, "agendasMes": 58, "agendamiento": 5.2, "mesAgendamiento": "2026-10"}
+def test_la_tasa_de_agendamiento_es_agendas_sobre_todos_los_chats_del_periodo(monkeypatch):
+    """Los chats son todos los que ingresaron, y las agendas las del calendario."""
+    pedidos = _periodo(monkeypatch, 1109, [{}] * 58)
+    r = s._agendamiento(date(2026, 10, 1), date(2026, 10, 31))
+    assert r == {"chats": 1109, "agendasPeriodo": 58, "agendamiento": 5.2}
     assert pedidos == [(date(2026, 10, 1), date(2026, 11, 1))]
 
 
-def test_un_periodo_de_una_semana_igual_mira_el_mes_entero(monkeypatch):
-    pedidos = _mes(monkeypatch, 1109, 58)
-    assert s._agendamiento(date(2026, 10, 29))["chats"] == 1109
-    assert pedidos == [(date(2026, 10, 1), date(2026, 11, 1))]
+def test_una_semana_mira_esa_semana_aunque_termine_en_otro_mes(monkeypatch):
+    pedidos = _periodo(monkeypatch, 54, [{}] * 17)
+    r = s._agendamiento(date(2026, 10, 26), date(2026, 11, 1))
+    assert r["agendamiento"] == 31.5
+    assert pedidos == [(date(2026, 10, 26), date(2026, 11, 2))]
 
 
-def test_sin_chats_la_tasa_queda_vacia_y_no_en_cero(monkeypatch):
-    _mes(monkeypatch, 0, 3)
-    assert s._agendamiento(date(2026, 10, 31))["agendamiento"] is None
+def test_sin_periodo_o_sin_chats_no_se_inventa_la_tasa(monkeypatch):
+    _periodo(monkeypatch, 0, [{}] * 3)
+    assert s._agendamiento(None, None)["agendamiento"] is None
+    assert s._agendamiento(date(2026, 10, 1), date(2026, 10, 31))["agendamiento"] is None

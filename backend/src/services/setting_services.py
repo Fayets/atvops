@@ -404,35 +404,35 @@ def listar(usuario: dict) -> list[dict]:
                       key=lambda p: (p["pitchAt"], p["id"]), reverse=True)
 
 
-def _agendamiento(h: date | None) -> dict:
-    """Las agendas del mes sobre el total de chats que ingresaron en el mes.
+def _agendamiento(d: date | None, h: date | None) -> dict:
+    """Las agendas del período sobre el total de chats que ingresaron en el período.
 
-    Es la misma tasa que el embudo de Ventas, con los mismos dos números, para que diga lo
-    mismo en las dos pantallas (Franco, 30-10-2026):
+    - Los chats son **todos** los que trajo marketing —historias con CTA, reels, YouTube y
+      otras—, contados por `conversaciones_services.chats()`.
+    - Las agendas son las llamadas del calendario (`ventas._bloque`), no los pitches que
+      cargó el setter: esos dependen de que los cargue, y los chats no.
 
-    - Los chats son **todos** los que trajo marketing en el mes —historias con CTA, reels,
-      YouTube y otras—, contados por `conversaciones_services.chats()`.
-    - Las agendas son las llamadas del mes del calendario (`ventas.resumen`), no los
-      pitches que cargó el setter: esos dependen de que los cargue, y los chats no.
-
-    Va por mes y no por el período elegido: un recorte de una semana dividía las agendas
-    de esa semana por los chats de esa semana, que no es el número que se mira.
+    Sigue al período elegido: una semana mira esa semana y "Este mes" da lo mismo que el
+    embudo de Ventas. El 30-10-2026 se probó atarlo siempre al mes y fue peor: la semana
+    del 26/10 al 1/11 terminaba en noviembre y mostraba 2/0, y las semanas anteriores
+    traían el mes entero. Sin período (Todo) no se calcula.
     """
+    vacio = {"chats": None, "agendasPeriodo": None, "agendamiento": None}
+    if d is None or h is None:
+        return vacio
     from src.services import conversaciones_services
     from src.services import ventas_services
 
-    ref = h or hoy_ar()
-    inicio = ref.replace(day=1)
-    fin = date(inicio.year + (inicio.month == 12), inicio.month % 12 + 1, 1)
-    mes = inicio.strftime("%Y-%m")
-    vacio = {"chats": None, "agendasMes": None, "agendamiento": None, "mesAgendamiento": mes}
+    hasta = h + timedelta(days=1)  # chats() y el calendario toman `hasta` exclusivo
     try:
-        total = int(conversaciones_services.chats(inicio, fin).get("total") or 0)
-        agendas = int((ventas_services.resumen(mes).get("actual") or {}).get("agendados") or 0)
+        total = int(conversaciones_services.chats(d, hasta).get("total") or 0)
+        reuniones = ventas_services._sumar_reuniones_del_calendario(d, hasta)
+        ahora = datetime.now(AR_TZ).replace(tzinfo=None)
+        agendas = int(ventas_services._bloque(reuniones, ahora).get("agendados") or 0)
     except Exception as e:  # noqa: BLE001
-        logger.warning("No se pudo calcular la tasa de agendamiento del mes: %s", str(e)[:160])
+        logger.warning("No se pudo calcular la tasa de agendamiento: %s", str(e)[:160])
         return vacio
-    return {**vacio, "chats": total, "agendasMes": agendas, "agendamiento": _tasa(agendas, total)}
+    return {"chats": total, "agendasPeriodo": agendas, "agendamiento": _tasa(agendas, total)}
 
 
 def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
@@ -458,7 +458,7 @@ def metricas(usuario: dict, desde: str | None = None, hasta: str | None = None,
         "velocidad": _velocidad(leads),
         "followUps": _follow_ups(leads),
         "dondeConviene": _donde_conviene(m),
-        **_agendamiento(h),
+        **_agendamiento(d, h),
         "fuentes": _por_fuente(pitches, d, h, canal),
         # La serie termina en la semana de hoy: las semanas que todavía no pasaron
         # solo agregan filas en cero que parecen una caída.
