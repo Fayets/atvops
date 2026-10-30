@@ -157,21 +157,41 @@ export function SelectStatus({ llamada, estados, f, compacto = false }) {
 }
 
 /**
- * El programa, en cualquier llamada. En una venta es el que compró (da precio y saldo);
- * en las demás, el que se le ofreció, que se guarda aparte y no toca la plata. Al marcar
- * la venta, el ofrecido pasa a ser el comprado.
+ * El programa que se le ofreció, en cualquier llamada. Se guarda aparte del comprado y no
+ * toca la plata: es el pitch, el que se cuenta en "Por programa". Al marcar la venta, si
+ * todavía no se eligió el comprado, se toma este.
  */
-export function SelectPrograma({ llamada, programas, f }) {
-  const valor = f.esVenta ? f.v.programa : (llamada.programaOfrecido || '');
-  // Básico aunque falte en una venta: el aviso de abajo de la fila ya pide elegirlo.
+export function SelectOfrecido({ llamada, programas, f }) {
+  const valor = llamada.programaOfrecido || '';
   return (
     <select
       className={`sel-status sel-programa${valor ? '' : ' vacio'}`}
       value={valor}
       disabled={f.guardando || llamada.estado === 'descartada'}
-      aria-label={f.esVenta ? 'Programa que compró' : 'Programa que se le ofreció'}
-      title={f.esVenta ? 'Programa que compró' : 'Programa que se le ofreció'}
-      onChange={(e) => (f.esVenta ? f.guardar({ programa: e.target.value }) : f.ofrecer(e.target.value))}
+      aria-label={`Programa que se le ofreció a ${llamada.prospecto}`}
+      onChange={(e) => f.ofrecer(e.target.value)}
+    >
+      <option value="">—</option>
+      {programas.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+    </select>
+  );
+}
+
+/**
+ * El programa que compró: solo en una venta (Cerrado o Seña), porque da el precio y la
+ * deuda. En las demás no hay nada que comprar. Básico aunque falte: el aviso de abajo de la
+ * fila ya pide elegirlo.
+ */
+export function SelectComprado({ llamada, programas, f }) {
+  if (!f.esVenta) return <span className="dim">—</span>;
+  const valor = f.v.programa;
+  return (
+    <select
+      className={`sel-status sel-programa${valor ? '' : ' vacio'}`}
+      value={valor}
+      disabled={f.guardando}
+      aria-label={`Programa que compró ${llamada.prospecto}`}
+      onChange={(e) => f.guardar({ programa: e.target.value })}
     >
       <option value="">—</option>
       {programas.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}

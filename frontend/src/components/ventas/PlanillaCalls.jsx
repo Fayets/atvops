@@ -3,7 +3,7 @@ import CerrarSena from './CerrarSena.jsx';
 import { FormResultado } from './ListaLlamadas.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
 import {
-  CeldaCash, CeldaFathom, MoverLlamada, SelectCloser, SelectPrograma, SelectStatus, closerDe, enSena, statusDe, useLlamada,
+  CeldaCash, CeldaFathom, MoverLlamada, SelectCloser, SelectComprado, SelectOfrecido, SelectStatus, closerDe, enSena, statusDe, useLlamada,
 } from './CeldasLlamada.jsx';
 import { formatValue } from '../../lib/format.js';
 
@@ -28,13 +28,14 @@ const GRUPOS = { '': 'Sin agrupar', closer: 'Closer', status: 'Status', origen: 
 const OPCIONALES = [
   ['ig', 'IG'], ['tel', 'Tel'], ['email', 'Email'], ['origen', 'Origen'], ['ads', 'Ads'],
   ['agendo', 'Agendó'], ['dias', 'Días p/ agendar'], ['setter', 'Setter'], ['closer', 'Closer'],
-  ['link', 'Link'], ['programa', 'Programa'], ['pago', 'Pagó'], ['debe', 'Debe'],
+  ['link', 'Link'], ['ofrecido', 'Ofrecido'], ['comprado', 'Comprado'], ['pago', 'Pagó'], ['debe', 'Debe'],
 ];
 // Las que arrancan escondidas: el origen y los días ocupan lugar y casi no se miran. Están
 // en la ficha y se pueden volver a prender en Columnas.
 const OCULTAS = ['origen', 'dias'];
-// v2: con la clave vieja quedaban guardadas las columnas que ahora arrancan escondidas.
-const CLAVE_COLUMNAS = 'atv-ops:planilla-calls:columnas:v2';
+// v3: la columna Programa se partió en Ofrecido y Comprado; con la clave vieja las dos
+// nuevas quedaban escondidas para quien ya había tocado las columnas.
+const CLAVE_COLUMNAS = 'atv-ops:planilla-calls:columnas:v3';
 
 const fechaCall = (iso) => {
   const d = new Date(iso);
@@ -90,7 +91,8 @@ function Fila({ n, l, datos, ver, mes, onRecargar, onAbrir }) {
         {ver.has('setter') && <td className="dim">{l.setter || '—'}</td>}
         {ver.has('closer') && <td><SelectCloser llamada={l} equipo={datos.equipo} f={f} /></td>}
         {ver.has('link') && <td><CeldaFathom llamada={l} f={f} /></td>}
-        {ver.has('programa') && <td><SelectPrograma llamada={l} programas={datos.programas} f={f} /></td>}
+        {ver.has('ofrecido') && <td><SelectOfrecido llamada={l} programas={datos.programas} f={f} /></td>}
+        {ver.has('comprado') && <td><SelectComprado llamada={l} programas={datos.programas} f={f} /></td>}
         {ver.has('pago') && <td className="right"><CeldaCash llamada={l} f={f} /></td>}
         {ver.has('debe') && <td className={`right num${l.saldoUsd > 0 ? ' pl-debe' : ' dim'}`}>{usd(l.saldoUsd)}</td>}
       </tr>
@@ -204,7 +206,8 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
       {ver.has('setter') && <th scope="col">Setter</th>}
       {ver.has('closer') && <th scope="col">Closer</th>}
       {ver.has('link') && <th scope="col">Link</th>}
-      {ver.has('programa') && <th scope="col">Programa</th>}
+      {ver.has('ofrecido') && <th scope="col" title="El programa que se le ofreció en la llamada">Ofrecido</th>}
+      {ver.has('comprado') && <th scope="col" title="El programa que compró: solo en una venta">Comprado</th>}
       {ver.has('pago') && <th scope="col" className="right">Pagó</th>}
       {ver.has('debe') && <th scope="col" className="right">Debe</th>}
     </tr>
