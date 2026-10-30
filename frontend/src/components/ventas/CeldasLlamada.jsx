@@ -163,16 +163,17 @@ export function SelectStatus({ llamada, estados, f, compacto = false }) {
  */
 export function SelectPrograma({ llamada, programas, f }) {
   const valor = f.esVenta ? f.v.programa : (llamada.programaOfrecido || '');
+  // Básico aunque falte en una venta: el aviso de abajo de la fila ya pide elegirlo.
   return (
     <select
-      className={`sel-status sel-programa${f.faltaPrograma ? ' st-faltacargar pendiente' : ''}${valor ? '' : ' vacio'}`}
+      className={`sel-status sel-programa${valor ? '' : ' vacio'}`}
       value={valor}
       disabled={f.guardando || llamada.estado === 'descartada'}
       aria-label={f.esVenta ? 'Programa que compró' : 'Programa que se le ofreció'}
       title={f.esVenta ? 'Programa que compró' : 'Programa que se le ofreció'}
       onChange={(e) => (f.esVenta ? f.guardar({ programa: e.target.value }) : f.ofrecer(e.target.value))}
     >
-      <option value="">{f.esVenta ? 'Elegí el programa' : '—'}</option>
+      <option value="">—</option>
       {programas.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
     </select>
   );
