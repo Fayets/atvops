@@ -245,13 +245,20 @@ export function MoverLlamada({ llamada, onGuardado }) {
 
 /**
  * El link de la llamada. Si no tiene el de Fathom, el guion se toca y se pega: no todas las
- * grabaciones entran solas por el webhook.
+ * grabaciones entran solas por el webhook. El que tiene se puede sacar con la ×.
  */
 export function CeldaFathom({ llamada, f }) {
   const [editando, setEditando] = useState(false);
   const [url, setUrl] = useState('');
   if (llamada.fathomUrl) {
-    return <a href={llamada.fathomUrl} target="_blank" rel="noreferrer">Fathom ↗</a>;
+    // La × lo borra: un link pegado en la llamada equivocada se saca y se vuelve a pegar.
+    return (
+      <span className="fathom-vacio">
+        <a href={llamada.fathomUrl} target="_blank" rel="noreferrer">Fathom ↗</a>
+        <button type="button" className="fathom-agregar fathom-borrar" disabled={f.guardando}
+          onClick={() => f.fathom('')} title="Sacar el link de Fathom" aria-label="Sacar el link de Fathom">×</button>
+      </span>
+    );
   }
   if (editando) {
     const guardar = () => {

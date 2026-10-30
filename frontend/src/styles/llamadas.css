@@ -34,6 +34,8 @@
   background: none; color: var(--text-3); cursor: pointer; }
 .fathom-agregar:hover:not(:disabled) { border-color: var(--border); background: var(--surface); color: var(--text); }
 .fathom-agregar:disabled { cursor: default; }
+.fathom-borrar { padding: 0 5px; font-size: 14px; line-height: 1.2; }
+.fathom-borrar:hover:not(:disabled) { color: var(--alert); }
 .fathom-celda { font: inherit; font-size: 12px; width: 180px; padding: 3px 6px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text); }
 .sel-closer.vacio { color: var(--text-3); }
