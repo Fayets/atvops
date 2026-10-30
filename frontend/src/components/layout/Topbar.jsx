@@ -9,7 +9,6 @@ const TITULOS = {
   '/backbone/equipo': 'Backbone · Equipo y roles',
   '/fulfillment': 'Fulfillment',
   '/fulfillment/ops': 'Fulfillment · Salud de cartera',
-  '/fulfillment/pendientes': 'Fulfillment · Updates',
   '/fulfillment/clientes': 'Fulfillment · Clientes',
   '/fulfillment/activacion': 'Fulfillment · Activación',
   '/fulfillment/engagement': 'Fulfillment · Engagement',

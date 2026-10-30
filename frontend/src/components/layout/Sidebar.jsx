@@ -31,7 +31,6 @@ const NAV = [
       { to: '/fulfillment/diagnostico', label: 'Diagnóstico', roles: ['csm', 'operaciones', 'admin', 'founder'] },
       // La línea de pagos de Mauri: vigencia y pagos de cada cliente en el tiempo.
       { to: '/fulfillment/linea-pagos', label: 'Línea de pagos', roles: ['csm', 'operaciones', 'admin', 'founder'] },
-      { to: '/fulfillment/pendientes', label: 'Updates', roles: ['csm'] },
       { to: '/fulfillment/outcomes', label: 'Resultados', roles: ['csm'] },
     ],
   },

@@ -2695,20 +2695,6 @@ export async function preguntarAsistente(pregunta, historial = []) {
   });
 }
 
-/** Pendientes de respuesta por coach, en vivo desde los transcripts. */
-export async function getPendientes() {
-  return pedir('/api/pendientes');
-}
-
-export async function ejecutarRondaPendientes() {
-  return pedir('/api/pendientes/ronda', { method: 'POST' });
-}
-
-/** Guarda el update tal como lo dejó el CSM. */
-export async function confirmarUpdate(texto) {
-  return pedir('/api/pendientes/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
-}
-
 /** Datos del cliente que carga el CSM (objetivo, ICP, contacto, su equipo). */
 export async function guardarDatosCliente(clienteId, payload) {
   return pedir(`/api/clientes/${encodeURIComponent(clienteId)}/datos`, {
@@ -2794,11 +2780,6 @@ export async function getResumenEventos() {
   return pedir('/api/eventos/resumen');
 }
 
-/** Tira el borrador de la última ronda sin aplicarlo. */
-export async function descartarBorrador() {
-  return pedir('/api/pendientes/borrador', { method: 'DELETE' });
-}
-
 /**
  * Home del Director de Ventas: cash collected + métricas por segmento.
  * General sale del CRM (`/api/ventas`). Calificadas / descalificadas
@@ -2878,19 +2859,6 @@ export async function getVentasDirectorHome(mes) {
       ...segmentosPendientes(),
     ],
   };
-}
-
-/** Progreso de la ronda en curso (o de la última). */
-export async function getProgresoRonda() {
-  return pedir('/api/pendientes/progreso');
-}
-
-/** Texto del update en el formato de #updates (texto plano). */
-export async function getUpdateTexto() {
-  const token = getToken();
-  const r = await fetch(`${API_BASE}/api/pendientes/update-texto`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!r.ok) throw new Error(`El backend respondió ${r.status}`);
-  return r.text();
 }
 
 // ------------------------------------------------------------ reporte de producto

@@ -50,7 +50,6 @@ import ClavesApi from './pages/ClavesApi.jsx';
 import Activacion from './pages/fulfillment/Activacion.jsx';
 import Chats from './pages/fulfillment/Chats.jsx';
 import Canales from './pages/fulfillment/Canales.jsx';
-import Pendientes from './pages/fulfillment/Pendientes.jsx';
 import ClienteDetalle from './pages/fulfillment/ClienteDetalle.jsx';
 import Clientes from './pages/fulfillment/Clientes.jsx';
 import Diagnostico from './pages/fulfillment/Diagnostico.jsx';
@@ -201,7 +200,6 @@ export default function App() {
               <Route path="engagement" element={<Navigate to="/fulfillment/diagnostico" replace />} />
               <Route path="retencion" element={<Navigate to="/fulfillment/diagnostico" replace />} />
               <Route path="outcomes" element={<Outcomes />} />
-              <Route path="pendientes" element={<Pendientes />} />
               <Route path="canales" element={<Canales />} />
               <Route path="linea-pagos" element={<LineaPagos />} />
               <Route path="canales/:categoria/:canal" element={<Canales />} />

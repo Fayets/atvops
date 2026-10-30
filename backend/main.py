@@ -12,7 +12,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.gzip_json import GZipJson
 from src.controllers.activacion_ia_controller import router as activacion_ia_router
 from src.controllers.asistente_controller import router as asistente_router
-from src.controllers.pendientes_controller import router as pendientes_router
 from src.controllers.auth_controller import router as auth_router
 from src.controllers.claves_controller import router as claves_router
 from src.controllers.clientes_controller import router as clientes_router
@@ -47,7 +46,7 @@ from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
 from src.controllers.clientes_controller import service as clientes_service
 from src.services import estructuras_services, narrativa_services
 from src.services import (activacion_ia_services, audiencia_services, cerebro_services, daily_services, instagram_services, theo_services,
-                          llamadas_services, pedidos_services, youtube_services)
+                          llamadas_services, youtube_services)
 
 import logging
 import threading
@@ -91,9 +90,8 @@ async def lifespan(_app: FastAPI):
         return
     # Activación por Claude Code, 08:00 y 18:00 AR.
     threading.Thread(target=activacion_ia_services.iniciar_scheduler, args=(stop,), daemon=True, name="activacion-ia").start()
-    # Rondas de pendientes de respuesta: 09, 13, 16 y 19 AR.
+    # Las rondas de pendientes (updates) se sacaron: pasan al classroom, donde Mauri arma los updates.
     cerebro_services.sembrar()
-    threading.Thread(target=pedidos_services.iniciar_scheduler, args=(stop,), daemon=True, name="pedidos").start()
     # Instagram cada 3 h: las historias duran un día y si no se traen a tiempo se pierden.
     threading.Thread(target=instagram_services.iniciar_scheduler, args=(stop,), daemon=True, name="instagram").start()
     threading.Thread(target=youtube_services.iniciar_scheduler, args=(stop,), daemon=True, name="youtube").start()
@@ -209,7 +207,6 @@ app.include_router(integrantes_router, prefix="/api/integrantes", tags=["integra
 app.include_router(reuniones_router, prefix="/api/reuniones", tags=["reuniones"])
 app.include_router(activacion_ia_router, prefix="/api/activacion-ia", tags=["activacion-ia"])
 app.include_router(asistente_router, prefix="/api/asistente", tags=["asistente"])
-app.include_router(pendientes_router, prefix="/api/pendientes", tags=["pendientes"])
 app.include_router(eventos_router, prefix="/api/eventos", tags=["eventos"])
 app.include_router(gcal_router, prefix="/api/calendario-ventas", tags=["calendario"])
 app.include_router(ventas_router, prefix="/api/ventas", tags=["ventas"])
