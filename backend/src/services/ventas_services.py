@@ -1844,8 +1844,9 @@ def embudo_closer(usuario: dict, mes: str | None = None) -> dict:
     """El embudo del director con las llamadas de un closer: lo que ve en Mi día.
 
     Las llamadas se eligen como en `mis_llamadas` —las suyas, y las huérfanas solo si es
-    el único closer— para que el embudo cuente lo mismo que los números de arriba. Los
-    chats y las conversaciones son del equipo: el setter no le abre chats a un closer.
+    el único closer— para que el embudo cuente lo mismo que los números de arriba. No
+    lleva chats: son del equipo, y dividir las agendas de un closer por los chats de todos
+    daba una tasa de agendamiento que no medía nada.
     """
     ahora = datetime.now(AR_TZ).replace(tzinfo=None)
     mes = mes or ahora.date().strftime("%Y-%m")
@@ -1872,14 +1873,11 @@ def embudo_closer(usuario: dict, mes: str | None = None) -> dict:
     del_mes = [f for f in suyas if inicio_mes <= f["call"].date() < fin_mes]
     previos = [f for f in suyas if inicio_previo <= f["call"].date() < inicio_mes]
     diferidos = cierres_diferidos(inicio_mes, fin_mes, set(nombres)) if nombres else []
-    equipo = resumen(mes)
     return {
         "mes": mes,
         "closer": nombres[0] if nombres else None,
         "actual": _con_cierres_de_sena(_bloque(del_mes, ahora, detalle=True), diferidos),
         "previo": _bloque(previos, ahora),
-        "topFunnel": equipo.get("topFunnel", {}),
-        "settersMes": equipo.get("settersMes", []),
     }
 
 

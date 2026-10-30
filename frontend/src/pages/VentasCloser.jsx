@@ -2,15 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import EmbudoVentas from '../components/ventas/EmbudoVentas.jsx';
 import MiDiaCloser from '../components/ventas/MiDiaCloser.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import { getEmbudoSetting, getMiEmbudo, getMisLlamadas } from '../data/api.js';
+import { getMiEmbudo, getMisLlamadas } from '../data/api.js';
 import { mesAnterior, mesId, nombreDelMes } from '../lib/format.js';
 import { useResource } from '../lib/hooks.js';
 import { alActualizarLlamadas } from '../lib/llamadasSync.js';
 import { useMes } from '../lib/MesContext.jsx';
 
 /**
- * Mi día: los números del mes del closer y, abajo, el mismo embudo que ve el director,
- * con sus llamadas. Los chats del embudo son del equipo: los abre el setter para todos.
+ * Mi día: los números del mes del closer y, abajo, el embudo del director con sus
+ * llamadas. Arranca en las agendas: los chats son del equipo y no se le reparten.
  */
 export default function VentasCloser() {
   const { mes } = useMes();
@@ -25,8 +25,6 @@ export default function VentasCloser() {
   );
   const vista = local ?? data;
   const embudo = useResource(() => getMiEmbudo(elMes), [tick, elMes]);
-  const chats = useResource(() => getEmbudoSetting(elMes), [elMes]);
-  const chatsPrevio = useResource(() => getEmbudoSetting(previo), [previo]);
   // Cargar un resultado o agregar una reunión tiene que mover los números de arriba.
   const refrescar = useCallback(() => { setLocal(null); setTick((t) => t + 1); }, []);
 
@@ -57,8 +55,7 @@ export default function VentasCloser() {
         <>
           <MiDiaCloser data={vista} onCambio={refrescar} syncKey={tick} />
           {embudo.data ? (
-            <EmbudoVentas real={embudo.data} embudo={chats.data} embudoPrevio={chatsPrevio.data}
-              mesPrevio={nombreDelMes(previo)} />
+            <EmbudoVentas real={embudo.data} mesPrevio={nombreDelMes(previo)} soloLlamadas />
           ) : <SkeletonBlock height={420} />}
         </>
       )}

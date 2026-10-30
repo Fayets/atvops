@@ -116,10 +116,14 @@ function Detalle({ d, onCerrar }) {
 }
 
 /**
- * @param {{ real: object, embudo: object | null, embudoPrevio: object | null, mesPrevio: string }} props
+ * @param {{ real: object, embudo: object | null, embudoPrevio: object | null, mesPrevio: string,
+ *           soloLlamadas?: boolean }} props
  *   `real` es lo que devuelve /api/ventas; `embudo` lo de /api/ventas/setting (los chats).
+ *   `soloLlamadas` es la vista del closer: arranca en las agendas. Los chats y las
+ *   conversaciones son del equipo, y dividir las agendas de un closer por los chats de
+ *   todos daba una tasa de agendamiento del 1 % que no medía nada.
  */
-export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) {
+export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio, soloLlamadas = false }) {
   // Qué está abierto: un paso del embudo o una métrica. Cerrado, la pantalla se lee entera.
   const [abierto, setAbierto] = useState(null);
   const cerrar = () => setAbierto(null);
@@ -157,12 +161,16 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
     { id: 'cierres', label: 'Cierres', valor: `${num(a.cierres)}${conSenas}`, sub: a.senas ? `+ ${a.senas} señas` : 'sin señas',
       detalle: { filas: [...cierres, ...senas] } },
   ];
+  const DE_CHATS = ['chats', 'conversaciones', 'conversion', 'agendamiento'];
+  const pasosVista = soloLlamadas ? pasos.filter((x) => !DE_CHATS.includes(x.id)) : pasos;
   const tasas = [
     ['Tasa de conversión', pct(tasa(conversaciones, chats)), 'conversaciones / chats', 'conversion'],
     ['Tasa de agendamiento', pct(tasa(a.agendados, chats)), `${num(a.agendados)} agendas / ${num(chats)} chats`, 'agendamiento'],
     ['Tasa de show', pct(a.showRate), `${num(a.shows)} shows / ${num(resueltas)} resueltas`, 'show'],
     ['Tasa de cierre', pct(a.closeRate), `${num(a.cierres)} cierres / ${num(a.shows)} shows`, 'close'],
   ];
+
+  const tasasVista = soloLlamadas ? tasas.filter((t) => !DE_CHATS.includes(t[3])) : tasas;
 
   const tAgend = tasa(a.agendados, chats);
   const tAgendPrevio = tasa(p.agendados, chatsPrevio);
@@ -216,6 +224,8 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
       partes: [...partesChats, ...setters.map((s) => [`Conversaciones de ${s.nombre}`, num(s.conversaciones)])] },
   ];
 
+  const kpisVista = soloLlamadas ? kpis.filter((k) => !DE_CHATS.includes(k.id)) : kpis;
+
   let detalle = null;
   const paso = pasos.find((x) => `paso:${x.id}` === abierto);
   const kpi = [...kpis, ...otras].find((x) => `kpi:${x.id}` === abierto);
@@ -265,9 +275,9 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
         <h3 className="ev-titulo">Embudo de ventas</h3>
         <div className="ev-cuerpo">
           <div className="ev-trapecios">
-            {pasos.map((x, i) => {
+            {pasosVista.map((x, i) => {
               const w = ANCHOS[i];
-              const recorte = i < pasos.length - 1 ? ((w - ANCHOS[i + 1]) / 2) * (100 / w) : 0;
+              const recorte = i < pasosVista.length - 1 ? ((w - ANCHOS[i + 1]) / 2) * (100 / w) : 0;
               const activo = abierto === `paso:${x.id}`;
               return (
                 <button
@@ -278,7 +288,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
                   style={{
                     width: `${w}%`,
                     '--tinta': `var(--ev-capa-${i})`,
-                    clipPath: i < pasos.length - 1 ? `polygon(0 0, 100% 0, ${100 - recorte}% 100%, ${recorte}% 100%)` : undefined,
+                    clipPath: i < pasosVista.length - 1 ? `polygon(0 0, 100% 0, ${100 - recorte}% 100%, ${recorte}% 100%)` : undefined,
                   }}
                   onClick={() => setAbierto(`paso:${x.id}`)}
                 >
@@ -290,7 +300,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
             })}
           </div>
           <div className="ev-tasas">
-            {tasas.map(([label, valor, base, id]) => (
+            {tasasVista.map(([label, valor, base, id]) => (
               <button key={label} type="button" className="ev-abre" onClick={() => setAbierto(`kpi:${id}`)}>
                 <span className="dim">{label}</span>
                 <b className="num">{valor}</b>
@@ -303,7 +313,7 @@ export default function EmbudoVentas({ real, embudo, embudoPrevio, mesPrevio }) 
 
       <div className="ev-kpis-titulo">Métricas del mes</div>
       <div className="ev-kpis">
-        {kpis.map((k) => (
+        {kpisVista.map((k) => (
           <Kpi key={k.id} label={k.label} valor={k.valor} d={delta(k.actual, k.previo)} antes={k.antes}
             subeEsBueno={k.subeEsBueno !== false} onAbrir={() => setAbierto(`kpi:${k.id}`)} />
         ))}
