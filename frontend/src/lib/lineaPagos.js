@@ -73,6 +73,9 @@ const ACTIVO = ['vigente', 'pausa', 'llamada_recompra', 'no_va_a_renovar', 'venc
  * Pasa las fechas a días y guarda lo que dice la ficha (`o`): los ajustes siempre se
  * aplican sobre la ficha original, nunca uno encima de otro.
  */
+/** Cuántos días después de hoy muestra la línea. */
+export const DIAS_FUTURO = 31;
+
 export function prepararLinea(data) {
   const CUT = D(data.cut);
   const HOY = D(data.hoy);
@@ -87,7 +90,10 @@ export function prepararLinea(data) {
     c.o = { vD: c.vD, ad: c.ad, mE: c.mE, g: c.g, ab: c.ab, qm: c.qm, mD: c.mD.slice(), dvd: c.dvd };
     return c;
   });
-  return { CUT, HOY, WIN0, D0: WIN0 - 30, clientes, pagos: clientes.reduce((n, c) => n + c.pg.length, 0) };
+  // Un mes para adelante: lo que vence o termina en las próximas semanas se ve venir, no
+  // aparece recién el día que pasa (Franco, 30-10-2026).
+  const FIN = HOY + DIAS_FUTURO;
+  return { CUT, HOY, FIN, WIN0, D0: WIN0 - 30, clientes, pagos: clientes.reduce((n, c) => n + c.pg.length, 0) };
 }
 
 /** El `applyAdj` de la maqueta, sin mutar: devuelve el cliente con el ajuste aplicado. */
@@ -138,7 +144,7 @@ const sinBaja = (c, HOY) => c.e === 'inactivo' && !c.bD && c.vD > HOY;
 
 /* ---------------------------------------------------------------- la línea */
 
-function armarEventos(clientes, f, { WIN0, HOY }) {
+function armarEventos(clientes, f, { WIN0, HOY, FIN }) {
   const ing = [];
   const pag = [];
   const ven = [];
@@ -149,6 +155,8 @@ function armarEventos(clientes, f, { WIN0, HOY }) {
     c.pg.forEach((p) => { if (p.d >= WIN0 && p.d <= HOY) pag.push({ c, d: p.d, m: p.m, medio: p.tipo, tipo: 'pago' }); });
     if (c.bD != null && c.bD < c.vD) { if (c.bD >= WIN0 && c.bD <= HOY) ven.push({ c, d: c.bD, tipo: 'baja' }); }
     else if (c.vD >= WIN0 && c.vD <= HOY) ven.push({ c, d: c.vD, tipo: 'venc', est: false });
+    // Los del mes que viene: todavía no pasaron, van punteados como estimados.
+    else if (c.vD > HOY && c.vD <= FIN && !sinBaja(c, HOY)) ven.push({ c, d: c.vD, tipo: 'venc', est: true });
   });
   return { ing, pag, ven };
 }
@@ -168,7 +176,7 @@ export const etiquetasBarra = (c) => [
  * `medir(texto)` da el ancho en píxeles a 11px.
  */
 export function armarLayout(clientes, f, pxd, ctx, medir) {
-  const { WIN0, HOY, D0 } = ctx;
+  const { WIN0, HOY, FIN, D0 } = ctx;
   const ev = armarEventos(clientes, f, ctx);
   const modoEtiqueta = pxd >= 6;
   const rowH = modoEtiqueta ? 22 : 17;
@@ -184,7 +192,8 @@ export function armarLayout(clientes, f, pxd, ctx, medir) {
     lista.forEach((c, i) => {
       const unk = sinBaja(c, HOY);
       const x1 = (Math.max(c.aD, WIN0) - D0) * pxd;
-      const x2 = (Math.min(unk ? HOY : c.endD, HOY) - D0) * pxd;
+      // La barra sigue hasta su fin si cae en el mes que viene; la de baja sin fecha, hasta hoy.
+      const x2 = (Math.min(unk ? HOY : c.endD, FIN) - D0) * pxd;
       const wid = Math.max(x2 - x1, 4);
       const tags = etiquetasBarra(c);
       const ven = modoEtiqueta && c.vD > HOY && !unk ? ` → ${fmtCorta(c.vD)}` : '';

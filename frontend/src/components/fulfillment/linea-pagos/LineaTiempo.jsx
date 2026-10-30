@@ -68,7 +68,7 @@ function Barra({ it, rowH, ctx, sel, nota, verD, verE }) {
         </>
       )}
       {/* Fin: flecha si sigue vigente; tope si ya venció. */}
-      {!unk && (c.vD > ctx.HOY
+      {!unk && (c.vD > ctx.FIN
         ? <path d={`M${x2 - 6} ${-h / 2 + 2} L${x2 - 1} 0 L${x2 - 6} ${h / 2 - 2}`} fill="none" stroke={linea} strokeWidth="1.8" />
         : <rect x={x2 - 3} y={-h / 2} width="3" height={h} fill="var(--text)" opacity="0.55" />)}
       {c.qm && <text x={x2 + 5} y="4" fontSize="12" fontWeight="700" fill="var(--warn)">?</text>}
@@ -166,10 +166,13 @@ const CapaMundo = memo(function CapaMundo({ layout, ancho, ctx, sel, conNotas, m
 /** Meses y semanas como líneas finas, y lo que queda fuera de la ventana en gris. */
 const CapaGrilla = memo(function CapaGrilla({ grilla, ancho, alto, ctx, pxd }) {
   const xr = (ctx.WIN0 - ctx.D0) * pxd;
-  const xc = (ctx.HOY - ctx.D0) * pxd;
+  const xh = (ctx.HOY - ctx.D0) * pxd;
+  const xc = (ctx.FIN - ctx.D0) * pxd;
   return (
     <svg width={ancho} height={alto}>
       <rect x={-4000} y={EJE} width={xr + 4000} height={alto} fill="var(--lp-fuera)" />
+      {/* El mes que viene, apenas teñido: es lo que todavía no pasó. */}
+      <rect x={xh} y={EJE} width={xc - xh} height={alto} fill="var(--lp-fuera)" opacity="0.35" />
       <rect x={xc} y={EJE} width={ancho - xc + 4000} height={alto} fill="var(--lp-fuera)" />
       {grilla.meses.map((m) => (
         <line key={m.d} x1={m.x} x2={m.x} y1={EJE} y2={alto} stroke="var(--border-soft)" strokeWidth={m.enero ? 1.5 : 1} />
@@ -285,7 +288,7 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
     () => (pxd ? armarLayout(clientes, filtros, pxd, ctx, medir) : null),
     [clientes, filtros, pxd, ctx],
   );
-  const grilla = useMemo(() => (pxd ? armarGrilla(ctx.D0 - 30, ctx.HOY + 60, pxd, ctx.D0) : null), [pxd, ctx]);
+  const grilla = useMemo(() => (pxd ? armarGrilla(ctx.D0 - 30, ctx.FIN + 60, pxd, ctx.D0) : null), [pxd, ctx]);
   // Lo cobrado por mes solo entra cuando el mes es lo bastante ancho para leerlo.
   const conPagosMes = pxd && pxd * 30.4 >= 110 && filtros.carriles.has('pag');
   const pagosMes = useMemo(() => (conPagosMes ? pagosPorMes(clientes, filtros) : null), [conPagosMes, clientes, filtros]);
@@ -296,11 +299,11 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
 
   const limitar = () => {
     const v = vista.current;
-    const { ctx: { WIN0, HOY }, layout: lay, tam: { w, h } } = vivo.current;
-    const minP = Math.max(0.5, (w - 40) / (HOY - WIN0));
+    const { ctx: { WIN0, FIN }, layout: lay, tam: { w, h } } = vivo.current;
+    const minP = Math.max(0.5, (w - 40) / (FIN - WIN0));
     v.pxd = Math.max(minP, Math.min(PXD_MAX, v.pxd));
     const xlo = WIN0 - 20 / v.pxd;
-    const xhi = HOY + 20 / v.pxd - w / v.pxd;
+    const xhi = FIN + 20 / v.pxd - w / v.pxd;
     v.x0 = xhi < xlo ? (xlo + xhi) / 2 : Math.max(xlo, Math.min(xhi, v.x0));
     if (lay) v.ty = Math.max(-(lay.total + 40) + (h - EJE) * 0.5, Math.min(30, v.ty));
   };
@@ -375,7 +378,7 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
   const encuadrada = useRef(false);
   useEffect(() => {
     if (!tam.w) return;
-    if (!encuadrada.current) { encuadrada.current = true; encuadrar(ctx.WIN0, ctx.HOY); return; }
+    if (!encuadrada.current) { encuadrada.current = true; encuadrar(ctx.WIN0, ctx.FIN); return; }
     limitar();
     programar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,7 +495,7 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
     e.preventDefault();
   };
 
-  const ancho = pxd ? (ctx.HOY + 60 - ctx.D0) * pxd : 0;
+  const ancho = pxd ? (ctx.FIN + 60 - ctx.D0) * pxd : 0;
   const elegido = sel != null ? clientes.find((c) => c.id === sel) : null;
   return (
     <div
@@ -526,7 +529,7 @@ export default function LineaTiempo({ linea, clientes, filtros, sel, conNotas, n
       <div className="lp-zoom">
         <button type="button" className="btn sm" onClick={() => zoomEn(tam.w / 2, 1 / 1.5)} aria-label="Alejar">−</button>
         <button type="button" className="btn sm" onClick={() => zoomEn(tam.w / 2, 1.5)} aria-label="Acercar">+</button>
-        <button type="button" className="btn sm" onClick={() => encuadrar(ctx.WIN0, ctx.HOY)}>Ventana</button>
+        <button type="button" className="btn sm" onClick={() => encuadrar(ctx.WIN0, ctx.FIN)}>Ventana</button>
         <button type="button" className="btn sm" onClick={verHoy}>Hoy</button>
       </div>
       {elegido && irAFicha && (
