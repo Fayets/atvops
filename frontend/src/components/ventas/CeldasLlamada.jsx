@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
-  asignarCloserLlamada, descartarLlamada, guardarResultadoLlamada, moverReunion, ofrecerProgramaLlamada,
+  asignarCloserLlamada, descartarLlamada, guardarFathomLlamada, guardarResultadoLlamada, moverReunion,
+  ofrecerProgramaLlamada,
 } from '../../data/api.js';
 import '../../styles/llamadas.css';
 
@@ -128,6 +129,8 @@ export function useLlamada(llamada, { estados, mes, lista = true, onGuardado }) 
     },
     // El programa ofrecido, en una llamada que no es venta: va aparte del comprado.
     ofrecer: (programa) => correr(() => ofrecerProgramaLlamada(llamada.id, programa, mes, { lista })),
+    // El link de Fathom pegado a mano: no todas las grabaciones entran solas.
+    fathom: (url) => correr(() => guardarFathomLlamada(llamada.id, url, mes, { lista })),
     // Quién tomó la llamada. Una llamada del calendario nace sin dueño, y hasta que
     // alguien lo diga no cuenta para nadie. Se puede asignar antes de que pase.
     asignar: (nombre) => correr(() => asignarCloserLlamada(llamada.id, nombre, mes, { lista })),
@@ -236,6 +239,49 @@ export function MoverLlamada({ llamada, onGuardado }) {
       </button>
       {error && <span className="ronda-evento error">{error}</span>}
     </div>
+  );
+}
+
+/**
+ * El link de la llamada. Si no tiene el de Fathom, el guion se toca y se pega: no todas las
+ * grabaciones entran solas por el webhook.
+ */
+export function CeldaFathom({ llamada, f }) {
+  const [editando, setEditando] = useState(false);
+  const [url, setUrl] = useState('');
+  if (llamada.fathomUrl) {
+    return <a href={llamada.fathomUrl} target="_blank" rel="noreferrer">Fathom ↗</a>;
+  }
+  if (editando) {
+    const guardar = () => {
+      setEditando(false);
+      if (url.trim()) f.fathom(url.trim());
+    };
+    return (
+      <input
+        className="fathom-celda"
+        type="url"
+        autoFocus
+        value={url}
+        placeholder="Pegá el link de Fathom"
+        aria-label={`Link de Fathom de ${llamada.prospecto}`}
+        onChange={(e) => setUrl(e.target.value)}
+        onBlur={guardar}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') { setUrl(''); setEditando(false); }
+        }}
+      />
+    );
+  }
+  return (
+    <span className="fathom-vacio">
+      {llamada.grabacion && <a href={llamada.grabacion} target="_blank" rel="noreferrer">Call ↗</a>}
+      <button type="button" className="fathom-agregar" disabled={f.guardando || llamada.estado === 'descartada'}
+        onClick={() => setEditando(true)} title="Agregar el link de Fathom">
+        {llamada.grabacion ? '+ Fathom' : '—'}
+      </button>
+    </span>
   );
 }
 

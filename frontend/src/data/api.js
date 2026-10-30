@@ -785,6 +785,19 @@ export async function asignarCloserLlamada(leadId, closer, mes, { lista = true }
 }
 
 /** El programa que se ofreció en la llamada, sin cargarle el resultado. Vacío lo borra. */
+/** El link de Fathom de la llamada, pegado a mano. Vacío lo borra. */
+export async function guardarFathomLlamada(leadId, url, mes, { lista = true } = {}) {
+  const p = new URLSearchParams();
+  if (mes) p.set('mes', mes);
+  if (!lista) p.set('lista', 'false');
+  const q = p.toString() ? `?${p}` : '';
+  return pedir(`/api/ventas/llamadas/${encodeURIComponent(leadId)}/fathom${q}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+}
+
 export async function ofrecerProgramaLlamada(leadId, programa, mes, { lista = true } = {}) {
   const p = new URLSearchParams();
   if (mes) p.set('mes', mes);

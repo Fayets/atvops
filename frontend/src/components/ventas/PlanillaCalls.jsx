@@ -3,7 +3,7 @@ import CerrarSena from './CerrarSena.jsx';
 import { FormResultado } from './ListaLlamadas.jsx';
 import NuevaReunion from './NuevaReunion.jsx';
 import {
-  CeldaCash, MoverLlamada, SelectCloser, SelectPrograma, SelectStatus, closerDe, enSena, statusDe, useLlamada,
+  CeldaCash, CeldaFathom, MoverLlamada, SelectCloser, SelectPrograma, SelectStatus, closerDe, enSena, statusDe, useLlamada,
 } from './CeldasLlamada.jsx';
 import { formatValue } from '../../lib/format.js';
 
@@ -88,13 +88,7 @@ function Fila({ l, datos, ver, mes, onRecargar, onAbrir }) {
         {ver.has('dias') && <td className="dim num">{l.diasParaAgendar ?? '—'}</td>}
         {ver.has('setter') && <td className="dim">{l.setter || '—'}</td>}
         {ver.has('closer') && <td><SelectCloser llamada={l} equipo={datos.equipo} f={f} /></td>}
-        {ver.has('link') && (
-          <td>
-            {l.fathomUrl ? <a href={l.fathomUrl} target="_blank" rel="noreferrer">Fathom ↗</a>
-              : l.grabacion ? <a href={l.grabacion} target="_blank" rel="noreferrer">Call ↗</a>
-                : <span className="dim">—</span>}
-          </td>
-        )}
+        {ver.has('link') && <td><CeldaFathom llamada={l} f={f} /></td>}
         {ver.has('programa') && <td><SelectPrograma llamada={l} programas={datos.programas} f={f} /></td>}
         {ver.has('pago') && <td className="right"><CeldaCash llamada={l} f={f} /></td>}
         {ver.has('debe') && <td className={`right num${l.saldoUsd > 0 ? ' pl-debe' : ' dim'}`}>{usd(l.saldoUsd)}</td>}

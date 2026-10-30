@@ -189,6 +189,19 @@ def ofrecer_programa(lead_id: str, user: dict = Depends(solo_interno), payload: 
         raise HTTPException(status_code=500, detail=f"No se pudo guardar el programa: {str(e)[:180]}")
 
 
+@router.post("/llamadas/{lead_id}/fathom")
+def guardar_fathom(lead_id: str, user: dict = Depends(solo_interno), payload: dict = Body(...),
+                   mes: str | None = None, lista: bool = True):
+    """El link de Fathom de la llamada, pegado a mano."""
+    try:
+        return ventas.guardar_fathom(lead_id, payload.get("url") or "", user, mes=mes, con_lista=lista)
+    except HTTPException as e:
+        raise e
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló guardar el link de Fathom de la llamada %s", lead_id)
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el link: {str(e)[:180]}")
+
+
 @router.post("/llamadas/{lead_id}/cerrar")
 def cerrar_sena(lead_id: str, user: dict = Depends(solo_interno), payload: dict = Body(...),
                 mes: str | None = None, lista: bool = True):

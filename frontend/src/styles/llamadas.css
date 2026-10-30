@@ -29,6 +29,13 @@
   appearance: none; font: inherit; font-size: 12px; font-weight: 500; padding: 3px 6px; border: 1px solid transparent;
   border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; max-width: 108px;
 }
+.fathom-vacio { display: inline-flex; gap: 6px; align-items: center; }
+.fathom-agregar { font: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--text-3); cursor: pointer; }
+.fathom-agregar:hover:not(:disabled) { border-color: var(--border); background: var(--surface); color: var(--text); }
+.fathom-agregar:disabled { cursor: default; }
+.fathom-celda { font: inherit; font-size: 12px; width: 180px; padding: 3px 6px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); }
 .sel-closer.vacio { color: var(--text-3); }
 .sel-closer:hover, .sel-closer:focus-visible { border-color: var(--border); background: var(--surface); }
 .sel-closer:disabled { opacity: 0.55; cursor: default; }

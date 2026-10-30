@@ -16,6 +16,7 @@ Todo sale de la tabla `lead` (agenda y resultado) y de `closer_report` / `setter
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import unicodedata
 from collections import Counter
@@ -2490,6 +2491,42 @@ def ofrecer_programa(lead_id: int | str, programa: str, usuario: dict, mes: str 
     _olvidar_meses()
     return _lista_despues_de_guardar(usuario, mes) if con_lista else {
         "guardado": True, "id": int(lead_id), "programaOfrecido": nombre}
+
+
+FATHOM_LINK = re.compile(r"^https://([\w-]+\.)?fathom\.(video|ai)/\S+$", re.I)
+
+
+def guardar_fathom(lead_id: int | str, url: str, usuario: dict, mes: str | None = None,
+                   con_lista: bool = True) -> dict:
+    """El link de la grabación de Fathom, pegado a mano.
+
+    Lo normal es que lo traiga el webhook de Fathom, pero no todas las llamadas entran
+    solas: una que se grabó con otra cuenta, o que Fathom no supo con qué reunión atar.
+    Vacío lo borra.
+    """
+    if usuario.get("rol") not in ROLES_CARGAN_LLAMADAS:
+        raise HTTPException(status_code=403, detail="Tu rol no puede cargar llamadas.")
+
+    from pony.orm import db_session
+
+    from src.models import ReunionCrm
+
+    link = str(url or "").strip()
+    if link and not FATHOM_LINK.match(link):
+        raise HTTPException(status_code=400, detail="Pegá el link de Fathom (fathom.video/…).")
+
+    lead_id, evento_de_la_ficha = _ficha_para(lead_id, usuario)
+    with db_session:
+        fila = (ReunionCrm.get(evento_id=evento_de_la_ficha) if evento_de_la_ficha else None) \
+            or _fila_del_lead(int(lead_id))
+        if fila is None:
+            raise HTTPException(status_code=404, detail="No encontré esa llamada.")
+        fila.fathom_url = link[:500] or None
+        fila.actualizado_por = (usuario.get("username") or "")[:80]
+        fila.actualizado_at = datetime.utcnow()
+    _olvidar_meses()
+    return _lista_despues_de_guardar(usuario, mes) if con_lista else {
+        "guardado": True, "id": int(lead_id), "fathomUrl": link}
 
 
 def cerrar_sena(lead_id: int | str, datos: dict, usuario: dict, mes: str | None = None,
