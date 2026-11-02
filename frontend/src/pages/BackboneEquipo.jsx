@@ -22,14 +22,14 @@ export default function BackboneEquipo() {
   const [sel, setSel] = useState(null);
 
   function cargar() {
-    return getEquipoDaily().then((r) => { setEquipo(r); setError(null); return r; }).catch(setError);
+    return getEquipoDaily(true).then((r) => { setEquipo(r); setError(null); return r; }).catch(setError);
   }
   useEffect(() => { cargar().then((r) => r?.length && setSel((s) => s ?? r[0].username)); }, []);
 
   if (error && !equipo) return <div className="page"><ErrorState error={error} /></div>;
   if (!equipo) return <div className="page"><SkeletonBlock height={420} /></div>;
   const persona = equipo.find((p) => p.username === sel);
-  const sinMail = equipo.filter((p) => !p.emails.length);
+  const sinMail = equipo.filter((p) => !p.baja && !p.emails.length);
 
   return (
     <div className="page">
@@ -42,10 +42,12 @@ export default function BackboneEquipo() {
         <Card title="Equipo" sub={sinMail.length ? `${sinMail.length} sin mail: no pueden entrar` : 'Todos pueden entrar'}>
           <div className="eq-list">
             {equipo.map((p) => (
-              <button key={p.username} type="button" className="eq-item" aria-pressed={p.username === sel} onClick={() => setSel(p.username)}>
+              <button key={p.username} type="button" className={`eq-item${p.baja ? ' baja' : ''}`} aria-pressed={p.username === sel} onClick={() => setSel(p.username)}>
                 {p.foto_url ? <img className="bb-av" src={p.foto_url} alt="" referrerPolicy="no-referrer" /> : <span className="bb-av">{p.nombre.slice(0, 2).toUpperCase()}</span>}
                 <span><b style={{ fontWeight: 600 }}>{p.nombre}</b><small>{p.cargo ?? '—'}</small></span>
-                {!p.emails.length ? <Pill tone="alert">sin mail</Pill> : !p.daily ? <Pill tone="off">sin daily</Pill> : <span />}
+                {p.baja ? <Pill tone="off">ya no está</Pill>
+                  : !p.emails.length ? <Pill tone="alert">sin mail</Pill>
+                    : !p.daily ? <Pill tone="off">sin daily</Pill> : <span />}
               </button>
             ))}
           </div>
@@ -65,7 +67,7 @@ function FichaPersona({ persona, equipo, onGuardado }) {
   const [f, setF] = useState({
     nombre: persona.nombre, cargo: persona.cargo ?? '', area: persona.area ?? 'ventas',
     jefe: (persona.jefe ?? '').split(',')[0] ?? '', jefe2: (persona.jefe ?? '').split(',')[1] ?? '', daily: persona.daily, emails: persona.emails.join('\n'),
-    whatsapp: persona.whatsapp ?? '',
+    whatsapp: persona.whatsapp ?? '', baja: !!persona.baja,
   });
   const [estado, setEstado] = useState('');
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -98,14 +100,14 @@ function FichaPersona({ persona, equipo, onGuardado }) {
         <label>Reporta a
           <select id="eq-jefe" value={f.jefe} onChange={set('jefe')}>
             <option value="">Nadie (arriba de todo)</option>
-            {equipo.filter((p) => p.username !== persona.username).map((p) => <option key={p.username} value={p.username}>{p.nombre}</option>)}
+            {equipo.filter((p) => !p.baja && p.username !== persona.username).map((p) => <option key={p.username} value={p.username}>{p.nombre}</option>)}
           </select>
         </label>
         {f.jefe && (
           <label>Y también a (si son dos cabezas)
             <select id="eq-jefe2" value={f.jefe2} onChange={set('jefe2')}>
               <option value="">Nadie más</option>
-              {equipo.filter((p) => ![persona.username, f.jefe].includes(p.username)).map((p) => <option key={p.username} value={p.username}>{p.nombre}</option>)}
+              {equipo.filter((p) => !p.baja && ![persona.username, f.jefe].includes(p.username)).map((p) => <option key={p.username} value={p.username}>{p.nombre}</option>)}
             </select>
           </label>
         )}
@@ -116,8 +118,13 @@ function FichaPersona({ persona, equipo, onGuardado }) {
           <input id="eq-whatsapp" inputMode="tel" value={f.whatsapp} onChange={set('whatsapp')} placeholder="5493511234567" />
         </label>
         <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <input id="eq-daily" type="checkbox" checked={f.daily} onChange={set('daily')} />
+          <input id="eq-daily" type="checkbox" checked={f.daily} onChange={set('daily')} disabled={f.baja} />
           Carga daily (aparece en Theo y en Backbone)
+        </label>
+        <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <input id="eq-baja" type="checkbox" checked={f.baja}
+            onChange={(e) => setF((s) => ({ ...s, baja: e.target.checked, daily: e.target.checked ? false : s.daily }))} />
+          Ya no está en ATV
         </label>
         <div className="full" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <button type="submit" className="btn primary">Guardar</button>
@@ -171,7 +178,7 @@ function TareasDelRol({ persona, equipo }) {
               </select>
               <select value={t.destinatario ?? ''} onChange={(e) => set(i, 'destinatario', e.target.value || null)} aria-label="Le entrega a">
                 <option value="">Sin entrega</option>
-                {equipo.filter((p) => p.username !== persona.username).map((p) => <option key={p.username} value={p.username}>→ {p.nombre}</option>)}
+                {equipo.filter((p) => !p.baja && p.username !== persona.username).map((p) => <option key={p.username} value={p.username}>→ {p.nombre}</option>)}
               </select>
               <button type="button" className="dl-x" aria-label="Quitar tarea" onClick={() => setTareas((ts) => ts.filter((_, j) => j !== i))}>✕</button>
             </div>

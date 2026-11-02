@@ -186,6 +186,7 @@
 .eq-item[aria-pressed="true"] { background: var(--surface-2); }
 .eq-item .bb-av { width: 36px; height: 36px; font-size: 12px; }
 .eq-item small { display: block; color: var(--text-3); font-size: 12px; }
+.eq-item.baja b, .eq-item.baja small { color: var(--text-3); text-decoration: line-through; }
 .eq-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 640px) { .eq-form { grid-template-columns: 1fr; } }
 .eq-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); font-weight: 500; }
@@ -218,6 +219,7 @@
 .bb-tabla td.ok { color: var(--ok); }
 .bb-tabla td.alert { color: var(--alert); background: var(--alert-dim); cursor: help; }
 .bb-tabla td.off { color: var(--text-3); cursor: help; }
+.bb-tabla td.warn { color: var(--warn); }
 .bb-tabla td.falta { color: var(--alert); }
 .bb-tabla td.vacio { background: var(--surface-2); }
 

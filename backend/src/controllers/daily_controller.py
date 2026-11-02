@@ -69,6 +69,7 @@ class PersonaEdicion(BaseModel):
     daily: bool | None = None
     emails: list[str] | None = None
     whatsapp: str | None = None
+    baja: bool | None = None
 
 
 def _ve_backbone(user: dict) -> dict:
@@ -140,9 +141,10 @@ def backbone(semana: str | None = None, user: dict = Depends(get_current_user)):
 
 
 @router.get("/equipo")
-def equipo(user: dict = Depends(get_current_user)):
+def equipo(todos: bool = False, user: dict = Depends(get_current_user)):
+    """`todos` suma a los que ya no están en ATV: solo los necesita la pantalla que los edita."""
     _ve_backbone(user)
-    return svc.listar_equipo()
+    return svc.listar_equipo(todos)
 
 
 @router.patch("/equipo/{username}")

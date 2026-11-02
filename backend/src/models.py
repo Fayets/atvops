@@ -40,6 +40,9 @@ class Usuario(db.Entity):
     orden = Required(int, default=0)
     # Su WhatsApp, solo dígitos con código de país (5493511234567): Theo lo etiqueta en los grupos.
     whatsapp = Optional(str, nullable=True)
+    # El día que dejó ATV. No se borra: las semanas que cargó se siguen viendo en Backbone,
+    # pero no aparece más en el organigrama, en la daily de Theo ni puede entrar.
+    baja = Optional(date, nullable=True)
 
 
 class Integrante(db.Entity):

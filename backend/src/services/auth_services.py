@@ -507,6 +507,12 @@ def ensure_idea_usuario_column() -> None:
         con.close()
 
 
+def _sigue_en_atv(usuario: Usuario) -> None:
+    """Quien dejó ATV no entra más: la cuenta queda para que Backbone siga mostrando lo suyo."""
+    if usuario.baja is not None:
+        raise HTTPException(status_code=403, detail="Esa cuenta ya no tiene acceso a ATV Ops.")
+
+
 class AuthServices:
     def ensure_local_user(self) -> None:
         """Crea los usuarios locales de desarrollo que todavía no existan."""
@@ -544,6 +550,7 @@ class AuthServices:
             usuario = Usuario.get(username=username.strip())
             if usuario is None or not _verify_password(password, usuario.password_hash):
                 raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos.")
+            _sigue_en_atv(usuario)
             return _emitir_token(usuario)
 
     def login_google(self, credencial: str) -> dict:
@@ -559,6 +566,7 @@ class AuthServices:
                     detail=f"{datos['email']} no está en el equipo de ATV Ops. Pedile a Franco que lo agregue.")
             if usuario.google_sub and usuario.google_sub != datos["sub"]:
                 raise HTTPException(status_code=403, detail="Esa cuenta de Google no coincide con la registrada.")
+            _sigue_en_atv(usuario)
             usuario.google_sub = datos["sub"]
             if datos.get("foto"):
                 usuario.foto_url = datos["foto"]
@@ -573,6 +581,7 @@ class AuthServices:
             usuario = Usuario.get(username=username)
             if usuario is None:
                 raise HTTPException(status_code=404, detail="No existe esa persona.")
+            _sigue_en_atv(usuario)
             return _emitir_token(usuario, por=admin["username"])
 
     def usuario_desde_token(self, token: str) -> dict:
@@ -593,7 +602,7 @@ class AuthServices:
 
         with db_session:
             usuario = Usuario.get(id=user_id)
-            if usuario is None:
+            if usuario is None or usuario.baja is not None:
                 _CACHE_SESION.pop(user_id, None)
                 raise HTTPException(status_code=401, detail="Sesión inválida o vencida.")
             datos = _to_response(usuario)
@@ -606,7 +615,7 @@ def ensure_usuario_equipo_columns() -> None:
     _agregar_columnas("usuarios", "Usuario", [
         ("emails", "TEXT"), ("google_sub", "TEXT"), ("foto_url", "TEXT"), ("cargo", "TEXT"),
         ("area", "TEXT"), ("jefe", "TEXT"), ("daily", "BOOLEAN DEFAULT FALSE NOT NULL"),
-        ("orden", "INTEGER DEFAULT 0 NOT NULL"), ("whatsapp", "TEXT"),
+        ("orden", "INTEGER DEFAULT 0 NOT NULL"), ("whatsapp", "TEXT"), ("baja", "DATE"),
     ])
 
 

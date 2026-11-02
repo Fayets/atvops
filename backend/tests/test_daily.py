@@ -615,7 +615,7 @@ def test_sistemas_ops_edita_el_equipo_y_marketing_no_ve_webinars():
     with db_session:
         if Usuario.get(username="ops-test") is None:
             Usuario(username="ops-test", password_hash="x", nombre="Ops", rol="operaciones")
-    r = api.patch("/api/daily/equipo/janer", headers=_h("ops-test"), json={"cargo": "Head de Contenido"})
+    r = api.patch("/api/daily/equipo/janer", headers=_h("ops-test"), json={"cargo": "Director de Marketing"})
     assert r.status_code == 200
     assert api.patch("/api/daily/equipo/janer", headers=_h("juan"), json={"cargo": "x"}).status_code == 403
     assert "marketing" not in ROLES_WEBINAR
@@ -625,11 +625,10 @@ def test_un_equipo_puede_tener_dos_cabezas():
     d.ensure_equipo()
     equipo = {p["username"]: p for p in d.listar_equipo()}
     assert equipo["ale"]["jefe"] == "juampi" and equipo["mauri"]["jefe"] == "juampi"
-    assert equipo["janer"]["jefe"] == "maite,ignacio"
-    r = api.patch("/api/daily/equipo/janer", headers=_h("franco"), json={"jefe": ["ignacio", "maite"]})
-    assert r.status_code == 200 and r.json()["jefe"] == "ignacio,maite"
-    assert api.patch("/api/daily/equipo/janer", headers=_h("franco"), json={"jefe": ["nadie"]}).status_code == 400
-    d.actualizar_persona("janer", {"jefe": "maite,ignacio"})
+    r = api.patch("/api/daily/equipo/mauri", headers=_h("franco"), json={"jefe": ["juampi", "ale"]})
+    assert r.status_code == 200 and r.json()["jefe"] == "juampi,ale"
+    assert api.patch("/api/daily/equipo/mauri", headers=_h("franco"), json={"jefe": ["nadie"]}).status_code == 400
+    d.actualizar_persona("mauri", {"jefe": "juampi"})
 
 
 def test_los_motivos_de_backbone_los_ve_solo_juan():
@@ -822,3 +821,33 @@ def test_un_dia_que_no_llego_no_se_pasa():
     t = _propia("nick", date(2026, 10, 23), "Algo del viernes")
     with pytest.raises(HTTPException):
         d.guardar_dia("nick", date(2026, 10, 23), [{"tarea_id": t["id"], "estado": "pasada", "motivo": None}], parcial=True)
+
+
+def test_quien_se_fue_de_atv_no_sale_mas_en_ningun_lado():
+    """La baja lo saca del organigrama, del equipo y de la daily de Theo. No se borra: las
+    semanas que cargó se siguen viendo, y por eso tampoco puede entrar más."""
+    d.actualizar_persona("mauri", {"baja": True})
+    try:
+        assert "mauri" not in [p["username"] for p in d.listar_equipo()]
+        assert "mauri" in [p["username"] for p in d.listar_equipo(todos=True)]
+        assert "mauri" not in [p["username"] for p in d.backbone(LUNES)["personas"]]
+        assert "Mauri" not in [p["nombre"] for p in d.theo(JUEVES)["personas"]]
+        with db_session:
+            assert d.usuario_por_email("mauriw35@gmail.com") is None
+    finally:
+        d.actualizar_persona("mauri", {"baja": False, "daily": True})
+    assert "mauri" in [p["username"] for p in d.listar_equipo()]
+
+
+def test_nadie_reporta_ni_le_entrega_a_alguien_que_ya_no_esta():
+    """Ignacio se fue y Janer dirige marketing. La regla que no se puede romper es que no
+    queden jefes ni entregas apuntando a alguien que ya no está en el equipo."""
+    d.ensure_equipo()
+    con_area = {p["username"] for p in d.listar_equipo()}
+    assert "ignacio" not in con_area and "janer" in con_area
+    for p in d.listar_equipo():
+        for jefe in (p["jefe"] or "").split(","):
+            assert not jefe or jefe in con_area, f"{p['username']} reporta a {jefe}"
+    with db_session:
+        for t in d.TareaRol.select(lambda t: t.activa and t.destinatario is not None):
+            assert t.destinatario in con_area, f"{t.usuario} le entrega a {t.destinatario}"

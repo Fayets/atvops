@@ -160,7 +160,7 @@ def _texto(m: TheoMensaje) -> str:
 def equipo_etiquetable() -> dict:
     """Quién se etiqueta (tiene WhatsApp en Backbone → Equipo y roles) y a quién le falta."""
     with db_session:
-        gente = sorted(Usuario.select(lambda u: u.area is not None), key=lambda u: (u.orden, u.username))
+        gente = sorted(Usuario.select(lambda u: u.area is not None and u.baja is None), key=lambda u: (u.orden, u.username))
         return {"con": [{"nombre": u.nombre or u.username, "whatsapp": u.whatsapp} for u in gente if u.whatsapp],
                 "sin": [u.nombre or u.username for u in gente if not u.whatsapp]}
 

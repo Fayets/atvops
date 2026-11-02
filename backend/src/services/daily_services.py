@@ -52,33 +52,42 @@ EQUIPO = (
     ("lucas", "Lucas", "ventas", "Director de Ventas", "ventas", "juan", ["lucasruarte688@gmail.com"], 10),
     ("cris", "Cris", "setter", "Setter", "ventas", "lucas", ["songercristian@gmail.com"], 11),
     ("nick", "Nick", "closer", "Closer", "ventas", "lucas", ["nicolasaliagachl@gmail.com"], 12),
-    ("ignacio", "Ignacio", "marketing", "Director de Marketing", "marketing", "juan", ["ignacioaburto.business@gmail.com"], 20),
-    ("maite", "Maite", "marketing", "Directora Creativa", "marketing", "juan", ["maiteatv1@gmail.com"], 21),
     # Antes "janner": se renombró a "janer" y la lista lo volvía a crear duplicado en cada deploy.
-    ("janer", "Janer", "marketing", "Head de Contenido", "marketing", "maite,ignacio", ["cantillojanerc@gmail.com"], 22),
+    ("janer", "Janer", "marketing", "Director de Marketing", "marketing", "juan", ["cantillojanerc@gmail.com"], 20),
+    ("maite", "Maite", "marketing", "Directora Creativa", "marketing", "juan", ["maiteatv1@gmail.com"], 21),
     ("juampi", "Juampi", "csm", "Director de Producto", "producto", "juan", ["juanpablotoledo2017.toledo@gmail.com"], 30),
     ("ale", "Ale", "csm", "CSM", "producto", "juampi", ["ramirezcalderonalejandro@gmail.com"], 31),
     ("mauri", "Mauri", "csm", "VA", "producto", "juampi", ["mauriw35@gmail.com", "s_35@live.com"], 32),
 )
-# `jefe` puede ser más de uno, separados por coma: Janner responde a Maite y a Ignacio.
+# `jefe` puede ser más de uno, separados por coma: un equipo puede tener dos cabezas.
 
-# El organigrama de octubre (19-10-2026): Juampi encabeza producto y Maite con Ignacio,
-# marketing. Se corrige una sola vez y solo si sigue como se sembró al principio (todos
-# reportando a Juan): lo que se haya editado a mano no se pisa.
-_ORGANIGRAMA_OCT = {"ale": ("juan", "juampi"), "mauri": ("juan", "juampi"), "janer": ("juan", "maite,ignacio")}
+# El organigrama de octubre (19-10-2026): Juampi encabeza producto. Se corrige una sola vez
+# y solo si sigue como se sembró al principio (todos reportando a Juan): lo que se haya
+# editado a mano no se pisa.
+_ORGANIGRAMA_OCT = {"ale": ("juan", "juampi"), "mauri": ("juan", "juampi")}
+
+# Lo que cambió después de sembrar y hay que corregir sobre lo que ya está cargado: la lista
+# de arriba solo completa lo que está vacío, así que a una persona que ya existe no la toca.
+# Se aplica una sola vez, con la versión de abajo.
+VERSION_EQUIPO = "2026-11-01"
+# Quién dejó ATV. No se borra: lo que cargó se sigue viendo en las semanas pasadas.
+BAJAS = {"ignacio": date(2026, 11, 1)}
+# Las entregas que iban a alguien que se fue pasan a quien ocupa su lugar.
+HEREDA_ENTREGAS = {"ignacio": "janer"}
+# Y cómo queda el organigrama: Janer pasa a dirigir marketing y no queda Head de Contenido.
+CAMBIOS_EQUIPO = {"janer": {"cargo": "Director de Marketing", "jefe": "juan", "orden": 20}}
 
 # Las tareas de cada rol, sacadas de los documentos de rol de Backbone. Cris hereda las del
-# setter (antes Andrés) e Ignacio las del director de marketing (antes Emi). Janner no
-# tiene documento todavía: se le cargan desde Backbone → Equipo.
+# setter (antes Andrés) y Janer las del director de marketing (antes Emi e Ignacio).
 # (frecuencia, día 0-4 o None, texto, destinatario)
 TAREAS_ROL = {
     # Las fundamentales de cada rol, como las definió Franco el 25-10-2026: las que se
-    # bloquean en la daily. Janner, a definir con Juan.
+    # bloquean en la daily.
     "lucas": [
         ("diaria", None, "Pasada de Discord", None),
         ("semanal", 0, "Definición de prioridades semanales con el equipo de ventas", None),
         ("semanal", 4, "Envío del reporte semanal de ventas a Juan", "juan"),
-        ("semanal", 4, "Envío de conclusiones de ventas al área de marketing", "ignacio"),
+        ("semanal", 4, "Envío de conclusiones de ventas al área de marketing", "janer"),
     ],
     "cris": [
         ("diaria", None, "Actualización del sistema de setting", None),
@@ -90,14 +99,14 @@ TAREAS_ROL = {
         ("diaria", None, "Reporte de las calls del día en el grupo de Sales", None),
         ("semanal", 4, "Envío de objeciones y dolores detectados a Lucas", "lucas"),
     ],
-    "ignacio": [
+    "janer": [
         ("semanal", 0, "Carga del calendario de contenido semanal", "juan"),
         ("semanal", 0, "Envío de la dirección creativa semanal a Maite", "maite"),
     ],
     "maite": [
         ("diaria", None, "Búsqueda de referencias creativas", None),
         ("diaria", None, "Pasada de Discord", None),
-        ("semanal", 4, "Envío de 5 referencias creativas a Ignacio", "ignacio"),
+        ("semanal", 4, "Envío de 5 referencias creativas a Janer", "janer"),
     ],
     "juampi": [
         ("diaria", None, "Pasada de Discord", None),
@@ -125,7 +134,7 @@ TAREAS_ROL = {
 # Cada vez que se redefinen las de arriba se sube la versión: al arrancar, las plantillas
 # de producción se reemplazan una sola vez por estas (lo editado después a mano en Equipo
 # y roles no se vuelve a pisar).
-VERSION_ROLES = "2026-10-25d"
+VERSION_ROLES = "2026-11-01"
 # Entre versiones que solo cambian la redacción se renombra en el lugar (misma tarea, mismas
 # marcas) en vez de reemplazar. Cada paso: (de, a, texto viejo → texto nuevo).
 _PASOS_ROL = [("2026-10-25", "2026-10-25b", {
@@ -161,6 +170,10 @@ _PASOS_ROL = [("2026-10-25", "2026-10-25b", {
 }),
     # Solo suma una tarea (la de Nick): se agrega en el paso, sin texto que renombrar.
     ("2026-10-25c", "2026-10-25d", {}),
+    # Ignacio deja ATV y Janer pasa a dirigir marketing: lo que iba a Ignacio va a Janer.
+    ("2026-10-25d", "2026-11-01", {
+    'Envío de 5 referencias creativas a Ignacio': 'Envío de 5 referencias creativas a Janer',
+}),
 ]
 
 
@@ -225,9 +238,48 @@ def _hash_inutilizable() -> str:
     return f"google${secrets.token_hex(32)}"
 
 
+def _aplicar_version_equipo() -> None:
+    """Las bajas y los cambios de organigrama, una sola vez (ver VERSION_EQUIPO). `ensure_equipo`
+    solo completa lo vacío, así que a alguien que ya está cargado no lo toca: esto sí."""
+    from src.models import TheoAjuste
+
+    with db_session:
+        a = TheoAjuste.get(clave="version_equipo")
+        if a is not None and a.valor == VERSION_EQUIPO:
+            return
+        for username, fecha in BAJAS.items():
+            u = Usuario.get(username=username)
+            if u is not None and u.baja is None:
+                u.baja, u.daily = fecha, False
+                logger.info("Equipo: baja de %s", username)
+        for username, campos in CAMBIOS_EQUIPO.items():
+            u = Usuario.get(username=username)
+            if u is None:
+                continue
+            for campo, valor in campos.items():
+                setattr(u, campo, valor)
+        # Nadie queda reportando a alguien que se fue, ni entregándole.
+        for u in list(Usuario.select(lambda x: x.jefe is not None)):
+            jefes = [j for j in (u.jefe or "").split(",") if j and j not in BAJAS]
+            u.jefe = ",".join(jefes) or None
+        for viejo, nuevo in HEREDA_ENTREGAS.items():
+            for r in list(TareaRol.select(lambda r: r.destinatario == viejo)):
+                r.destinatario = nuevo
+            for t in list(TareaSemana.select(lambda t: t.destinatario == viejo)):
+                t.destinatario = nuevo
+        # Y sus tareas de rol salen de la plantilla: las semanas que ya cargó no se tocan.
+        for username in BAJAS:
+            for r in list(TareaRol.select(lambda r: r.usuario == username and r.activa)):
+                r.activa = False
+        a = TheoAjuste.get(clave="version_equipo") or TheoAjuste(clave="version_equipo")
+        a.valor = VERSION_EQUIPO
+    logger.info("Equipo: versión %s aplicada", VERSION_EQUIPO)
+
+
 def ensure_equipo() -> None:
     """Crea a quien falte y completa lo que esté vacío. No pisa lo que Franco editó: la daily
     se prende sola una única vez, cuando a esa persona se le siembran las tareas del rol."""
+    _aplicar_version_equipo()
     with db_session:
         for username, nombre, rol, cargo, area, jefe, mails, orden in EQUIPO:
             u = Usuario.get(username=username)
@@ -315,13 +367,17 @@ def _persona(u: Usuario) -> dict:
         "rol": u.rol,
         "emails": _emails(u),
         "whatsapp": u.whatsapp,
+        "baja": u.baja.isoformat() if u.baja else None,
     }
 
 
-def listar_equipo() -> list[dict]:
+def listar_equipo(todos: bool = False) -> list[dict]:
+    """El equipo de hoy. Con `todos`, también los que se fueron, al final de la lista."""
     with db_session:
         gente = list(Usuario.select(lambda u: u.area is not None))
-        return [_persona(u) for u in sorted(gente, key=lambda u: (u.orden, u.username))]
+        if not todos:
+            gente = [u for u in gente if u.baja is None]
+        return [_persona(u) for u in sorted(gente, key=lambda u: (u.baja is not None, u.orden, u.username))]
 
 
 def actualizar_persona(username: str, datos: dict) -> dict:
@@ -358,6 +414,14 @@ def actualizar_persona(username: str, datos: dict) -> dict:
             u.emails = "\n".join(mails) or None
         if "whatsapp" in datos:
             u.whatsapp = normalizar_whatsapp(datos["whatsapp"])
+        if "baja" in datos:
+            # Darlo de baja lo saca del organigrama, de la daily de Theo y del acceso. Las
+            # semanas que cargó quedan: por eso se guarda la fecha en vez de borrarlo.
+            if datos["baja"]:
+                u.baja = u.baja or hoy()
+                u.daily = False
+            else:
+                u.baja = None
         return _persona(u)
 
 
@@ -372,8 +436,9 @@ def normalizar_whatsapp(numero: str | None) -> str | None:
 
 
 def usuario_por_email(email: str) -> Usuario | None:
+    """Quien está de baja ya no entra con su mail: su cuenta queda, pero sin acceso."""
     email = email.strip().lower()
-    for u in Usuario.select():
+    for u in Usuario.select(lambda u: u.baja is None):
         if email in _emails(u):
             return u
     return None
@@ -869,12 +934,12 @@ def backbone(semana: date | None) -> dict:
     semana = lunes_de(semana or semana_por_defecto())
     corte = _corte(semana)
     with db_session:
-        gente = sorted(Usuario.select(lambda u: u.area is not None), key=lambda u: (u.orden, u.username))
+        gente = sorted(Usuario.select(lambda u: u.area is not None and u.baja is None), key=lambda u: (u.orden, u.username))
         for u in gente:
             if u.daily:
                 _sincronizar_semana(u.username, semana)
     with db_session:
-        gente = sorted(Usuario.select(lambda u: u.area is not None), key=lambda u: (u.orden, u.username))
+        gente = sorted(Usuario.select(lambda u: u.area is not None and u.baja is None), key=lambda u: (u.orden, u.username))
         personas = [_resumen_persona(u, semana, corte) if u.daily else {**_persona(u), "pct": None}
                     for u in gente]
         conDaily = [u for u in gente if u.daily]
@@ -916,7 +981,7 @@ def theo(fecha: date | None) -> dict:
     if fecha.weekday() >= 5:
         return {"habil": False, "fecha": fecha.isoformat(), "personas": [], "mensaje": None}
     with db_session:
-        gente = sorted(Usuario.select(lambda u: u.daily), key=lambda u: (u.orden, u.username))
+        gente = sorted(Usuario.select(lambda u: u.daily and u.baja is None), key=lambda u: (u.orden, u.username))
         hechos = {c.usuario for c in CierreDaily.select(lambda c: c.fecha == fecha)}
         personas = [{"nombre": u.nombre or u.username, "completada": u.username in hechos, "whatsapp": u.whatsapp}
                     for u in gente]

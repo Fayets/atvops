@@ -3105,8 +3105,8 @@ export async function getBackbone(semana) {
   return pedir(`/api/daily/backbone${semana ? `?semana=${semana}` : ''}`);
 }
 
-export async function getEquipoDaily() {
-  return pedir('/api/daily/equipo');
+export async function getEquipoDaily(todos = false) {
+  return pedir(`/api/daily/equipo${todos ? '?todos=1' : ''}`);
 }
 
 export async function editarPersonaDaily(username, cambios) {

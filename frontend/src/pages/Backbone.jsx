@@ -397,7 +397,10 @@ function Panel({ data, sel, selEdge, onSel, onEdge }) {
   );
 }
 
-const CELDA = { hecha: ['✓', 'ok'], no: ['✕', 'alert'], no_aplica: ['–', 'off'] };
+// "pasada" es la que se pasó a mañana: el día la cuenta como no hecha, pero no es lo
+// mismo que no hacerla. Un estado que no esté acá no rompe la tabla: queda sin marcar.
+const CELDA = { hecha: ['✓', 'ok'], no: ['✕', 'alert'], no_aplica: ['–', 'off'], pasada: ['→', 'warn'] };
+const SIN_MARCAR = ['·', 'falta'];
 
 /** La semana entera de una persona: cada tarea, día por día, con el motivo al pasar el mouse. */
 function SemanaCompleta({ p, motivos }) {
@@ -416,7 +419,7 @@ function SemanaCompleta({ p, motivos }) {
           const vence = t.frecuencia === 'diaria' || (t.frecuencia === 'semanal' && t.dia === d);
           const futuro = p.dias[d].estado === 'futuro';
           if (m) {
-            const [txt, tono] = CELDA[m.estado];
+            const [txt, tono] = CELDA[m.estado] ?? SIN_MARCAR;
             return <td key={f} className={tono} title={m.motivo ?? undefined}>{txt}</td>;
           }
           if (!vence || futuro) return <td key={f} className="vacio" />;
