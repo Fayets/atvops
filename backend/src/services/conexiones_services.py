@@ -213,6 +213,16 @@ def guardar(plataforma: str, credenciales: dict, quien: str = "") -> None:
             fila.actualizado_at = datetime.utcnow()
     with _lock:
         _cache.pop(plataforma, None)
+    # Lo que ya trajo Meta con la credencial vieja queda guardado diez minutos: si no se
+    # tira, cambiar la cuenta o el token no se nota hasta que vence el caché y parece que
+    # guardar no hizo nada (Franco, 02-11-2026: Ads miraba otra cuenta publicitaria).
+    if plataforma in ("meta_ads", "instagram"):
+        try:
+            from src.services import meta_services
+
+            meta_services.olvidar_cache()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("No se pudo limpiar el caché de Meta: %s", str(e)[:120])
 
 
 def enmascarar(valor) -> str:

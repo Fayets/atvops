@@ -38,6 +38,13 @@ def _recordado(clave: str, refrescar: bool, armar):
     return data
 
 
+def olvidar_cache() -> None:
+    """Tira lo guardado de Meta. Se llama al cambiar la credencial: con otra cuenta o otro
+    token, lo que ya se había traído no vale más."""
+    with _lock:
+        _cache.clear()
+
+
 def _epoch(dia_iso: str, dias_extra: int = 0) -> str:
     """Un día `YYYY-MM-DD` como timestamp unix, que es lo que entienden `since`/`until`."""
     d = datetime.fromisoformat(dia_iso[:10]) + timedelta(days=dias_extra)
