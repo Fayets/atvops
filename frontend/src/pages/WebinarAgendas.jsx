@@ -100,7 +100,6 @@ export default function WebinarAgendas() {
     <div className="page page-ancha">
       <PageHeader
         title="Agendas"
-        desc="El CTA del webinar: quién levantó la mano y quién reservó"
         actions={datos ? <Pill tone="plain">se actualiza solo</Pill> : null}
       />
 
