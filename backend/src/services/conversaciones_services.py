@@ -330,6 +330,26 @@ def chats(desde, hasta) -> dict:
                         key=lambda x: int(x.get("chatsManual") or 0), reverse=True)
     ]
 
+    # Los mismos chats, repartidos por día. Es lo que permite dibujar cómo se llegó al
+    # total en vez de solo el total. Cada puerta aporta con la fecha que tiene: la
+    # secuencia, el comentario del reel, el video marcado y la conversación suelta.
+    por_dia: dict[str, int] = {}
+
+    def _sumar_dia(fecha: str, cuantos: int) -> None:
+        dia = (fecha or "")[:10]
+        if dia and cuantos:
+            por_dia[dia] = por_dia.get(dia, 0) + int(cuantos)
+
+    for x in con_cta:
+        _sumar_dia(x.get("fecha") or "", x.get("respuestas") or 0)
+    for _rid, _palabra, cuando in chats_reels:
+        if cuando:
+            _sumar_dia(cuando.date().isoformat(), 1)
+    for v in videos_marcados:
+        _sumar_dia(v.get("fecha") or "", int(v.get("chatsManual") or 0))
+    for x in otras:
+        _sumar_dia(x.at.date().isoformat(), 1)
+
     partes = [
         {"clave": "historias", "fuente": "Historias con CTA", "cuantos": por_historias,
          "detalle": (f"de {len(con_cta)} {'secuencia marcada' if len(con_cta) == 1 else 'secuencias marcadas'}"
@@ -350,6 +370,7 @@ def chats(desde, hasta) -> dict:
     return {
         "total": sum(p["cuantos"] for p in partes),
         "partes": partes,
+        "porDia": [{"fecha": d, "cuantos": n} for d, n in sorted(por_dia.items())],
         # Con qué nivel de confianza se mira el número de reels: propio, prestado o nada.
         "reelsPropios": True,   # salen de los comentarios de Instagram
         "reelsManual": False,
@@ -468,6 +489,9 @@ def resumen(desde, hasta) -> dict:
         # Marketing y el embudo de Ventas leen la misma para no poder discrepar.
         "chats": compuesto["total"],
         "chatsPartes": compuesto["partes"],
+        # Los mismos chats día por día. `porDia`, más abajo, es otra cosa: lo que vio el
+        # webhook de Instagram. Este es el número del negocio, el que mira Marketing.
+        "chatsPorDia": compuesto["porDia"],
         "conversaciones": len(conversaciones),
         "calendlys": len(calendlys),
         "respuestas": sum(1 for c in filas if c.evento == "respuesta"),

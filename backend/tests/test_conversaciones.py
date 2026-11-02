@@ -179,3 +179,45 @@ def test_cada_puerta_trae_sus_filas(monkeypatch):
         ("El documento", "documento", 40), ("Info gratis", "info", 8)]
     assert parte["filas"][0]["foto"] == "/uploads/ig/ra.jpg"
     assert sum(f["cuantos"] for f in parte["filas"]) == parte["cuantos"] == 48, "las filas cierran con el total"
+
+
+# ------------------------------------------------- los chats del mes, día por día
+
+
+def test_el_dia_a_dia_de_los_chats_suma_lo_mismo_que_el_total(monkeypatch):
+    """La curva del mes se dibuja con esto: si no cierra con el total, miente.
+
+    Cada puerta aporta con la fecha que tiene —la secuencia de historias, el comentario
+    del reel, el video marcado— y las tres tienen que caer en el mismo día en el que se
+    contaron para el total.
+    """
+    from datetime import date, datetime
+
+    from src.services import chats_reels_services, instagram_services, youtube_services
+
+    monkeypatch.setattr(instagram_services, "contenido", lambda d, h: {
+        "secuencias": [
+            {"fecha": "2026-11-03", "cta": True, "piezas": 2, "respuestas": 4, "historias": [{}]},
+            {"fecha": "2026-11-05", "cta": True, "piezas": 1, "respuestas": 6, "historias": [{}]},
+            # Sin CTA no es un chat: no suma ni al total ni al día.
+            {"fecha": "2026-11-06", "cta": False, "piezas": 3, "respuestas": 9, "historias": [{}]},
+        ],
+        "reels": [],
+    })
+    monkeypatch.setattr(chats_reels_services, "del_periodo", lambda i, f: [
+        ("reel1", "GUIA", datetime(2026, 11, 3, 10, 0)),
+        ("reel1", "GUIA", datetime(2026, 11, 3, 18, 0)),
+        ("reel2", "QUIERO", datetime(2026, 11, 9, 9, 0)),
+    ])
+    monkeypatch.setattr(youtube_services, "contenido", lambda d, h: {
+        "videos": [{"fecha": "2026-11-05", "titulo": "Un video", "sumaChats": True, "chatsManual": 3}],
+    })
+
+    salida = c.chats(date(2026, 11, 1), date(2026, 12, 1))
+    por_dia = {x["fecha"]: x["cuantos"] for x in salida["porDia"]}
+
+    assert sum(por_dia.values()) == salida["total"]
+    assert por_dia["2026-11-03"] == 6   # 4 respuestas a la historia + 2 comentarios del reel
+    assert por_dia["2026-11-05"] == 9   # 6 respuestas + 3 chats del video
+    assert por_dia["2026-11-09"] == 1
+    assert "2026-11-06" not in por_dia  # la secuencia sin CTA no abre chats

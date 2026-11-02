@@ -54,12 +54,34 @@ function Fila({ label, p, format = 'count' }) {
 }
 
 /**
- * @param {{ decreto: object, real: object, contexto: object,
- *           piezas: {reels: number, secuencias: number, videos: number},
- *           chats: { total: number, fuente: string } }} props
+ * Suma los valores por día en una serie acumulada, un lugar por día transcurrido.
+ *
+ * Los días sin nada no se saltean: un día sin agendas es una meseta en la curva, que es
+ * justo lo que hay que ver. El mes en curso llega hasta hoy y no más: los días que no
+ * pasaron todavía no son ceros.
+ *
+ * @param {Array<object>} filas Cada una con una fecha ISO y un valor.
  */
-export default function MarketingOps({ decreto, real, contexto, piezas,
-                                       chats = { total: 0, fuente: '' } }) {
+function acumular(filas, fecha, valor, diaHoy) {
+  const porDia = new Array(diaHoy).fill(0);
+  (filas ?? []).forEach((f) => {
+    const dia = Number(String(fecha(f) ?? '').slice(8, 10));
+    if (dia >= 1 && dia <= diaHoy) porDia[dia - 1] += Number(valor(f)) || 0;
+  });
+  let total = 0;
+  return porDia.map((v) => {
+    total += v;
+    return Math.round(total * 100) / 100;
+  });
+}
+
+/**
+ * @param {{ decreto: object, real: object, contexto: object, series: array,
+ *           piezas: {reels: number, secuencias: number, videos: number},
+ *           chats: { total: number, fuente: string, porDia: array } }} props
+ */
+export default function MarketingOps({ decreto, real, contexto, series = [], piezas,
+                                       chats = { total: 0, fuente: '', porDia: [] } }) {
   const diaHoy = contexto?.diaHoy ?? 1;
   const diasMes = contexto?.diasMes ?? 30;
   const base = { diaHoy, diasMes };
@@ -75,12 +97,41 @@ export default function MarketingOps({ decreto, real, contexto, piezas,
   const publicacion = proyectarMes({ ...base, real: totalPiezas, meta: 0 });
 
   // Una métrica sin meta no se puede medir contra nada: no entra al gráfico en vez de
-  // dibujarle una barra inventada.
+  // dibujarle una curva contra una meta inventada.
   const aMover = [
-    { label: 'Chats', p: conversaciones, format: 'count' },
-    { label: 'Agendas', p: agendas, format: 'count' },
-    { label: 'Cash', p: cash, format: 'usd' },
-  ].filter((f) => f.p.meta > 0);
+    {
+      label: 'Chats',
+      color: 'var(--s1)',
+      format: 'count',
+      p: conversaciones,
+      acum: acumular(chats.porDia, (d) => d.fecha, (d) => d.cuantos, diaHoy),
+    },
+    {
+      label: 'Agendas',
+      color: 'var(--s2)',
+      format: 'count',
+      p: agendas,
+      acum: acumular(series, (d) => d.fecha, (d) => d.agendas, diaHoy),
+    },
+    {
+      label: 'Cash',
+      color: 'var(--brand)',
+      format: 'usd',
+      p: cash,
+      acum: acumular(series, (d) => d.fecha, (d) => d.cashUsd, diaHoy),
+    },
+  ].filter((f) => f.p.meta > 0)
+    .map((f) => ({
+      ...f,
+      meta: f.p.meta,
+      proyectado: f.p.proyectado,
+      // El total del mes es el que manda: es el mismo que muestran los KPI de arriba y la
+      // tabla. La serie por día puede quedar unos pesos abajo —una seña de un mes
+      // anterior que cerró ahora entra en el total y no en el día de la llamada—, así que
+      // el último punto se cierra contra el total en vez de dejar la curva y el número
+      // diciendo cosas distintas en la misma pantalla.
+      acum: f.acum.length ? [...f.acum.slice(0, -1), f.p.real] : f.acum,
+    }));
 
   return (
     <>
@@ -126,11 +177,12 @@ export default function MarketingOps({ decreto, real, contexto, piezas,
         ) : (
           <div className="mover">
             <div className="legend">
-              <span className="k"><i style={{ background: 'var(--s1)' }} />va</span>
-              <span className="k"><i style={{ background: 'var(--s3)' }} />lo que suma el ritmo</span>
-              <span className="k"><i style={{ background: 'var(--brand)' }} />falta</span>
+              {aMover.map((f) => (
+                <span className="k" key={f.label}><i style={{ background: f.color }} />{f.label}</span>
+              ))}
+              <span className="k dim"><i className="ideal" />el ritmo que llega justo</span>
             </div>
-            <QueMover filas={aMover} />
+            <QueMover filas={aMover} diaHoy={diaHoy} diasMes={diasMes} />
           </div>
         )}
       </Card>

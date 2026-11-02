@@ -1,7 +1,7 @@
 import MarketingOps from '../components/marketing/MarketingOps.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import {
-  getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getYouTubePropio,
+  getConversaciones, getInstagramPropio, getMarketing, getMetasMes, getVentasReal, getYouTubePropio,
 } from '../data/api.js';
 import { chatsDelMes } from '../lib/chats.js';
 import { useMes } from '../lib/MesContext.jsx';
@@ -17,6 +17,8 @@ import { useResource } from '../lib/hooks.js';
 export default function MarketingOpsPage() {
   const { mes } = useMes();
   const metas = useResource(() => getMetasMes(mes), [mes]);
+  // Por la serie día a día de agendas y cash: el total del mes ya viene en `metas`.
+  const ventas = useResource(() => getVentasReal(mes), [mes]);
   const ig = useResource(() => getInstagramPropio(mes), [mes]);
   const yt = useResource(() => getYouTubePropio(mes), [mes]);
   const chats = useResource(() => getConversaciones(mes), [mes]);
@@ -25,7 +27,7 @@ export default function MarketingOpsPage() {
 
   if (metas.error) return <div className="page"><ErrorState error={metas.error} /></div>;
 
-  const cargando = metas.loading && !metas.data;
+  const cargando = (metas.loading && !metas.data) || (ventas.loading && !ventas.data);
 
   // Un solo lugar decide de dónde salen los chats del mes. El KPI de arriba y la
   // proyección de abajo son la misma métrica: si cada uno la resuelve por su cuenta,
@@ -47,6 +49,7 @@ export default function MarketingOpsPage() {
           decreto={metas.data?.decreto ?? {}}
           real={metas.data?.real ?? {}}
           contexto={metas.data?.contexto ?? {}}
+          series={ventas.data?.series ?? []}
           piezas={{
             reels: (ig.data?.reels ?? []).length,
             secuencias: (ig.data?.secuencias ?? []).length,

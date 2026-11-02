@@ -5937,6 +5937,8 @@ body.gate-abierto .shell { display: none; }
 .proy-mal { color: var(--brand-hi); font-weight: 600; }
 /* Qué hay que mover: la leyenda arriba y el gráfico debajo, con el aire que .flush saca. */
 .mover { display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-5) var(--space-3); }
+.legend .k.dim { color: var(--text-3); }
+.legend i.ideal { height: 0; border-radius: 0; border-top: 1px dashed var(--text-3); }
 @media (max-width: 900px) {
   .proy-fila { grid-template-columns: minmax(110px, 1.4fr) repeat(3, minmax(60px, 1fr)); }
   .proy-fila > span:nth-child(3), .proy-fila > span:nth-child(5) { display: none; }

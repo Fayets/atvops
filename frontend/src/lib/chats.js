@@ -16,7 +16,7 @@ import { formatValue } from './format.js';
 
 /**
  * @param {object | null} resumen Lo que devuelve GET /api/ventas/conversaciones del mes.
- * @returns {{ total: number, partes: Array<object>, fuente: string }}
+ * @returns {{ total: number, partes: Array<object>, porDia: Array<object>, fuente: string }}
  */
 export function chatsDelMes(resumen) {
   const partes = resumen?.chatsPartes ?? [];
@@ -26,6 +26,8 @@ export function chatsDelMes(resumen) {
   return {
     total,
     partes,
+    // Los mismos chats repartidos por día: lo que permite dibujar cómo se llegó al total.
+    porDia: resumen?.chatsPorDia ?? [],
     // El pie dice de dónde salió. Con una sola puerta abierta se nombra; con varias, el
     // reparto, que es lo que hay que mirar para decidir dónde empujar.
     fuente: conAlgo.length === 0
