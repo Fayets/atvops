@@ -12,8 +12,9 @@ import { cargarTareasDaily, importarDaily } from '../../data/api.js';
  * botón para leerlo. Lo único que queda por hacer es mirar el reparto, elegir la semana
  * y cargar; lo que quede mal se corrige en la daily como cualquier otra tarea.
  *
- * Entra el link y nada más. Pegar el texto también funcionaba, pero era un segundo camino
- * para lo mismo: el que escribe su semana en un Doc tiene el link a mano.
+ * El mismo campo toma las dos cosas: un link de Docs se lee solo, y la semana escrita o
+ * pegada ahí mismo se lee con el botón (escribiendo, leer en cada tecla sería leer a
+ * medias). Entraba solo el link y Franco lo pidió de vuelta: no siempre hay un Doc.
  *
  * La semana se elige en un calendario y no se da por supuesta: el documento del domingo
  * casi siempre es el de la semana que viene, y la pantalla está parada en la de ahora.
@@ -21,6 +22,10 @@ import { cargarTareasDaily, importarDaily } from '../../data/api.js';
 
 // Un link de Google Docs. El id lo vuelve a sacar el backend, que es quien lo baja.
 const ES_DOC = /docs\.google\.com\/document\/d\/[a-zA-Z0-9_-]{10,}/;
+// Todo el campo es un link y nada más: así un texto que arranca con un link no se confunde.
+const SOLO_LINK = /^https?:\/\/\S+$/i;
+// Menos que esto no es una semana: el botón de leer no se prende todavía.
+const MINIMO = 12;
 
 const TIPOS = [['velocidad', 'Velocidad'], ['desplazamiento', 'Desplazamiento']];
 
@@ -52,30 +57,31 @@ export default function CargarDaily({ semana, hoy, onCargado }) {
     clearTimeout(espera.current);
   }
 
-  // Apenas hay un link en el campo se lee solo: pegarlo es todo el paso.
+  // Apenas hay un link de Docs en el campo se lee solo: pegarlo es todo el paso. El texto
+  // escrito a mano no, que a mitad de camino es media semana: ese va con el botón.
   function escribir(valor) {
     setFuente(valor);
     setError(null);
     clearTimeout(espera.current);
-    const url = valor.trim();
-    if (!url) return;
+    const texto = valor.trim();
+    if (!texto || !SOLO_LINK.test(texto)) return;
     espera.current = setTimeout(() => {
-      if (ES_DOC.test(url)) {
-        if (url === leido.current) return;
-        leido.current = url;
-        leer(url);
-      } else if (/^https?:\/\//i.test(url)) {
+      if (ES_DOC.test(texto)) {
+        if (texto === leido.current) return;
+        leido.current = texto;
+        leer({ url: texto });
+      } else {
         // Un link que no es de Docs no dispara nada: sin esto el campo se queda mudo.
         setError('Ese link no es de Google Docs. Copiá el de la barra del navegador.');
       }
     }, 500);
   }
 
-  async function leer(url) {
+  async function leer(cuerpo) {
     setTrabajando(true);
     setError(null);
     try {
-      const r = await importarDaily({ url });
+      const r = await importarDaily(cuerpo);
       setPropuesta(r.tareas.map((t, i) => ({ ...t, id: i })));
     } catch (err) {
       setError(err.message);
@@ -98,6 +104,9 @@ export default function CargarDaily({ semana, hoy, onCargado }) {
     }
   }
 
+  // Lo que hay en el campo es una semana escrita, no un link: ahí aparece el botón.
+  const escrito = fuente.trim().length >= MINIMO && !SOLO_LINK.test(fuente.trim());
+
   const cambiar = (id, campo, valor) => setPropuesta((p) => p.map((t) => (t.id === id ? { ...t, [campo]: valor } : t)));
   const quitar = (id) => setPropuesta((p) => p.filter((t) => t.id !== id));
 
@@ -114,21 +123,25 @@ export default function CargarDaily({ semana, hoy, onCargado }) {
         {!propuesta ? (
           <>
             <label className="campo">
-              <span>Pegá el link de tu Google Doc</span>
-              <input
+              <span>Pegá el link de tu Google Doc, o escribí tu semana acá</span>
+              <textarea
                 id="dl-fuente"
-                type="url"
+                rows={escrito ? 12 : 3}
                 autoFocus
                 value={fuente}
                 disabled={trabajando}
                 onChange={(e) => escribir(e.target.value)}
-                placeholder="https://docs.google.com/document/d/…"
+                placeholder={'https://docs.google.com/document/d/…\n\nLunes\n- Lo que hago el lunes'}
               />
             </label>
-            {trabajando && <div className="dl-imp-leyendo">Leyendo el documento…</div>}
+            {trabajando && <div className="dl-imp-leyendo">Leyendo…</div>}
             {error && <div className="ronda-evento error">{error}</div>}
             <div className="llamada-acciones">
               <button type="button" className="btn" onClick={cerrar}>Cancelar</button>
+              {escrito && (
+                <button type="button" className="btn primary" disabled={trabajando}
+                  onClick={() => leer({ texto: fuente })}>Leer</button>
+              )}
             </div>
           </>
         ) : (
@@ -138,7 +151,7 @@ export default function CargarDaily({ semana, hoy, onCargado }) {
               <span className="dl-imp-semana">
                 Van a la semana del {fechaCorta(destino)} al {fechaCorta(sumarDias(destino, 6))}
               </span>
-              <button type="button" className="btn sm ghost" onClick={() => setPropuesta(null)}>Cambiar el documento</button>
+              <button type="button" className="btn sm ghost" onClick={() => setPropuesta(null)}>Volver</button>
             </div>
             <div className="dl-imp-cols">
               <CalendarioSemana semana={destino} hoy={hoy} onElegir={setDestino} />
