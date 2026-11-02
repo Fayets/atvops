@@ -219,7 +219,7 @@ export default function Ads() {
 
           <Card
             title="Campañas"
-            sub={data.fuente === 'meta_ads' ? 'Meta Ads · mes seleccionado' : 'Sin conexión con Meta Ads'}
+            sub={data.fuenteAds === 'meta_ads' ? 'Meta Ads · mes seleccionado' : 'Sin conexión con Meta Ads'}
             actions={
               quemadas.length ? (
                 <Pill tone="alert" dot>

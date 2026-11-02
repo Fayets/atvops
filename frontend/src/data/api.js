@@ -1652,56 +1652,30 @@ export async function getMarketingReal(mes, { refrescar = false } = {}) {
   return pedir(`/api/ventas/marketing${q.toString() ? `?${q}` : ''}`);
 }
 
-function campaniasDeAds(raw) {
-  return (raw.ads.campanias ?? []).map((c) => ({
-    // Por nombre se repetían: hay campañas duplicadas en el Ads Manager con el mismo nombre.
-    id: c.id || c.nombre,
-    nombre: c.nombre,
-    canal: 'Meta',
-    objetivo: (c.objetivo ?? '').replace('OUTCOME_', '').toLowerCase(),
-    estado: (c.estado ?? '').toLowerCase() === 'active' ? 'activa' : 'pausada',
-    gastoUsd: c.gastoUsd,
-    leads: c.conversiones,
-    cplUsd: c.costoPorConversionUsd,
-    ctr: c.ctr,
-    alcance: c.alcance,
-    impresiones: c.impresiones,
-    clicks: c.clicks,
-    frecuencia: c.alcance ? Number((c.impresiones / c.alcance).toFixed(2)) : 0,
-    roas: 0,
-    ultimaSyncAt: raw.generadoAt,
-  }));
-}
-
+/**
+ * Lo que Meta dice del mes: campañas, gasto por día y por canal.
+ *
+ * Sale de `/api/meta/ads`, que ya trae el estado traducido ("activa"/"pausada"), los leads
+ * y el ROAS por canal y el gasto día por día. Antes esto se armaba a mano con el bloque de
+ * ads de `/api/ventas/marketing`, y en esa traducción se perdían tres cosas: el estado se
+ * comparaba contra "active" cuando el backend ya mandaba "activa" —así que toda campaña
+ * figuraba pausada aunque estuviera corriendo—, el gasto diario salía vacío y el gasto por
+ * canal no llevaba leads, que es el "undefined leads" que se veía en pantalla
+ * (Franco, 02-11-2026).
+ */
 export async function getMetaAds(mes) {
-  const raw = await getMarketingReal(mes);
-  const a = raw.ads;
-  const kpi = (id, label, value, format, nota, objetivo) => ({
-    id, label, value, format, previous: null, objetivo,
-    sourceId: 'ads_manager', updatedAt: raw.generadoAt, nota,
-  });
+  const q = mes ? `?month=${encodeURIComponent(mes)}` : '';
+  const d = await pedir(`/api/meta/ads${q}`);
   return {
-    campanias: campaniasDeAds(raw),
-    totales: {
-      gastoUsd: a.gastoUsd, leads: a.conversiones, cplUsd: a.costoPorConversionUsd,
-      impresiones: a.impresiones, clicks: a.clicks, alcance: a.alcance, ctr: a.ctr,
-    },
-    gastoCanal: a.gastoUsd ? [{ canal: 'Meta', gastoUsd: a.gastoUsd }] : [],
-    gastoDiario: [],
-    // El módulo 07_ads manda: la frecuencia gobierna la salud del creativo.
-    umbrales: { objetivo: 1.4, quemado: 1.6 },
-    kpis: [
-      kpi('gasto_ads', 'Inversión', a.gastoUsd, 'usd', `${a.campanias.length} campañas en el mes`),
-      kpi('leads_ads', 'Conversiones', a.conversiones, 'count', 'Reportadas por Meta'),
-      kpi('cpl', 'Costo por conversión', a.costoPorConversionUsd, 'usd', 'Inversión sobre conversiones'),
-      kpi('ctr', 'CTR', a.ctr, 'pct', `${formatValue(a.clicks, 'count')} clicks sobre ${formatValue(a.impresiones, 'count')} impresiones`),
-    ],
-    inversionAds: a.gastoUsd,
-    conectado: raw.conectado,
-    detalle: raw.detalle,
-    syncAt: raw.generadoAt,
-    fuente: 'meta_ads',
-    mes: raw.mes,
+    campanias: d.campanias ?? [],
+    gastoCanal: d.gastoCanal ?? [],
+    gastoDiario: d.gastoDiario ?? [],
+    umbrales: d.umbrales ?? { objetivo: 1.4, quemado: 1.6 },
+    kpis: d.kpis ?? [],
+    inversionAds: d.inversionAds ?? 0,
+    syncAt: d.syncAt ?? null,
+    fuente: d.fuente ?? 'meta_ads',
+    mes: d.mes ?? mes,
   };
 }
 
@@ -1724,15 +1698,20 @@ export async function getMarketing(mes) {
   // Dos fuentes distintas, ninguna depende de la otra: se piden juntas.
   const [raw, ads] = await Promise.all([getMarketingReal(mes), getMetaAds(mes)]);
   const c = raw.contenido;
-  const kpi = (id, label, value, format, nota, sourceId = 'mkt_crm') => ({
+  // Ninguno de estos números pasa ya por el CRM de atv-mkt —esa base se borró—: el
+  // contenido sale de Instagram con el token propio y el setting de los reportes que
+  // carga el equipo en Ops. La etiqueta decía lo contrario (Franco, 02-11-2026).
+  const kpi = (id, label, value, format, nota, sourceId = 'ventas_ops') => ({
     id, label, value, format, previous: null, sourceId, updatedAt: raw.generadoAt, nota,
   });
 
   return {
     campanias: ads.campanias,
     gastoCanal: ads.gastoCanal,
-    gastoDiario: [],
+    gastoDiario: ads.gastoDiario,
     umbrales: ads.umbrales,
+    // De dónde salieron las campañas. `fuente`, más abajo, es la del resto de la página.
+    fuenteAds: ads.fuente,
     inversionAds: raw.ads.gastoUsd,
     instagram: {
       publicaciones: c.publicaciones,
@@ -1746,13 +1725,13 @@ export async function getMarketing(mes) {
     storiesActivas: raw.historias.secuencias,
     publicaciones: c.publicaciones,
     kpis: [
-      kpi('reproducciones', 'Reproducciones', c.reproducciones, 'count', `${c.reels} reels publicados este mes`, 'mkt_crm'),
-      kpi('alcance_ig', 'Alcance', c.alcance, 'count', `${formatValue(c.interacciones, 'count')} interacciones`, 'mkt_crm'),
-      kpi('chats_historias', 'Chats de historias', raw.historias.chats, 'count', `${raw.historias.secuencias} secuencias cargadas`),
+      kpi('reproducciones', 'Reproducciones', c.reproducciones, 'count', `${c.reels} reels publicados este mes`, 'instagram_ops'),
+      kpi('alcance_ig', 'Alcance', c.alcance, 'count', `${formatValue(c.interacciones, 'count')} interacciones`, 'instagram_ops'),
+      kpi('chats_historias', 'Chats de historias', raw.historias.chats, 'count', `${raw.historias.secuencias} secuencias cargadas`, 'instagram_ops'),
       kpi(
         'conversaciones_ig', 'Conversaciones abiertas',
         raw.conversaciones?.total ?? 0, 'count',
-        'Instagram · el bot las abrió solo, sin reportarlas a mano',
+        'Instagram · el bot las abrió solo, sin reportarlas a mano', 'instagram_ops',
       ),
       kpi('conversaciones_setting', 'Reportadas por setting', raw.setting.conversaciones, 'count', `${raw.setting.agendas} agendas`),
       kpi('inversion_ads', 'Inversión en Ads', raw.ads.gastoUsd, 'usd', `${raw.ads.conversiones} conversiones`, 'ads_manager'),
@@ -1760,7 +1739,7 @@ export async function getMarketing(mes) {
     conectado: raw.conectado,
     detalle: raw.detalle,
     syncAt: raw.generadoAt,
-    fuente: 'mkt_crm',
+    fuente: 'ventas_ops',
     mes: raw.mes,
   };
 }
