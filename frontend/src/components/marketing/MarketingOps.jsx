@@ -1,5 +1,6 @@
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
+import QueMover from './QueMover.jsx';
 import { formatValue } from '../../lib/format.js';
 import { proyectarMes } from '../../lib/metasMes.js';
 
@@ -53,11 +54,11 @@ function Fila({ label, p, format = 'count' }) {
 }
 
 /**
- * @param {{ decreto: object, real: object, contexto: object, origenes: array,
+ * @param {{ decreto: object, real: object, contexto: object,
  *           piezas: {reels: number, secuencias: number, videos: number},
  *           chats: { total: number, fuente: string } }} props
  */
-export default function MarketingOps({ decreto, real, contexto, origenes = [], piezas,
+export default function MarketingOps({ decreto, real, contexto, piezas,
                                        chats = { total: 0, fuente: '' } }) {
   const diaHoy = contexto?.diaHoy ?? 1;
   const diasMes = contexto?.diasMes ?? 30;
@@ -73,12 +74,13 @@ export default function MarketingOps({ decreto, real, contexto, origenes = [], p
   const totalPiezas = (piezas?.reels ?? 0) + (piezas?.secuencias ?? 0) + (piezas?.videos ?? 0);
   const publicacion = proyectarMes({ ...base, real: totalPiezas, meta: 0 });
 
-  // Un origen sin agendas ni cash no dice nada: ocupa una fila y se lee como ruido.
-  const conMovimiento = origenes.filter((o) => (o.agendados ?? 0) > 0 || (o.cashUsd ?? 0) > 0);
-  const totalAgendas = conMovimiento.reduce((t, o) => t + (o.agendados ?? 0), 0);
-  // Orgánico es el origen "Orgánico", no todo lo que no es Ads: un referido no lo trajo
-  // el contenido.
-  const organico = conMovimiento.find((o) => /org[áa]nico/i.test(o.nombre));
+  // Una métrica sin meta no se puede medir contra nada: no entra al gráfico en vez de
+  // dibujarle una barra inventada.
+  const aMover = [
+    { label: 'Chats', p: conversaciones, format: 'count' },
+    { label: 'Agendas', p: agendas, format: 'count' },
+    { label: 'Cash', p: cash, format: 'usd' },
+  ].filter((f) => f.p.meta > 0);
 
   return (
     <>
@@ -118,75 +120,21 @@ export default function MarketingOps({ decreto, real, contexto, origenes = [], p
         </div>
       </Card>
 
-      <Card
-        title="De dónde viene"
-        sub={conMovimiento.length ? 'Agendas, cierres y cash del mes por origen' : 'Todavía sin agendas este mes'}
-        flush
-        foot="Lo orgánico es lo que produce el contenido. Lo pago se mide en Ads."
-      >
-        {conMovimiento.length === 0 ? (
-          <div className="empty">Sin llamadas cargadas en el mes.</div>
+      <Card title="Qué hay que mover" sub={`${diaHoy} de ${diasMes} días`} flush>
+        {aMover.length === 0 ? (
+          <div className="empty">Sin metas cargadas para el mes. Se cargan en Metas.</div>
         ) : (
-          <div className="proy-tabla origen">
-            <div className="proy-fila cabecera">
-              <span>Origen</span>
-              <span>Agendas</span>
-              <span>% del total</span>
-              <span>Cierres</span>
-              <span>Cash</span>
+          <div className="mover">
+            <div className="legend">
+              <span className="k"><i style={{ background: 'var(--s1)' }} />va</span>
+              <span className="k"><i style={{ background: 'var(--s3)' }} />lo que suma el ritmo</span>
+              <span className="k"><i style={{ background: 'var(--brand)' }} />falta</span>
             </div>
-            {conMovimiento.map((o) => (
-              <div key={o.nombre} className="proy-fila">
-                <span className="strong">{o.nombre}</span>
-                <span className="num">{n(o.agendados)}</span>
-                <span className="num dim">
-                  {totalAgendas ? `${Math.round((o.agendados / totalAgendas) * 100)}%` : '—'}
-                </span>
-                <span className="num">{n(o.cierres)}</span>
-                <span className="num">{n(o.cashUsd, 'usd')}</span>
-              </div>
-            ))}
+            <QueMover filas={aMover} />
           </div>
         )}
       </Card>
 
-      <Card
-        title="Qué hay que mover"
-        sub="Lo que cambia el resultado del mes, no lo que ya pasó"
-        foot={organico
-          ? `Lo orgánico trajo ${n(organico.agendados)} de las ${n(totalAgendas)} agendas del mes y ${n(organico.cashUsd, 'usd')} de cash.`
-          : 'Todavía no hay agendas atribuidas a contenido orgánico este mes.'}
-      >
-        <ul className="proy-acciones">
-          {[conversaciones, agendas, cash].every((p) => !p.meta) && (
-            <li>No hay metas cargadas para el mes: sin eso no se puede decir si el ritmo alcanza. Se cargan en Metas.</li>
-          )}
-          {conversaciones.meta > 0 && conversaciones.zona !== 'ok' && (
-            <li>
-              Chats proyecta <b>{n(conversaciones.proyectado)}</b> contra una meta de{' '}
-              {n(conversaciones.meta)}. Para llegar hacen falta{' '}
-              <b>{n(Math.ceil(conversaciones.necesarioDia))} por día</b> en los {conversaciones.diasRestantes} que
-              quedan, contra las {n(Math.round(conversaciones.ritmoDia * 10) / 10)} de hoy.
-            </li>
-          )}
-          {agendas.meta > 0 && agendas.zona !== 'ok' && (
-            <li>
-              Agendas proyecta <b>{n(agendas.proyectado)}</b> contra {n(agendas.meta)}. Hacen falta{' '}
-              <b>{n(Math.ceil(agendas.necesarioDia))} por día</b>.
-            </li>
-          )}
-          {cash.meta > 0 && cash.zona !== 'ok' && (
-            <li>
-              Cash proyecta <b>{n(cash.proyectado, 'usd')}</b> contra {n(cash.meta, 'usd')}: faltan{' '}
-              <b>{n(Math.max(cash.meta - cash.proyectado, 0), 'usd')}</b>.
-            </li>
-          )}
-          {totalPiezas === 0 && <li>No hay contenido publicado este mes. Sin piezas no hay de dónde salgan conversaciones.</li>}
-          {[conversaciones, agendas, cash].every((p) => p.meta > 0 && p.zona === 'ok') && (
-            <li>Las tres proyecciones llegan a la meta al ritmo actual. No hay nada que corregir.</li>
-          )}
-        </ul>
-      </Card>
     </>
   );
 }
