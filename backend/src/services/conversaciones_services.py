@@ -283,15 +283,23 @@ def chats(desde, hasta) -> dict:
         logger.warning("No se pudieron leer los reels de los chats: %s", str(e)[:160])
     cuenta: dict[str, int] = {}
     palabra_de: dict[str, str] = {}
-    for rid, palabra, _ in chats_reels:
+    # El último chat que trajo cada reel, dentro del período.
+    ultimo_de: dict[str, datetime] = {}
+    for rid, palabra, cuando in chats_reels:
         cuenta[rid] = cuenta.get(rid, 0) + 1
         palabra_de[rid] = palabra
+        if cuando and (rid not in ultimo_de or cuando > ultimo_de[rid]):
+            ultimo_de[rid] = cuando
+    # La fecha de la fila es la del último chat, que siempre cae en el período. La del reel
+    # va aparte: si no, un reel de octubre que sigue trayendo gente parecía un chat de
+    # octubre colado en noviembre (Franco, 01-11-2026).
     filas_reels = [
-        {"cuando": (reels_por_id.get(rid, {}).get("fecha") or "")[:10],
+        {"cuando": ultimo_de[rid].date().isoformat() if rid in ultimo_de else "",
          "quien": (reels_por_id.get(rid, {}).get("titulo") or palabra_de[rid])[:80],
          "cuantos": n,
          "foto": reels_por_id.get(rid, {}).get("thumbnail"),
-         "dato": palabra_de[rid]}
+         "dato": palabra_de[rid],
+         "publicado": (reels_por_id.get(rid, {}).get("fecha") or "")[:10]}
         for rid, n in sorted(cuenta.items(), key=lambda kv: -kv[1])
     ]
     detalle_reels = ("comentaron la palabra del reel" if por_reels

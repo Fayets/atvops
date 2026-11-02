@@ -123,7 +123,8 @@ def _momento(iso: str | None) -> datetime:
     try:
         return datetime.strptime(iso or "", "%Y-%m-%dT%H:%M:%S%z").astimezone(AR_TZ).replace(tzinfo=None)
     except ValueError:
-        return datetime.utcnow()
+        # Sin hora legible, ahora: también en Argentina, que es lo que guarda la columna.
+        return datetime.now(AR_TZ).replace(tzinfo=None)
 
 
 def guardar(reel_id: str, palabra: str, comentarios: list[dict], propia: str) -> int:

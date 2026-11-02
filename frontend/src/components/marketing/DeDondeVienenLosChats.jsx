@@ -59,7 +59,11 @@ function Puerta({ parte, total }) {
                 {f.foto && <img src={f.foto} alt="" loading="lazy" />}
                 {f.quien}
               </span>
-              <span className="dim">{f.dato ?? ''}</span>
+              <span className="dim">
+                {f.dato ?? ''}
+                {/* La fila cuenta chats del mes; el reel puede ser de antes. */}
+                {f.publicado && <> · reel del {fecha(f.publicado)}</>}
+              </span>
               <span className="num strong">{n(f.cuantos)}</span>
             </div>
           ))}
