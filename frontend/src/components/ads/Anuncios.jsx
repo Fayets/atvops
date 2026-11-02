@@ -13,7 +13,7 @@ const num = (n) => formatValue(n ?? 0, 'count');
  * Los anuncios de Meta, uno por uno. Primero se ve qué está corriendo; al tocar uno se abren
  * sus números del mes, día por día, y los de toda su vida.
  */
-export default function Anuncios({ mes, mesLabel }) {
+export default function Anuncios({ mes, mesLabel, acciones = null }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [filtro, setFiltro] = useState(null);
@@ -40,8 +40,16 @@ export default function Anuncios({ mes, mesLabel }) {
     ].filter(([k, , l]) => l.length || k === 'corriendo');
   }, [data, mesLabel]);
 
-  if (error && !data) return <ErrorState error={error} />;
-  if (!data) return <SkeletonBlock height={260} />;
+  // El encabezado va siempre: la meta del mes y de dónde salen los datos no dependen de
+  // que Meta conteste. Lo que se cae mientras tanto es la lista.
+  const cabecera = (
+    <div className="ads-anuncios-cab">
+      <h2>Anuncios</h2>
+      {acciones && <div className="ads-anuncios-acciones">{acciones}</div>}
+    </div>
+  );
+  if (error && !data) return <section className="ads-anuncios">{cabecera}<ErrorState error={error} /></section>;
+  if (!data) return <section className="ads-anuncios">{cabecera}<SkeletonBlock height={260} /></section>;
 
   // Abre en lo que corre; si no corre nada, en todos.
   const activo = filtro ?? (grupos.find(([k]) => k === 'corriendo')[2].length ? 'corriendo' : 'todos');
@@ -49,15 +57,13 @@ export default function Anuncios({ mes, mesLabel }) {
 
   return (
     <section className="ads-anuncios">
-      <div className="ads-anuncios-cab">
-        <h2>Anuncios</h2>
-        <div className="ads-chips" role="group" aria-label="Qué anuncios ver">
-          {grupos.map(([k, label, l]) => (
-            <button key={k} type="button" className={`chip${activo === k ? ' active' : ''}`} aria-pressed={activo === k} onClick={() => { setFiltro(k); setTodos(false); }}>
-              {label} <span className="dim num">{l.length}</span>
-            </button>
-          ))}
-        </div>
+      {cabecera}
+      <div className="ads-chips" role="group" aria-label="Qué anuncios ver">
+        {grupos.map(([k, label, l]) => (
+          <button key={k} type="button" className={`chip${activo === k ? ' active' : ''}`} aria-pressed={activo === k} onClick={() => { setFiltro(k); setTodos(false); }}>
+            {label} <span className="dim num">{l.length}</span>
+          </button>
+        ))}
       </div>
       {lista.length === 0 ? (
         <div className="card lab-vacio">

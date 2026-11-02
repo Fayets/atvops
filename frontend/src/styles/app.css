@@ -8730,7 +8730,8 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .ads-anuncios { margin-bottom: var(--space-5); }
 .ads-anuncios-cab { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
 .ads-anuncios-cab h2 { margin: 0; font-size: 17px; }
-.ads-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ads-anuncios-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.ads-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-3); }
 .ads-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .ads-card { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 12px; text-align: left; font: inherit; color: inherit; cursor: pointer; border: 1px solid var(--border-soft); }
 .ads-card:hover { border-color: var(--text-3); }

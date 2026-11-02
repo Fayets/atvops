@@ -8,7 +8,6 @@ import Card from '../components/ui/Card.jsx';
 import DataTable from '../components/ui/DataTable.jsx';
 import KpiCard from '../components/ui/KpiCard.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
 import { getMarketing, getMetasMes } from '../data/api.js';
@@ -98,10 +97,12 @@ export default function Ads() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Área · Juan Cruz"
-        title="Ads"
-        actions={
+      {/* Primero los anuncios: qué corre y, al tocar uno, cómo le va. El título de la
+          página lo pone la barra de arriba: acá iba otro "Ads" repetido. */}
+      <Anuncios
+        mes={mes}
+        mesLabel={mesLabel}
+        acciones={
           <>
             {puedeEditar && (
               <button type="button" className="btn" onClick={() => setModalMeta(true)}>
@@ -112,9 +113,6 @@ export default function Ads() {
           </>
         }
       />
-
-      {/* Primero los anuncios: qué corre y, al tocar uno, cómo le va. */}
-      <Anuncios mes={mes} mesLabel={mesLabel} />
 
       {loading || !data ? (
         <>
