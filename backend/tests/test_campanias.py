@@ -119,8 +119,11 @@ def test_el_porcentaje_de_calificados_se_compara_contra_las_cuatro_semanas_de_an
              (datetime(2026, 11, 1), "calificado"), (datetime(2026, 11, 2), "no"),
              (datetime(2026, 9, 1), "calificado")]  # fuera de la base: más de 4 semanas antes
     r = c.tasa_calificados(leads, date(2026, 10, 31), date(2026, 11, 2))
-    assert r["campania"] == {"analizados": 2, "calificados": 1, "pct": 50.0}
-    assert r["base"] == {"analizados": 4, "calificados": 1, "pct": 25.0}
+    assert r["campania"] == {"analizados": 2, "calificados": 1, "pct": 50.0, "suficiente": False}
+    assert r["base"] == {"analizados": 4, "calificados": 1, "pct": 25.0, "suficiente": False}
+    # con 30 analizados ya se puede juzgar contra la meta
+    muchos = [(datetime(2026, 11, 1), "no")] * 30
+    assert c.tasa_calificados(muchos, date(2026, 10, 31), date(2026, 11, 2))["campania"]["suficiente"] is True
 
 
 def test_el_delta_de_seguidores_se_mide_contra_la_ultima_foto_de_antes():

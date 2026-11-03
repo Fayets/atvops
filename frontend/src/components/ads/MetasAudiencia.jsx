@@ -3,7 +3,7 @@ import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import Direccional from './Direccional.jsx';
 
-const ZONA = { ok: ['ok', 'cumple'], alert: ['alert', 'abajo'], off: ['off', 'sin meta'], vacio: ['off', 'sin muestra'] };
+const ZONA = { ok: ['ok', 'cumple'], alert: ['alert', 'abajo'], off: ['off', 'sin meta'], vacio: ['off', 'sin muestra'], chica: ['off', 'muestra chica'] };
 
 /** Cumple o no contra la meta. Sin meta o sin dato no hay juicio: queda neutro, nunca en rojo. */
 function zona(real, meta, mejorEsMenor = false) {
@@ -47,9 +47,11 @@ export default function MetasAudiencia({ datos, decreto }) {
       real: cal?.pct ?? null,
       meta: decreto?.pctCalificadosMeta,
       fmt: (v) => formatValue(v, 'pct'),
-      z: zona(cal?.pct ?? null, decreto?.pctCalificadosMeta),
+      // Con pocos analizados el % salta de un lado al otro: se muestra, pero no se juzga.
+      z: cal && cal.pct != null && !cal.suficiente && decreto?.pctCalificadosMeta != null
+        ? 'chica' : zona(cal?.pct ?? null, decreto?.pctCalificadosMeta),
       sub: [
-        cal?.analizados ? `${cal.calificados} de ${cal.analizados} analizados` : 'nadie analizado todavía',
+        cal?.analizados ? `${cal.calificados} de ${cal.analizados} analizados${cal.suficiente ? '' : ` · faltan ${(datos.calificacion?.muestraMinima ?? 30) - cal.analizados} para juzgar`}` : 'nadie analizado todavía',
         base?.pct != null ? `orgánico antes: ${formatValue(base.pct, 'pct')} (${base.analizados})` : null,
       ].filter(Boolean).join(' · '),
     },

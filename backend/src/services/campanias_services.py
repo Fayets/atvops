@@ -256,6 +256,9 @@ def cohortes(dias_ig: list[dict], desde: date, hoy: date, fuentes: dict[str, dic
     return filas
 
 
+MUESTRA_MINIMA = 30   # con menos analizados el % se muestra, pero no se juzga contra la meta
+
+
 def tasa_calificados(leads: list[tuple[datetime | None, str]], arranque: date, hoy: date) -> dict:
     """El % de calificados entre los que Audiencia ya analizó: los de la ventana de la campaña
     contra los de las cuatro semanas de antes, que son la base orgánica.
@@ -264,10 +267,11 @@ def tasa_calificados(leads: list[tuple[datetime | None, str]], arranque: date, h
         sel = [v for t, v in leads if t is not None and desde <= t.date() < hasta]
         cal = sum(1 for v in sel if v == "calificado")
         return {"analizados": len(sel), "calificados": cal,
-                "pct": round(cal / len(sel) * 100, 1) if sel else None}
+                "pct": round(cal / len(sel) * 100, 1) if sel else None,
+                "suficiente": len(sel) >= MUESTRA_MINIMA}
 
     return {"campania": tramo(arranque, hoy + timedelta(days=1)),
-            "base": tramo(arranque - timedelta(days=28), arranque)}
+            "base": tramo(arranque - timedelta(days=28), arranque), "muestraMinima": MUESTRA_MINIMA}
 
 
 def _fecha_meta(iso: str | None) -> datetime | None:

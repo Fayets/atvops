@@ -206,7 +206,9 @@ export default function Campania({ c, mes, mesLabel }) {
               {cal?.campania?.pct == null ? '—' : formatValue(cal.campania.pct, 'pct')}
             </b>
             <span className="dim camp-sirven-sub">
-              {cal?.campania?.analizados ? `${cal.campania.calificados} de ${cal.campania.analizados} analizados` : 'nadie analizado desde el arranque'}
+              {cal?.campania?.analizados
+                ? `${cal.campania.calificados} de ${cal.campania.analizados} analizados${cal.campania.suficiente ? '' : ` · muestra chica (mínimo ${cal.muestraMinima ?? 30})`}`
+                : 'nadie analizado desde el arranque'}
             </span>
           </div>
           <div>
