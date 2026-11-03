@@ -22,7 +22,16 @@ const VACIO = {
   cashMeta: '',
   cashAds: '',
   cashOrganico: '',
+  costoVisitaMetaUsd: '',
+  netoSeguidoresSemanaMeta: '',
+  pctCalificadosMeta: '',
 };
+
+function opcional(v) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 function aNum(v) {
   const n = Number(v);
@@ -60,6 +69,9 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
       cashMeta: String(decretoInicial.cashMeta ?? ''),
       cashAds: String(decretoInicial.cashAds ?? ''),
       cashOrganico: String(decretoInicial.cashOrganico ?? ''),
+      costoVisitaMetaUsd: String(decretoInicial.costoVisitaMetaUsd ?? ''),
+      netoSeguidoresSemanaMeta: String(decretoInicial.netoSeguidoresSemanaMeta ?? ''),
+      pctCalificadosMeta: String(decretoInicial.pctCalificadosMeta ?? ''),
     });
   }, [decretoInicial]);
 
@@ -85,6 +97,10 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
       cashMeta: aNum(form.cashMeta),
       cashAds: aNum(form.cashAds),
       cashOrganico: aNum(form.cashOrganico),
+      // Las de audiencia son opcionales: vacía es "sin meta", y 0 de neto es una meta válida.
+      costoVisitaMetaUsd: opcional(form.costoVisitaMetaUsd),
+      netoSeguidoresSemanaMeta: opcional(form.netoSeguidoresSemanaMeta),
+      pctCalificadosMeta: opcional(form.pctCalificadosMeta),
       creadoAt: decretoInicial?.creadoAt,
       creadoPor: decretoInicial?.creadoPor || 'Equipo',
     };
@@ -117,6 +133,9 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
     { key: 'cashMeta', label: 'Cash meta US$', step: 1 },
     { key: 'cashAds', label: 'Cash ads US$', step: 1 },
     { key: 'cashOrganico', label: 'Cash orgánico US$', step: 1 },
+    { key: 'costoVisitaMetaUsd', label: 'FM · costo por visita US$', step: 0.01, opcional: true },
+    { key: 'netoSeguidoresSemanaMeta', label: 'FM · neto seguidores por semana', step: 1, min: -100000, opcional: true },
+    { key: 'pctCalificadosMeta', label: 'FM · calificados %', step: 0.1, opcional: true },
   ];
 
   const body = (
@@ -142,11 +161,11 @@ export default function MetaMesForm({ decretoInicial, mes, nombreMes, onGuardado
               <input
                 type="number"
                 step={c.step}
-                min={0}
+                min={c.min ?? 0}
                 value={form[c.key]}
                 disabled={inmutable}
                 onChange={(e) => set(c.key, e.target.value)}
-                required
+                required={!c.opcional}
               />
             </label>
           ))}

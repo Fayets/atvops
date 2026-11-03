@@ -192,6 +192,84 @@ def interesados(media_ids: list[str], seguir: list[str] | None = None) -> dict:
             "calificados": calificados, "corte": audiencia.CORTE_CALIFICADO}
 
 
+def tipo_de(conjuntos: list[dict]) -> str:
+    """'fm' si la campaña lleva al perfil (Follow Me: produce audiencia, no agendas);
+    'dr' (respuesta directa) si busca leads, mensajes, ventas o una landing."""
+    for s in conjuntos:
+        if (s.get("destination_type") or "").upper() == "INSTAGRAM_PROFILE" \
+                or (s.get("optimization_goal") or "").upper() == "PROFILE_VISIT":
+            return "fm"
+    return "dr"
+
+
+UMBRAL_DEJAN = 1.5   # alerta si los que dejan superan en 50 % lo normal...
+DIAS_ALERTA = 3      # ...tres días seguidos: un mal día no es alerta
+
+
+def alerta_dejan(dias: list[dict], base_dejan: float | None) -> dict | None:
+    """Cuántos días seguidos, contando desde el último cerrado, se fue más gente de la normal
+    por encima del umbral. La alerta prende recién a los tres."""
+    if not base_dejan:
+        return None
+    limite = round(base_dejan * UMBRAL_DEJAN, 1)
+    racha = 0
+    for d in reversed(dias):
+        if d["dejan"] > limite:
+            racha += 1
+        else:
+            break
+    return {"base": base_dejan, "limite": limite, "racha": racha, "activa": racha >= DIAS_ALERTA}
+
+
+# Cada columna de las cohortes mira la semana de la cohorte más N semanas.
+VENTANAS_COHORTE = {"chats": 2, "pitches": 3, "agendas": 3, "cashUsd": 4}
+
+
+def cohortes(dias_ig: list[dict], desde: date, hoy: date, fuentes: dict[str, dict[str, float]]) -> list[dict]:
+    """Una fila por semana desde el arranque. Los seguidores nuevos son los de esa semana; cada
+    columna de después suma lo que pasó en la semana de la cohorte y las N siguientes, y queda
+    vacía (None, con la fecha en que se completa) hasta que esa ventana termina.
+
+    Instagram no dice quién siguió, así que lo de después no es de esas personas una por una:
+    es lo que entró en la ventana. Por eso las filas no se suman entre sí."""
+    siguen = {d["fecha"]: d["siguen"] for d in dias_ig}
+    filas = []
+    inicio = desde
+    while inicio < hoy:
+        fin_semana = inicio + timedelta(days=7)
+        cerrados = [inicio + timedelta(days=i) for i in range(7) if inicio + timedelta(days=i) < hoy]
+        fila = {"desde": inicio.isoformat(), "hasta": (fin_semana - timedelta(days=1)).isoformat(),
+                "completa": fin_semana <= hoy,
+                "seguidores": sum(siguen.get(d.isoformat(), 0) for d in cerrados)}
+        for clave, semanas in VENTANAS_COHORTE.items():
+            fin = inicio + timedelta(days=7 * (semanas + 1))
+            if fin <= hoy:
+                serie = fuentes.get(clave) or {}
+                total = sum(v for f, v in serie.items() if inicio.isoformat() <= f < fin.isoformat())
+                fila[clave] = round(total, 2) if clave == "cashUsd" else int(total)
+                fila[f"{clave}ListaEl"] = None
+            else:
+                fila[clave] = None
+                fila[f"{clave}ListaEl"] = fin.isoformat()
+        filas.append(fila)
+        inicio = fin_semana
+    return filas
+
+
+def tasa_calificados(leads: list[tuple[datetime | None, str]], arranque: date, hoy: date) -> dict:
+    """El % de calificados entre los que Audiencia ya analizó: los de la ventana de la campaña
+    contra los de las cuatro semanas de antes, que son la base orgánica.
+    `leads`: (cuándo llegó, veredicto vigente) de cada analizado."""
+    def tramo(desde: date, hasta: date) -> dict:
+        sel = [v for t, v in leads if t is not None and desde <= t.date() < hasta]
+        cal = sum(1 for v in sel if v == "calificado")
+        return {"analizados": len(sel), "calificados": cal,
+                "pct": round(cal / len(sel) * 100, 1) if sel else None}
+
+    return {"campania": tramo(arranque, hoy + timedelta(days=1)),
+            "base": tramo(arranque - timedelta(days=28), arranque)}
+
+
 def _fecha_meta(iso: str | None) -> datetime | None:
     """Meta manda '2026-10-31T21:26:46-0300'."""
     if not iso:
@@ -224,11 +302,16 @@ class CampaniasServices:
             "fields": "id,name,objective,effective_status,start_time,stop_time", "limit": "100"})
         gasto = {str(r.get("campaign_id")): r for r in self.meta._graph_get_all(ver, f"/{account}/insights", token, {
             "fields": "campaign_id,spend", "level": "campaign", "date_preset": "maximum", "limit": "200"})}
+        conjuntos: dict[str, list[dict]] = {}
+        for s in self.meta._graph_get_all(ver, f"/{account}/adsets", token, {
+                "fields": "campaign_id,destination_type,optimization_goal", "limit": "200"}):
+            conjuntos.setdefault(str(s.get("campaign_id")), []).append(s)
         out = []
         for c in camps:
             out.append({
                 "id": str(c["id"]),
                 "nombre": c.get("name") or "",
+                "tipo": tipo_de(conjuntos.get(str(c["id"]), [])),
                 "estado": _ESTADO.get(c.get("effective_status") or "", "pausada"),
                 "objetivo": _OBJETIVO.get((c.get("objective") or "").upper(), (c.get("objective") or "").lower()),
                 "inicio": c.get("start_time"),
@@ -287,9 +370,13 @@ class CampaniasServices:
                  "resultados": resultados_de(d, mide)} for d in por_dia]
         inicio = _fecha_meta(c.get("start_time"))
         cuenta = account.replace("act_", "")
+        seguidores = self._seguidores_de(inicio, {d["fecha"]: d["gastoUsd"] for d in dias})
+        hoy = _hoy_ar()
+        desde = primer_dia_medido(inicio) if inicio else None
         return {
             "id": cid,
             "nombre": c.get("name"),
+            "tipo": tipo_de(conjuntos),
             "estado": _ESTADO.get(c.get("effective_status") or "", "pausada"),
             "objetivo": _OBJETIVO.get((c.get("objective") or "").upper(), (c.get("objective") or "").lower()),
             "inicio": c.get("start_time"),
@@ -299,7 +386,10 @@ class CampaniasServices:
             "total": numeros(total[0] if total else None, mide),
             "creativos": creativos,
             "dias": dias,
-            "seguidores": self._seguidores_de(inicio, {d["fecha"]: d["gastoUsd"] for d in dias}),
+            "seguidores": seguidores,
+            "cohortes": (cohortes(seguidores.get("dias", []), desde, hoy, self._fuentes_cohortes(desde, hoy))
+                         if desde and desde < hoy else []),
+            "calificacion": self._calificacion(inicio.astimezone(AR).date(), hoy) if inicio else None,
             "interesados": interesados([c["mediaId"] for c in creativos if c.get("mediaId")],
                                        seguir=[c["mediaId"] for c in creativos
                                                if c.get("mediaId") and c["estado"] == "corriendo"]),
@@ -331,7 +421,71 @@ class CampaniasServices:
         except HTTPException as e:
             return {"dias": [], "error": str(e.detail)[:200]}
         calculo = seguidores_extra(dias, inicio, gasto_por_dia) if inicio else {}
-        return {"dias": dias, **calculo}
+        base = (calculo.get("base") or {}).get("dejan")
+        return {"dias": dias, **calculo, "alertaDejan": alerta_dejan(dias, base)}
+
+    def _fuentes_cohortes(self, desde: date, hoy: date) -> dict[str, dict[str, float]]:
+        """Chats, pitches, agendas y cash por día, pero solo si alguna celda ya se puede llenar:
+        mientras ninguna ventana cerró, no hace falta leer nada."""
+        primera = min(VENTANAS_COHORTE.values())
+        if desde + timedelta(days=7 * (primera + 1)) > hoy:
+            return {}
+        from src.services import conversaciones_services, ventas_services
+
+        fuentes: dict[str, dict[str, float]] = {"chats": {}, "pitches": {}, "agendas": {}, "cashUsd": {}}
+        try:
+            for d in conversaciones_services.chats(desde, hoy).get("porDia", []):
+                fuentes["chats"][d["fecha"]] = d["cuantos"]
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Cohortes sin chats: %s", str(e)[:160])
+        try:
+            fuentes["pitches"] = {f.isoformat(): n for f, n in ventas_services._pitches_por_fecha(desde, hoy).items()}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Cohortes sin pitches: %s", str(e)[:160])
+        mes = date(desde.year, desde.month, 1)
+        while mes <= hoy:
+            for d in ventas_services.series_diarias(f"{mes.year:04d}-{mes.month:02d}"):
+                fuentes["agendas"][d["fecha"]] = d["agendas"]
+                fuentes["cashUsd"][d["fecha"]] = d["cashUsd"]
+            mes = date(mes.year + (mes.month == 12), mes.month % 12 + 1, 1)
+        return fuentes
+
+    @staticmethod
+    def _calificacion(arranque: date, hoy: date) -> dict:
+        from pony.orm import db_session
+
+        from src.models import LeadAudiencia
+        from src.services import audiencia_services as audiencia
+
+        with db_session:
+            leads = [(x.comentado_at or x.creado_at, audiencia._veredicto_vigente(x.veredicto, x.puntaje))
+                     for x in list(LeadAudiencia.select()) if x.analizado_at is not None]
+        return {**tasa_calificados(leads, arranque, hoy), "corte": audiencia.CORTE_CALIFICADO}
+
+    def metas_audiencia(self, refrescar: bool = False) -> dict:
+        """Qué campañas corren y, si hay alguna de seguidores, sus números contra las metas de
+        audiencia: costo por visita, neto de seguidores de la semana y % de calificados."""
+        lista = self.campanias(refrescar=refrescar)["campanias"]
+        corren = [c for c in lista if c["estado"] == "corriendo"]
+        fm = [c for c in corren if c.get("tipo") == "fm"]
+        out = {"fmActivas": len(fm), "drActivas": sum(1 for c in corren if c.get("tipo") == "dr"),
+               "costoVisitaUsd": None, "netoSemana": None, "calificacion": None, "alertaDejan": None}
+        if not fm:
+            return out
+        detalles = [self.campania(c["id"]) for c in fm]
+        gasto = sum(d["total"]["gastoUsd"] for d in detalles)
+        visitas = sum(d["total"]["resultados"] for d in detalles)
+        out["costoVisitaUsd"] = round(gasto / visitas, 2) if visitas else None
+        # La más vieja: es la que tiene la base de antes de que arrancara cualquiera.
+        primera = min(detalles, key=lambda d: d.get("inicio") or "")
+        dias = (primera.get("seguidores") or {}).get("dias") or []
+        if dias:
+            ult = dias[-7:]
+            out["netoSemana"] = {"valor": sum(d["siguen"] - d["dejan"] for d in ult), "dias": len(ult),
+                                 "desde": ult[0]["fecha"], "hasta": ult[-1]["fecha"]}
+        out["calificacion"] = primera.get("calificacion")
+        out["alertaDejan"] = (primera.get("seguidores") or {}).get("alertaDejan")
+        return out
 
     # ------------------------------------------------------------------ Instagram
 

@@ -8776,6 +8776,18 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 .camp-sirven { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .camp-sirven div { padding: 16px 20px; border-right: 1px solid var(--border-soft); }
 .camp-sirven b { font-size: 24px; font-weight: 600; }
+.camp-sirven b.tenue { color: var(--s3); }
+.camp-sirven .camp-sirven-sub { font-size: 12px; }
+.direccional { align-self: flex-start; display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--text-2); border: 1px dashed var(--border); border-radius: var(--radius-pill); padding: 1px 7px; cursor: help; vertical-align: middle; }
+.direccional:focus-visible { outline: 2px solid var(--brand-line); outline-offset: 2px; }
+.cohortes-scroll { overflow-x: auto; }
+.cohortes { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; }
+.cohortes th { text-align: right; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); padding: 10px 16px; }
+.cohortes th:first-child, .cohortes td:first-child { text-align: left; padding-left: 20px; }
+.cohortes td { text-align: right; padding: 11px 16px; border-top: 1px solid var(--border-soft); }
+.cohorte-espera { color: var(--s3); font-size: 12px; }
+.meta-avance-fila.zona-neutra { border-color: var(--border-soft); }
+.meta-avance-sub { font-size: 12px; margin-top: 6px; }
 .ads-velo { position: fixed; inset: 0; background: rgba(28, 25, 23, .28); z-index: 60; display: flex; justify-content: flex-end; }
 .ads-drawer { position: relative; width: min(560px, 100vw); height: 100%; overflow-y: auto; background: var(--surface); box-shadow: -12px 0 32px rgba(28, 25, 23, .14); padding-bottom: 24px; }
 .ads-cerrar { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--surface); cursor: pointer; color: var(--text-2); }

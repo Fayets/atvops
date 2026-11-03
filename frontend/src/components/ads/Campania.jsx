@@ -4,6 +4,7 @@ import { formatValue } from '../../lib/format.js';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
 import DetalleAnuncio from './DetalleAnuncio.jsx';
+import Direccional from './Direccional.jsx';
 import SeguidoresDia from './SeguidoresDia.jsx';
 
 const usd = (n) => (n == null ? '—' : formatValue(n, 'usd'));
@@ -13,6 +14,12 @@ const dec = (n, d = 1) => (n == null ? '—' : Number(n).toLocaleString('es-AR',
 
 const TONO_ESTADO = { corriendo: 'ok', 'con problemas': 'warn', 'en revisión': 'warn', pausada: 'off' };
 const TONO_VEREDICTO = { escalar: 'ok', mantener: 'plain', pausar: 'alert', 'juntando datos': 'off' };
+
+function diaMes(iso) {
+  if (!iso) return '';
+  const [, m, d] = String(iso).split('-');
+  return `${Number(d)}/${Number(m)}`;
+}
 
 function cuando(iso) {
   if (!iso) return null;
@@ -37,13 +44,14 @@ function ganador(creativos, clave, menor = false) {
 export default function Campania({ c, mes, mesLabel }) {
   const [abierto, setAbierto] = useState(null);
   const cerrar = useCallback(() => setAbierto(null), []);
-  const { total, mide, creativos, seguidores: seg, interesados } = c;
+  const { total, mide, creativos, seguidores: seg, interesados, calificacion: cal } = c;
   const deSeguidores = mide.clave === 'visitas';
 
   const pasos = [
     { k: 'Gasto', v: usd(total.gastoUsd), sub: c.presupuestoDiarioUsd ? `de ${usd(c.presupuestoDiarioUsd)} por día` : null },
     { k: 'Impresiones', v: num(total.impresiones), sub: `frecuencia ${dec(total.frecuencia, 2)}` },
-    { k: mide.nombre, v: num(total.resultados), sub: total.costoResultadoUsd != null ? `${usd(total.costoResultadoUsd)} cada ${mide.singular}` : null },
+    { k: mide.nombre, v: num(total.resultados), sub: total.costoResultadoUsd != null ? `${usd(total.costoResultadoUsd)} cada ${mide.singular}` : null,
+      direccional: c.tipo === 'fm' && total.costoResultadoUsd != null },
   ];
   if (deSeguidores) {
     const extra = seg?.extra;
@@ -97,6 +105,7 @@ export default function Campania({ c, mes, mesLabel }) {
               <span className="camp-k">{p.k}</span>
               <b className={`num${p.tenue ? ' tenue' : ''}`}>{p.v}</b>
               {p.sub && <span className="dim">{p.sub}</span>}
+              {p.direccional && <Direccional />}
             </div>
           ))}
         </div>
@@ -132,7 +141,14 @@ export default function Campania({ c, mes, mesLabel }) {
           )}
         </Card>
 
-        <Card title="Seguidores de la cuenta" sub="por día, hasta ayer" className="camp-seg">
+        <Card
+          title="Seguidores de la cuenta"
+          sub="por día, hasta ayer"
+          className="camp-seg"
+          actions={seg?.alertaDejan?.activa && (
+            <Pill tone="alert" dot>{`unfollows +50 % · ${seg.alertaDejan.racha} días seguidos`}</Pill>
+          )}
+        >
           {seg?.error ? (
             <p className="dim" style={{ margin: 0 }}>Instagram no contestó: {seg.error}</p>
           ) : (seg?.dias?.length ?? 0) === 0 ? (
@@ -142,8 +158,9 @@ export default function Campania({ c, mes, mesLabel }) {
               <div className="legend">
                 <span className="k"><i style={{ background: 'var(--s2)' }} />siguen</span>
                 <span className="k"><i style={{ background: 'var(--s1)' }} />dejan de seguir</span>
+                {seg.base && <span className="k dim"><i className="ideal" />dejan, lo normal</span>}
               </div>
-              <SeguidoresDia dias={seg.dias} inicio={c.inicio} />
+              <SeguidoresDia dias={seg.dias} inicio={c.inicio} normalDejan={seg.base?.dejan} />
               {seg.base && (
                 <div className="camp-ritmo">
                   <div>
@@ -171,19 +188,80 @@ export default function Campania({ c, mes, mesLabel }) {
 
       <Card
         title="¿Sirven los que llegan?"
-        sub={`Audiencia · califica desde ${dec(interesados.corte, 0)} puntos`}
+        sub={`Audiencia · califica desde ${dec(cal?.corte ?? interesados.corte, 0)} puntos`}
         actions={<Link to="/marketing/audiencia" className="camp-link">Ver en Audiencia →</Link>}
         flush
       >
         <div className="camp-sirven">
-          <div><span className="dim">Comentaron los anuncios</span><b className="num">{num(interesados.personas)}</b></div>
-          <div><span className="dim">Ya analizados</span><b className="num">{num(interesados.leidos)}</b></div>
           <div>
-            <span className="dim">Calificados</span>
-            <b className="num">{num(interesados.calificados)}</b>
+            <span className="dim">Guardados</span>
+            <b className="num">{num(total.guardados)}</b>
+            <span className="dim camp-sirven-sub">
+              {creativos.filter((cr) => cr.guardados).map((cr) => `${cr.nombre}: ${num(cr.guardados)}`).join(' · ') || 'nadie guardó todavía'}
+            </span>
+          </div>
+          <div>
+            <span className="dim">Calificados en la campaña</span>
+            <b className={`num${cal?.campania?.pct == null ? ' tenue' : ''}`}>
+              {cal?.campania?.pct == null ? '—' : formatValue(cal.campania.pct, 'pct')}
+            </b>
+            <span className="dim camp-sirven-sub">
+              {cal?.campania?.analizados ? `${cal.campania.calificados} de ${cal.campania.analizados} analizados` : 'nadie analizado desde el arranque'}
+            </span>
+          </div>
+          <div>
+            <span className="dim">Orgánico, 4 semanas antes</span>
+            <b className={`num${cal?.base?.pct == null ? ' tenue' : ''}`}>
+              {cal?.base?.pct == null ? '—' : formatValue(cal.base.pct, 'pct')}
+            </b>
+            <span className="dim camp-sirven-sub">
+              {cal?.base?.analizados ? `${cal.base.calificados} de ${cal.base.analizados} analizados` : 'sin analizados en esas semanas'}
+            </span>
+          </div>
+          <div>
+            <span className="dim">Comentaron los anuncios</span>
+            <b className="num">{num(interesados.personas)}</b>
+            <span className="dim camp-sirven-sub">{`${num(interesados.calificados)} calificados`}</span>
           </div>
         </div>
       </Card>
+
+      {(c.cohortes?.length ?? 0) > 0 && (
+        <Card title="Cohortes de seguidores" sub="una por semana desde el arranque" flush>
+          <div className="cohortes-scroll">
+            <table className="cohortes">
+              <thead>
+                <tr>
+                  <th>Semana</th>
+                  <th>Seguidores nuevos</th>
+                  <th>Chats (+2 sem)</th>
+                  <th>Pitches (+3 sem)</th>
+                  <th>Agendas (+3 sem)</th>
+                  <th>Cash (+4 sem)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.cohortes.map((f) => (
+                  <tr key={f.desde}>
+                    <td>
+                      {`${diaMes(f.desde)} – ${diaMes(f.hasta)}`}
+                      {!f.completa && <span className="dim"> · en curso</span>}
+                    </td>
+                    <td className="num">{num(f.seguidores)}</td>
+                    {['chats', 'pitches', 'agendas', 'cashUsd'].map((k) => (
+                      <td key={k} className="num">
+                        {f[k] == null
+                          ? <span className="cohorte-espera" title={`Se completa el ${diaMes(f[`${k}ListaEl`])}`}>{diaMes(f[`${k}ListaEl`])}</span>
+                          : (k === 'cashUsd' ? usd(f[k]) : num(f[k]))}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {abierto && <DetalleAnuncio id={abierto} mes={mes} mesLabel={mesLabel} onCerrar={cerrar} />}
     </>

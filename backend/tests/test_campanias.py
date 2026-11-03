@@ -79,3 +79,45 @@ def test_sin_dias_cerrados_desde_el_arranque_no_se_calcula_nada():
     dias = _dias("2026-10-25", [(30, 50)] * 6)
     r = c.seguidores_extra(dias, datetime(2026, 10, 31, 21, 0, tzinfo=AR), {})
     assert r["medidos"] == 0 and r["extra"] is None
+
+
+def test_una_campania_al_perfil_es_follow_me_y_el_resto_respuesta_directa():
+    assert c.tipo_de([{"destination_type": "INSTAGRAM_PROFILE", "optimization_goal": "PROFILE_VISIT"}]) == "fm"
+    assert c.tipo_de([{"destination_type": "WEBSITE", "optimization_goal": "LEAD_GENERATION"}]) == "dr"
+    assert c.tipo_de([]) == "dr"
+
+
+def test_los_unfollows_alertan_recien_al_tercer_dia_seguido_arriba_del_50_por_ciento():
+    dias = _dias("2026-11-01", [(30, 80), (30, 75), (30, 72)])
+    assert c.alerta_dejan(dias, 47.6) == {"base": 47.6, "limite": 71.4, "racha": 3, "activa": True}
+    dos = _dias("2026-11-01", [(30, 40), (30, 75), (30, 72)])
+    assert c.alerta_dejan(dos, 47.6)["activa"] is False
+    # un mal día en el medio no deja una alerta prendida
+    corta = _dias("2026-11-01", [(30, 90), (30, 90), (30, 90), (30, 50)])
+    assert c.alerta_dejan(corta, 47.6)["racha"] == 0
+
+
+def test_las_celdas_de_la_cohorte_quedan_vacias_hasta_que_cierra_su_ventana():
+    from datetime import date
+    dias = _dias("2026-11-01", [(10, 0)] * 30)
+    fuentes = {"chats": {"2026-11-03": 4, "2026-11-20": 2, "2026-11-23": 9}, "pitches": {}, "agendas": {}, "cashUsd": {}}
+    filas = c.cohortes(dias, date(2026, 11, 1), date(2026, 11, 23), fuentes)
+    assert [f["desde"] for f in filas] == ["2026-11-01", "2026-11-08", "2026-11-15", "2026-11-22"]
+    primera = filas[0]
+    assert primera["seguidores"] == 70 and primera["completa"] is True
+    # chats: la semana más dos = del 1 al 21 inclusive; el 22 ya cerró esa ventana
+    assert primera["chats"] == 6 and primera["chatsListaEl"] is None
+    assert primera["pitches"] is None and primera["pitchesListaEl"] == "2026-11-29"
+    ultima = filas[-1]
+    assert ultima["seguidores"] == 10 and ultima["completa"] is False and ultima["chats"] is None
+
+
+def test_el_porcentaje_de_calificados_se_compara_contra_las_cuatro_semanas_de_antes():
+    from datetime import date
+    leads = [(datetime(2026, 10, 10), "calificado"), (datetime(2026, 10, 12), "no"),
+             (datetime(2026, 10, 20), "no"), (datetime(2026, 10, 25), "no"),
+             (datetime(2026, 11, 1), "calificado"), (datetime(2026, 11, 2), "no"),
+             (datetime(2026, 9, 1), "calificado")]  # fuera de la base: más de 4 semanas antes
+    r = c.tasa_calificados(leads, date(2026, 10, 31), date(2026, 11, 2))
+    assert r["campania"] == {"analizados": 2, "calificados": 1, "pct": 50.0}
+    assert r["base"] == {"analizados": 4, "calificados": 1, "pct": 25.0}

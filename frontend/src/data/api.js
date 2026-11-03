@@ -3166,6 +3166,11 @@ export async function getCampanias({ refrescar = false } = {}) {
   return pedir(`/api/meta/campanias${refrescar ? '?refrescar=true' : ''}`);
 }
 
+/** Qué tipo de campañas corren y, si hay de seguidores, sus números de audiencia. */
+export async function getCampaniasMetas({ refrescar = false } = {}) {
+  return pedir(`/api/meta/campanias-metas${refrescar ? '?refrescar=true' : ''}`);
+}
+
 /** Una campaña de punta a punta: creativos con veredicto, seguidores por día y calificados. */
 export async function getCampania(id, { refrescar = false } = {}) {
   return pedir(`/api/meta/campanias/${id}${refrescar ? '?refrescar=true' : ''}`);

@@ -9,9 +9,9 @@ const DEJAN = 'var(--s1)'; // las series no opinan: el rojo de la marca es para 
  * marcado. Son la misma unidad (personas por día), así que van en un solo eje.
  *
  * @param {{ dias: Array<{ fecha: string, siguen: number, dejan: number }>, inicio?: string,
- *           height?: number }} props
+ *           normalDejan?: number, height?: number }} props
  */
-export default function SeguidoresDia({ dias, inicio, height = 220 }) {
+export default function SeguidoresDia({ dias, inicio, normalDejan = null, height = 220 }) {
   const [ref, ancho] = useMeasure();
   const [i, setI] = useState(null);
 
@@ -20,7 +20,7 @@ export default function SeguidoresDia({ dias, inicio, height = 220 }) {
   const iw = w - M.left - M.right;
   const ih = height - M.top - M.bottom;
   const n = dias.length;
-  const tope = Math.max(10, ...dias.flatMap((d) => [d.siguen, d.dejan])) * 1.12;
+  const tope = Math.max(10, normalDejan ?? 0, ...dias.flatMap((d) => [d.siguen, d.dejan])) * 1.12;
   const paso = Math.max(1, Math.ceil(tope / 4 / 10) * 10);
   const px = (k) => M.left + (n > 1 ? (k / (n - 1)) * iw : iw / 2);
   const py = (v) => M.top + ih - (v / tope) * ih;
@@ -75,6 +75,15 @@ export default function SeguidoresDia({ dias, inicio, height = 220 }) {
           {dias.map((d, k) => (k % cada === 0 || k === n - 1) && (
             <text key={d.fecha} x={px(k)} y={height - 8} textAnchor="middle" fontSize="10.5" fill="var(--text-3)">{etiqueta(d.fecha)}</text>
           ))}
+          {normalDejan != null && (
+            // Lo que se iba por día antes de la campaña: un día arriba no es alerta, tres seguidos sí.
+            <g>
+              <line x1={M.left} x2={M.left + iw} y1={py(normalDejan)} y2={py(normalDejan)} stroke="var(--text-3)" strokeDasharray="4 4" />
+              <text x={M.left + iw} y={py(normalDejan) - 5} textAnchor="end" fontSize="10.5" fill="var(--text-3)">
+                {`normal ${String(normalDejan).replace('.', ',')}`}
+              </text>
+            </g>
+          )}
           {i !== null && <line x1={px(i)} x2={px(i)} y1={M.top} y2={M.top + ih} stroke="var(--border)" />}
           <path d={linea('siguen')} fill="none" stroke={SIGUEN} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           <path d={linea('dejan')} fill="none" stroke={DEJAN} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />

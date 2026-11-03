@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Campania from '../components/ads/Campania.jsx';
+import MetasAudiencia, { MetasConversionEnPausa } from '../components/ads/MetasAudiencia.jsx';
 import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
 import MetaMesModal from '../components/metas/MetaMesModal.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
-import { getCampania, getCampanias, getMetasMes } from '../data/api.js';
+import { getCampania, getCampanias, getCampaniasMetas, getMetasMes } from '../data/api.js';
 import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
@@ -29,6 +30,8 @@ export default function Ads() {
   const [tickMeta, setTickMeta] = useState(0);
   const [modalMeta, setModalMeta] = useState(false);
   const metas = useResource(() => getMetasMes(mes, { incluirAds: true }), [mes, tickMeta]);
+  // Qué tipo de campañas corren: las metas se muestran según eso.
+  const tipos = useResource(() => getCampaniasMetas(), []);
 
   const campanias = lista.data?.campanias ?? [];
   const grupos = useMemo(
@@ -99,13 +102,21 @@ export default function Ads() {
         </>
       )}
 
-      {metasData && (
-        <AvanceVsMeta
-          filas={metasData.avanceAds}
-          titulo="Avance vs meta · Ads"
-          sub={`Inversión · ${metasData.contexto.nombreMes} · día ${metasData.contexto.diaHoy}/${metasData.contexto.diasMes}`}
-          syncAt={metasData.real.syncAt}
-        />
+      {/* Una campaña de seguidores no trae agendas ni cash esta semana: trae audiencia. Las
+          metas de conversión se miden solo si corre una de respuesta directa; si no, quedan
+          en pausa y nunca en rojo. Las de audiencia, solo si corre una FM. */}
+      {metasData && tipos.data && (
+        <>
+          {tipos.data.fmActivas > 0 && <MetasAudiencia datos={tipos.data} decreto={metasData.decreto} />}
+          {tipos.data.drActivas > 0 ? (
+            <AvanceVsMeta
+              filas={metasData.avanceAds}
+              titulo="Avance vs meta · Ads"
+              sub={`Inversión · ${metasData.contexto.nombreMes} · día ${metasData.contexto.diaHoy}/${metasData.contexto.diasMes}`}
+              syncAt={metasData.real.syncAt}
+            />
+          ) : <MetasConversionEnPausa />}
+        </>
       )}
 
       {puedeEditar && metasData && (

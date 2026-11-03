@@ -95,6 +95,21 @@ def meta_campanias(
         raise HTTPException(status_code=500, detail="Error inesperado al leer las campañas de Meta.")
 
 
+@router.get("/campanias-metas")
+def meta_campanias_metas(
+    refrescar: bool = Query(default=False, description="Saltear el caché y pedirle a Meta"),
+    _user=Depends(get_current_user),
+):
+    """Qué tipo de campañas corren (seguidores o respuesta directa) y, si hay de seguidores,
+    sus números contra las metas de audiencia."""
+    try:
+        return campanias.metas_audiencia(refrescar=refrescar)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer las campañas de Meta.")
+
+
 @router.get("/campanias/{campania_id}")
 def meta_campania(
     campania_id: str,
