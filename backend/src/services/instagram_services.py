@@ -504,6 +504,25 @@ def _secuencia(dia: str, items: list[dict]) -> dict:
     }
 
 
+def meses_con_contenido() -> dict[str, list[str]]:
+    """Los meses que tienen reels y los que tienen historias, del más nuevo al más viejo.
+
+    Para elegir qué meses entran al PDF sin tener que adivinar cuáles tienen algo.
+    """
+    from pony.orm import db_session
+
+    from src.models import PublicacionIg
+
+    salida: dict[str, set[str]] = {"reels": set(), "historias": set()}
+    with db_session:
+        for p in list(PublicacionIg.select()):
+            if not p.publicado_at:
+                continue
+            donde = "reels" if p.tipo == "reel" else "historias"
+            salida[donde].add(p.publicado_at.strftime("%Y-%m"))
+    return {k: sorted(v, reverse=True) for k, v in salida.items()}
+
+
 def estado() -> dict:
     cred = _credenciales()
     if cred is None:

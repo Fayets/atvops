@@ -90,6 +90,8 @@ export default function Reels({ items }) {
               {r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.titulo}</a> : r.titulo}
             </h3>
             <CtaReel reelId={r.id} cta={r.cta} onCambio={(c) => actualizar(r.id, c)} />
+            {/* Todos los números en la misma grilla y con la misma altura: así una tarjeta
+                con el título en dos líneas no desalinea la fila entera. */}
             <dl className="reel-stats">
               <div><dt className="lab-k">Vistas</dt><dd className="num">{n(r.views)}</dd></div>
               <div><dt className="lab-k">Alcance</dt><dd className="num">{n(r.reach)}</dd></div>
@@ -105,9 +107,12 @@ export default function Reels({ items }) {
                 </dd>
               </div>
             </dl>
-            <div className="reel-mini num">
-              {n(r.likes)} likes · {n(r.comments)} coment · {n(r.shares)} comp · {n(r.saved)} guard
-            </div>
+            <dl className="reel-stats chicas">
+              <div><dt className="lab-k">Likes</dt><dd className="num">{n(r.likes)}</dd></div>
+              <div><dt className="lab-k">Coment.</dt><dd className="num">{n(r.comments)}</dd></div>
+              <div><dt className="lab-k">Comp.</dt><dd className="num">{n(r.shares)}</dd></div>
+              <div><dt className="lab-k">Guard.</dt><dd className="num">{n(r.saved)}</dd></div>
+            </dl>
             <Calidad reelId={r.id} a={r.audiencia} />
           </article>
         ))}

@@ -2463,9 +2463,10 @@ export async function bajarZipCanales(ids) {
  * Baja el contenido del mes en PDF: los reels o las secuencias de historias, como se
  * publicaron y con sus números. El <a download> no puede mandar el token: se baja acá.
  */
-export async function bajarContenidoPdf(mes, tipo) {
+export async function bajarContenidoPdf(meses, tipo) {
+  const lista = (Array.isArray(meses) ? meses : [meses]).filter(Boolean);
   const token = getToken();
-  const r = await fetch(`${API_BASE}/api/ventas/instagram/pdf?mes=${encodeURIComponent(mes)}&tipo=${tipo}`, {
+  const r = await fetch(`${API_BASE}/api/ventas/instagram/pdf?meses=${encodeURIComponent(lista.join(','))}&tipo=${tipo}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!r.ok) {
@@ -2474,10 +2475,14 @@ export async function bajarContenidoPdf(mes, tipo) {
   }
   const url = URL.createObjectURL(await r.blob());
   const a = document.createElement('a');
-  a.href = url; a.download = `${tipo}-${mes}.pdf`;
+  const rango = lista.length === 1 ? lista[0] : `${lista[lista.length - 1]}_a_${lista[0]}`;
+  a.href = url; a.download = `${tipo}-${rango}.pdf`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** Los meses que tienen reels y los que tienen historias, para elegir cuáles van al PDF. */
+export const getMesesContenido = () => pedir('/api/ventas/instagram/meses');
 
 /** Baja el .txt de un canal. El <a download> no puede mandar el token, así que se baja acá. */
 export async function bajarTxtCanal(categoria, canal) {

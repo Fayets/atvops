@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CalendarioContenido from '../../components/marketing/CalendarioContenido.jsx';
 import Reels from '../../components/marketing/Reels.jsx';
 import Secuencias from '../../components/marketing/Secuencias.jsx';
@@ -7,9 +7,10 @@ import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import {
-  bajarContenidoPdf, getInstagramPropio, getYouTubePropio,
+  bajarContenidoPdf, getInstagramPropio, getMesesContenido, getYouTubePropio,
   sincronizarInstagram, sincronizarYouTube,
 } from '../../data/api.js';
+import { nombreMesDesdeId } from '../../lib/mes.js';
 import { useMes } from '../../lib/MesContext.jsx';
 import { useResource } from '../../lib/hooks.js';
 
@@ -35,6 +36,8 @@ const VISTAS = {
 /** Instagram hace falta en todas menos YouTube; el canal, en YouTube y en el calendario. */
 const NECESITA_IG = new Set(['calendario', 'reels', 'historias']);
 const NECESITA_YT = new Set(['calendario', 'youtube']);
+// Las vistas que se pueden bajar como PDF.
+const PDF = new Set(['reels', 'historias']);
 /**
  * Una subvista de contenido dentro de Marketing: el calendario, Reels, Historias o YouTube.
  * @param {{ vista: 'calendario' | 'reels' | 'historias' | 'youtube' }} props
@@ -45,6 +48,8 @@ export default function ContenidoPage({ vista }) {
   const [sincronizando, setSincronizando] = useState(false);
   const [bajando, setBajando] = useState(false);
   const [avisoPdf, setAvisoPdf] = useState('');
+  const [eligiendo, setEligiendo] = useState(false);
+  const [elegidos, setElegidos] = useState([]);
   const ig = useResource(
     () => (NECESITA_IG.has(vista) ? getInstagramPropio(mes) : Promise.resolve(null)),
     [mes, vista, tick],
@@ -53,6 +58,15 @@ export default function ContenidoPage({ vista }) {
     () => (NECESITA_YT.has(vista) ? getYouTubePropio(mes) : Promise.resolve(null)),
     [mes, vista, tick],
   );
+
+  // Los meses que tienen algo publicado, para elegir cuáles entran al PDF.
+  const mesesPdf = useResource(
+    () => (PDF.has(vista) ? getMesesContenido() : Promise.resolve(null)),
+    [vista, tick],
+  );
+  const disponibles = (vista === 'reels' ? mesesPdf.data?.reels : mesesPdf.data?.historias) ?? [];
+  // Todos marcados por defecto, y de nuevo al cambiar de vista o al traer meses nuevos.
+  useEffect(() => { setElegidos(disponibles); }, [disponibles.join(',')]);
 
   const traerAhora = async () => {
     setSincronizando(true);
@@ -64,12 +78,13 @@ export default function ContenidoPage({ vista }) {
     }
   };
 
-  // Todo el mes en un PDF: las piezas como se publicaron, con sus números debajo.
+  // Los meses elegidos en un PDF: las piezas como se publicaron, con sus números debajo.
   const bajarPdf = async () => {
     setBajando(true);
     setAvisoPdf('');
     try {
-      await bajarContenidoPdf(mes, vista);
+      await bajarContenidoPdf(elegidos, vista);
+      setEligiendo(false);
     } catch (e) {
       setAvisoPdf(e?.message || 'No se pudo armar el PDF.');
     } finally {
@@ -78,8 +93,8 @@ export default function ContenidoPage({ vista }) {
   };
 
   const meta = VISTAS[vista] ?? VISTAS.reels;
-  const hayPdf = vista === 'reels' || vista === 'historias';
-  const piezas = (vista === 'reels' ? ig.data?.reels : ig.data?.secuencias) ?? [];
+  const hayPdf = PDF.has(vista);
+  const todos = Boolean(disponibles.length) && elegidos.length === disponibles.length;
   const estado = (vista === 'youtube' ? yt.data?.estado : ig.data?.estado) ?? {};
   const error = ig.error || yt.error;
   const cargando = (NECESITA_IG.has(vista) && ig.loading && !ig.data)
@@ -95,9 +110,10 @@ export default function ContenidoPage({ vista }) {
           <>
             <SourceTag sourceId={meta.fuente} updatedAt={estado.ultimaAt} />
             {hayPdf && (
-              <button className="btn" onClick={bajarPdf} disabled={bajando || !piezas.length}
-                title={piezas.length ? `Todo ${nombreMes} en un PDF` : 'No hay nada publicado en este mes'}>
-                {bajando ? 'Armando…' : 'Descargar PDF'}
+              <button className={`btn${eligiendo ? ' primary' : ''}`} disabled={!disponibles.length}
+                onClick={() => setEligiendo((v) => !v)}
+                title={disponibles.length ? 'Elegir los meses del PDF' : 'No hay nada publicado todavía'}>
+                Descargar PDF
               </button>
             )}
             <button className="btn" onClick={traerAhora} disabled={sincronizando}>
@@ -107,6 +123,30 @@ export default function ContenidoPage({ vista }) {
           </>
         }
       />
+
+      {hayPdf && eligiendo && (
+        <div className="pdf-meses">
+          <div className="pdf-meses-lista">
+            {disponibles.map((m) => (
+              <label key={m} className={`pdf-mes${elegidos.includes(m) ? ' on' : ''}`}>
+                <input type="checkbox" checked={elegidos.includes(m)}
+                  onChange={() => setElegidos((xs) => (xs.includes(m)
+                    ? xs.filter((x) => x !== m)
+                    : disponibles.filter((x) => x === m || xs.includes(x))))} />
+                {nombreMesDesdeId(m)}
+              </label>
+            ))}
+          </div>
+          <div className="pdf-meses-pie">
+            <button className="btn ghost" onClick={() => setElegidos(todos ? [] : disponibles)}>
+              {todos ? 'Ninguno' : 'Todos'}
+            </button>
+            <button className="btn primary" onClick={bajarPdf} disabled={bajando || !elegidos.length}>
+              {bajando ? 'Armando…' : `Descargar ${elegidos.length} ${elegidos.length === 1 ? 'mes' : 'meses'}`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {avisoPdf && <p className="aud-aviso">{avisoPdf}</p>}
 

@@ -13,18 +13,18 @@ SEC = {"fecha": "2026-10-20", "piezas": 2, "vistas": 31495, "alcance": 24616, "r
 
 
 def test_el_pdf_de_reels_sale_aunque_falte_la_miniatura():
-    b = pdf.reels_pdf("2026-10", [REEL] * 9)   # más de una hoja
+    b = pdf.reels_pdf([("2026-10", [REEL] * 9)])   # más de una hoja
     assert b[:5] == b"%PDF-" and len(b) > 1000
 
 
-def test_el_pdf_de_historias_sale_con_piezas_sin_foto():
-    b = pdf.historias_pdf("2026-10", [SEC] * 6)
+def test_el_pdf_de_historias_sale_con_varios_meses_y_piezas_sin_foto():
+    b = pdf.historias_pdf([("2026-10", [SEC] * 6), ("2026-09", [SEC] * 2)])
     assert b[:5] == b"%PDF-" and len(b) > 1000
 
 
 def test_un_reel_sin_analizar_no_rompe_la_banda_de_calificados():
     sin = {**REEL, "audiencia": None, "cta": {"esCta": False}, "chats": 0}
-    assert pdf.reels_pdf("2026-10", [sin])[:5] == b"%PDF-"
+    assert pdf.reels_pdf([("2026-10", [sin])])[:5] == b"%PDF-"
 
 
 def test_los_numeros_van_con_punto_de_miles_como_en_la_pantalla():
