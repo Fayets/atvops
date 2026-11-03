@@ -290,7 +290,14 @@ export default function Audiencia() {
           {criterioAbierto ? 'Cerrar criterio' : 'Criterio de lead'}
         </button>
         <button type="button" className="btn primary" disabled={ocupado}
-          onClick={() => hacer(audienciaCorrer, 'Analizando comentarios y respuestas nuevas. Recargá en un par de minutos.')}>
+          onClick={() => {
+            // La corrida relee los reels seguidos: con uno abierto, el banner de arriba lo sigue.
+            if (reelActual) {
+              setActivado({ id: reelActual.id, at: Date.now() });
+              iniciarTarea({ tipo: 'reel', mediaId: reelActual.id, titulo: reelActual.caption });
+            }
+            hacer(audienciaCorrer, reelActual ? '' : 'Analizando comentarios y respuestas nuevas. Recargá en un par de minutos.');
+          }}>
           Analizar ahora
         </button>
       </div>

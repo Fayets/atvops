@@ -37,8 +37,9 @@ _lock = threading.Lock()
 API = "https://graph.facebook.com/v21.0"
 MAX_COMENTARIOS = 300    # por reel, para no recorrer miles en una corrida
 # Cada vez que cambia cómo se anota a un lead en los reels que comenta, los reels seguidos se
-# releen una vez más (2: ya no se atan a fichas de historias, que en los reels no se ven).
-ATADOS_VERSION = 2
+# releen una vez más (2: ya no se atan a fichas de historias, que en los reels no se ven;
+# 3: un comentario que falla ya no corta la lectura, así que los leídos a medias se completan).
+ATADOS_VERSION = 3
 LOTE_IA = 12             # perfiles por llamada a la IA
 CADA_HORAS = 2
 
