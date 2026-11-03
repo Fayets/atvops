@@ -38,8 +38,9 @@ API = "https://graph.facebook.com/v21.0"
 MAX_COMENTARIOS = 300    # por reel, para no recorrer miles en una corrida
 # Cada vez que cambia cómo se anota a un lead en los reels que comenta, los reels seguidos se
 # releen una vez más (2: ya no se atan a fichas de historias, que en los reels no se ven;
-# 3: un comentario que falla ya no corta la lectura, así que los leídos a medias se completan).
-ATADOS_VERSION = 3
+# 3: un comentario que falla ya no corta la lectura, así que los leídos a medias se completan;
+# 4: quién comentó lo dice su usuario, no el id del comentario).
+ATADOS_VERSION = 4
 LOTE_IA = 12             # perfiles por llamada a la IA
 CADA_HORAS = 2
 
@@ -401,40 +402,43 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
     error_api = None
 
     def atar(c: dict, usuario: str) -> bool:
-        """True si sumó a alguien a este reel."""
+        """True si sumó a alguien a este reel.
+
+        Quién es la persona lo dice su usuario, no el comentario: una misma publicación puede
+        haber entrado antes con otro id (el aviso de Meta, el respaldo y la API no siempre usan
+        el mismo), y mirando el id del comentario sus 79 comentaristas quedaban afuera de este
+        reel porque "ya los conocíamos" por el gemelo."""
         with db_session:
-            if LeadAudiencia.get(comentario_id=c["id"]):
-                return False
-            ya = LeadReel.get(comentario_id=c["id"])
-            if ya is not None:
-                lead = LeadAudiencia.get(id=ya.lead_id)
-                if lead is not None and lead.creado_por != "historia":
-                    return False
             previos = [x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario]
             # Una persona que comentó varios reels es un solo lead (se analiza una vez), pero
             # queda anotada en cada reel que comentó: si no, este reel aparecía vacío aunque
             # todos sus comentarios fueran de gente que ya venía de otros. Se ata a su ficha de
             # reels: las de historias son una por secuencia y en los reels no se muestran.
             de_reels = next((x for x in previos if x.creado_por != "historia"), None)
+            ya = LeadReel.get(comentario_id=c["id"])   # ese comentario ya atado a algún reel
+            if de_reels is not None and (de_reels.media_id == mid
+                                         or LeadReel.get(lead_id=de_reels.id, media_id=mid)):
+                return False   # ya está en este reel
             if de_reels is not None:
-                if de_reels.media_id == mid or LeadReel.get(lead_id=de_reels.id, media_id=mid):
-                    if ya is not None:
-                        ya.delete()
-                    return False
                 if ya is not None:
-                    # Estaba atado a una ficha de historia: se pasa a la de reels, el mismo registro
-                    # (borrarlo y crear otro con el mismo comentario choca en la base).
-                    ya.lead_id = de_reels.id
+                    # El mismo comentario ya atado a otra ficha (una de historia) o al gemelo de
+                    # este reel: se mueve el registro, porque crear otro con el mismo comentario
+                    # choca en la base.
+                    ya.lead_id, ya.media_id = de_reels.id, mid
                 else:
                     LeadReel(lead_id=de_reels.id, media_id=mid, comentario=(c.get("text") or "")[:1000],
                              comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"])
                 return True
             if ya is not None:
                 ya.delete()
+            # El id del comentario es único: si lo tiene una ficha vieja de otra publicación, la
+            # nueva va sin él antes que perder a la persona.
+            libre = LeadAudiencia.get(comentario_id=c["id"]) is None
             nuevo = LeadAudiencia(
                 ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
                 reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
-                comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"], creado_por="instagram",
+                comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"] if libre else None,
+                creado_por="instagram",
             )
             # Si ya se lo analizó por una historia, se copia el análisis en vez de pagarlo de nuevo.
             hecho = max((x for x in previos if x.perfil_at is not None),

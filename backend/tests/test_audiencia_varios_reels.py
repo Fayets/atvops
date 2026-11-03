@@ -118,3 +118,19 @@ def test_un_comentario_atado_a_una_historia_pasa_a_la_ficha_de_reels_sin_chocar(
         assert LeadAudiencia[r.lead_id].creado_por != "historia"
     assert a.progreso_reel(NUEVO)["personas"] == 2
     assert a.reels_seguidos() is not None
+
+
+def test_el_mismo_reel_guardado_con_dos_ids_no_deja_a_su_gente_afuera(base):
+    # Caso real: los 90 comentarios estaban leídos bajo otro id de la misma publicación, y este
+    # reel mostraba 11 personas. Quién es la persona lo dice su usuario, no el id del comentario.
+    from src.models import LeadAudiencia
+    with db_session:
+        LeadAudiencia(ig_usuario="prueba_nuevo", media_id="999_gemelo", comentario="Clase",
+                      comentario_id="c2", creado_por="instagram")
+    a.seguir_reel(NUEVO, por="franco")
+    nuevos, _ = a._comentarios_de_reel("tok", "atv", {"id": NUEVO, "comments_count": 2,
+                                                      "caption": "Clase", "permalink": "x"})
+    assert nuevos == 2
+    p = a.progreso_reel(NUEVO)
+    assert p["personas"] == 2 and p["lectura"]["errores"] == 0
+    assert {x["usuario"] for x in a.perfiles_de_reel(NUEVO)["perfiles"]} == {"prueba_conocido", "prueba_nuevo"}
