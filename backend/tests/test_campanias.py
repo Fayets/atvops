@@ -136,3 +136,30 @@ def test_el_delta_de_seguidores_se_mide_contra_la_ultima_foto_de_antes():
     # sin fotos de antes, contra la primera de después
     assert delta_desde(fotos[1:], medianoche_ar, 70455) == 45
     assert delta_desde([], medianoche_ar, 70455) is None
+
+
+def test_el_costo_por_seguidor_es_sobre_el_neto_por_encima_de_lo_normal():
+    from datetime import date
+    base = {"siguen": 30.0, "dejan": 47.6, "dias": 7}   # la cuenta ya perdía 17,6 por día sola
+    # 1-nov: +34 / −65 → neto −31, peor que lo normal: no hay costo por seguidor
+    dias = _dias("2026-11-01", [(34, 65)])
+    s1 = c.costo_semanal(dias, base, date(2026, 11, 1), date(2026, 11, 2), {"2026-11-01": 52.5}, [])
+    assert s1[0]["neto"] == -31 and s1[0]["netoExtra"] == -13 and s1[0]["costoSeguidorUsd"] is None
+    # una semana entera que sí suma: neto +10 por día contra −17,6 normal → +193 extra
+    semana = _dias("2026-11-01", [(50, 40)] * 7)
+    gasto = {d["fecha"]: 30.0 for d in semana}
+    leads = [(datetime(2026, 11, 2), "calificado")] * 5 + [(datetime(2026, 11, 3), "no")] * 5
+    s2 = c.costo_semanal(semana, base, date(2026, 11, 1), date(2026, 11, 8), gasto, leads)[0]
+    assert s2["completa"] and s2["gastoUsd"] == 210.0 and s2["netoExtra"] == 193
+    assert s2["costoSeguidorUsd"] == 1.09
+    # 50 % calificados: el calificado cuesta el doble
+    assert s2["calificacion"]["pct"] == 50.0 and s2["costoCalificadoUsd"] == 2.18
+
+
+def test_el_gasto_cuenta_solo_los_dias_que_instagram_ya_cerro():
+    from datetime import date
+    base = {"siguen": 30.0, "dejan": 40.0, "dias": 7}
+    dias = _dias("2026-11-01", [(60, 40)])          # el 2-nov todavía no está
+    gasto = {"2026-11-01": 20.0, "2026-11-02": 18.0}
+    f = c.costo_semanal(dias, base, date(2026, 11, 1), date(2026, 11, 3), gasto, [])[0]
+    assert f["dias"] == 1 and f["gastoUsd"] == 20.0 and f["netoExtra"] == 30 and f["costoSeguidorUsd"] == 0.67

@@ -61,7 +61,7 @@ export default function Campania({ c, mes, mesLabel }) {
       tenue: extra == null,
       sub: extra == null
         ? (seg?.error ? 'Instagram no contestó' : 'todavía sin un día entero')
-        : `${seg.medidos} ${seg.medidos === 1 ? 'día medido' : 'días medidos'}${seg.costoExtraUsd != null ? ` · ${usd(seg.costoExtraUsd)} c/u` : ''}`,
+        : `${seg.medidos} ${seg.medidos === 1 ? 'día medido' : 'días medidos'}`, // el costo va semana por semana, sobre el neto
     });
   }
   pasos.push({
@@ -227,6 +227,55 @@ export default function Campania({ c, mes, mesLabel }) {
           </div>
         </div>
       </Card>
+
+      {(c.semanas?.length ?? 0) > 0 && (
+        <Card title="Costo por seguidor" sub="semana por semana · sobre el neto por encima de lo normal" flush>
+          <div className="cohortes-scroll">
+            <table className="cohortes">
+              <thead>
+                <tr>
+                  <th>Semana</th>
+                  <th>Gasto</th>
+                  <th>Siguen / dejan</th>
+                  <th>Neto</th>
+                  <th>Neto vs normal</th>
+                  <th>US$ por seguidor</th>
+                  <th>Calificados</th>
+                  <th>US$ por calificado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.semanas.map((f) => {
+                  const cal = f.calificacion;
+                  return (
+                    <tr key={f.desde}>
+                      <td>
+                        {`${diaMes(f.desde)} – ${diaMes(f.hasta)}`}
+                        {!f.completa && <span className="dim">{` · ${f.dias} de 7 días`}</span>}
+                      </td>
+                      <td className="num">{usd(f.gastoUsd)}</td>
+                      <td className="num">{`+${num(f.siguen)} / −${num(f.dejan)}`}</td>
+                      <td className="num">{`${f.neto > 0 ? '+' : ''}${num(f.neto)}`}</td>
+                      <td className={`num${f.netoExtra <= 0 ? ' baja' : ''}`} title={`Lo normal: ${f.netoNormal} en esos días`}>
+                        {`${f.netoExtra > 0 ? '+' : ''}${num(f.netoExtra)}`}
+                      </td>
+                      <td className="num">{f.costoSeguidorUsd != null ? <b>{usd(f.costoSeguidorUsd)}</b> : <span className="dim">no sumó</span>}</td>
+                      <td className="num">
+                        {cal?.pct == null ? <span className="dim">—</span> : `${formatValue(cal.pct, 'pct')} (${cal.analizados})`}
+                        {cal?.pct != null && !cal.suficiente && <span className="dim"> · muestra chica</span>}
+                      </td>
+                      <td className="num">
+                        {f.costoCalificadoUsd == null ? <span className="dim">—</span>
+                          : <span className={cal?.suficiente ? '' : 'dim'}>{usd(f.costoCalificadoUsd)}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {(c.cohortes?.length ?? 0) > 0 && (
         <Card title="Cohortes de seguidores" sub="una por semana desde el arranque" flush>

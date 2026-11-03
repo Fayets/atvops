@@ -263,15 +263,58 @@ def tasa_calificados(leads: list[tuple[datetime | None, str]], arranque: date, h
     """El % de calificados entre los que Audiencia ya analizó: los de la ventana de la campaña
     contra los de las cuatro semanas de antes, que son la base orgánica.
     `leads`: (cuándo llegó, veredicto vigente) de cada analizado."""
-    def tramo(desde: date, hasta: date) -> dict:
-        sel = [v for t, v in leads if t is not None and desde <= t.date() < hasta]
-        cal = sum(1 for v in sel if v == "calificado")
-        return {"analizados": len(sel), "calificados": cal,
-                "pct": round(cal / len(sel) * 100, 1) if sel else None,
-                "suficiente": len(sel) >= MUESTRA_MINIMA}
+    return {"campania": _tramo(leads, arranque, hoy + timedelta(days=1)),
+            "base": _tramo(leads, arranque - timedelta(days=28), arranque), "muestraMinima": MUESTRA_MINIMA}
 
-    return {"campania": tramo(arranque, hoy + timedelta(days=1)),
-            "base": tramo(arranque - timedelta(days=28), arranque), "muestraMinima": MUESTRA_MINIMA}
+
+def _tramo(leads: list[tuple[datetime | None, str]], desde: date, hasta: date) -> dict:
+    """El % de calificados entre los analizados que llegaron de `desde` a `hasta` (sin incluirlo)."""
+    sel = [v for t, v in leads if t is not None and desde <= t.date() < hasta]
+    cal = sum(1 for v in sel if v == "calificado")
+    return {"analizados": len(sel), "calificados": cal,
+            "pct": round(cal / len(sel) * 100, 1) if sel else None,
+            "suficiente": len(sel) >= MUESTRA_MINIMA}
+
+
+def costo_semanal(dias_ig: list[dict], base: dict | None, desde: date, hoy: date,
+                  gasto_por_dia: dict[str, float], leads: list[tuple[datetime | None, str]]) -> list[dict]:
+    """Cuánto costó cada seguidor, semana por semana, y cada seguidor calificado.
+
+    - El denominador es el **neto por encima de lo normal**: los que entraron menos los que se
+      fueron, menos el neto que la cuenta ya hacía sola antes de la campaña. Dividir por los que
+      entraron le regala a la campaña los ~30 por día que la cuenta ganaba igual, y dividir por
+      el neto a secas le carga los unfollows que pasaban antes de prenderla.
+    - Gasto y seguidores cubren los mismos días: solo los que Instagram ya cerró.
+    - Costo por calificado = costo por seguidor ÷ % de calificados de la semana (Audiencia, entre
+      los que interactuaron: del que solo sigue la API no da el usuario)."""
+    if not base:
+        return []
+    neto_normal = base["siguen"] - base["dejan"]
+    por_dia = {d["fecha"]: d for d in dias_ig}
+    filas = []
+    inicio = desde
+    while inicio < hoy:
+        cerrados = [(inicio + timedelta(days=i)).isoformat() for i in range(7)
+                    if inicio + timedelta(days=i) < hoy and (inicio + timedelta(days=i)).isoformat() in por_dia]
+        if not cerrados:
+            break
+        siguen = sum(por_dia[f]["siguen"] for f in cerrados)
+        dejan = sum(por_dia[f]["dejan"] for f in cerrados)
+        gasto = round(sum(gasto_por_dia.get(f, 0.0) for f in cerrados), 2)
+        extra = round((siguen - dejan) - neto_normal * len(cerrados))
+        costo = round(gasto / extra, 2) if extra > 0 else None
+        cal = _tramo(leads, inicio, inicio + timedelta(days=7))
+        filas.append({
+            "desde": inicio.isoformat(), "hasta": (inicio + timedelta(days=6)).isoformat(),
+            "dias": len(cerrados), "completa": len(cerrados) == 7,
+            "gastoUsd": gasto, "siguen": siguen, "dejan": dejan, "neto": siguen - dejan,
+            "netoNormal": round(neto_normal * len(cerrados)), "netoExtra": extra,
+            "costoSeguidorUsd": costo,
+            "calificacion": cal,
+            "costoCalificadoUsd": round(costo / (cal["pct"] / 100), 2) if costo and cal["pct"] else None,
+        })
+        inicio += timedelta(days=7)
+    return filas
 
 
 def _fecha_meta(iso: str | None) -> datetime | None:
@@ -394,6 +437,9 @@ class CampaniasServices:
             "cohortes": (cohortes(seguidores.get("dias", []), desde, hoy, self._fuentes_cohortes(desde, hoy))
                          if desde and desde < hoy else []),
             "calificacion": self._calificacion(inicio.astimezone(AR).date(), hoy) if inicio else None,
+            "semanas": (costo_semanal(seguidores.get("dias", []), seguidores.get("base"), desde, hoy,
+                                      {d["fecha"]: d["gastoUsd"] for d in dias}, self._leads_analizados())
+                        if desde and desde < hoy else []),
             "interesados": interesados([c["mediaId"] for c in creativos if c.get("mediaId")],
                                        seguir=[c["mediaId"] for c in creativos
                                                if c.get("mediaId") and c["estado"] == "corriendo"]),
@@ -455,16 +501,21 @@ class CampaniasServices:
         return fuentes
 
     @staticmethod
-    def _calificacion(arranque: date, hoy: date) -> dict:
+    def _leads_analizados() -> list[tuple[datetime | None, str]]:
+        """(cuándo llegó, veredicto vigente) de cada persona que Audiencia ya analizó."""
         from pony.orm import db_session
 
         from src.models import LeadAudiencia
         from src.services import audiencia_services as audiencia
 
         with db_session:
-            leads = [(x.comentado_at or x.creado_at, audiencia._veredicto_vigente(x.veredicto, x.puntaje))
-                     for x in list(LeadAudiencia.select()) if x.analizado_at is not None]
-        return {**tasa_calificados(leads, arranque, hoy), "corte": audiencia.CORTE_CALIFICADO}
+            return [(x.comentado_at or x.creado_at, audiencia._veredicto_vigente(x.veredicto, x.puntaje))
+                    for x in list(LeadAudiencia.select()) if x.analizado_at is not None]
+
+    def _calificacion(self, arranque: date, hoy: date) -> dict:
+        from src.services import audiencia_services as audiencia
+
+        return {**tasa_calificados(self._leads_analizados(), arranque, hoy), "corte": audiencia.CORTE_CALIFICADO}
 
     def metas_audiencia(self, refrescar: bool = False) -> dict:
         """Qué campañas corren y, si hay alguna de seguidores, sus números contra las metas de
