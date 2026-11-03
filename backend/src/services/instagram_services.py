@@ -355,6 +355,18 @@ def contenido(desde, hasta) -> dict:
         r["cta"] = c
         r["keyword"] = c.get("palabra") or ""
 
+    # La calidad de lo que trajo cada reel sale de Audiencia: qué parte de los que comentaron
+    # califica como lead. Si falla, la vista muestra los reels igual, sin esa banda.
+    from src.services import audiencia_services
+
+    try:
+        calidad = audiencia_services.calificados_por_reel([r["id"] for r in reels])
+    except Exception as e:  # noqa: BLE001
+        logger.warning("No se pudo leer la audiencia de los reels: %s", str(e)[:160])
+        calidad = {}
+    for r in reels:
+        r["audiencia"] = calidad.get(r["id"])
+
     return {"reels": sorted(reels, key=lambda r: r["fecha"], reverse=True),
             "secuencias": secuencias, "conectado": True}
 

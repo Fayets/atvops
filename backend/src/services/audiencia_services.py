@@ -1061,6 +1061,47 @@ def leads_de(media_ids) -> dict[int, dict | None]:
     return salida
 
 
+def calificados_por_reel(media_ids) -> dict[str, dict]:
+    """Por cada reel: cuántas personas comentaron, cuántas se analizaron y qué parte califica.
+
+    Es la calidad de lo que trajo cada pieza, para verla en Reels sin entrar a Audiencia.
+    Liviano a propósito: solo veredictos, sin los textos largos de cada ficha."""
+    from pony.orm import db_session
+
+    from src.models import LeadAudiencia, LeadReel
+
+    ids = {str(m) for m in media_ids}
+    salida = {i: {"personas": 0, "analizados": 0, "calificados": 0, "pct": None, "seguido": False}
+              for i in ids}
+    if not ids:
+        return salida
+    with db_session:
+        # Una persona está en el reel por el que entró y en cada otro que comentó.
+        extra: dict[int, set[str]] = {}
+        for r in list(LeadReel.select()):
+            if r.media_id in ids:
+                extra.setdefault(r.lead_id, set()).add(r.media_id)
+        for x in list(LeadAudiencia.select()):
+            suyos = set(extra.get(x.id, ()))
+            if x.media_id in ids:
+                suyos.add(x.media_id)
+            if not suyos:
+                continue
+            veredicto = _veredicto_vigente(x.veredicto, x.puntaje)
+            for mid in suyos:
+                c = salida[mid]
+                c["personas"] += 1
+                if veredicto in ("calificado", "tibio", "no"):
+                    c["analizados"] += 1
+                    if veredicto == "calificado":
+                        c["calificados"] += 1
+    seguidos = reels_seguidos()
+    for mid, c in salida.items():
+        c["seguido"] = mid in seguidos
+        c["pct"] = round(c["calificados"] / c["analizados"] * 100, 1) if c["analizados"] else None
+    return salida
+
+
 def reels_por_lead() -> dict[int, list[str]]:
     """Las otras publicaciones de cada lead, además de la suya. Dentro de una db_session."""
     from src.models import LeadReel

@@ -5328,6 +5328,42 @@ button.lista-item:hover { background: var(--surface-2); }
 @media (max-width: 900px) { .reel-fila { grid-template-columns: minmax(140px, 2fr) repeat(var(--reel-cols), minmax(48px, 1fr)); }
   .reel-fila > span:nth-child(2) { display: none; } }
 
+/* Reels en tarjetas verticales: la pieza como se publicó, y debajo lo que midió Instagram.
+   Las piezas son 9:16, así que la tarjeta también: en fila se comparan por la miniatura, que
+   es lo primero que se reconoce. Al pie, la calidad de lo que trajo. */
+.reel-grilla { display: grid; gap: 1px; background: var(--border-soft);
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); }
+.reel-tarjeta { background: var(--card); padding: var(--space-4); min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; }
+.reel-foto { position: relative; aspect-ratio: 9 / 16; max-width: 100%; overflow: hidden;
+  border-radius: var(--radius-sm); background: var(--surface-3); }
+.reel-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.reel-foto-sin { display: grid; place-items: center; width: 100%; height: 100%; font-size: 12px; }
+.reel-dia { position: absolute; left: 8px; bottom: 8px; padding: 3px 7px; border-radius: 6px;
+  background: rgba(28, 25, 23, .78); color: #fff; font-size: 11px; font-weight: 600; }
+.reel-tit { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.3; text-wrap: balance;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.reel-tit a { color: inherit; text-decoration: none; }
+.reel-tit a:hover { text-decoration: underline; }
+.reel-tarjeta .cta-reel { align-self: flex-start; }
+.reel-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 10px; margin: 0;
+  padding-top: 10px; border-top: 1px solid var(--border-soft); }
+.reel-stats > div { min-width: 0; }
+.reel-stats dd { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.reel-mini { font-size: 11.5px; color: var(--text-3); }
+/* La banda de calidad va al pie de todas las tarjetas, parejas aunque el título ocupe
+   una línea o dos. Lleva a los perfiles de ese reel en Audiencia. */
+.reel-calidad { margin-top: auto; padding: 9px 10px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--border-soft); color: inherit;
+  text-decoration: none; display: grid; gap: 1px; transition: background .15s ease; }
+.reel-calidad:hover { background: var(--surface-3); }
+.reel-calidad-fila { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.reel-calidad b { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+.reel-calidad .dim { font-size: 11px; }
+.reel-calidad.sin { background: none; border-style: dashed; }
+.reel-calidad.sin b { font-size: 12.5px; font-weight: 600; color: var(--text-3); }
+@media (max-width: 480px) { .reel-grilla { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); } }
+
 /* El interruptor de CTA de una secuencia. Apagado no lleva color: es el estado normal,
    y pintar de gris "no suma" sería darle un veredicto a algo que no lo tiene. Prendido
    sí, porque ahí la secuencia entró a una métrica. */
