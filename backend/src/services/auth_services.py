@@ -626,8 +626,9 @@ def ensure_theo_columns() -> None:
 
 
 def ensure_daily_columns() -> None:
-    """"Pasar a mañana" llegó después: la copia del día siguiente sabe de qué tarea viene."""
-    _agregar_columnas("daily_tareas_semana", "TareaSemana", [("pasada_de", "INTEGER")])
+    """"Pasar a mañana" llegó después: la copia del día siguiente sabe de qué tarea viene.
+    `hasta`: una tarea que sale del rol a mitad de semana deja de pedirse sin borrar lo marcado."""
+    _agregar_columnas("daily_tareas_semana", "TareaSemana", [("pasada_de", "INTEGER"), ("hasta", "DATE")])
 
 
 def ensure_pitch_setting_columns() -> None:

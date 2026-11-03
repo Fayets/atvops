@@ -1000,6 +1000,7 @@ class TareaSemana(db.Entity):
     destinatario = Optional(str, nullable=True)
     tarea_rol = Optional(int, nullable=True)     # id de TareaRol si vino del rol
     pasada_de = Optional(int, nullable=True)     # id de la tarea que se pasó a este día
+    hasta = Optional(date, nullable=True)        # salió del rol a mitad de semana: después de este día no se pide
     orden = Required(int, default=0)
     borrada = Required(bool, default=False)
     creado_at = Required(datetime, default=datetime.utcnow)

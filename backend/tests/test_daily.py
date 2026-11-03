@@ -851,3 +851,46 @@ def test_nadie_reporta_ni_le_entrega_a_alguien_que_ya_no_esta():
     with db_session:
         for t in d.TareaRol.select(lambda t: t.activa and t.destinatario is not None):
             assert t.destinatario in con_area, f"{t.usuario} le entrega a {t.destinatario}"
+
+
+def test_la_tarea_que_sale_del_rol_a_mitad_de_semana_deja_de_pedirse_desde_hoy_sin_borrar_lo_marcado():
+    # Mauri, 03-11-2026: la ronda de las 11:00 sale el martes. Lo que marcó queda, el resto
+    # de la semana no se le pide (antes seguía hasta el domingo, o se borraba con todo lo hecho).
+    from src.models import MarcaDaily, TareaRol, TareaSemana
+    d.ver_semana("mauri", LUNES)
+    with db_session:
+        r = next(x for x in TareaRol.select(lambda x: x.usuario == "mauri" and x.activa) if x.frecuencia == "diaria")
+        t = TareaSemana.get(tarea_rol=r.id, semana=LUNES)
+        MarcaDaily(tarea=t, fecha=LUNES, estado="hecha")
+        rid, tid = r.id, t.id
+    resto = [x for x in d.tareas_rol("mauri") if x["id"] != rid]
+    d.guardar_tareas_rol("mauri", resto)
+    d.ver_semana("mauri", LUNES)
+    with db_session:
+        t = TareaSemana[tid]
+        assert not t.borrada and t.hasta == date(2026, 10, 21)   # el jueves no está marcado: se corta el miércoles
+        assert d._vence(t, 0) and d._vence(t, 2) and not d._vence(t, 3)
+        assert t.marcas.count() == 1
+
+
+def test_las_rondas_de_mauri_cambian_de_hora_en_el_lugar_y_la_de_las_11_sale():
+    from src.models import MarcaDaily, TareaRol, TareaSemana, TheoAjuste
+    with db_session:
+        flag = TheoAjuste.get(clave="rondas_mauri_2026_11")
+        if flag:
+            flag.delete()
+        vieja = TareaRol(usuario="mauri", texto="Pasada de Discord 16:00", frecuencia="diaria", orden=90)
+        once = TareaRol(usuario="mauri", texto="Pasada de Discord 11:00", frecuencia="diaria", orden=91)
+        copia = TareaSemana(usuario="mauri", semana=LUNES, texto=vieja.texto, origen="rol", frecuencia="diaria",
+                            tarea_rol=0)
+        vieja.flush()
+        once.flush()
+        copia.tarea_rol = vieja.id
+        copia.flush()
+        MarcaDaily(tarea=copia, fecha=LUNES, estado="hecha")
+        ids = (vieja.id, once.id, copia.id)
+    d._rondas_mauri_nov()
+    with db_session:
+        assert TareaRol[ids[0]].texto == "Pasada de Discord 15:00"
+        assert TareaSemana[ids[2]].texto == "Pasada de Discord 15:00" and TareaSemana[ids[2]].marcas.count() == 1
+        assert TareaRol[ids[1]].activa is False

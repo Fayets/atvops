@@ -416,7 +416,8 @@ function SemanaCompleta({ p, motivos }) {
         </th>
         {fechas.map((f, d) => {
           const m = t.marcas[f];
-          const vence = t.frecuencia === 'diaria' || (t.frecuencia === 'semanal' && t.dia === d);
+          const vence = (t.hasta_dia == null || d <= t.hasta_dia)
+            && (t.frecuencia === 'diaria' || (t.frecuencia === 'semanal' && t.dia === d));
           const futuro = p.dias[d].estado === 'futuro';
           if (m) {
             const [txt, tono] = CELDA[m.estado] ?? SIN_MARCAR;

@@ -10,6 +10,8 @@ export const DIAS_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
  * finde, y una tarea de todos los días no puede caer ahí sola.
  */
 export function vence(t, dia) {
+  // Salió del rol a mitad de semana: lo de antes queda, después de ese día no se pide.
+  if (t.hasta_dia != null && dia > t.hasta_dia) return false;
   if (t.frecuencia === 'diaria') return dia < 5;
   return t.frecuencia === 'semanal' && t.dia === dia;
 }

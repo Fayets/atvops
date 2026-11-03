@@ -118,9 +118,8 @@ TAREAS_ROL = {
     ],
     "mauri": [
         ("diaria", None, "Pasada de Discord 9:00", None),
-        ("diaria", None, "Pasada de Discord 11:00", None),
-        ("diaria", None, "Pasada de Discord 16:00", None),
-        ("diaria", None, "Pasada de Discord 19:00 a 20:00", None),
+        ("diaria", None, "Pasada de Discord 15:00", None),
+        ("diaria", None, "Pasada de Discord 20:00", None),
         ("semanal", 0, "Envío del mensaje de activación semanal a clientes", None),
         ("semanal", 0, "Reporte de clientes con más de 7 días de inactividad", "ale"),
         ("semanal", 3, "Reporte de clientes con más de 7 días de inactividad", "ale"),
@@ -302,6 +301,7 @@ def ensure_equipo() -> None:
             if u is not None and u.jefe == antes:
                 u.jefe = ahora
     _aplicar_version_roles()
+    _rondas_mauri_nov()
     with db_session:
         for username, tareas in TAREAS_ROL.items():
             if TareaRol.select(lambda t: t.usuario == username).count():
@@ -311,6 +311,36 @@ def ensure_equipo() -> None:
                 u.daily = True
             for i, (frec, dia, texto, dest) in enumerate(tareas):
                 TareaRol(usuario=username, texto=texto, frecuencia=frec, dia=dia, destinatario=dest, orden=i)
+
+
+# Mauri, 03-11-2026: las rondas pasan a 9:00, 15:00 y 20:00 y sale la de las 11:00. Se aplica
+# una vez sobre su plantilla de producción (lo demás que tenga, editado a mano, no se toca).
+# Las que cambian de hora se renombran en el lugar, con sus marcas; la de las 11:00 sale del
+# rol y desde mañana no se le pide (lo que ya marcó queda).
+RONDAS_MAURI = {
+    "Pasada de Discord 16:00": "Pasada de Discord 15:00",
+    "Pasada de Discord 19:00 a 20:00": "Pasada de Discord 20:00",
+}
+RONDAS_MAURI_SALEN = {"Pasada de Discord 11:00"}
+
+
+def _rondas_mauri_nov() -> None:
+    from src.models import TheoAjuste
+
+    with db_session:
+        if TheoAjuste.get(clave="rondas_mauri_2026_11"):
+            return
+        desde = lunes_de(hoy())
+        for r in list(TareaRol.select(lambda r: r.usuario == "mauri" and r.activa)):
+            if r.texto in RONDAS_MAURI:
+                nuevo = RONDAS_MAURI[r.texto]
+                for t in list(TareaSemana.select(lambda t: t.tarea_rol == r.id and t.semana >= desde)):
+                    t.texto = nuevo
+                r.texto = nuevo
+            elif r.texto in RONDAS_MAURI_SALEN:
+                r.activa = False
+        TheoAjuste(clave="rondas_mauri_2026_11", valor=hoy().isoformat())
+    logger.info("Daily: rondas de Mauri a 9, 15 y 20")
 
 
 def _aplicar_version_roles() -> None:
@@ -524,7 +554,16 @@ def _sincronizar_semana(username: str, semana: date) -> None:
                             frecuencia=r.frecuencia, dia=r.dia, destinatario=r.destinatario,
                             tarea_rol=id_, orden=r.orden)
             continue
-        if not editable or t.marcas.count():
+        if not editable:
+            continue
+        if t.marcas.count():
+            # Con marcas no se toca lo hecho. Si salió del rol, deja de pedirse desde mañana
+            # (o desde hoy, si hoy todavía no se marcó): antes seguía hasta el domingo.
+            if not r.activa and t.hasta is None:
+                h = hoy()
+                t.hasta = h if any(m.fecha == h for m in t.marcas) else h - timedelta(days=1)
+            elif r.activa and t.hasta is not None:
+                t.hasta = None
             continue
         if not r.activa:
             t.borrada = True
@@ -540,6 +579,8 @@ def _vence(t: TareaSemana, dia: int) -> bool:
     el que trabaja el finde, y una tarea de todos los días no puede caer ahí sola: eso sería
     ponerle a todo el equipo dos días de obligaciones que nadie pidió.
     """
+    if t.hasta is not None and t.semana + timedelta(days=dia) > t.hasta:
+        return False   # salió del rol a mitad de semana: lo de antes queda, lo de después no se pide
     if t.frecuencia == "diaria":
         return dia < 5
     return t.frecuencia == "semanal" and t.dia == dia
@@ -568,6 +609,7 @@ def _tarea_dict(t: TareaSemana) -> dict:
     return {
         "id": t.id, "texto": t.texto, "tipo": t.tipo, "origen": t.origen, "frecuencia": t.frecuencia,
         "dia": t.dia, "destinatario": t.destinatario, "marcas": marcas,
+        "hasta_dia": (t.hasta - t.semana).days if t.hasta else None,
         "hecha_mes": mes.isoformat() if mes else None,
         "se_puede_pasar": se_puede_pasar(t),
         "viene_de": _viene_de(t),
@@ -893,6 +935,7 @@ def _resumen_persona(u: Usuario, semana: date, corte: int) -> dict:
         "tareas": [{
             "texto": t.texto, "tipo": t.tipo, "origen": t.origen, "frecuencia": t.frecuencia,
             "dia": t.dia, "destinatario": t.destinatario,
+            "hasta_dia": (t.hasta - t.semana).days if t.hasta else None,
             "marcas": {f.isoformat(): {"estado": m.estado, "motivo": m.motivo} for f, m in marcas[t.id].items()},
         } for t in tareas],
     }
