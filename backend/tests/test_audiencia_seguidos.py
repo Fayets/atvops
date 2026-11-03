@@ -66,5 +66,5 @@ def test_un_reel_leido_antes_de_anotar_a_los_leads_en_cada_reel_se_relee_una_vez
                                                            for i in k["ids"].split(",")})
     a.seguir_reel("444", por="franco", visto=170)
     assert a.sincronizar_comentarios()["leidos"] == 1 and base == ["444"]
-    assert a.reels_seguidos()["444"]["atados"] is True
+    assert a.reels_seguidos()["444"]["atados"] == a.ATADOS_VERSION
     assert a.sincronizar_comentarios()["leidos"] == 0

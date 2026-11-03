@@ -36,6 +36,9 @@ _lock = threading.Lock()
 
 API = "https://graph.facebook.com/v21.0"
 MAX_COMENTARIOS = 300    # por reel, para no recorrer miles en una corrida
+# Cada vez que cambia cómo se anota a un lead en los reels que comenta, los reels seguidos se
+# releen una vez más (2: ya no se atan a fichas de historias, que en los reels no se ven).
+ATADOS_VERSION = 2
 LOTE_IA = 12             # perfiles por llamada a la IA
 CADA_HORAS = 2
 
@@ -343,7 +346,7 @@ def seguir_reel(media_id: str, por: str | None = None, visto: int | None = None,
         if visto is not None:
             datos["visto"] = int(visto)
         if atados:
-            datos["atados"] = True   # leído desde que cada lead queda en todos sus reels (leads_reels)
+            datos["atados"] = ATADOS_VERSION   # leído desde que cada lead queda en todos sus reels (leads_reels)
         fila.valor = json.dumps(datos)
         fila.actualizado_at = datetime.utcnow()
         fila.actualizado_por = por or fila.actualizado_por
@@ -369,7 +372,7 @@ def sincronizar_comentarios() -> dict:
             previo = seguidos.get(mid, {})
             # Sin comentarios nuevos no se relee... salvo que se haya leído antes de que cada lead
             # quedara en todos sus reels: esos se releen una vez para anotar a los que ya eran lead.
-            if total == int(previo.get("visto", -1)) and previo.get("atados"):
+            if total == int(previo.get("visto", -1)) and previo.get("atados") == ATADOS_VERSION:
                 continue
             n, s_u = _comentarios_de_reel(token, propia, m)
             nuevos += n
@@ -403,25 +406,41 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
             return
         if usuario == propia:
             return
+        mid = str(m["id"])
         with db_session:
-            if LeadAudiencia.get(comentario_id=c["id"]) or LeadReel.get(comentario_id=c["id"]):
+            if LeadAudiencia.get(comentario_id=c["id"]):
                 return
+            ya = LeadReel.get(comentario_id=c["id"])
+            if ya is not None:
+                lead = LeadAudiencia.get(id=ya.lead_id)
+                if lead is not None and lead.creado_por != "historia":
+                    return
+                ya.delete()   # quedó atado a una ficha de historia, que en los reels no se ve: se rehace
+            previos = [x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario]
             # Una persona que comentó varios reels es un solo lead (se analiza una vez), pero
             # queda anotada en cada reel que comentó: si no, este reel aparecía vacío aunque
-            # todos sus comentarios fueran de gente que ya venía de otros.
-            previo = next((x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario), None)
-            if previo:
-                mid = str(m["id"])
-                if previo.media_id != mid and not LeadReel.get(lead_id=previo.id, media_id=mid):
-                    LeadReel(lead_id=previo.id, media_id=mid, comentario=(c.get("text") or "")[:1000],
+            # todos sus comentarios fueran de gente que ya venía de otros. Se ata a su ficha de
+            # reels: las de historias son una por secuencia y en los reels no se muestran.
+            de_reels = next((x for x in previos if x.creado_por != "historia"), None)
+            if de_reels is not None:
+                if de_reels.media_id != mid and not LeadReel.get(lead_id=de_reels.id, media_id=mid):
+                    LeadReel(lead_id=de_reels.id, media_id=mid, comentario=(c.get("text") or "")[:1000],
                              comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"])
                     nuevos += 1
                 return
-            LeadAudiencia(
+            nuevo = LeadAudiencia(
                 ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
                 reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
                 comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"], creado_por="instagram",
             )
+            # Si ya se lo analizó por una historia, se copia el análisis en vez de pagarlo de nuevo.
+            hecho = max((x for x in previos if x.perfil_at is not None),
+                        key=lambda x: x.analizado_at or datetime.min, default=None)
+            if hecho is not None:
+                perfil = json.loads(hecho.perfil or "{}")
+                nuevo.set(tipo_cuenta=hecho.tipo_cuenta, perfil=json.dumps(perfil, ensure_ascii=False) if perfil else None,
+                          perfil_at=hecho.perfil_at, veredicto=hecho.veredicto, puntaje=hecho.puntaje,
+                          motivo=hecho.motivo, analisis=hecho.analisis, analizado_at=hecho.analizado_at)
             nuevos += 1
 
     while url and leidos < MAX_COMENTARIOS:
@@ -1017,9 +1036,22 @@ def progreso_reel(media_id: str) -> dict:
         ids = leads_de([media_id])
         filas = [(x.perfil_at is not None, x.analizado_at is not None, x.veredicto, x.puntaje, x.reel_caption)
                  for x in list(LeadAudiencia.select()) if x.id in ids]
+    # Los comentarios que tiene el reel: lo que contó Instagram la última vez que se leyó, o el
+    # sync de publicaciones si todavía no se leyó.
+    comentarios = (reels_seguidos().get(str(media_id)) or {}).get("visto")
+    if comentarios is None:
+        from src.models import PublicacionIg
+
+        with db_session:
+            pub = PublicacionIg.get(ig_id=str(media_id))
+            try:
+                comentarios = int(json.loads(pub.metricas or "{}").get("comments") or 0) if pub else None
+            except ValueError:
+                comentarios = None
     return {
         "mediaId": str(media_id),
         "corriendo": _lock.locked(),
+        "comentarios": comentarios,
         "personas": len(filas),
         "perfilesLeidos": sum(1 for f in filas if f[0]),
         "analizados": sum(1 for f in filas if f[1]),

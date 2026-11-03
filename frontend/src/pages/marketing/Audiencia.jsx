@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   audienciaAnalizarReel, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
@@ -195,8 +195,14 @@ export default function Audiencia() {
   const [filtro, setFiltro] = useState('calificado');
   // ?reel=ID abre ese reel: es a donde lleva el "Ver" del banner de arriba.
   const [params] = useSearchParams();
+  const ubicacion = useLocation();
   const [reelId, setReelId] = useState(params.get('reel'));
   const [fuente, setFuente] = useState('reel');   // reel | historia
+  // Cada click en "Ver" abre el reel, aunque ya se esté en Audiencia mirando otra cosa.
+  const pedido = params.get('reel');
+  useEffect(() => {
+    if (pedido) { setReelId(pedido); setFuente('reel'); }
+  }, [pedido, ubicacion.key]);
   // Historias: primero todas las secuencias del mes; recién al elegir una se ven sus leads.
   const [secId, setSecId] = useState(null);
   const { mes, opciones } = useMes();

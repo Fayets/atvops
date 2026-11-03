@@ -72,3 +72,19 @@ def test_en_la_lista_de_reels_el_reel_nuevo_cuenta_a_los_dos(base):
         f["reels"] = ([f["reelId"]] if f["reelId"] else []) + [r for r in otros.get(f["id"], []) if r != f["reelId"]]
     reel = next(r for r in a._reels(filas) if r["id"] == NUEVO)
     assert reel["personas"] == 2 and reel["calificado"] == 1
+
+
+def test_si_solo_se_lo_conocia_por_una_historia_entra_al_reel_con_el_analisis_copiado(base):
+    # Las fichas de historias no se ven en los reels: atar el comentario ahí lo dejaba invisible.
+    from src.models import LeadAudiencia
+    with db_session:
+        x = LeadAudiencia.get(ig_usuario="prueba_conocido")
+        x.creado_por = "historia"
+        x.perfil_at = a.datetime.utcnow()
+    nuevos, _ = a._comentarios_de_reel("tok", "atv", {"id": NUEVO, "comments_count": 2, "caption": "Clase", "permalink": "x"})
+    assert nuevos == 2
+    perfiles = {p["usuario"]: p for p in a.perfiles_de_reel(NUEVO)["perfiles"]}
+    assert set(perfiles) == {"prueba_conocido", "prueba_nuevo"}
+    assert perfiles["prueba_conocido"]["veredicto"] == "calificado" and perfiles["prueba_conocido"]["fuente"] == "reel"
+    p = a.progreso_reel(NUEVO)
+    assert p["personas"] == 2 and p["calificados"] == 1
