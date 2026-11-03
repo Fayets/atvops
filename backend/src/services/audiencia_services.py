@@ -965,6 +965,28 @@ def _a_dict(x) -> dict:
     }
 
 
+def progreso_reel(media_id: str) -> dict:
+    """Cómo va el análisis de un reel, liviano para preguntarlo cada pocos segundos desde
+    cualquier pantalla: cuántos comentaron, cuántos perfiles se leyeron, cuántos analizó la IA
+    y cuántos califican. `corriendo`: hay un análisis en marcha (este o la corrida de 2 h)."""
+    from pony.orm import db_session
+
+    from src.models import LeadAudiencia
+
+    with db_session:
+        filas = [(x.perfil_at is not None, x.analizado_at is not None, x.veredicto, x.puntaje, x.reel_caption)
+                 for x in list(LeadAudiencia.select()) if x.media_id == str(media_id)]
+    return {
+        "mediaId": str(media_id),
+        "corriendo": _lock.locked(),
+        "personas": len(filas),
+        "perfilesLeidos": sum(1 for f in filas if f[0]),
+        "analizados": sum(1 for f in filas if f[1]),
+        "calificados": sum(1 for f in filas if f[1] and _veredicto_vigente(f[2], f[3]) == "calificado"),
+        "caption": next((f[4] for f in filas if f[4]), None),
+    }
+
+
 def perfiles_de_reel(media_id: str) -> dict:
     """Todas las personas que dejó un reel (o el post de un anuncio), con su veredicto: primero
     las calificadas por puntaje, después las que faltan analizar y al final las descartadas."""

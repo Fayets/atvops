@@ -2905,6 +2905,11 @@ export async function audienciaAnalizarReel(mediaId) {
   return pedir(`/api/audiencia/reels/${mediaId}/analizar`, { method: 'POST' });
 }
 /** Usuarios pegados a mano; con `reel` quedan atados a ese reel y el reel queda seguido. */
+/** Cómo va el análisis de un reel: para el banner de arriba, desde cualquier pantalla. */
+export async function getProgresoReel(mediaId) {
+  return pedir(`/api/audiencia/reels/${mediaId}/progreso`);
+}
+
 export async function audienciaCargar(texto, reel = null) {
   return pedir('/api/audiencia/cargar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto, reel }) });
 }

@@ -4,6 +4,7 @@ import { RolProvider } from '../../lib/RolContext.jsx';
 import GateLlamadas from '../ventas/GateLlamadas.jsx';
 import BotonAtvAi from './BotonAtvAi.jsx';
 import Sidebar from './Sidebar.jsx';
+import TareasBanner from './TareasBanner.jsx';
 import Topbar from './Topbar.jsx';
 
 export default function AppShell() {
@@ -14,6 +15,7 @@ export default function AppShell() {
         <div className="shell">
           <Sidebar />
           <div className="main">
+            <TareasBanner />
             <Topbar />
             <Outlet />
           </div>

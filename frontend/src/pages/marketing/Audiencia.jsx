@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import {
   audienciaAnalizarReel, audienciaCargar, audienciaCorrer, audienciaMarcar, audienciaReanalizar,
@@ -8,6 +9,7 @@ import { formatValue } from '../../lib/format.js';
 import { useResource } from '../../lib/hooks.js';
 import { useMes } from '../../lib/MesContext.jsx';
 import Lead from '../../components/audiencia/LeadAudiencia.jsx';
+import { iniciarTarea } from '../../lib/tareas.js';
 
 /**
  * Audiencia: quién comenta los reels o responde las historias, y si es un lead calificado.
@@ -190,7 +192,9 @@ export default function Audiencia() {
   const [tick, setTick] = useState(0);
   const { data, error, loading } = useResource(() => getAudiencia(), [tick]);
   const [filtro, setFiltro] = useState('calificado');
-  const [reelId, setReelId] = useState(null);
+  // ?reel=ID abre ese reel: es a donde lleva el "Ver" del banner de arriba.
+  const [params] = useSearchParams();
+  const [reelId, setReelId] = useState(params.get('reel'));
   const [fuente, setFuente] = useState('reel');   // reel | historia
   // Historias: primero todas las secuencias del mes; recién al elegir una se ven sus leads.
   const [secId, setSecId] = useState(null);
@@ -296,7 +300,9 @@ export default function Audiencia() {
         <div className="aud-hero">
           <Reel r={reelActual} onVolver={() => setReelId(null)} ocupado={ocupado} abierto={cuadroReel === reelActual.id}
             enCurso={enCurso}
-            onAnalizar={() => { setActivado({ id: reelActual.id, at: Date.now() }); hacer(() => audienciaAnalizarReel(reelActual.id),
+            onAnalizar={() => { setActivado({ id: reelActual.id, at: Date.now() });
+              iniciarTarea({ tipo: 'reel', mediaId: reelActual.id, titulo: reelActual.caption });
+              hacer(() => audienciaAnalizarReel(reelActual.id),
               'Analizando a todos los que comentaron. Desde ahora cada comentario nuevo de este reel entra solo.'); }}
             onPegar={() => { setAMano(null); setCuadroReel((c) => (c === reelActual.id ? null : reelActual.id)); }} />
           <Numeros r={reelActual} />
