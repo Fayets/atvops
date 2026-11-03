@@ -7,7 +7,7 @@ import { ErrorState, SkeletonBlock } from '../../components/ui/Loading.jsx';
 import PageHeader from '../../components/ui/PageHeader.jsx';
 import SourceTag from '../../components/ui/SourceTag.jsx';
 import {
-  getInstagramPropio, getYouTubePropio,
+  bajarContenidoPdf, getInstagramPropio, getYouTubePropio,
   sincronizarInstagram, sincronizarYouTube,
 } from '../../data/api.js';
 import { useMes } from '../../lib/MesContext.jsx';
@@ -43,6 +43,8 @@ export default function ContenidoPage({ vista }) {
   const { mes, nombreMes } = useMes();
   const [tick, setTick] = useState(0);
   const [sincronizando, setSincronizando] = useState(false);
+  const [bajando, setBajando] = useState(false);
+  const [avisoPdf, setAvisoPdf] = useState('');
   const ig = useResource(
     () => (NECESITA_IG.has(vista) ? getInstagramPropio(mes) : Promise.resolve(null)),
     [mes, vista, tick],
@@ -62,7 +64,22 @@ export default function ContenidoPage({ vista }) {
     }
   };
 
+  // Todo el mes en un PDF: las piezas como se publicaron, con sus números debajo.
+  const bajarPdf = async () => {
+    setBajando(true);
+    setAvisoPdf('');
+    try {
+      await bajarContenidoPdf(mes, vista);
+    } catch (e) {
+      setAvisoPdf(e?.message || 'No se pudo armar el PDF.');
+    } finally {
+      setBajando(false);
+    }
+  };
+
   const meta = VISTAS[vista] ?? VISTAS.reels;
+  const hayPdf = vista === 'reels' || vista === 'historias';
+  const piezas = (vista === 'reels' ? ig.data?.reels : ig.data?.secuencias) ?? [];
   const estado = (vista === 'youtube' ? yt.data?.estado : ig.data?.estado) ?? {};
   const error = ig.error || yt.error;
   const cargando = (NECESITA_IG.has(vista) && ig.loading && !ig.data)
@@ -77,6 +94,12 @@ export default function ContenidoPage({ vista }) {
         actions={
           <>
             <SourceTag sourceId={meta.fuente} updatedAt={estado.ultimaAt} />
+            {hayPdf && (
+              <button className="btn" onClick={bajarPdf} disabled={bajando || !piezas.length}
+                title={piezas.length ? `Todo ${nombreMes} en un PDF` : 'No hay nada publicado en este mes'}>
+                {bajando ? 'Armando…' : 'Descargar PDF'}
+              </button>
+            )}
             <button className="btn" onClick={traerAhora} disabled={sincronizando}>
               <span className={`recargar-icono${sincronizando ? ' girando' : ''}`}>⟳</span>
               {sincronizando ? ' Trayendo…' : ' Traer ahora'}
@@ -84,6 +107,8 @@ export default function ContenidoPage({ vista }) {
           </>
         }
       />
+
+      {avisoPdf && <p className="aud-aviso">{avisoPdf}</p>}
 
       {cargando ? (
         <SkeletonBlock height={360} />

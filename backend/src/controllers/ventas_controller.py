@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 
 from src.controllers.auth_controller import get_current_user, solo_interno
 from src.services import cartera_services as cartera
@@ -262,6 +262,42 @@ def instagram_contenido(_user: dict = Depends(get_current_user), mes: str | None
     except Exception as e:  # noqa: BLE001
         log.exception("Falló leer el contenido de Instagram")
         raise HTTPException(status_code=500, detail=f"No se pudo leer Instagram: {str(e)[:180]}")
+
+
+@router.get("/instagram/pdf")
+def instagram_pdf(_user: dict = Depends(get_current_user), mes: str | None = None,
+                  tipo: str = "reels"):
+    """El contenido del mes en un PDF: los reels o las secuencias de historias, como se
+    publicaron y con lo que midió Instagram. Sale de lo que ya está guardado."""
+    from datetime import date as _date
+
+    from src.services import contenido_pdf_services as pdf
+
+    if tipo not in ("reels", "historias"):
+        raise HTTPException(status_code=400, detail="Tipo de contenido desconocido.")
+    try:
+        hoy = _date.today()
+        mes = mes or hoy.strftime("%Y-%m")
+        anio, m = int(mes[:4]), int(mes[5:7])
+        datos = instagram.contenido(_date(anio, m, 1), _date(anio + (m == 12), (m % 12) + 1, 1))
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=400, detail="Mes inválido.")
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló leer el contenido para el PDF")
+        raise HTTPException(status_code=500, detail=f"No se pudo leer Instagram: {str(e)[:180]}")
+
+    piezas = datos.get("reels" if tipo == "reels" else "secuencias") or []
+    if not piezas:
+        raise HTTPException(status_code=404, detail=f"No hay {tipo} publicados en {mes}.")
+    try:
+        armar = pdf.reels_pdf if tipo == "reels" else pdf.historias_pdf
+        salida = armar(mes, piezas)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló armar el PDF de contenido")
+        raise HTTPException(status_code=500, detail=f"No se pudo armar el PDF: {str(e)[:180]}")
+    nombre = f"{tipo}-{mes}.pdf"
+    return Response(salida, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
 @router.get("/metas")
