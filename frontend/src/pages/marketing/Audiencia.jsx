@@ -191,7 +191,9 @@ function Numeros({ r, etiqueta = 'Comentarios', total }) {
 
 export default function Audiencia() {
   const [tick, setTick] = useState(0);
-  const { data, error, loading } = useResource(() => getAudiencia(), [tick]);
+  // Cada vuelta del refresco automático pide de nuevo: el caché de un minuto dejaba los
+  // números clavados justo mientras se quería ver el avance.
+  const { data, error, loading } = useResource(() => getAudiencia({ refrescar: tick > 0 }), [tick]);
   const [filtro, setFiltro] = useState('calificado');
   // ?reel=ID abre ese reel: es a donde lleva el "Ver" del banner de arriba.
   const [params] = useSearchParams();
@@ -236,16 +238,21 @@ export default function Audiencia() {
     && (verDescartados || l.estado !== 'descartado')
   )), [data, filtro, fuente, reelActual, secActual, verDescartados]);
 
-  // Mientras un reel seguido tiene perfiles en análisis, la pantalla se refresca sola para
-  // mostrar el avance; corta cuando no queda nadie pendiente y el análisis terminó. El minuto
-  // después de apretar cubre el arranque: el análisis corre de fondo y tarda en tomar el turno.
-  const recien = activado && activado.id === reelActual?.id && Date.now() - activado.at < 60000;
-  const enCurso = Boolean(reelActual?.seguido && (data?.corriendo || reelActual.sin_analizar > 0 || recien));
+  // Mientras hay un análisis en marcha, la pantalla se refresca sola para mostrar el avance;
+  // corta cuando no queda nadie pendiente y el análisis terminó. El minuto después de apretar
+  // cubre el arranque: el análisis corre de fondo y tarda en tomar el turno.
+  const recien = activado && Date.now() - activado.at < 60000;
+  const enCurso = Boolean(reelActual?.seguido
+    && (data?.corriendo || reelActual.sin_analizar > 0 || (recien && activado.id === reelActual.id)));
+  // La lista de reels también se mueve sola: antes solo se refrescaba con un reel abierto y los
+  // números de las tarjetas quedaban clavados hasta recargar a mano. Más lento que el detalle:
+  // cada vuelta trae todos los leads.
+  const vivo = enCurso || Boolean(data?.corriendo) || Boolean(recien);
   useEffect(() => {
-    if (!enCurso) return undefined;
-    const t = setTimeout(() => setTick((n) => n + 1), 3000);
+    if (!vivo) return undefined;
+    const t = setTimeout(() => setTick((n) => n + 1), reelActual ? 3000 : 10000);
     return () => clearTimeout(t);
-  }, [enCurso, data]);
+  }, [vivo, data, reelActual]);
 
   if (loading && !data) return <div className="page"><SkeletonBlock height={420} /></div>;
   if (error && !data) return <div className="page"><ErrorState error={error} /></div>;

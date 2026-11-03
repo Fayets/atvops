@@ -2894,8 +2894,9 @@ export async function getLabClosing(mes) {
 
 /* ------------------------------------------------------- audiencia */
 
-export async function getAudiencia() {
-  return pedir('/api/audiencia');
+/** `refrescar`: sin pasar por el caché de un minuto, para seguir un análisis en marcha. */
+export async function getAudiencia({ refrescar = false } = {}) {
+  return pedir(`/api/audiencia${refrescar ? '?refrescar=true' : ''}`);
 }
 export async function audienciaCorrer() {
   return pedir('/api/audiencia/correr', { method: 'POST' });
