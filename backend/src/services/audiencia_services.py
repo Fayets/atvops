@@ -965,6 +965,22 @@ def _a_dict(x) -> dict:
     }
 
 
+def perfiles_de_reel(media_id: str) -> dict:
+    """Todas las personas que dejó un reel (o el post de un anuncio), con su veredicto: primero
+    las calificadas por puntaje, después las que faltan analizar y al final las descartadas."""
+    from pony.orm import db_session
+
+    from src.models import LeadAudiencia
+
+    with db_session:
+        leads = [_a_dict(x) for x in list(LeadAudiencia.select()) if x.media_id == str(media_id)]
+    orden = {"calificado": 0, "tibio": 1, "sin_analizar": 2, "no": 3}
+    leads.sort(key=lambda l: (orden.get(l["veredicto"], 9), -(l["puntaje"] or 0), l["usuario"]))
+    return {"mediaId": str(media_id), "seguido": str(media_id) in reels_seguidos(), "perfiles": leads,
+            "calificados": sum(1 for l in leads if l["veredicto"] == "calificado"),
+            "corte": CORTE_CALIFICADO}
+
+
 def listar() -> dict:
     from pony.orm import db_session
 

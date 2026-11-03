@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.controllers.auth_controller import get_current_user
 from src.services.campanias_services import CampaniasServices
+from src.services import seguidores_vivo_services as seguidores_vivo
 from src.services.meta_services import MetaServices
 
 router = APIRouter()
@@ -124,3 +125,17 @@ def meta_campania(
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error inesperado al leer la campaña.")
+
+
+@router.get("/seguidores-vivo")
+def meta_seguidores_vivo(
+    horas: int = Query(default=48, description="Cuántas horas para atrás"),
+    _user=Depends(get_current_user),
+):
+    """El total de seguidores ahora y su serie de fotos: cómo vino subiendo y bajando."""
+    try:
+        return seguidores_vivo.serie(horas)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error inesperado al leer los seguidores.")

@@ -121,3 +121,15 @@ def test_el_porcentaje_de_calificados_se_compara_contra_las_cuatro_semanas_de_an
     r = c.tasa_calificados(leads, date(2026, 10, 31), date(2026, 11, 2))
     assert r["campania"] == {"analizados": 2, "calificados": 1, "pct": 50.0}
     assert r["base"] == {"analizados": 4, "calificados": 1, "pct": 25.0}
+
+
+def test_el_delta_de_seguidores_se_mide_contra_la_ultima_foto_de_antes():
+    from src.services.seguidores_vivo_services import delta_desde
+    fotos = [{"at": datetime(2026, 11, 2, 2, 50), "total": 70400},
+             {"at": datetime(2026, 11, 2, 3, 10), "total": 70410},
+             {"at": datetime(2026, 11, 3, 1, 0), "total": 70455}]
+    medianoche_ar = datetime(2026, 11, 2, 3, 0)  # 00:00 en Argentina
+    assert delta_desde(fotos, medianoche_ar, 70455) == 55
+    # sin fotos de antes, contra la primera de después
+    assert delta_desde(fotos[1:], medianoche_ar, 70455) == 45
+    assert delta_desde([], medianoche_ar, 70455) is None

@@ -49,6 +49,14 @@ def cargar(fondo: BackgroundTasks, payload: dict = Body(...), user: dict = Depen
     return r
 
 
+@router.get("/reels/{media_id}/perfiles")
+def perfiles_de_reel(media_id: str, _user: dict = Depends(_puede)):
+    """Las personas de un reel o del post de un anuncio, con su perfil y veredicto."""
+    if not media_id.isdigit():
+        raise HTTPException(status_code=400, detail="Id de reel inválido.")
+    return audiencia.perfiles_de_reel(media_id)
+
+
 @router.post("/reels/{media_id}/analizar")
 def analizar_reel(media_id: str, fondo: BackgroundTasks, user: dict = Depends(_puede)):
     """Empieza a seguir el reel y analiza ya a todos los que comentaron; desde ahí, cada persona

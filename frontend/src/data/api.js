@@ -3166,6 +3166,16 @@ export async function getCampanias({ refrescar = false } = {}) {
   return pedir(`/api/meta/campanias${refrescar ? '?refrescar=true' : ''}`);
 }
 
+/** El total de seguidores ahora y su serie de fotos de las últimas `horas`. */
+export async function getSeguidoresVivo(horas = 48) {
+  return pedir(`/api/meta/seguidores-vivo?horas=${horas}`);
+}
+
+/** Las personas de un reel o del post de un anuncio, con su perfil y veredicto de Audiencia. */
+export async function getPerfilesReel(mediaId) {
+  return pedir(`/api/audiencia/reels/${mediaId}/perfiles`);
+}
+
 /** Qué tipo de campañas corren y, si hay de seguidores, sus números de audiencia. */
 export async function getCampaniasMetas({ refrescar = false } = {}) {
   return pedir(`/api/meta/campanias-metas${refrescar ? '?refrescar=true' : ''}`);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Campania from '../components/ads/Campania.jsx';
 import MetasAudiencia, { MetasConversionEnPausa } from '../components/ads/MetasAudiencia.jsx';
+import SeguidoresVivo from '../components/ads/SeguidoresVivo.jsx';
 import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
 import MetaMesModal from '../components/metas/MetaMesModal.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
@@ -57,6 +58,8 @@ export default function Ads() {
   const metasData = metas.data;
   return (
     <div className="page">
+      <SeguidoresVivo />
+
       <div className="ads-anuncios-cab">
         <div className="ads-chips" role="group" aria-label="Qué campañas ver">
           {grupos.map(([k, label, l]) => (

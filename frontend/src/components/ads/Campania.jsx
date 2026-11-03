@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatValue } from '../../lib/format.js';
 import Card from '../ui/Card.jsx';
 import Pill from '../ui/Pill.jsx';
-import DetalleAnuncio from './DetalleAnuncio.jsx';
+import PanelCreativo from './PanelCreativo.jsx';
 import Direccional from './Direccional.jsx';
 import SeguidoresDia from './SeguidoresDia.jsx';
 
@@ -120,7 +120,7 @@ export default function Campania({ c, mes, mesLabel }) {
               <div className="cxc" style={{ gridTemplateColumns: columnas }}>
                 <span />
                 {creativos.map((cr) => (
-                  <button key={cr.id} type="button" className="cxc-cab" onClick={() => setAbierto(cr.id)}>
+                  <button key={cr.id} type="button" className="cxc-cab" onClick={() => setAbierto(cr)}>
                     {cr.imagen ? <img src={cr.imagen} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="cxc-sin" />}
                     <span className="cxc-txt">
                       <b>{cr.nombre}</b>
@@ -263,7 +263,7 @@ export default function Campania({ c, mes, mesLabel }) {
         </Card>
       )}
 
-      {abierto && <DetalleAnuncio id={abierto} mes={mes} mesLabel={mesLabel} onCerrar={cerrar} />}
+      {abierto && <PanelCreativo cr={abierto} mes={mes} mesLabel={mesLabel} onCerrar={cerrar} />}
     </>
   );
 }

@@ -852,6 +852,17 @@ class LeadAudiencia(db.Entity):
     creado_por = Optional(str, nullable=True)
 
 
+class SeguidoresFoto(db.Entity):
+    """Cuántos seguidores tenía la cuenta en un momento. Instagram da el total al instante pero
+    no su historia: la historia es esta tabla, una foto cada pocos minutos."""
+
+    _table_ = _tabla("seguidores_fotos", "SeguidoresFoto")
+
+    id = PrimaryKey(int, auto=True)
+    at = Required(datetime, index=True)        # UTC
+    total = Required(int)
+
+
 class AjusteAudiencia(db.Entity):
     """Lo que marketing configura de la herramienta: el criterio de lead calificado."""
 

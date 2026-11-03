@@ -44,7 +44,7 @@ from src.db import init_db
 from src.services.auth_services import AuthServices
 from src.services.integrantes_services import FOTOS_DIR, IntegrantesServices
 from src.controllers.clientes_controller import service as clientes_service
-from src.services import estructuras_services, narrativa_services
+from src.services import estructuras_services, narrativa_services, seguidores_vivo_services
 from src.services import (activacion_ia_services, audiencia_services, cerebro_services, daily_services, instagram_services, theo_services,
                           llamadas_services, youtube_services)
 
@@ -100,6 +100,8 @@ async def lifespan(_app: FastAPI):
     threading.Thread(target=llamadas_services.iniciar_scheduler, args=(stop,), daemon=True, name="llamadas").start()
     # Audiencia: comentarios de los reels → perfil → veredicto de la IA, cada 2 h.
     threading.Thread(target=audiencia_services.iniciar_scheduler, args=(stop,), daemon=True, name="audiencia").start()
+    # Una foto del total de seguidores cada 10 minutos: es la historia del gráfico en vivo.
+    threading.Thread(target=seguidores_vivo_services.iniciar_scheduler, args=(stop,), daemon=True, name="seguidores").start()
     # Los lunes, la revisión de la narrativa de Juan con lo que publicó la semana anterior.
     threading.Thread(target=narrativa_services.iniciar_scheduler, args=(stop,), daemon=True, name="narrativa").start()
     # Los lunes, las estructuras de historias de Juan aprenden de las historias nuevas.
