@@ -24,6 +24,11 @@ function avance(p, listo) {
   if (listo) {
     partes.push(`${num(p.analizados)} analizados`, `${num(p.calificados)} calificados`);
     if (p.personas > p.analizados) partes.push(`${num(p.personas - p.analizados)} quedan para la próxima corrida`);
+    // Si Instagram no dio el usuario de algunos, o algo falló, que se vea acá y no haya que adivinar.
+    const l = p.lectura;
+    if (l?.sinUsuario) partes.push(`${num(l.sinUsuario)} sin usuario (Instagram no lo da)`);
+    if (l?.errores) partes.push(`${num(l.errores)} con error`);
+    if (l?.errorApi) partes.push('Instagram cortó la lectura');
   } else {
     partes.push(`analizando ${num(p.analizados)}/${num(p.personas)}`);
     if (p.calificados) partes.push(`${num(p.calificados)} calificados`);

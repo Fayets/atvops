@@ -16,10 +16,14 @@ VIEJO, NUEVO = "888001", "888002"
 def base(monkeypatch):
     if db.provider is None:
         init_db()
-    from src.models import LeadAudiencia, LeadReel
+    from src.models import AjusteAudiencia, LeadAudiencia, LeadReel
 
     def limpiar():
         with db_session:
+            for clave in (f"seguir:{VIEJO}", f"seguir:{NUEVO}"):
+                f = AjusteAudiencia.get(clave=clave)
+                if f:
+                    f.delete()
             ids = [x.id for x in list(LeadAudiencia.select()) if x.ig_usuario.startswith("prueba_")]
             for r in list(LeadReel.select()):
                 if r.lead_id in ids or r.media_id in (VIEJO, NUEVO):
@@ -88,3 +92,29 @@ def test_si_solo_se_lo_conocia_por_una_historia_entra_al_reel_con_el_analisis_co
     assert perfiles["prueba_conocido"]["veredicto"] == "calificado" and perfiles["prueba_conocido"]["fuente"] == "reel"
     p = a.progreso_reel(NUEVO)
     assert p["personas"] == 2 and p["calificados"] == 1
+
+
+def test_un_comentario_que_falla_no_corta_la_lectura_del_resto(base, monkeypatch):
+    # Antes un solo error dejaba el reel a medias: 11 personas de 90.
+    real = a._usuario_limpio
+    monkeypatch.setattr(a, "_usuario_limpio", lambda t: (_ for _ in ()).throw(RuntimeError("boom")) if t == "prueba_conocido" else real(t))
+    a.seguir_reel(NUEVO, por="franco")
+    nuevos, _ = a._comentarios_de_reel("tok", "atv", {"id": NUEVO, "comments_count": 2, "caption": "Clase", "permalink": "x"})
+    assert nuevos == 1                                     # el otro entró igual
+    assert a.progreso_reel(NUEVO)["lectura"]["errores"] == 1   # y el error queda a la vista
+
+
+def test_un_comentario_atado_a_una_historia_pasa_a_la_ficha_de_reels_sin_chocar(base):
+    from src.models import LeadAudiencia, LeadReel
+    m = {"id": NUEVO, "comments_count": 2, "caption": "Clase", "permalink": "x"}
+    with db_session:
+        hist = LeadAudiencia(ig_usuario="prueba_conocido", media_id="777", comentario_id="dm:1",
+                             creado_por="historia")
+        hist.flush()
+        LeadReel(lead_id=hist.id, media_id=NUEVO, comentario="Clase", comentario_id="c1")
+    a._comentarios_de_reel("tok", "atv", m)
+    with db_session:
+        r = LeadReel.get(comentario_id="c1")
+        assert LeadAudiencia[r.lead_id].creado_por != "historia"
+    assert a.progreso_reel(NUEVO)["personas"] == 2
+    assert a.reels_seguidos() is not None

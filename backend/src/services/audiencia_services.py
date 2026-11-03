@@ -383,39 +383,32 @@ def sincronizar_comentarios() -> dict:
 
 
 def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False) -> tuple[int, int]:
-    """Crea un lead por cada persona nueva que comentó el reel `m`. Devuelve (nuevos, sin usuario).
-    `forzar`: viene del botón, el respaldo de Apify se pide aunque ya se haya leído."""
+    """Crea un lead por cada persona nueva que comentó el reel `m`, y ata al reel a la que ya era
+    lead. Devuelve (nuevos, sin usuario). `forzar`: viene del botón, el respaldo de Apify se
+    pide aunque ya se haya leído. Lo que pasó en la lectura queda en la marca del reel, para
+    verlo en la pantalla sin entrar a la base."""
     from pony.orm import db_session
 
-    from src.models import LeadAudiencia
+    from src.models import LeadAudiencia, LeadReel
 
-    from src.models import LeadReel
-
-    nuevos = sin_usuario = 0
+    mid = str(m["id"])
+    cuenta = {"api": 0, "aviso": 0, "respaldo": 0, "nuevos": 0, "sinUsuario": 0, "propios": 0, "errores": 0}
     if not m.get("comments_count"):
         return 0, 0
-    url = f"{m['id']}/comments"
+    url = f"{mid}/comments"
     params = {"fields": "id,text,username,timestamp", "limit": 50}
-    leidos = 0
+    error_api = None
 
-    def anotar(c: dict) -> None:
-        nonlocal nuevos, sin_usuario
-        usuario = _usuario_limpio(c.get("username") or "")
-        if not usuario:
-            sin_usuario += 1
-            return
-        if usuario == propia:
-            return
-        mid = str(m["id"])
+    def atar(c: dict, usuario: str) -> bool:
+        """True si sumó a alguien a este reel."""
         with db_session:
             if LeadAudiencia.get(comentario_id=c["id"]):
-                return
+                return False
             ya = LeadReel.get(comentario_id=c["id"])
             if ya is not None:
                 lead = LeadAudiencia.get(id=ya.lead_id)
                 if lead is not None and lead.creado_por != "historia":
-                    return
-                ya.delete()   # quedó atado a una ficha de historia, que en los reels no se ve: se rehace
+                    return False
             previos = [x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario]
             # Una persona que comentó varios reels es un solo lead (se analiza una vez), pero
             # queda anotada en cada reel que comentó: si no, este reel aparecía vacío aunque
@@ -423,11 +416,20 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
             # reels: las de historias son una por secuencia y en los reels no se muestran.
             de_reels = next((x for x in previos if x.creado_por != "historia"), None)
             if de_reels is not None:
-                if de_reels.media_id != mid and not LeadReel.get(lead_id=de_reels.id, media_id=mid):
+                if de_reels.media_id == mid or LeadReel.get(lead_id=de_reels.id, media_id=mid):
+                    if ya is not None:
+                        ya.delete()
+                    return False
+                if ya is not None:
+                    # Estaba atado a una ficha de historia: se pasa a la de reels, el mismo registro
+                    # (borrarlo y crear otro con el mismo comentario choca en la base).
+                    ya.lead_id = de_reels.id
+                else:
                     LeadReel(lead_id=de_reels.id, media_id=mid, comentario=(c.get("text") or "")[:1000],
                              comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"])
-                    nuevos += 1
-                return
+                return True
+            if ya is not None:
+                ya.delete()
             nuevo = LeadAudiencia(
                 ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
                 reel_url=m.get("permalink"), comentario=(c.get("text") or "")[:1000],
@@ -441,13 +443,32 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
                 nuevo.set(tipo_cuenta=hecho.tipo_cuenta, perfil=json.dumps(perfil, ensure_ascii=False) if perfil else None,
                           perfil_at=hecho.perfil_at, veredicto=hecho.veredicto, puntaje=hecho.puntaje,
                           motivo=hecho.motivo, analisis=hecho.analisis, analizado_at=hecho.analizado_at)
-            nuevos += 1
+            return True
 
-    while url and leidos < MAX_COMENTARIOS:
+    def anotar(c: dict) -> None:
+        # Un comentario que falla no corta la lectura del resto: antes uno solo dejaba el reel a medias.
+        try:
+            usuario = _usuario_limpio(c.get("username") or "")
+            if not usuario:
+                cuenta["sinUsuario"] += 1
+                return
+            if usuario == propia:
+                cuenta["propios"] += 1
+                return
+            if atar(c, usuario):
+                cuenta["nuevos"] += 1
+        except Exception as e:  # noqa: BLE001
+            cuenta["errores"] += 1
+            if cuenta["errores"] == 1:
+                logger.warning("Audiencia: comentario %s del reel %s: %s", c.get("id"), mid, str(e)[:200])
+
+    while url and cuenta["api"] < MAX_COMENTARIOS:
         r = _pedir(token, url, **params)
-        filas = r.get("data") or []
-        for c in filas:
-            leidos += 1
+        if r.get("_error"):
+            error_api = str(r["_error"])[:200]
+            break
+        for c in r.get("data") or []:
+            cuenta["api"] += 1
             anotar(c)
         siguiente = (r.get("paging") or {}).get("next")
         if not siguiente:
@@ -457,15 +478,36 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
     # Lo que Meta avisó por webhook en el momento: la única fuente completa.
     from src.services import apify_services, comentarios_ig_services
 
-    recibidos = comentarios_ig_services.del_reel(str(m["id"]))
+    recibidos = comentarios_ig_services.del_reel(mid)
     for c in recibidos:
+        cuenta["aviso"] += 1
         anotar(c)
     # La API de Instagram entrega una parte de los comentarios (en algunos reels, ninguno).
     # Si se quedó corta y el webhook tampoco cubre, el resto se lee con Apify.
-    if apify_services.hace_falta(leidos + len(recibidos), m.get("comments_count")):
-        for c in apify_services.comentarios(str(m["id"]), m.get("permalink"), m.get("comments_count"), forzar=forzar):
+    if apify_services.hace_falta(cuenta["api"] + len(recibidos), m.get("comments_count")):
+        for c in apify_services.comentarios(mid, m.get("permalink"), m.get("comments_count"), forzar=forzar):
+            cuenta["respaldo"] += 1
             anotar(c)
-    return nuevos, sin_usuario
+    _anotar_lectura(mid, {**cuenta, "errorApi": error_api, "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")})
+    return cuenta["nuevos"], cuenta["sinUsuario"]
+
+
+def _anotar_lectura(media_id: str, lectura: dict) -> None:
+    """Lo que pasó la última vez que se leyeron los comentarios de un reel, en su marca."""
+    from pony.orm import db_session
+
+    from src.models import AjusteAudiencia
+
+    with db_session:
+        fila = AjusteAudiencia.get(clave=f"{SEGUIR}{media_id}")
+        if fila is None:
+            return
+        try:
+            datos = json.loads(fila.valor or "{}")
+        except ValueError:
+            datos = {}
+        datos["lectura"] = lectura
+        fila.valor = json.dumps(datos)
 
 
 def analizar_reel(media_id: str, por: str | None = None) -> dict:
@@ -1034,18 +1076,22 @@ def progreso_reel(media_id: str) -> dict:
 
     with db_session:
         ids = leads_de([media_id])
-        filas = [(x.perfil_at is not None, x.analizado_at is not None, x.veredicto, x.puntaje, x.reel_caption)
+        # El caption de las fichas propias de este reel: las atadas desde otro traen el de su reel.
+        filas = [(x.perfil_at is not None, x.analizado_at is not None, x.veredicto, x.puntaje,
+                  x.reel_caption if x.media_id == str(media_id) else None)
                  for x in list(LeadAudiencia.select()) if x.id in ids]
     # Los comentarios que tiene el reel: lo que contó Instagram la última vez que se leyó, o el
     # sync de publicaciones si todavía no se leyó.
-    comentarios = (reels_seguidos().get(str(media_id)) or {}).get("visto")
-    if comentarios is None:
-        from src.models import PublicacionIg
+    from src.models import PublicacionIg
 
-        with db_session:
-            pub = PublicacionIg.get(ig_id=str(media_id))
+    marca = reels_seguidos().get(str(media_id)) or {}
+    comentarios = marca.get("visto")
+    with db_session:
+        pub = PublicacionIg.get(ig_id=str(media_id))
+        caption = pub.caption if pub else None
+        if comentarios is None and pub is not None:
             try:
-                comentarios = int(json.loads(pub.metricas or "{}").get("comments") or 0) if pub else None
+                comentarios = int(json.loads(pub.metricas or "{}").get("comments") or 0)
             except ValueError:
                 comentarios = None
     return {
@@ -1056,7 +1102,8 @@ def progreso_reel(media_id: str) -> dict:
         "perfilesLeidos": sum(1 for f in filas if f[0]),
         "analizados": sum(1 for f in filas if f[1]),
         "calificados": sum(1 for f in filas if f[1] and _veredicto_vigente(f[2], f[3]) == "calificado"),
-        "caption": next((f[4] for f in filas if f[4]), None),
+        "caption": caption or next((f[4] for f in filas if f[4]), None),
+        "lectura": marca.get("lectura"),
     }
 
 
