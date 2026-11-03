@@ -381,6 +381,8 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
 
     from src.models import LeadAudiencia
 
+    from src.models import LeadReel
+
     nuevos = sin_usuario = 0
     if not m.get("comments_count"):
         return 0, 0
@@ -397,12 +399,18 @@ def _comentarios_de_reel(token: str, propia: str, m: dict, forzar: bool = False)
         if usuario == propia:
             return
         with db_session:
-            if LeadAudiencia.get(comentario_id=c["id"]):
+            if LeadAudiencia.get(comentario_id=c["id"]) or LeadReel.get(comentario_id=c["id"]):
                 return
-            # Una persona que comentó varios reels es un solo lead: se suma el
-            # comentario al que ya existe en vez de duplicarla.
+            # Una persona que comentó varios reels es un solo lead (se analiza una vez), pero
+            # queda anotada en cada reel que comentó: si no, este reel aparecía vacío aunque
+            # todos sus comentarios fueran de gente que ya venía de otros.
             previo = next((x for x in list(LeadAudiencia.select()) if x.ig_usuario == usuario), None)
             if previo:
+                mid = str(m["id"])
+                if previo.media_id != mid and not LeadReel.get(lead_id=previo.id, media_id=mid):
+                    LeadReel(lead_id=previo.id, media_id=mid, comentario=(c.get("text") or "")[:1000],
+                             comentado_at=_fecha(c.get("timestamp")), comentario_id=c["id"])
+                    nuevos += 1
                 return
             LeadAudiencia(
                 ig_usuario=usuario, media_id=m["id"], reel_caption=(m.get("caption") or "")[:300],
@@ -443,7 +451,9 @@ def analizar_reel(media_id: str, por: str | None = None) -> dict:
     if not str(media_id).isdigit():
         raise HTTPException(status_code=400, detail="Id de reel inválido.")
     seguir_reel(str(media_id), por=por)
-    if not _lock.acquire(blocking=False):
+    # Corre de fondo: si la corrida de cada 2 h está en marcha, espera su turno. Antes fallaba
+    # callado y el reel quedaba sin analizar aunque la pantalla dijera que se estaba analizando.
+    if not _lock.acquire(timeout=ESPERA_TURNO_S):
         raise HTTPException(status_code=409, detail="Ya hay un análisis corriendo. Esperá a que termine.")
     try:
         token, uid = _credenciales()
@@ -696,6 +706,7 @@ def cargar_a_mano(texto: str, usuario: dict, reel: dict | None = None) -> dict:
 
 
 MAX_A_MANO = 12   # cuántos se analizan en el momento; el resto queda para la corrida automática
+ESPERA_TURNO_S = 15 * 60   # cuánto espera un reel mandado a analizar si hay otra corrida
 
 
 def analizar_a_mano(texto: str, usuario: dict, media_id: str | None = None) -> dict:
@@ -965,6 +976,30 @@ def _a_dict(x) -> dict:
     }
 
 
+def leads_de(media_ids) -> dict[int, dict | None]:
+    """Los leads de unas publicaciones: los que entraron por ellas y los que ya eran lead y
+    después también las comentaron. Para estos últimos va su comentario en esa publicación.
+    Hay que llamarla dentro de una db_session."""
+    from src.models import LeadAudiencia, LeadReel
+
+    ids = {str(m) for m in media_ids}
+    salida: dict[int, dict | None] = {x.id: None for x in list(LeadAudiencia.select()) if x.media_id in ids}
+    for r in list(LeadReel.select()):
+        if r.media_id in ids and r.lead_id not in salida:
+            salida[r.lead_id] = {"comentario": r.comentario, "comentadoAt": r.comentado_at, "mediaId": r.media_id}
+    return salida
+
+
+def reels_por_lead() -> dict[int, list[str]]:
+    """Las otras publicaciones de cada lead, además de la suya. Dentro de una db_session."""
+    from src.models import LeadReel
+
+    salida: dict[int, list[str]] = {}
+    for r in list(LeadReel.select()):
+        salida.setdefault(r.lead_id, []).append(r.media_id)
+    return salida
+
+
 def progreso_reel(media_id: str) -> dict:
     """Cómo va el análisis de un reel, liviano para preguntarlo cada pocos segundos desde
     cualquier pantalla: cuántos comentaron, cuántos perfiles se leyeron, cuántos analizó la IA
@@ -974,8 +1009,9 @@ def progreso_reel(media_id: str) -> dict:
     from src.models import LeadAudiencia
 
     with db_session:
+        ids = leads_de([media_id])
         filas = [(x.perfil_at is not None, x.analizado_at is not None, x.veredicto, x.puntaje, x.reel_caption)
-                 for x in list(LeadAudiencia.select()) if x.media_id == str(media_id)]
+                 for x in list(LeadAudiencia.select()) if x.id in ids]
     return {
         "mediaId": str(media_id),
         "corriendo": _lock.locked(),
@@ -995,7 +1031,17 @@ def perfiles_de_reel(media_id: str) -> dict:
     from src.models import LeadAudiencia
 
     with db_session:
-        leads = [_a_dict(x) for x in list(LeadAudiencia.select()) if x.media_id == str(media_id)]
+        ids = leads_de([media_id])
+        leads = []
+        for x in list(LeadAudiencia.select()):
+            if x.id not in ids:
+                continue
+            d = _a_dict(x)
+            otro = ids[x.id]
+            if otro:   # ya era lead por otra publicación: se muestra lo que comentó en esta
+                d.update(comentario=otro["comentario"], reelId=otro["mediaId"],
+                         comentadoAt=otro["comentadoAt"].isoformat() if otro["comentadoAt"] else None)
+            leads.append(d)
     orden = {"calificado": 0, "tibio": 1, "sin_analizar": 2, "no": 3}
     leads.sort(key=lambda l: (orden.get(l["veredicto"], 9), -(l["puntaje"] or 0), l["usuario"]))
     return {"mediaId": str(media_id), "seguido": str(media_id) in reels_seguidos(), "perfiles": leads,
@@ -1014,6 +1060,9 @@ def listar() -> dict:
         # la misma consulta.
         filas = [_a_dict(x) for x in list(LeadAudiencia.select().prefetch(
             LeadAudiencia.comentario, LeadAudiencia.perfil, LeadAudiencia.motivo, LeadAudiencia.analisis))]
+        otros = reels_por_lead()
+    for f in filas:
+        f["reels"] = ([f["reelId"]] if f["reelId"] else []) + [r for r in otros.get(f["id"], []) if r != f["reelId"]]
     orden = {"calificado": 0, "tibio": 1, "sin_analizar": 2, "no": 3}
     filas.sort(key=lambda f: (orden.get(f["veredicto"], 9), -(f["puntaje"] or -1), f["comentadoAt"] or f["creadoAt"] or ""))
     conteo: dict[str, int] = {}
@@ -1059,10 +1108,7 @@ def _reels(filas: list[dict]) -> list[dict]:
                            "comentarios": int(metricas.get("comments") or 0)}
     salida = {rid: {**b, "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0}
               for rid, b in base.items()}
-    for f in filas:
-        rid = f["reelId"]
-        if not rid:
-            continue
+    for f, rid in ((f, rid) for f in filas for rid in (f.get("reels") or ([f["reelId"]] if f["reelId"] else []))):
         r = salida.setdefault(rid, {**base.get(rid, {"id": rid, "caption": f["reelCaption"], "url": f["reelUrl"],
                                                       "thumbnail": None, "fecha": None, "comentarios": 0}),
                                     "personas": 0, "calificado": 0, "tibio": 0, "no": 0, "sin_analizar": 0})

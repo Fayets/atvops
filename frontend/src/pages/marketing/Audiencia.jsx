@@ -224,7 +224,8 @@ export default function Audiencia() {
     l.veredicto === filtro
     && (fuente === 'historia'
       ? l.fuente === 'historia' && secActual && l.secuencia === secActual.id
-      : l.fuente !== 'historia' && (reelActual ? l.reelId === reelActual.id : !l.reelId))
+      // Un lead está en todos los reels que comentó, no solo en el primero por el que entró.
+      : l.fuente !== 'historia' && (reelActual ? (l.reels?.length ? l.reels : [l.reelId]).includes(reelActual.id) : !l.reelId))
     && (verDescartados || l.estado !== 'descartado')
   )), [data, filtro, fuente, reelActual, secActual, verDescartados]);
 

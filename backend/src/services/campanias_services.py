@@ -183,10 +183,11 @@ def interesados(media_ids: list[str], seguir: list[str] | None = None) -> dict:
     for mid in seguir or []:
         if str(mid) not in seguidos:
             audiencia.seguir_reel(str(mid), por="ads")
-    ids = {str(m) for m in media_ids}
     with db_session:
+        # También los que ya eran lead por otro reel y después comentaron el anuncio.
+        ids = audiencia.leads_de(media_ids)
         leads = [(x.veredicto, x.puntaje, x.analizado_at is not None)
-                 for x in list(LeadAudiencia.select()) if x.media_id in ids]
+                 for x in list(LeadAudiencia.select()) if x.id in ids]
     calificados = sum(1 for v, p, leido in leads if leido and audiencia._veredicto_vigente(v, p) == "calificado")
     return {"personas": len(leads), "leidos": sum(1 for _, _, leido in leads if leido),
             "calificados": calificados, "corte": audiencia.CORTE_CALIFICADO}

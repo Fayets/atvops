@@ -852,6 +852,25 @@ class LeadAudiencia(db.Entity):
     creado_por = Optional(str, nullable=True)
 
 
+class LeadReel(db.Entity):
+    """Otra publicación que comentó alguien que ya era lead.
+
+    Una persona es un solo lead aunque comente muchos reels (se analiza y se paga una vez), y el
+    lead guarda el primer reel por el que entró. Acá quedan los demás: sin esto, un reel comentado
+    por gente que ya venía de otros reels aparecía vacío."""
+
+    _table_ = _tabla("leads_reels", "LeadReel")
+
+    id = PrimaryKey(int, auto=True)
+    lead_id = Required(int, index=True)
+    media_id = Required(str, index=True)
+    comentario = Optional(LongStr, nullable=True)
+    comentado_at = Optional(datetime, nullable=True)
+    comentario_id = Optional(str, nullable=True, unique=True)
+    creado_at = Required(datetime, default=lambda: datetime.utcnow())
+    composite_key(lead_id, media_id)
+
+
 class SeguidoresFoto(db.Entity):
     """Cuántos seguidores tenía la cuenta en un momento. Instagram da el total al instante pero
     no su historia: la historia es esta tabla, una foto cada pocos minutos."""

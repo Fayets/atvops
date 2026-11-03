@@ -9007,7 +9007,7 @@ a.wb-fase:hover .wb-fase-cta { opacity: 1; }
 /* Lo que corre de fondo (el análisis de un reel), arriba de todo y en cualquier pantalla. */
 .tareas-banner { position: sticky; top: 0; z-index: 40; display: flex; flex-direction: column; gap: 1px; background: var(--border-soft); border-bottom: 1px solid var(--border); }
 .tarea { display: flex; align-items: center; gap: 12px; padding: 9px 20px; background: var(--surface); font-size: 13px; min-height: 44px; }
-.tarea.lista { background: var(--ok-dim); }
+.tarea.tarea-lista { background: var(--ok-dim); }
 .tarea-punto { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); flex: 0 0 8px; }
 .tarea-punto.vivo { animation: tarea-latido 1.4s ease-in-out infinite; }
 @keyframes tarea-latido { 50% { opacity: .35; } }

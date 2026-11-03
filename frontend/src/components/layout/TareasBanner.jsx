@@ -51,7 +51,7 @@ export default function TareasBanner() {
         const fraccion = p?.personas ? Math.min(1, p.analizados / p.personas) : 0;
         const titulo = (p?.caption || t.titulo || 'el reel').split('\n')[0].slice(0, 60);
         return (
-          <div key={t.id} className={`tarea${listo ? ' lista' : ''}`}>
+          <div key={t.id} className={`tarea${listo ? ' tarea-lista' : ''}`}>
             <span className={`tarea-punto${listo ? '' : ' vivo'}`} aria-hidden="true" />
             <div className="tarea-txt">
               <b>{listo ? 'Listo: ' : 'Analizando '}«{titulo}»</b>
