@@ -3161,6 +3161,16 @@ export async function getAnuncioMeta(id, mes) {
   return pedir(`/api/meta/anuncios/${id}${mes ? `?month=${mes}` : ''}`);
 }
 
+/** Las campañas de la cuenta, primero las que corren, con lo que gastaron en su vida. */
+export async function getCampanias({ refrescar = false } = {}) {
+  return pedir(`/api/meta/campanias${refrescar ? '?refrescar=true' : ''}`);
+}
+
+/** Una campaña de punta a punta: creativos con veredicto, seguidores por día y calificados. */
+export async function getCampania(id, { refrescar = false } = {}) {
+  return pedir(`/api/meta/campanias/${id}${refrescar ? '?refrescar=true' : ''}`);
+}
+
 /** Corrige si un reel tiene CTA. `esCta`: true, false o null (que decida Ops solo). */
 export async function corregirCtaReel(mediaId, esCta, palabra = null) {
   return pedir('/api/ventas/instagram/reels/cta', {

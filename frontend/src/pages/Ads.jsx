@@ -1,29 +1,21 @@
-import { useState } from 'react';
-import Bars from '../components/charts/Bars.jsx';
-import HBars from '../components/charts/HBars.jsx';
-import Anuncios from '../components/ads/Anuncios.jsx';
+import { useEffect, useMemo, useState } from 'react';
+import Campania from '../components/ads/Campania.jsx';
 import AvanceVsMeta from '../components/metas/AvanceVsMeta.jsx';
 import MetaMesModal from '../components/metas/MetaMesModal.jsx';
-import Card from '../components/ui/Card.jsx';
-import DataTable from '../components/ui/DataTable.jsx';
-import KpiCard from '../components/ui/KpiCard.jsx';
-import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
-import Pill from '../components/ui/Pill.jsx';
+import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import SourceTag from '../components/ui/SourceTag.jsx';
-import { getMarketing, getMetasMes } from '../data/api.js';
-import { ahora, formatValue, hace, mesId, nombreMesAnio } from '../lib/format.js';
+import { getCampania, getCampanias, getMetasMes } from '../data/api.js';
+import { formatValue } from '../lib/format.js';
 import { useMes } from '../lib/MesContext.jsx';
 import { useResource } from '../lib/hooks.js';
 import { useRol } from '../lib/RolContext.jsx';
 import { puedeEditarMetas } from '../lib/roles.js';
 
-const CANAL = { meta: 'Meta', youtube: 'YouTube', google: 'Google', tiktok: 'TikTok' };
-
-function tonoFrecuencia(f, umbrales) {
-  if (f >= umbrales.quemado) return 'alert';
-  if (f >= umbrales.objetivo) return 'warn';
-  return 'ok';
-}
+const FILTROS = [
+  ['corriendo', 'Corriendo', (c) => c.estado === 'corriendo'],
+  ['pausada', 'Pausadas', (c) => c.estado !== 'corriendo'],
+  ['todas', 'Todas', () => true],
+];
 
 export default function Ads() {
   const { mes, opciones } = useMes();
@@ -31,212 +23,89 @@ export default function Ads() {
   const mesLabel = (opciones ?? []).find((o) => o.id === mes)?.label ?? mes;
   const { rol } = useRol();
   const puedeEditar = puedeEditarMetas(rol);
-  const { data, loading, error } = useResource(() => getMarketing(mes), [mes]);
+  const lista = useResource(() => getCampanias(), []);
+  const [filtro, setFiltro] = useState(null);
+  const [sel, setSel] = useState(null);
   const [tickMeta, setTickMeta] = useState(0);
   const [modalMeta, setModalMeta] = useState(false);
   const metas = useResource(() => getMetasMes(mes, { incluirAds: true }), [mes, tickMeta]);
 
-  if (error) return <div className="page"><ErrorState error={error} /></div>;
+  const campanias = lista.data?.campanias ?? [];
+  const grupos = useMemo(
+    () => FILTROS.map(([k, label, f]) => [k, label, campanias.filter(f)]),
+    [campanias],
+  );
+  // Abre en lo que corre; si no corre nada, en todas.
+  const activo = filtro ?? (grupos[0][2].length ? 'corriendo' : 'todas');
+  const visibles = grupos.find(([k]) => k === activo)?.[2] ?? [];
+  const elegida = visibles.find((c) => c.id === sel)?.id ?? visibles[0]?.id ?? null;
 
-  /** @type {import('../components/ui/DataTable.jsx').Columna[]} */
-  const columnas = data
-    ? [
-        { key: 'nombre', label: 'Campaña', render: (c) => <span className="strong">{c.nombre}</span> },
-        { key: 'canal', label: 'Canal', render: (c) => <span className="dim">{CANAL[c.canal] || c.canal}</span> },
-        {
-          key: 'objetivo',
-          label: 'Objetivo',
-          render: (c) => <Pill tone={c.objetivo === 'ventas' ? 'warn' : 'plain'}>{c.objetivo}</Pill>,
-        },
-        {
-          key: 'estado',
-          label: 'Estado',
-          render: (c) => (
-            <Pill tone={c.estado === 'activa' ? 'ok' : 'off'} dot>
-              {c.estado}
-            </Pill>
-          ),
-        },
-        {
-          key: 'frecuencia',
-          label: 'Frecuencia',
-          align: 'right',
-          render: (c) => (
-            <Pill
-              tone={tonoFrecuencia(c.frecuencia, data.umbrales)}
-              title={`Máximo ${data.umbrales.objetivo}; quemado desde ${data.umbrales.quemado}`}
-            >
-              <span className="num">{Number(c.frecuencia || 0).toFixed(2)}</span>
-            </Pill>
-          ),
-        },
-        { key: 'gastoUsd', label: 'Gasto', align: 'right', render: (c) => <span className="num">{formatValue(c.gastoUsd, 'usd')}</span> },
-        { key: 'leads', label: 'Leads', align: 'right', render: (c) => <span className="num">{c.leads}</span> },
-        { key: 'cplUsd', label: 'CPL', align: 'right', render: (c) => <span className="num">{formatValue(c.cplUsd, 'usd')}</span> },
-        { key: 'roas', label: 'ROAS', align: 'right', render: (c) => <span className="num">{Number(c.roas || 0).toFixed(1)}×</span> },
-        {
-          key: 'ultimaSyncAt',
-          label: 'Sync',
-          align: 'right',
-          render: (c) => (
-            <span className="dim" style={{ fontSize: 11.5 }}>
-              {hace(c.ultimaSyncAt)}
-            </span>
-          ),
-        },
-      ]
-    : [];
+  const [detalle, setDetalle] = useState({ id: null, data: null, error: null });
+  useEffect(() => {
+    if (!elegida) return undefined;
+    let vivo = true;
+    setDetalle({ id: elegida, data: null, error: null });
+    getCampania(elegida)
+      .then((data) => vivo && setDetalle({ id: elegida, data, error: null }))
+      .catch((error) => vivo && setDetalle({ id: elegida, data: null, error }));
+    return () => { vivo = false; };
+  }, [elegida]);
 
-  const quemadas = data?.campanias.filter((c) => c.frecuencia >= data.umbrales.quemado) ?? [];
-  const gastoVentas = data?.campanias.filter((c) => c.objetivo === 'ventas').reduce((s, c) => s + c.gastoUsd, 0) ?? 0;
-  const gastoTotal = data?.campanias.reduce((s, c) => s + c.gastoUsd, 0) || 1;
   const metasData = metas.data;
-  const ig = data?.instagram;
-  const pubs = ig?.publicaciones ?? [];
-  const diaLimite = data?.mes === mesId(ahora()) ? ahora().getDate() : 31;
-
   return (
     <div className="page">
-      {/* Primero los anuncios: qué corre y, al tocar uno, cómo le va. El título de la
-          página lo pone la barra de arriba: acá iba otro "Ads" repetido. */}
-      <Anuncios
-        mes={mes}
-        mesLabel={mesLabel}
-        acciones={
-          <>
-            {puedeEditar && (
-              <button type="button" className="btn" onClick={() => setModalMeta(true)}>
-                Definir meta del mes
-              </button>
-            )}
-            <SourceTag sourceId="ads_manager" updatedAt={data?.syncAt} />
-          </>
-        }
-      />
-
-      {loading || !data ? (
-        <>
-          <SkeletonKpis />
-          <SkeletonBlock height={300} />
-        </>
-      ) : (
-        <>
-          {metasData && (
-            <AvanceVsMeta
-              filas={metasData.avanceAds}
-              titulo="Avance vs meta · Ads"
-              sub={`Inversión · ${metasData.contexto.nombreMes} · día ${metasData.contexto.diaHoy}/${metasData.contexto.diasMes}`}
-              syncAt={metasData.real.syncAt}
-            />
+      <div className="ads-anuncios-cab">
+        <div className="ads-chips" role="group" aria-label="Qué campañas ver">
+          {grupos.map(([k, label, l]) => (
+            <button key={k} type="button" className={`chip${activo === k ? ' active' : ''}`} aria-pressed={activo === k}
+              onClick={() => { setFiltro(k); setSel(null); }}>
+              {label} <span className="dim num">{l.length}</span>
+            </button>
+          ))}
+        </div>
+        <div className="ads-anuncios-acciones">
+          {puedeEditar && (
+            <button type="button" className="btn" onClick={() => setModalMeta(true)}>Definir meta del mes</button>
           )}
+          <SourceTag sourceId="ads_manager" updatedAt={detalle.data?.ultimaSyncAt ?? lista.data?.ultimaSyncAt} />
+        </div>
+      </div>
 
-          <div className="kpi-grid">
-            {data.kpis.map((m) => (
-              <KpiCard key={m.id} metric={m} />
-            ))}
-          </div>
-
-          {ig && !ig.error && (
-            <Card
-              title="Contenido Instagram del mes"
-              sub={`${ig.totales?.publicaciones ?? 0} publicaciones · ${ig.totales?.stories ?? 0} stories activas · ${formatValue(ig.totales?.likes ?? 0, 'count')} likes`}
-              actions={<SourceTag sourceId="ads_manager" conNombre={false} updatedAt={ig.syncAt} />}
-            >
-              {pubs.length === 0 ? (
-                <p className="dim" style={{ margin: 0 }}>Sin publicaciones en este mes.</p>
-              ) : (
-                <ul className="ig-pubs">
-                  {/* Las publicaciones salen del registro propio (`contenido`), que las
-                      describe con `url`, `titulo` y `fecha`; las de Meta traen `permalink`,
-                      `caption` y `timestamp`. Se aceptan las dos formas: con una sola, la
-                      tarjeta salía vacía y sin key. */}
-                  {pubs.map((p, i) => (
-                    <li key={p.id ?? p.url ?? p.permalink ?? `${p.fecha || p.timestamp}-${i}`} className="ig-pub">
-                      {p.thumbnailUrl ? (
-                        <a href={p.permalink || p.url || '#'} target="_blank" rel="noreferrer" className="ig-thumb">
-                          <img src={p.thumbnailUrl} alt="" />
-                        </a>
-                      ) : (
-                        <div className="ig-thumb ig-thumb--empty" />
-                      )}
-                      <div className="ig-pub-body">
-                        <div className="ig-pub-meta">
-                          <Pill tone="plain">{p.tipo || p.mediaType || 'reel'}</Pill>
-                          <span className="dim">{(p.timestamp || p.fecha || '').slice(0, 10)}</span>
-                          <span className="dim">{p.likes ?? 0} likes · {p.comments ?? p.comentarios ?? 0} com.</span>
-                        </div>
-                        <p className="ig-caption">{p.caption || p.titulo || 'Sin caption'}</p>
-                        {(p.permalink || p.url) && (
-                          <a href={p.permalink || p.url} target="_blank" rel="noreferrer" className="dim" style={{ fontSize: 12 }}>
-                            Ver en Instagram →
-                          </a>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {ig.storiesActivas?.length > 0 && (
-                <p className="dim" style={{ margin: '12px 0 0', fontSize: 12.5 }}>
-                  {ig.storiesActivas.length} stories activas ahora (ventana 24 h).
-                </p>
-              )}
-            </Card>
+      {lista.error ? <ErrorState error={lista.error} /> : !lista.data ? <SkeletonBlock height={320} /> : (
+        <>
+          {visibles.length > 1 && (
+            <div className="camp-tabs" role="tablist" aria-label="Campañas">
+              {visibles.map((c) => (
+                <button key={c.id} type="button" role="tab" aria-selected={c.id === elegida}
+                  className={`camp-tab${c.id === elegida ? ' active' : ''}`} onClick={() => setSel(c.id)}>
+                  <b>{c.nombre}</b>
+                  <span className="dim num">{formatValue(c.gastoUsd, 'usd')}</span>
+                </button>
+              ))}
+            </div>
           )}
-
-          <div className="split">
-            <Card
-              title="Gasto diario"
-              sub={`${nombreMesAnio()} · mes seleccionado`}
-              actions={<SourceTag sourceId="ads_manager" conNombre={false} />}
-              foot={`${formatValue(gastoVentas, 'usd')} del gasto (${Math.round((gastoVentas / gastoTotal) * 100)}%) en objetivo "ventas".`}
-            >
-              {(data.gastoDiario?.length ?? 0) === 0 ? (
-                <p className="dim" style={{ margin: 0 }}>Sin gasto en el mes seleccionado.</p>
-              ) : (
-                <Bars
-                  data={data.gastoDiario.filter((d) => Number(d.dia) <= diaLimite)}
-                  x={(d) => d.dia}
-                  y={(d) => d.gastoUsd}
-                  format="usd"
-                  label="Gasto"
-                  height={252}
-                  linea={{ key: (d) => d.leads, label: 'Leads', format: 'count' }}
-                />
-              )}
-            </Card>
-
-            <Card title="Gasto por canal" sub="Distribución del mes">
-              <HBars
-                data={(data.gastoCanal || []).map((c) => ({
-                  label: c.canal,
-                  value: c.gastoUsd,
-                  sub: `${c.leads} leads · ${c.leads ? formatValue(c.gastoUsd / c.leads, 'usd') : '—'} por lead · ROAS ${Number(c.roas || 0).toFixed(1)}×`,
-                }))}
-              />
-            </Card>
-          </div>
-
-          <Card
-            title="Campañas"
-            sub={data.fuenteAds === 'meta_ads' ? 'Meta Ads · mes seleccionado' : 'Sin conexión con Meta Ads'}
-            actions={
-              quemadas.length ? (
-                <Pill tone="alert" dot>
-                  {quemadas.length} con el creativo quemado
-                </Pill>
-              ) : (
-                <Pill tone="ok" dot>
-                  frecuencia bajo control
-                </Pill>
-              )
-            }
-            flush
-            foot={`Frecuencia = impresiones ÷ alcance. Máximo ${data.umbrales.objetivo}; desde ${data.umbrales.quemado} el creativo está quemado.`}
-          >
-            <DataTable columns={columnas} rows={data.campanias} initialSort={{ key: 'frecuencia', dir: 'desc' }} />
-          </Card>
+          {visibles.length === 0 ? (
+            <div className="card lab-vacio">
+              <h3>No hay campañas corriendo</h3>
+              <p className="dim">Mirá "Todas" para ver cómo les fue a las anteriores.</p>
+            </div>
+          ) : detalle.error && detalle.id === elegida ? (
+            <ErrorState error={detalle.error} />
+          ) : !detalle.data || detalle.id !== elegida ? (
+            <SkeletonBlock height={520} />
+          ) : (
+            <Campania c={detalle.data} mes={mes} mesLabel={mesLabel} />
+          )}
         </>
+      )}
+
+      {metasData && (
+        <AvanceVsMeta
+          filas={metasData.avanceAds}
+          titulo="Avance vs meta · Ads"
+          sub={`Inversión · ${metasData.contexto.nombreMes} · día ${metasData.contexto.diaHoy}/${metasData.contexto.diasMes}`}
+          syncAt={metasData.real.syncAt}
+        />
       )}
 
       {puedeEditar && metasData && (
