@@ -41,7 +41,7 @@ def test_un_reel_seguido_se_relee_solo_si_sumo_comentarios(base, monkeypatch):
     monkeypatch.setattr(a, "_pedir", lambda t, path, **k: {i: {"id": i, "comments_count": conteo[i], "permalink": f"https://x/{i}"}
                                                            for i in k["ids"].split(",")})
     a.seguir_reel("111", por="franco")                    # de octubre: lo activó Franco
-    a.seguir_reel("222", por="franco", visto=40)          # ya leído con 40
+    a.seguir_reel("222", por="franco", visto=40, atados=True)   # ya leído con 40, después del arreglo
     r = a.sincronizar_comentarios()
     assert r["reels"] == 2 and r["leidos"] == 1 and base == ["111"]
     assert a.reels_seguidos()["111"]["visto"] == 23 and a.reels_seguidos()["111"]["por"] == "franco"
@@ -57,3 +57,14 @@ def test_activar_dos_veces_no_pisa_quien_ni_cuando(base):
     antes = a.reels_seguidos()["333"]
     a.seguir_reel("333", por="mauri")
     assert a.reels_seguidos()["333"]["por"] == "franco" and a.reels_seguidos()["333"]["desde"] == antes["desde"]
+
+
+def test_un_reel_leido_antes_de_anotar_a_los_leads_en_cada_reel_se_relee_una_vez(base, monkeypatch):
+    # «como alterar tu realidad»: 170 comentarios leídos con el código viejo, que salteaba a los
+    # que ya eran lead. Sin comentarios nuevos igual se relee una vez para anotarlos; después no.
+    monkeypatch.setattr(a, "_pedir", lambda t, path, **k: {i: {"id": i, "comments_count": 170, "permalink": "x"}
+                                                           for i in k["ids"].split(",")})
+    a.seguir_reel("444", por="franco", visto=170)
+    assert a.sincronizar_comentarios()["leidos"] == 1 and base == ["444"]
+    assert a.reels_seguidos()["444"]["atados"] is True
+    assert a.sincronizar_comentarios()["leidos"] == 0

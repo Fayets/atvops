@@ -59,8 +59,9 @@ function Reel({ r, onVolver, onAnalizar, onPegar, ocupado, abierto, enCurso }) {
         <div className="aud-reel-pie">
           {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="dim">Ver en Instagram →</a> : <span />}
           <span className="aud-reel-nav">
-            {(!r.seguido || (!r.personas && !enCurso)) && (
-              <button type="button" className="btn primary sm" onClick={onAnalizar} disabled={ocupado}
+            {/* Siempre se puede volver a leer: si faltó alguien, trae lo que haya. */}
+            {!enCurso && (
+              <button type="button" className={`btn ${r.seguido && r.personas ? 'ghost' : 'primary'} sm`} onClick={onAnalizar} disabled={ocupado}
                 title="Trae a todos los que comentaron (API, avisos de Meta y respaldo), lee sus perfiles y los analiza. Desde ahí, cada comentario nuevo entra solo.">
                 {r.seguido ? 'Volver a leer' : 'Analizar audiencia'}
               </button>

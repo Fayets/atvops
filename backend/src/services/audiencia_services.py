@@ -326,7 +326,7 @@ def reels_seguidos() -> dict[str, dict]:
     return salida
 
 
-def seguir_reel(media_id: str, por: str | None = None, visto: int | None = None) -> None:
+def seguir_reel(media_id: str, por: str | None = None, visto: int | None = None, atados: bool = False) -> None:
     from pony.orm import db_session
 
     from src.models import AjusteAudiencia
@@ -342,6 +342,8 @@ def seguir_reel(media_id: str, por: str | None = None, visto: int | None = None)
             datos["por"] = por
         if visto is not None:
             datos["visto"] = int(visto)
+        if atados:
+            datos["atados"] = True   # leído desde que cada lead queda en todos sus reels (leads_reels)
         fila.valor = json.dumps(datos)
         fila.actualizado_at = datetime.utcnow()
         fila.actualizado_por = por or fila.actualizado_por
@@ -364,13 +366,16 @@ def sincronizar_comentarios() -> dict:
             if not isinstance(m, dict) or mid.startswith("_"):
                 continue
             total = int(m.get("comments_count") or 0)
-            if total == int(seguidos.get(mid, {}).get("visto", -1)):
-                continue   # sin comentarios nuevos desde la última lectura
+            previo = seguidos.get(mid, {})
+            # Sin comentarios nuevos no se relee... salvo que se haya leído antes de que cada lead
+            # quedara en todos sus reels: esos se releen una vez para anotar a los que ya eran lead.
+            if total == int(previo.get("visto", -1)) and previo.get("atados"):
+                continue
             n, s_u = _comentarios_de_reel(token, propia, m)
             nuevos += n
             sin_usuario += s_u
             leidos += 1
-            seguir_reel(mid, visto=total)
+            seguir_reel(mid, visto=total, atados=True)
     return {"reels": len(ids), "leidos": leidos, "nuevos": nuevos, "sinUsuario": sin_usuario}
 
 
@@ -460,7 +465,7 @@ def analizar_reel(media_id: str, por: str | None = None) -> dict:
         propia = _cuenta_propia(token, uid)
         m = _pedir(token, str(media_id), fields="id,caption,permalink,timestamp,comments_count")
         nuevos, sin_usuario = _comentarios_de_reel(token, propia, m, forzar=True)
-        seguir_reel(str(media_id), visto=int(m.get("comments_count") or 0))
+        seguir_reel(str(media_id), visto=int(m.get("comments_count") or 0), atados=True)
         try:
             from src.services import chats_reels_services
 
