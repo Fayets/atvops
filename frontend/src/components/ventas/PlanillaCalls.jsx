@@ -16,9 +16,10 @@ import { formatValue } from '../../lib/format.js';
  * que se abre tocando el nombre.
  */
 
+// Arranca por la más vieja: la primera call del mes es la 1, como se cuentan en el día a día.
 const ORDEN = {
-  call_desc: { label: 'Call, más nueva', fn: (a, b) => b.fechaAt.localeCompare(a.fechaAt) },
   call_asc: { label: 'Call, más vieja', fn: (a, b) => a.fechaAt.localeCompare(b.fechaAt) },
+  call_desc: { label: 'Call, más nueva', fn: (a, b) => b.fechaAt.localeCompare(a.fechaAt) },
   agendo_desc: { label: 'Agendó, más nueva', fn: (a, b) => (b.agendoAt || '').localeCompare(a.agendoAt || '') },
   nombre: { label: 'Nombre', fn: (a, b) => a.prospecto.localeCompare(b.prospecto, 'es') },
   pago: { label: 'Pagó', fn: (a, b) => (b.cashUsd || 0) - (a.cashUsd || 0) },
@@ -117,7 +118,7 @@ export default function PlanillaCalls({ datos, mes, onRecargar }) {
   const [tab, setTab] = useState('Todas');
   const [closer, setCloser] = useState('');
   const [q, setQ] = useState('');
-  const [orden, setOrden] = useState('call_desc');
+  const [orden, setOrden] = useState('call_asc');
   const [grupo, setGrupo] = useState('');
   const [origen, setOrigen] = useState('');
   const [soloAds, setSoloAds] = useState(false);
