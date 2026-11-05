@@ -17,8 +17,15 @@ import { formatValue } from '../../lib/format.js';
  * embudo como si fueran leads.
  */
 
-const dia = (iso) =>
-  (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
+// En Histórico se mezclan años: el año se aclara solo cuando no es el corriente.
+const dia = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  const otroAnio = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleDateString('es-AR', {
+    weekday: 'long', day: 'numeric', month: 'long', ...(otroAnio ? { year: 'numeric' } : {}),
+  });
+};
 const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '');
 const n = (v) => formatValue(v ?? 0, 'count');
 

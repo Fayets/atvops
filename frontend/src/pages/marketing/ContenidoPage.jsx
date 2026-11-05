@@ -10,7 +10,7 @@ import {
   bajarContenidoPdf, getInstagramPropio, getMesesContenido, getYouTubePropio,
   sincronizarInstagram, sincronizarYouTube,
 } from '../../data/api.js';
-import { nombreMesDesdeId } from '../../lib/mes.js';
+import { HISTORICO, nombreMesDesdeId } from '../../lib/mes.js';
 import { useMes } from '../../lib/MesContext.jsx';
 import { useResource } from '../../lib/hooks.js';
 
@@ -43,7 +43,8 @@ const PDF = new Set(['reels', 'historias']);
  * @param {{ vista: 'calendario' | 'reels' | 'historias' | 'youtube' }} props
  */
 export default function ContenidoPage({ vista }) {
-  const { mes, nombreMes } = useMes();
+  const { mes, nombreMes, historico } = useMes();
+  const periodoIg = vista === 'historias' && historico ? HISTORICO : mes;
   const [tick, setTick] = useState(0);
   const [sincronizando, setSincronizando] = useState(false);
   const [bajando, setBajando] = useState(false);
@@ -51,8 +52,8 @@ export default function ContenidoPage({ vista }) {
   const [eligiendo, setEligiendo] = useState(false);
   const [elegidos, setElegidos] = useState([]);
   const ig = useResource(
-    () => (NECESITA_IG.has(vista) ? getInstagramPropio(mes) : Promise.resolve(null)),
-    [mes, vista, tick],
+    () => (NECESITA_IG.has(vista) ? getInstagramPropio(periodoIg) : Promise.resolve(null)),
+    [periodoIg, vista, tick],
   );
   const yt = useResource(
     () => (NECESITA_YT.has(vista) ? getYouTubePropio(mes) : Promise.resolve(null)),

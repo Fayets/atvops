@@ -6,6 +6,9 @@
 import { ahora, mesId, nombreMesAnio } from './format.js';
 import { diaDentroDelMes, diasDelMes } from './pacing.js';
 
+/** La opción del selector que trae todos los meses juntos, en las vistas que la aceptan. */
+export const HISTORICO = 'historico';
+
 const MESES_LARGOS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',

@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import { HISTORICO } from '../../lib/mes.js';
 import { useMes } from '../../lib/MesContext.jsx';
 import Pill from '../ui/Pill.jsx';
 
@@ -58,8 +59,10 @@ function tituloDe(pathname) {
 
 export default function Topbar() {
   const { pathname } = useLocation();
-  const { mes, setMes, opciones, esActual } = useMes();
+  const { mes, setMes, historico, elegirHistorico, opciones, esActual } = useMes();
   const titulo = tituloDe(pathname);
+  const conHistorico = pathname === '/marketing/historias';
+  const enHistorico = conHistorico && historico;
 
   return (
     <header className="topbar">
@@ -67,17 +70,18 @@ export default function Topbar() {
       <label className="topbar-mes">
         <span className="dim">Mes</span>
         <select
-          value={mes}
-          onChange={(e) => setMes(e.target.value)}
+          value={enHistorico ? HISTORICO : mes}
+          onChange={(e) => (e.target.value === HISTORICO ? elegirHistorico() : setMes(e.target.value))}
           aria-label="Mes operativo"
         >
+          {conHistorico ? <option value={HISTORICO}>Histórico</option> : null}
           {opciones.map((o) => (
             <option key={o.id} value={o.id}>
               {o.label}
             </option>
           ))}
         </select>
-        {!esActual ? <Pill tone="warn">histórico</Pill> : null}
+        {!esActual && !enHistorico ? <Pill tone="warn">histórico</Pill> : null}
       </label>
     </header>
   );

@@ -27,6 +27,17 @@ function leerMesInicial() {
   return mesActualId();
 }
 
+/** "Histórico" dura lo mismo que el mes elegido: hasta el final del día. */
+function leerHistoricoInicial() {
+  try {
+    const crudo = localStorage.getItem(STORAGE_KEY);
+    const guardado = crudo?.startsWith('{') ? JSON.parse(crudo) : null;
+    return guardado?.historico === true && guardado.dia === hoyId();
+  } catch {
+    return false;
+  }
+}
+
 function hoyId() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -36,10 +47,14 @@ const MesContext = createContext(null);
 
 export function MesProvider({ children }) {
   const [mes, setMesState] = useState(leerMesInicial);
+  // Va aparte de `mes` a propósito: las vistas que no conocen "Histórico" siguen recibiendo
+  // un YYYY-MM y no se enteran. Solo la que lo acepta mira esta marca.
+  const [historico, setHistoricoState] = useState(leerHistoricoInicial);
 
   const setMes = useCallback((next) => {
     if (!next || !/^\d{4}-\d{2}$/.test(next)) return;
     setMesState(next);
+    setHistoricoState(false);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mes: next, dia: hoyId() }));
     } catch {
@@ -47,15 +62,26 @@ export function MesProvider({ children }) {
     }
   }, []);
 
+  const elegirHistorico = useCallback(() => {
+    setHistoricoState(true);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mes, dia: hoyId(), historico: true }));
+    } catch {
+      /* ignore */
+    }
+  }, [mes]);
+
   const value = useMemo(() => {
     const ctx = contextoDeMes(mes);
     return {
       mes,
       setMes,
+      historico,
+      elegirHistorico,
       ...ctx,
       opciones: listaMeses(mesActualId()),
     };
-  }, [mes, setMes]);
+  }, [mes, setMes, historico, elegirHistorico]);
 
   return <MesContext.Provider value={value}>{children}</MesContext.Provider>;
 }
@@ -68,6 +94,8 @@ export function useMes() {
     return {
       mes,
       setMes() {},
+      historico: false,
+      elegirHistorico() {},
       ...c,
       opciones: listaMeses(mes),
     };

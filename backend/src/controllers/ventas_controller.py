@@ -247,11 +247,18 @@ def crear_llamada(user: dict = Depends(solo_interno), payload: dict = Body(...))
 
 @router.get("/instagram")
 def instagram_contenido(_user: dict = Depends(get_current_user), mes: str | None = None):
-    """Reels y secuencias de historias del mes, con lo que midió Instagram."""
-    from datetime import date as _date
+    """Reels y secuencias de historias del mes, con lo que midió Instagram.
+
+    `mes=historico` trae todo lo guardado, sin fecha de corte.
+    """
+    from datetime import date as _date, timedelta as _timedelta
 
     try:
         hoy = _date.today()
+        if mes == "historico":
+            # Dos días de margen: el servidor y Argentina pueden no estar en la misma fecha.
+            fin = hoy + _timedelta(days=2)
+            return {"mes": mes, **instagram.contenido(_date(2000, 1, 1), fin), "estado": instagram.estado()}
         mes = mes or hoy.strftime("%Y-%m")
         anio, m = int(mes[:4]), int(mes[5:7])
         inicio = _date(anio, m, 1)
