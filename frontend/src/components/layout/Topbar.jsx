@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { HISTORICO } from '../../lib/mes.js';
 import { useMes } from '../../lib/MesContext.jsx';
-import Pill from '../ui/Pill.jsx';
 
 const TITULOS = {
   '/daily': 'Daily',
@@ -59,7 +58,7 @@ function tituloDe(pathname) {
 
 export default function Topbar() {
   const { pathname } = useLocation();
-  const { mes, setMes, historico, elegirHistorico, opciones, esActual } = useMes();
+  const { mes, setMes, historico, elegirHistorico, opciones } = useMes();
   const titulo = tituloDe(pathname);
   const conHistorico = pathname === '/marketing/historias';
   const enHistorico = conHistorico && historico;
@@ -81,7 +80,6 @@ export default function Topbar() {
             </option>
           ))}
         </select>
-        {!esActual && !enHistorico ? <Pill tone="warn">histórico</Pill> : null}
       </label>
     </header>
   );
