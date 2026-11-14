@@ -5483,6 +5483,23 @@ button.lista-item:hover { background: var(--surface-2); }
   .conv-fila { grid-template-columns: 60px minmax(0, 1fr) 110px; }
   .conv-fila > span:nth-child(4) { display: none; }
 }
+/* Hay deploy nuevo y esta pestaña sigue con el código viejo. Va arriba de ATV AI, en
+   gris: no es una alerta ni una sección, es un botón que recarga cuando a uno le queda
+   cómodo. */
+.aviso-version {
+  position: fixed; right: 20px; bottom: 76px; z-index: 60;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: 999px;
+  background: var(--surface); color: var(--text-2);
+  font-size: 12.5px; font-weight: 500;
+  border: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.aviso-version:hover { background: var(--surface-2); color: var(--text); }
+@media (max-width: 900px) {
+  .aviso-version { bottom: 72px; }
+}
+
 /* ATV AI vive flotando abajo a la derecha, donde uno espera encontrar un chat: se usa
    desde cualquier vista, no es una sección más del tablero. */
 .atv-ai-fab {

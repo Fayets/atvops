@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import PlanillaCalls from '../components/ventas/PlanillaCalls.jsx';
 import { ErrorState, SkeletonBlock } from '../components/ui/Loading.jsx';
 import { getLlamadasDelMes, sincronizarLlamadas } from '../data/api.js';
 import { mesId } from '../lib/format.js';
-import { useResource } from '../lib/hooks.js';
+import { useRecargaSola, useResource } from '../lib/hooks.js';
 import { useMes } from '../lib/MesContext.jsx';
 
 /**
@@ -18,7 +18,10 @@ export default function VentasOperativaPage() {
   const [tick, setTick] = useState(0);
   const [sincronizando, setSincronizando] = useState(false);
   const { data, loading, error } = useResource(() => getLlamadasDelMes(mes), [mes, tick]);
-  const recargar = () => setTick((t) => t + 1);
+  const recargar = useCallback(() => setTick((t) => t + 1), []);
+  // La planilla se mira abierta todo el día: sin esto muestra las llamadas de cuando se
+  // abrió y lo que carga el resto del equipo no aparece hasta que alguien toca Actualizar.
+  useRecargaSola(recargar);
 
   // Actualizar es ir a mirar el calendario de verdad, no releer lo mismo: la lista sale
   // de la base de ATV Ops y el sync es el que la pone al día.

@@ -6,7 +6,7 @@ qué es una agenda y qué es un seguimiento, cómo se limpian los duplicados del
 cómo se lee el nombre del prospecto en un título del calendario.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -232,6 +232,45 @@ def test_una_caida_que_se_rehace_otro_dia_si_es_no_show():
     jueves = fila("Pedro", datetime(2026, 9, 10, 10, 0), "seguimiento", id=2)
     v._marcar_reprogramadas([lunes, jueves], AHORA)
     assert not lunes["reprogramada"]
+
+
+def test_la_que_no_se_cargo_y_tiene_otra_mas_adelante_queda_avisada():
+    """Lucas veía 14 "Falta cargar" y no había nada que cargar: se habían corrido de fecha.
+
+    No cambia ninguna cuenta —sigue siendo una agenda sin reportar, como la cuenta
+    Franco—, pero la lista lo dice para que no la ande buscando.
+    """
+    primera = fila("Alberto Contreras", datetime(2026, 9, 5, 14, 0), "", id=1)
+    segunda = fila("Alberto Contreras", datetime(2026, 9, 7, 14, 0), "", id=2)
+    v._marcar_reprogramadas([primera, segunda], AHORA)
+
+    assert primera["corrida"] and primera["corridaA"] == segunda["call"]
+    assert not segunda["corrida"]            # no hay ninguna más adelante
+    # Y el conteo queda igual que antes: ninguna pasa a reprogramada.
+    assert not primera["reprogramada"] and not segunda["reprogramada"]
+
+
+def test_el_seguimiento_cargado_no_queda_como_corrida():
+    """Si la primera tiene resultado, la de la semana siguiente es otra reunión."""
+    primera = fila("Francisco", datetime(2026, 9, 3, 16, 0), "seguimiento", id=1)
+    segunda = fila("Francisco", datetime(2026, 9, 8, 16, 0), "Seguimiento", id=2)
+    v._marcar_reprogramadas([primera, segunda], AHORA)
+    assert not primera["corrida"] and not segunda["corrida"]
+
+
+def test_la_que_todavia_no_paso_no_es_corrida():
+    """Una agenda futura no le debe resultado a nadie."""
+    hoy = fila("Lina", MANANA, "", id=1)
+    despues = fila("Lina", MANANA + timedelta(days=2), "", id=2)
+    v._marcar_reprogramadas([hoy, despues], AHORA)
+    assert not hoy["corrida"]
+
+
+def test_mas_de_dos_semanas_despues_ya_es_otra_reunion():
+    vieja = fila("Priscila", datetime(2026, 8, 10, 10, 0), "", id=1)
+    nueva = fila("Priscila", datetime(2026, 9, 9, 10, 0), "", id=2)
+    v._marcar_reprogramadas([vieja, nueva], AHORA)
+    assert not vieja["corrida"]
 
 
 def test_la_reprogramada_no_se_queda_con_la_agenda_del_dia(monkeypatch):

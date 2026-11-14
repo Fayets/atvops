@@ -67,6 +67,11 @@ _CIERRE_N = frozenset(_norm(x) for x in CIERRE)
 _CON_RESULTADO_N = frozenset(_norm(x) for x in CON_RESULTADO)
 
 
+# Hasta cuándo una llamada posterior del mismo prospecto se lee como "esta se corrió".
+# Más allá de dos semanas ya es otra reunión, no la misma movida de día.
+DIAS_CORRIDA = timedelta(days=14)
+
+
 def _clasificar(resultado: str, calificacion: str, call: datetime | None, ahora: datetime,
                 solo_calendario: bool = False, duplicada: bool = False,
                 reprogramada: bool = False) -> str:
@@ -810,20 +815,34 @@ def _marcar_reprogramadas(filas: list[dict], ahora: datetime) -> list[dict]:
 
     Solo aplica dentro del mismo día. Si se rearmó una semana después, esa sí se perdió:
     el closer tuvo el hueco y alguien tuvo que volver a traerla.
+
+    Aparte marca `corrida`: la llamada que pasó, que nadie cargó, y que tiene otra del
+    mismo prospecto más adelante. Esa no cuenta distinto —sigue siendo agenda sin
+    reportar, como la cuenta Franco— pero en la lista se avisa, para que el closer no
+    ande buscando qué cargarle a una reunión que se corrió de fecha.
     """
     hechas: set[tuple[str, date]] = set()
+    cuando_de: dict[str, list[datetime]] = {}
     for f in filas:
         clase = _clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
                             f.get("soloCalendario", False), f.get("duplicada", False))
         clave = _clave_persona(f.get("nombre"))
-        if clase in ("show", "cierre") and clave and f["call"]:
+        if not clave or not f["call"]:
+            continue
+        if clase in ("show", "cierre"):
             hechas.add((clave, f["call"].date()))
+        if not f.get("duplicada"):
+            cuando_de.setdefault(clave, []).append(f["call"])
     for f in filas:
         clase = _clasificar(f["resultado"], f["calificacion"], f["call"], ahora,
                             f.get("soloCalendario", False), f.get("duplicada", False))
         clave = _clave_persona(f.get("nombre"))
         f["reprogramada"] = bool(
             clase == "no_show" and clave and f["call"] and (clave, f["call"].date()) in hechas)
+        posteriores = [c for c in cuando_de.get(clave or "", [])
+                       if f["call"] and c > f["call"] and c - f["call"] <= DIAS_CORRIDA]
+        f["corrida"] = bool(clase == "sin_reportar" and posteriores)
+        f["corridaA"] = min(posteriores) if f["corrida"] else None
     return filas
 
 
@@ -1716,6 +1735,10 @@ def _fila_llamada(l: dict, ahora: datetime, hoy: date, precios: dict) -> dict:
         "segunda": bool(l.get("segunda")),
         "seguimiento": bool(l.get("seguimiento")),
         "reprogramada": bool(l.get("reprogramada")),
+        # Se corrió de fecha: hay otra llamada del mismo prospecto más adelante y a esta
+        # nadie le cargó nada. No cambia el conteo; sirve para no pedir que la carguen.
+        "corrida": bool(l.get("corrida")),
+        "corridaA": l["corridaA"].isoformat() if l.get("corridaA") else None,
         "eventoId": l.get("eventoId") or "",
         "programa": programa,
         # El que se ofreció, aunque no haya venta. La lista lo muestra en las llamadas que

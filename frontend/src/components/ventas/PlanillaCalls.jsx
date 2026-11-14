@@ -78,6 +78,11 @@ function Fila({ n, l, datos, ver, mes, onRecargar, onAbrir }) {
             {l.prospecto}
           </button>
           {l.segunda && <span className="pl-segunda" title="Segunda reunión con el mismo prospecto">2ª</span>}
+          {l.corrida && (
+            <span className="pl-segunda" title={`Se corrió al ${fechaCorta(l.corridaA)}: no hay resultado que cargarle`}>
+              se corrió
+            </span>
+          )}
         </th>
         {ver.has('ig') && <td className="dim pl-corta pl-c-ig" title={l.instagram || undefined}>{usuarioIg(l.instagram) || '—'}</td>}
         {ver.has('tel') && <td className="dim num pl-corta pl-c-tel" title={l.telefono || undefined}>{l.telefono || '—'}</td>}

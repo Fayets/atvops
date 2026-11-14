@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { MesProvider } from '../../lib/MesContext.jsx';
 import { RolProvider } from '../../lib/RolContext.jsx';
 import GateLlamadas from '../ventas/GateLlamadas.jsx';
+import AvisoVersion from './AvisoVersion.jsx';
 import BotonAtvAi from './BotonAtvAi.jsx';
 import Sidebar from './Sidebar.jsx';
 import TareasBanner from './TareasBanner.jsx';
@@ -19,6 +20,7 @@ export default function AppShell() {
             <Topbar />
             <Outlet />
           </div>
+          <AvisoVersion />
           <BotonAtvAi />
         </div>
       </MesProvider>
