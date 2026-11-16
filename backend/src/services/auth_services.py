@@ -26,6 +26,8 @@ def olvidar_sesiones() -> None:
     """Cambiaron los roles de alguien: la próxima consulta relee la base."""
     _CACHE_SESION.clear()
 _TOKEN_DIAS = 7
+# Cuando al token le queda menos que esto, la request siguiente se vuelve con uno nuevo.
+_TOKEN_RENOVAR_DIAS = 3
 _LOCAL_USERNAME = "franco"
 _LOCAL_PASSWORD = "franco"
 _LOCAL_NOMBRE = "Franco"
@@ -123,6 +125,29 @@ def _emitir_token(usuario: Usuario, por: str | None = None) -> dict:
         claims["por"] = por
     token = jwt.encode(claims, _secret(), algorithm="HS256")
     return {"token": token, "user": {**_to_response(usuario), "por": por}}
+
+
+def renovar_token(token: str) -> str | None:
+    """El mismo token con el reloj a cero, si ya le queda poco. `None` si le sobra tiempo.
+
+    La sesión duraba 7 días desde el login y no se renovaba nunca: al que usa Ops todos
+    los días lo cortaba igual, en medio de lo que estuviera haciendo. Ahora cada request
+    que llega con un token por vencerse se vuelve con uno nuevo. El que no entra en una
+    semana sí tiene que poner la clave de nuevo.
+
+    No toca la base: el token no guarda nada de la persona más que su id, su usuario y su
+    rol, así que se rehace con lo que ya trae.
+    """
+    try:
+        payload = jwt.decode(token, _secret(), algorithms=["HS256"])
+        vence = datetime.fromtimestamp(payload["exp"], timezone.utc)
+    except (jwt.InvalidTokenError, KeyError, ValueError, TypeError, OSError):
+        return None
+    if vence - datetime.now(timezone.utc) > timedelta(days=_TOKEN_RENOVAR_DIAS):
+        return None
+    claims = {k: v for k, v in payload.items() if k != "exp"}
+    claims["exp"] = datetime.now(timezone.utc) + timedelta(days=_TOKEN_DIAS)
+    return jwt.encode(claims, _secret(), algorithm="HS256")
 
 
 def google_client_id() -> str:

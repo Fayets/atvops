@@ -163,6 +163,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # El token renovado viaja en este header. Sin exponerlo, el navegador no deja leerlo
+    # cuando el front corre en otro puerto (desarrollo) y la sesión se vencería igual.
+    expose_headers=["X-Token-Nuevo"],
 )
 # Después del CORS general: en Starlette el último middleware entra primero.
 app.add_middleware(TrackCorsMiddleware)

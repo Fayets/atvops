@@ -55,7 +55,7 @@ import {
   grietasOperativas,
   ordenarAcciones,
 } from '../lib/acciones.js';
-import { getStoredUser, getToken } from '../lib/auth.js';
+import { clearSession, getStoredUser, getToken, renovarToken } from '../lib/auth.js';
 import { calcularSalud, BLOCKERS, SEMAFORO, VENTANA_ONBOARDING } from '../lib/scoring.js';
 
 /** Latencia simulada: obliga a que los componentes manejen el estado de carga. */
@@ -2408,11 +2408,36 @@ async function pedirDeVerdad(path, options = {}) {
       `No se pudo hablar con el backend (${API_BASE}). ¿Está levantado en ese puerto?`,
     );
   }
+  // El backend renueva la sesión sola cuando al token le queda poco.
+  const renovado = respuesta.headers.get('X-Token-Nuevo');
+  if (renovado) renovarToken(renovado);
   if (!respuesta.ok) {
+    if (respuesta.status === 401 && !ES_LOGIN.test(path)) sesionVencida();
     const detalle = await respuesta.json().catch(() => null);
     throw new Error(comoTexto(detalle?.detail) || `El backend respondió ${respuesta.status}`);
   }
   return respuesta.json();
+}
+
+// Entrar con la clave mal también contesta 401: ahí no hay sesión que cerrar.
+const ES_LOGIN = /^\/api\/auth\/(login|google)/;
+
+/**
+ * Se venció el token (o la cuenta dejó de tener acceso): se borra y se va al login.
+ *
+ * Sin esto el token muerto quedaba guardado, la pantalla mostraba "Sesión inválida o
+ * vencida" como si fuera un error del sistema, y recargar no arreglaba nada: había que
+ * adivinar que la salida era tocar Salir.
+ */
+let yendoAlLogin = false;
+function sesionVencida() {
+  if (yendoAlLogin || typeof window === 'undefined') return;
+  yendoAlLogin = true;
+  clearSession();
+  invalidarCache();
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.assign('/login?vencida=1');
+  }
 }
 
 export async function login(username, password) {

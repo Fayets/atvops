@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src import schemas
-from src.services.auth_services import AuthServices
+from src.services.auth_services import AuthServices, renovar_token
 
 router = APIRouter()
 service = AuthServices()
@@ -10,11 +10,18 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
+    response: Response,
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> dict:
     if creds is None:
         raise HTTPException(status_code=401, detail="No autenticado.")
-    return service.usuario_desde_token(creds.credentials)
+    usuario = service.usuario_desde_token(creds.credentials)
+    # Si al token le queda poco, la respuesta se lleva uno nuevo y el navegador lo guarda
+    # solo: mientras alguien usa Ops la sesión no se le vence nunca.
+    nuevo = renovar_token(creds.credentials)
+    if nuevo:
+        response.headers["X-Token-Nuevo"] = nuevo
+    return usuario
 
 
 def solo_interno(user: dict = Depends(get_current_user)) -> dict:

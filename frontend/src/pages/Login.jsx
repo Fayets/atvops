@@ -9,7 +9,11 @@ export default function Login() {
   const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  // Llega así desde cualquier pantalla cuando el token se venció: sin decirlo, el que
+  // estaba trabajando aparece en el login sin saber por qué.
+  const [error, setError] = useState(
+    new URLSearchParams(location.search).has('vencida') ? 'Se venció tu sesión. Entrá de nuevo.' : '',
+  );
   const [loading, setLoading] = useState(false);
 
   const existing = getToken() && getStoredUser();

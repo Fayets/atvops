@@ -15,6 +15,15 @@ export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+/**
+ * Guarda el token que el backend renovó solo. No toca al usuario ni avisa a nadie: es el
+ * mismo de siempre con más tiempo, y disparar el evento de sesión rearmaría el menú de
+ * la nada en medio de lo que esté haciendo.
+ */
+export function renovarToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+}
+
 export function getStoredUser() {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null');
