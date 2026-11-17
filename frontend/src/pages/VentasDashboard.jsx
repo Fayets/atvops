@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import EmbudoVentas from '../components/ventas/EmbudoVentas.jsx';
 import { ErrorState, SkeletonBlock, SkeletonKpis } from '../components/ui/Loading.jsx';
 import { getEmbudoSetting, getMiEmbudo, getVentas } from '../data/api.js';
 import { useMes } from '../lib/MesContext.jsx';
-import { useResource } from '../lib/hooks.js';
+import { useRecargaSola, useResource } from '../lib/hooks.js';
 import { mesAnterior as anterior, mesId, nombreDelMes as nombreMes } from '../lib/format.js';
 
 /**
@@ -19,13 +19,17 @@ export default function VentasDashboard() {
   const { mes: elegido } = useMes();
   const mes = elegido || mesId();
   const previo = anterior(mes);
-  const { data, error, loading } = useResource(() => getVentas(mes), [mes]);
-  const embudo = useResource(() => getEmbudoSetting(mes), [mes]);
-  const embudoPrevio = useResource(() => getEmbudoSetting(previo), [previo]);
+  // El embudo se deja abierto mientras se cargan las llamadas en otra pestaña: sin esto
+  // muestra la foto de cuando se abrió y parece que cambiar un estado no hace nada.
+  const [tick, setTick] = useState(0);
+  useRecargaSola(useCallback(() => setTick((t) => t + 1), []));
+  const { data, error, loading } = useResource(() => getVentas(mes), [mes, tick]);
+  const embudo = useResource(() => getEmbudoSetting(mes), [mes, tick]);
+  const embudoPrevio = useResource(() => getEmbudoSetting(previo), [previo, tick]);
   // El filtro por closer: con uno elegido, el embudo sale de sus llamadas y arranca en las
   // agendas (los chats son del equipo y no se reparten).
   const [closer, setCloser] = useState('');
-  const delCloser = useResource(() => (closer ? getMiEmbudo(mes, closer) : Promise.resolve(null)), [mes, closer]);
+  const delCloser = useResource(() => (closer ? getMiEmbudo(mes, closer) : Promise.resolve(null)), [mes, closer, tick]);
 
   if (error) return <ErrorState error={error} />;
   if (loading || !data) {
